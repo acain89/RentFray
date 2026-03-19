@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Property {
+  id                  String               @id @default(uuid())
+  name                String
+  code                String               @unique
+  status              String               @default("PREVIEW")
+  timezone            String
+  createdAt           DateTime             @default(now())
+
+  units               Unit[]
+  tenants             Tenant[]
+  staff               StaffUser[]
+  settings            PropertySettings?
+  ledgerEntries       LedgerEntry[]
+  maintenanceRequests MaintenanceRequest[]
+}
+
+model PropertySettings {
+  id                String   @id @default(uuid())
+  propertyId        String   @unique
+  gracePeriodDays   Int
+  lateFeeType       String
+  lateFeeValue      Float
+  billingDay        Int
+  convenienceFeePct Float
+
+  property          Property @relation(fields: [propertyId], references: [id])
+}
+
+model Unit {
+  id                  String               @id @default(uuid())
+  propertyId          String
+  unitNumber          String
+  tier                String
+  marketRent          Float
+  occupancyStatus     String
+
+  property            Property             @relation(fields: [propertyId], references: [id])
+  assignments         UnitAssignment[]
+  ledgerEntries       LedgerEntry[]
+  maintenanceRequests MaintenanceRequest[]
+
+  @@unique([propertyId, unitNumber])
+}
+
+model Tenant {
+  id            String           @id @default(uuid())
+  propertyId    String
+  name          String
+  email         String
+  phone         String
+  pinHash       String
+  status        String
+
+  property      Property         @relation(fields: [propertyId], references: [id])
+  assignments   UnitAssignment[]
+  ledgerEntries LedgerEntry[]
+}
+
+model UnitAssignment {
+  id        String   @id @default(uuid())
+  unitId    String
+  tenantId  String
+  moveIn    DateTime
+  moveOut   DateTime?
+
+  unit      Unit     @relation(fields: [unitId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model StaffUser {
+  id          String   @id @default(uuid())
+  propertyId  String
+  role        String
+  displayName String
+
+  property    Property @relation(fields: [propertyId], references: [id])
+}
+
+model LedgerEntry {
+  id            String   @id @default(uuid())
+  propertyId    String
+  unitId        String?
+  tenantId      String?
+  type          String
+  amount        Float
+  effectiveDate DateTime @default(now())
+  createdAt     DateTime @default(now())
+  memo          String?
+  source        String?
+  sourceRef     String?
+
+  property      Property @relation(fields: [propertyId], references: [id])
+  unit          Unit?    @relation(fields: [unitId], references: [id])
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id])
+
+  @@index([propertyId, effectiveDate, createdAt])
+  @@index([unitId, effectiveDate, createdAt])
+  @@index([tenantId, effectiveDate, createdAt])
+  @@index([type])
+}
+
+model PaymentAllocation {
+  id            String @id @default(uuid())
+  paymentId     String
+  ledgerEntryId String
+  amount        Float
+}
+
+model MaintenanceRequest {
+  id          String   @id @default(uuid())
+  propertyId  String
+  unitId      String
+  tenantId    String?
+  category    String
+  urgency     String
+  status      String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  property    Property @relation(fields: [propertyId], references: [id])
+  unit        Unit     @relation(fields: [unitId], references: [id])
+}
