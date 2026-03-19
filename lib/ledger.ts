@@ -1,48 +1,58 @@
+// lib/ledger.ts
+
 import { prisma } from "@/lib/prisma";
 
-const PAYMENT_TYPES = new Set(["MANUAL_PAYMENT", "PAYMENT"]);
-const CHARGE_TYPES = new Set(["RENT_CHARGE", "LATE_FEE", "OTHER_FEE"]);
+export type LedgerSummary = {
+  balance: number;
+  totalCharges: number;
+  totalPaid: number;
+  lastPaymentDate: Date | null;
+  lastPaymentAmount: number | null;
+};
 
-export async function getUnitLedgerSummary(unitId: string) {
+export async function getUnitLedgerSummary(
+  unitId: string
+): Promise<LedgerSummary> {
   const entries = await prisma.ledgerEntry.findMany({
     where: { unitId },
-    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
+    orderBy: [
+      { effectiveDate: "asc" },
+      { createdAt: "asc" },
+    ],
   });
 
-  let runningBalance = 0;
-
+  let balance = 0;
   let totalCharges = 0;
-  let totalPaidRaw = 0;
+  let totalPaid = 0;
 
   let lastPaymentDate: Date | null = null;
-  let lastPaymentAmount = 0;
+  let lastPaymentAmount: number | null = null;
 
-  for (const e of entries) {
-    runningBalance += e.amount;
+  for (const entry of entries) {
+    const amount = Number(entry.amount || 0);
 
-    if (CHARGE_TYPES.has(e.type) && e.amount > 0) {
-      totalCharges += e.amount;
-    }
+    balance += amount;
 
-    if (PAYMENT_TYPES.has(e.type) && e.amount < 0) {
-      totalPaidRaw += e.amount;
+    if (amount > 0) {
+      totalCharges += amount;
+    } else if (amount < 0) {
+      totalPaid += Math.abs(amount);
 
       if (
         !lastPaymentDate ||
-        new Date(e.effectiveDate) > lastPaymentDate
+        new Date(entry.effectiveDate) > new Date(lastPaymentDate)
       ) {
-        lastPaymentDate = new Date(e.effectiveDate);
-        lastPaymentAmount = Math.abs(e.amount);
+        lastPaymentDate = new Date(entry.effectiveDate);
+        lastPaymentAmount = Math.abs(amount);
       }
     }
   }
 
   return {
-    balance: runningBalance,
+    balance,
     totalCharges,
-    totalPaid: Math.abs(totalPaidRaw),
+    totalPaid,
     lastPaymentDate,
     lastPaymentAmount,
-    entryCount: entries.length,
   };
 }

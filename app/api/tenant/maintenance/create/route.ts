@@ -1,30 +1,62 @@
+// app/api/tenant/maintenance/create/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+
+const VALID_CATEGORIES = [
+  "PLUMBING",
+  "ELECTRICAL",
+  "HVAC",
+  "APPLIANCE",
+  "PEST",
+  "LOCKS",
+  "GENERAL",
+] as const;
+
+const VALID_URGENCY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "TENANT" || !session.unitId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
 
-    const unitId = String(body.unitId || "").trim();
-    const category = String(body.category || "").trim();
-    const urgency = String(body.urgency || "").trim();
+    const category = String(body.category || "")
+      .trim()
+      .toUpperCase();
+    const urgency = String(body.urgency || "")
+      .trim()
+      .toUpperCase();
     const description = String(body.description || "").trim();
 
-    if (!unitId || !category || !urgency || !description) {
+    if (!category || !VALID_CATEGORIES.includes(category as (typeof VALID_CATEGORIES)[number])) {
+      return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+    }
+
+    if (!urgency || !VALID_URGENCY.includes(urgency as (typeof VALID_URGENCY)[number])) {
+      return NextResponse.json({ error: "Invalid urgency" }, { status: 400 });
+    }
+
+    if (!description || description.length < 5) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Description must be at least 5 characters" },
         { status: 400 }
       );
     }
 
-    const unit = await prisma.unit.findUnique({
-      where: { id: unitId },
-      include: {
-        assignments: {
-          where: { moveOut: null },
-          orderBy: { moveIn: "desc" },
-          include: { tenant: true },
-        },
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
+      },
+      select: {
+        id: true,
+        propertyId: true,
       },
     });
 
@@ -32,33 +64,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
-    const activeTenant = unit.assignments[0]?.tenant ?? null;
-
-    if (!activeTenant || activeTenant.status !== "ACTIVE") {
-      return NextResponse.json(
-        { error: "No active tenant for unit" },
-        { status: 400 }
-      );
-    }
-
-    const created = await prisma.maintenanceRequest.create({
+    const request = await prisma.maintenanceRequest.create({
       data: {
         propertyId: unit.propertyId,
         unitId: unit.id,
-        tenantId: activeTenant.id,
         category,
         urgency,
         status: "OPEN",
         description,
       },
+      select: {
+        id: true,
+        category: true,
+        urgency: true,
+        status: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
-    return NextResponse.json({ ok: true, requestId: created.id });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: "Failed to create maintenance request" },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      ok: true,
+      request,
+    });
+  } catch (error) {
+    console.error("tenant maintenance create POST error", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

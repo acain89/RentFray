@@ -2,57 +2,79 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifySessionToken } from "@/lib/session";
 
-function isProtected(path: string) {
-  return (
-    path.startsWith("/tenant") ||
-    path.startsWith("/manager") ||
-    path.startsWith("/maintenance")
-  );
+function getLoginPath(role?: string) {
+  if (role === "MANAGER") return "/login/manager";
+  if (role === "TENANT") return "/login/tenant";
+  if (role === "MAINTENANCE") return "/login/maintenance";
+  return "/property-code";
 }
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (!isProtected(pathname)) {
+  // Public routes (no auth required)
+  if (
+    pathname.startsWith("/property-code") ||
+    pathname.startsWith("/role-select") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api/auth/session") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon.ico") ||
+    pathname.startsWith("/public")
+  ) {
     return NextResponse.next();
   }
 
-  const sessionCookie = req.cookies.get("rf_session");
+  const token = req.cookies.get("rf_session")?.value;
 
-  if (!sessionCookie) {
+  if (!token) {
     return NextResponse.redirect(new URL("/property-code", req.url));
   }
 
-  try {
-    const session = JSON.parse(sessionCookie.value);
+  const session = verifySessionToken(token);
 
-    if (!session?.role || !session?.propertyId) {
-      return NextResponse.redirect(new URL("/property-code", req.url));
-    }
-
-    // Role-based protection
-    if (pathname.startsWith("/tenant") && session.role !== "TENANT") {
-      return NextResponse.redirect(new URL("/role-select", req.url));
-    }
-
-    if (pathname.startsWith("/manager") && session.role !== "MANAGER") {
-      return NextResponse.redirect(new URL("/role-select", req.url));
-    }
-
-    if (
-      pathname.startsWith("/maintenance") &&
-      session.role !== "MAINTENANCE"
-    ) {
-      return NextResponse.redirect(new URL("/role-select", req.url));
-    }
-
-    return NextResponse.next();
-  } catch {
-    return NextResponse.redirect(new URL("/property-code", req.url));
+  if (!session) {
+    const res = NextResponse.redirect(new URL("/property-code", req.url));
+    res.cookies.set("rf_session", "", { path: "/", expires: new Date(0) });
+    return res;
   }
+
+  // Role-based route protection
+
+  // MANAGER routes
+  if (pathname.startsWith("/manager")) {
+    if (session.role !== "MANAGER") {
+      return NextResponse.redirect(new URL(getLoginPath(session.role), req.url));
+    }
+  }
+
+  // TENANT routes
+  if (pathname.startsWith("/tenant")) {
+    if (session.role !== "TENANT") {
+      return NextResponse.redirect(new URL(getLoginPath(session.role), req.url));
+    }
+  }
+
+  // MAINTENANCE routes
+  if (pathname.startsWith("/maintenance")) {
+    if (session.role !== "MAINTENANCE") {
+      return NextResponse.redirect(new URL(getLoginPath(session.role), req.url));
+    }
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/tenant/:path*", "/manager/:path*", "/maintenance/:path*"],
+  matcher: [
+    /*
+      Protect all routes except:
+      - Next internals
+      - static files
+      - auth/public routes handled above
+    */
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
 };

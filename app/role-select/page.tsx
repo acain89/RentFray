@@ -1,105 +1,58 @@
+// app/role-select/page.tsx
+
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export default function RoleSelectPage() {
-  const params = useSearchParams();
-  const router = useRouter();
-
-  const code = params.get("code") || "";
-
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function verify() {
-      if (!code || code.length !== 4) {
-        setError("Invalid property code.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/public/property/lookup", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ code }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data?.error || "Invalid property.");
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Verification failed.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    verify();
-  }, [code]);
-
-  function go(role: "manager" | "tenant" | "maintenance") {
-    router.push(`/login/${role}?code=${code}`);
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-sm">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="max-w-sm w-full border rounded-xl p-6 text-center">
-          <div className="text-red-600 text-sm">{error}</div>
-          <button
-            onClick={() => router.push("/property-code")}
-            className="mt-4 w-full border rounded-lg py-2"
-          >
-            Back
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const searchParams = useSearchParams();
+  const code = searchParams.get("code") || "";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm border rounded-xl p-6 shadow-sm text-center">
-        <h1 className="text-xl font-semibold">Select Role</h1>
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
+        <div className="w-full">
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight">Select Role</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              Choose how you want to sign in.
+            </p>
+          </div>
 
-        <div className="mt-6 space-y-3">
-          <button
-            onClick={() => go("manager")}
-            className="w-full bg-black text-white py-3 rounded-lg"
-          >
-            Manager
-          </button>
+          <div className="space-y-3">
+            <Link
+              href={`/login/manager?code=${encodeURIComponent(code)}`}
+              className="block w-full rounded-xl border border-neutral-300 px-4 py-4 text-center text-sm font-medium transition hover:border-black"
+            >
+              Manager
+            </Link>
 
-          <button
-            onClick={() => go("tenant")}
-            className="w-full bg-black text-white py-3 rounded-lg"
-          >
-            Tenant
-          </button>
+            <Link
+              href={`/login/tenant?code=${encodeURIComponent(code)}`}
+              className="block w-full rounded-xl border border-neutral-300 px-4 py-4 text-center text-sm font-medium transition hover:border-black"
+            >
+              Tenant
+            </Link>
 
-          <button
-            onClick={() => go("maintenance")}
-            className="w-full bg-black text-white py-3 rounded-lg"
-          >
-            Maintenance
-          </button>
+            <Link
+              href={`/login/maintenance?code=${encodeURIComponent(code)}`}
+              className="block w-full rounded-xl border border-neutral-300 px-4 py-4 text-center text-sm font-medium transition hover:border-black"
+            >
+              Maintenance
+            </Link>
+          </div>
+
+          <div className="mt-6">
+            <Link
+              href="/property-code"
+              className="text-sm text-neutral-600 underline underline-offset-4"
+            >
+              Back
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

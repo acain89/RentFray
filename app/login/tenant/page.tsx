@@ -1,3 +1,5 @@
+// app/login/tenant/page.tsx
+
 "use client";
 
 import { useState } from "react";
@@ -5,120 +7,117 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 export default function TenantLoginPage() {
   const router = useRouter();
-  const params = useSearchParams();
-
-  const code = params.get("code") || "";
+  const searchParams = useSearchParams();
+  const propertyCode = searchParams.get("code") || "";
 
   const [unitNumber, setUnitNumber] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function cleanUnit(value: string) {
-    return value.trim().toUpperCase();
-  }
-
-  function cleanPin(value: string) {
-    return value.replace(/\D/g, "").slice(0, 4);
-  }
-
-  async function handleLogin(e?: React.FormEvent) {
-    e?.preventDefault();
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
 
     if (loading) return;
 
-    setError("");
-
-    if (!code || code.length !== 4) {
-      setError("Invalid property code.");
+    if (!propertyCode) {
+      setError("Missing property code.");
       return;
     }
 
-    if (!unitNumber.trim()) {
-      setError("Unit number required.");
-      return;
-    }
-
-    if (pin.length !== 4) {
-      setError("Enter 4-digit PIN.");
+    if (!unitNumber.trim() || !pin.trim()) {
+      setError("Enter unit number and PIN.");
       return;
     }
 
     setLoading(true);
+    setError("");
 
     try {
-      const res = await fetch("/api/tenant/session", {
+      const res = await fetch("/api/auth/session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          propertyCode: code,
-          unitNumber: cleanUnit(unitNumber),
-          pin: pin,
+          role: "TENANT",
+          propertyCode,
+          unitNumber: unitNumber.trim(),
+          pin: pin.trim(),
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Login failed.");
+        setError(data?.error || "Login failed.");
+        setLoading(false);
+        return;
       }
 
-      // redirect to tenant dashboard
-      router.push("/tenant");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
-    } finally {
+      router.push("/tenant/dashboard");
+    } catch {
+      setError("Login error.");
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm border rounded-xl p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-center">
-          Tenant Login
-        </h1>
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
+        <div className="w-full">
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight">Tenant Login</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              Enter your unit number and PIN.
+            </p>
+          </div>
 
-        <div className="mt-2 text-center text-sm text-gray-500">
-          Property Code: {code}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Unit Number
+              </label>
+              <input
+                type="text"
+                value={unitNumber}
+                onChange={(e) => setUnitNumber(e.target.value)}
+                className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
+                placeholder="101"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">PIN</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
+                placeholder="••••"
+              />
+            </div>
+
+            {error ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {loading ? "Signing in..." : "Login"}
+            </button>
+          </form>
         </div>
-
-        <form onSubmit={handleLogin} className="mt-6 space-y-4">
-          <div>
-            <input
-              value={unitNumber}
-              onChange={(e) => setUnitNumber(e.target.value)}
-              placeholder="Unit Number (e.g. 101)"
-              className="w-full border rounded-lg px-3 py-3 outline-none text-center"
-            />
-          </div>
-
-          <div>
-            <input
-              value={pin}
-              onChange={(e) => setPin(cleanPin(e.target.value))}
-              inputMode="numeric"
-              maxLength={4}
-              placeholder="4-digit PIN"
-              className="w-full border rounded-lg px-3 py-3 outline-none text-center tracking-widest"
-            />
-          </div>
-
-          {error ? (
-            <div className="text-sm text-red-600 text-center">{error}</div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white py-3 rounded-lg font-medium disabled:opacity-50"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
       </div>
-    </div>
+    </main>
   );
 }

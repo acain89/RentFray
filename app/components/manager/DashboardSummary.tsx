@@ -1,59 +1,41 @@
-"use client";
+// app/components/manager/DashboardSummary.tsx
 
-type DashboardSummaryData = {
-  paidSinceClose: number;
-  newPayments: number;
-  delinquentUnits: number;
-  openMaintenance: number;
+type DashboardSummaryProps = {
+  totalUnits: number;
+  occupiedUnits: number;
   vacantUnits: number;
+  delinquentUnits: number;
 };
-
-function money(value: number) {
-  return `$${Number(value || 0).toFixed(2)}`;
-}
-
-export default function DashboardSummary({
-  summary,
-}: {
-  summary: DashboardSummaryData;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-      <SummaryCard
-        label="Paid Since Close"
-        value={money(summary.paidSinceClose)}
-      />
-      <SummaryCard
-        label="New Payments"
-        value={String(summary.newPayments)}
-      />
-      <SummaryCard
-        label="Delinquent Units"
-        value={String(summary.delinquentUnits)}
-      />
-      <SummaryCard
-        label="Open Maintenance"
-        value={String(summary.openMaintenance)}
-      />
-      <SummaryCard
-        label="Vacant Units"
-        value={String(summary.vacantUnits)}
-      />
-    </div>
-  );
-}
 
 function SummaryCard({
   label,
   value,
 }: {
   label: string;
-  value: string;
+  value: number;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
+    <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+      <div className="text-sm font-medium text-neutral-600">{label}</div>
+      <div className="mt-2 text-3xl font-semibold tracking-tight text-black">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardSummary({
+  totalUnits,
+  occupiedUnits,
+  vacantUnits,
+  delinquentUnits,
+}: DashboardSummaryProps) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <SummaryCard label="Total Units" value={totalUnits} />
+      <SummaryCard label="Occupied" value={occupiedUnits} />
+      <SummaryCard label="Vacant" value={vacantUnits} />
+      <SummaryCard label="Delinquent" value={delinquentUnits} />
     </div>
   );
 }

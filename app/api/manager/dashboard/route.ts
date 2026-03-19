@@ -1,139 +1,132 @@
 // app/api/manager/dashboard/route.ts
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-
-function getCutoffDate() {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon
-
-  const cutoff = new Date(now);
-
-  // set to 5:00 PM
-  cutoff.setHours(17, 0, 0, 0);
-
-  if (day === 1) {
-    // Monday → go back to Friday 5 PM
-    cutoff.setDate(cutoff.getDate() - 3);
-  } else {
-    // Other weekdays → yesterday 5 PM
-    cutoff.setDate(cutoff.getDate() - 1);
-  }
-
-  return cutoff;
-}
+import { getSession } from "@/lib/session";
+import { getUnitLedgerSummary } from "@/lib/ledger";
+import { getUnitDelinquencySummary } from "@/lib/delinquency";
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
-    const sessionCookie = cookieStore.get("rf_session");
+    const session = await getSession();
 
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const session = JSON.parse(sessionCookie.value);
-
-    if (session.role !== "MANAGER" || !session.propertyId) {
+    if (!session || session.role !== "MANAGER") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const propertyId = session.propertyId;
-    const cutoff = getCutoffDate();
 
-    // Units + assignments
-    const units = await prisma.unit.findMany({
-      where: { propertyId },
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
       include: {
-        assignments: {
-          where: { moveOut: null },
-          include: { tenant: true },
+        units: {
+          include: {
+            assignments: {
+              where: { moveOut: null },
+              include: { tenant: true },
+              take: 1,
+            },
+          },
         },
       },
     });
 
-    // Ledger entries since cutoff
-    const ledgerEntries = await prisma.ledgerEntry.findMany({
-      where: {
-        propertyId,
-        createdAt: { gte: cutoff },
-      },
-    });
-
-    // Maintenance since cutoff
-    const maintenance = await prisma.maintenanceRequest.findMany({
-      where: {
-        propertyId,
-        createdAt: { gte: cutoff },
-      },
-    });
-
-    let paidSinceClose = 0;
-    let newPayments = 0;
-
-    for (const entry of ledgerEntries) {
-      if (Number(entry.amount) < 0) {
-        paidSinceClose += Math.abs(Number(entry.amount));
-        newPayments++;
-      }
+    if (!property) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    // Status counts (basic version)
-    let paid = 0;
-    let delinquent = 0;
-    let partial = 0;
-    let grace = 0;
-    let vacant = 0;
+    let totalUnits = property.units.length;
+    let occupiedUnits = 0;
+    let vacantUnits = 0;
 
-    for (const unit of units) {
-      const hasTenant = unit.assignments.length > 0;
+    let totalExpected = 0;
+    let totalCollected = 0;
 
-      if (!hasTenant) {
-        vacant++;
-        continue;
+    let delinquentCount = 0;
+
+    const unitSummaries = [];
+
+    for (const unit of property.units) {
+      const activeAssignment = unit.assignments[0] ?? null;
+
+      if (activeAssignment) {
+        occupiedUnits++;
+      } else {
+        vacantUnits++;
       }
 
-      // TEMP: basic status logic (refine later)
-      const entries = await prisma.ledgerEntry.findMany({
-        where: { unitId: unit.id },
-      });
+      const ledger = await getUnitLedgerSummary(unit.id);
+      const delinquency = await getUnitDelinquencySummary(unit.id);
 
-      const balance = entries.reduce(
-        (sum, e) => sum + Number(e.amount),
-        0
+      const rent = Number(unit.marketRent || 0);
+
+      totalExpected += rent;
+
+      // CRITICAL FIX: only count payments THIS MONTH
+      const monthStart = new Date(
+        new Date().getFullYear(),
+        new Date().getMonth(),
+        1
       );
 
-      if (balance <= 0) {
-        paid++;
-      } else {
-        delinquent++; // simplified for now
+      const monthPayments = await prisma.ledgerEntry.aggregate({
+        where: {
+          unitId: unit.id,
+          amount: { lt: 0 },
+          effectiveDate: { gte: monthStart },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+
+      const collectedForUnit = Math.abs(
+        Number(monthPayments._sum.amount || 0)
+      );
+
+      totalCollected += collectedForUnit;
+
+      if (delinquency.isDelinquent) {
+        delinquentCount++;
       }
+
+      unitSummaries.push({
+        unitId: unit.id,
+        unitNumber: unit.unitNumber,
+        tenantName: activeAssignment?.tenant?.fullName || null,
+        balance: ledger.balance,
+        isDelinquent: delinquency.isDelinquent,
+        daysPastDue: delinquency.daysPastDue,
+      });
     }
 
     return NextResponse.json({
       ok: true,
-      cutoff,
+      property: {
+        id: property.id,
+        name: property.name,
+        code: property.code,
+      },
       summary: {
-        paidSinceClose,
-        newPayments,
-        delinquentUnits: delinquent,
-        openMaintenance: maintenance.length,
-        vacantUnits: vacant,
+        totalUnits,
+        occupiedUnits,
+        vacantUnits,
+        delinquentUnits: delinquentCount,
       },
-      counts: {
-        paid,
-        grace,
-        partial,
-        delinquent,
-        vacant,
+      financials: {
+        expected: totalExpected,
+        collected: totalCollected,
+        collectionRate:
+          totalExpected > 0 ? totalCollected / totalExpected : 0,
       },
+      units: unitSummaries.sort((a, b) => {
+        if (a.isDelinquent && !b.isDelinquent) return -1;
+        if (!a.isDelinquent && b.isDelinquent) return 1;
+        return a.unitNumber.localeCompare(b.unitNumber);
+      }),
     });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: "Failed to load dashboard" },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error("manager dashboard GET error", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

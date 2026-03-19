@@ -1,3 +1,5 @@
+// app/login/manager/page.tsx
+
 "use client";
 
 import { useState } from "react";
@@ -5,111 +7,102 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ManagerLoginPage() {
   const router = useRouter();
-  const params = useSearchParams();
+  const searchParams = useSearchParams();
+  const propertyCode = searchParams.get("code") || "";
 
-  const code = params.get("code") || "";
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e?: React.FormEvent) {
-    e?.preventDefault();
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
 
     if (loading) return;
 
-    setError("");
-
-    if (!code || code.length !== 4) {
-      setError("Invalid property code.");
+    if (!propertyCode) {
+      setError("Missing property code.");
       return;
     }
 
-    if (!email.trim()) {
-      setError("Email required.");
-      return;
-    }
-
-    if (!password) {
-      setError("Password required.");
+    if (!pin.trim()) {
+      setError("Enter PIN.");
       return;
     }
 
     setLoading(true);
+    setError("");
 
     try {
-      const res = await fetch("/api/manager/session", {
+      const res = await fetch("/api/auth/session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          propertyCode: code,
-          email: email.trim().toLowerCase(),
-          password,
+          role: "MANAGER",
+          propertyCode,
+          pin: pin.trim(),
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Login failed.");
+        setError(data?.error || "Login failed.");
+        setLoading(false);
+        return;
       }
 
-      router.push("/manager");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
-    } finally {
+      router.push("/manager/dashboard");
+    } catch {
+      setError("Login error.");
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm border rounded-xl p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-center">
-          Manager Login
-        </h1>
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
+        <div className="w-full">
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight">Manager Login</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              Enter your manager PIN.
+            </p>
+          </div>
 
-        <div className="mt-2 text-center text-sm text-gray-500">
-          Property Code: {code}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium">PIN</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
+                placeholder="••••"
+              />
+            </div>
+
+            {error ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {loading ? "Signing in..." : "Login"}
+            </button>
+          </form>
         </div>
-
-        <form onSubmit={handleLogin} className="mt-6 space-y-4">
-          <div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Manager Email"
-              className="w-full border rounded-lg px-3 py-3 outline-none text-center"
-            />
-          </div>
-
-          <div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full border rounded-lg px-3 py-3 outline-none text-center"
-            />
-          </div>
-
-          {error ? (
-            <div className="text-sm text-red-600 text-center">{error}</div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white py-3 rounded-lg font-medium disabled:opacity-50"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
       </div>
-    </div>
+    </main>
   );
-}s
+}

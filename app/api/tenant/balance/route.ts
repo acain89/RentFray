@@ -1,30 +1,46 @@
+// app/api/tenant/balance/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
-import { cookies } from "next/headers";
+import { getUnitDelinquencySummary } from "@/lib/delinquency";
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
-    const sessionCookie = cookieStore.get("rf_session");
+    const session = await getSession();
 
-    if (!sessionCookie) {
+    if (!session || session.role !== "TENANT" || !session.unitId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const session = JSON.parse(sessionCookie.value);
-
-    if (session.role !== "TENANT" || !session.unitId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const unit = await prisma.unit.findUnique({
-      where: { id: session.unitId },
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
+      },
       include: {
-        property: true,
+        property: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
         assignments: {
           where: { moveOut: null },
-          include: { tenant: true },
+          orderBy: { moveIn: "desc" },
+          include: {
+            tenant: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+          take: 1,
         },
       },
     });
@@ -34,19 +50,38 @@ export async function GET() {
     }
 
     const ledger = await getUnitLedgerSummary(unit.id);
+    const delinquency = await getUnitDelinquencySummary(unit.id);
+
+    const activeAssignment = unit.assignments[0] || null;
 
     return NextResponse.json({
       ok: true,
-      propertyName: unit.property.name,
-      unitNumber: unit.unitNumber,
-      balance: ledger.balance,
-      totalCharges: ledger.totalCharges,
-      totalPaid: ledger.totalPaid,
+      property: unit.property,
+      unit: {
+        id: unit.id,
+        unitNumber: unit.unitNumber,
+        bedrooms: unit.bedrooms,
+        bathrooms: unit.bathrooms,
+        squareFeet: unit.squareFeet,
+        marketRent: unit.marketRent,
+      },
+      tenant: activeAssignment?.tenant || null,
+      balance: {
+        currentBalance: ledger.balance,
+        totalCharges: ledger.totalCharges,
+        totalPaid: ledger.totalPaid,
+        lastPaymentDate: ledger.lastPaymentDate,
+        lastPaymentAmount: ledger.lastPaymentAmount,
+      },
+      delinquency: {
+        isDelinquent: delinquency.isDelinquent,
+        daysPastDue: delinquency.daysPastDue,
+        lateFeesOwed: delinquency.lateFeesOwed,
+        unpaidRent: delinquency.unpaidRent,
+      },
     });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to load balance" },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error("tenant balance GET error", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

@@ -1,78 +1,77 @@
+// app/manager/maintenance/page.tsx
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type MaintenanceRow = {
+type MaintenanceRequestRow = {
   id: string;
-  propertyId: string;
-  propertyName: string;
-  unitId: string;
-  unitNumber: string;
-  tenantId?: string | null;
   category: string;
   urgency: string;
   status: string;
   description: string;
-  internalNotes: string;
   createdAt: string;
   updatedAt: string;
+  unit: {
+    id: string;
+    unitNumber: string;
+  } | null;
 };
 
-type QueueData = {
+type MaintenanceResponse = {
   ok: true;
-  requests: MaintenanceRow[];
+  requests: MaintenanceRequestRow[];
 };
+
+const STATUS_OPTIONS = ["OPEN", "IN_PROGRESS", "COMPLETED", "CLOSED"] as const;
 
 function fmtDateTime(value: string) {
   return new Date(value).toLocaleString("en-US");
 }
 
 export default function ManagerMaintenancePage() {
-  const [data, setData] = useState<QueueData | null>(null);
-  const [error, setError] = useState("");
+  const [requests, setRequests] = useState<MaintenanceRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
-  const [notesDrafts, setNotesDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
-  async function load() {
+  async function loadRequests() {
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      setError("");
-
       const res = await fetch("/api/manager/maintenance", {
-        method: "GET",
+        cache: "no-store",
       });
 
-      const result = await res.json();
+      const data = (await res.json()) as MaintenanceResponse | { error?: string };
 
       if (!res.ok) {
-        setError(result?.error || "Failed to load maintenance queue.");
+        setError(data?.error || "Failed to load maintenance requests.");
+        setLoading(false);
         return;
       }
 
-      setData(result);
-
-      const nextDrafts: Record<string, string> = {};
-      for (const row of result.requests || []) {
-        nextDrafts[row.id] = row.internalNotes || "";
-      }
-      setNotesDrafts(nextDrafts);
+      setRequests(data.requests || []);
+      setLoading(false);
     } catch {
-      setError("Failed to load maintenance queue.");
-    } finally {
+      setError("Failed to load maintenance requests.");
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    loadRequests();
   }, []);
 
   async function updateStatus(requestId: string, status: string) {
-    try {
-      setSavingId(requestId);
-      setError("");
+    if (savingId) return;
 
+    setSavingId(requestId);
+    setError("");
+
+    try {
       const res = await fetch("/api/manager/maintenance/update", {
         method: "POST",
         headers: {
@@ -84,166 +83,122 @@ export default function ManagerMaintenancePage() {
         }),
       });
 
-      const result = await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
-        setError(result?.error || "Failed to update request.");
+        setError(data?.error || "Failed to update request.");
+        setSavingId("");
         return;
       }
 
-      await load();
+      setRequests((prev) =>
+        prev.map((row) =>
+          row.id === requestId
+            ? {
+                ...row,
+                status: data.request.status,
+                updatedAt: data.request.updatedAt,
+              }
+            : row
+        )
+      );
+
+      setSavingId("");
     } catch {
       setError("Failed to update request.");
-    } finally {
       setSavingId("");
     }
   }
 
-  async function saveNotes(requestId: string) {
-    try {
-      setSavingId(requestId);
-      setError("");
-
-      const res = await fetch("/api/manager/maintenance/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          requestId,
-          internalNotes: notesDrafts[requestId] || "",
-        }),
-      });
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        setError(result?.error || "Failed to save notes.");
-        return;
-      }
-
-      await load();
-    } catch {
-      setError("Failed to save notes.");
-    } finally {
-      setSavingId("");
-    }
-  }
-
-  if (loading) return <div className="p-6">Loading...</div>;
+  const filteredRequests = useMemo(() => {
+    if (statusFilter === "ALL") return requests;
+    return requests.filter((row) => row.status === statusFilter);
+  }, [requests, statusFilter]);
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Maintenance Queue</h1>
-        <div className="text-sm text-gray-600">
-          Manager maintenance request view
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">Maintenance</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              Review and update property maintenance requests.
+            </p>
+          </div>
+
+          <div className="w-full sm:w-56">
+            <label className="mb-2 block text-sm font-medium">Status Filter</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
+            >
+              <option value="ALL">All</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+          {loading ? (
+            <div className="p-6 text-sm text-neutral-600">Loading...</div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="p-6 text-sm text-neutral-600">No maintenance requests found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50 text-left text-sm">
+                    <th className="px-4 py-3 font-medium">Unit</th>
+                    <th className="px-4 py-3 font-medium">Category</th>
+                    <th className="px-4 py-3 font-medium">Urgency</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Description</th>
+                    <th className="px-4 py-3 font-medium">Created</th>
+                    <th className="px-4 py-3 font-medium">Update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((row) => (
+                    <tr key={row.id} className="border-b border-neutral-100 align-top">
+                      <td className="px-4 py-3 text-sm">{row.unit?.unitNumber || "—"}</td>
+                      <td className="px-4 py-3 text-sm">{row.category}</td>
+                      <td className="px-4 py-3 text-sm">{row.urgency}</td>
+                      <td className="px-4 py-3 text-sm">{row.status}</td>
+                      <td className="px-4 py-3 text-sm">{row.description}</td>
+                      <td className="px-4 py-3 text-sm">{fmtDateTime(row.createdAt)}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <select
+                          value={row.status}
+                          disabled={savingId === row.id}
+                          onChange={(e) => updateStatus(row.id, e.target.value)}
+                          className="w-full min-w-[160px] rounded-xl border border-neutral-300 px-3 py-2 outline-none focus:border-black disabled:opacity-60"
+                        >
+                          {STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
-
-      {error ? <div className="text-sm text-red-600">{error}</div> : null}
-
-      {!data?.requests?.length ? (
-        <div className="rounded border p-3 text-sm text-gray-500">
-          No maintenance requests found.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {data.requests.map((row) => (
-            <div key={row.id} className="space-y-4 rounded border p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
-                <div>
-                  <div className="text-xs text-gray-500">Property</div>
-                  <div className="font-medium">{row.propertyName}</div>
-                </div>
-
-                <div>
-                  <div className="text-xs text-gray-500">Unit</div>
-                  <div>{row.unitNumber}</div>
-                </div>
-
-                <div>
-                  <div className="text-xs text-gray-500">Category</div>
-                  <div>{row.category}</div>
-                </div>
-
-                <div>
-                  <div className="text-xs text-gray-500">Urgency</div>
-                  <div>{row.urgency}</div>
-                </div>
-
-                <div>
-                  <div className="text-xs text-gray-500">Submitted</div>
-                  <div>{fmtDateTime(row.createdAt)}</div>
-                </div>
-
-                <div>
-                  <div className="text-xs text-gray-500">Status</div>
-                  <select
-                    value={row.status}
-                    onChange={(e) => updateStatus(row.id, e.target.value)}
-                    disabled={savingId === row.id}
-                    className="w-full rounded border px-2 py-2"
-                  >
-                    <option value="OPEN">OPEN</option>
-                    <option value="IN_PROGRESS">IN PROGRESS</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                    <option value="CLOSED">CLOSED</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs text-gray-500">Description</div>
-                <div>{row.description}</div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-xs text-gray-500">Internal Notes</div>
-                <textarea
-                  value={notesDrafts[row.id] || ""}
-                  onChange={(e) =>
-                    setNotesDrafts((prev) => ({
-                      ...prev,
-                      [row.id]: e.target.value,
-                    }))
-                  }
-                  rows={4}
-                  className="w-full rounded border px-3 py-2"
-                  placeholder="Add manager-only notes..."
-                />
-                <button
-                  type="button"
-                  onClick={() => saveNotes(row.id)}
-                  disabled={savingId === row.id}
-                  className="rounded border px-3 py-2 text-sm"
-                >
-                  {savingId === row.id ? "Saving..." : "Save Notes"}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <div className="text-xs text-gray-500">Last Updated</div>
-                  <div>{fmtDateTime(row.updatedAt)}</div>
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      (window.location.href = `/manager/units/${row.unitId}`)
-                    }
-                    className="rounded border px-3 py-2 text-sm"
-                  >
-                    Open Unit
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </main>
   );
 }

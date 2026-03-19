@@ -1,74 +1,52 @@
+// app/api/payments/create-session/route.ts
+
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getUnitLedgerSummary } from "@/lib/ledger";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2024-06-20",
+});
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "TENANT" || !session.unitId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
+    const amount = Number(body.amount || 0);
 
-    const unitId = String(body.unitId || "").trim();
-    const rawAmount = Number(body.amount || 0);
-
-    if (!unitId || rawAmount <= 0) {
+    if (!amount || amount <= 0) {
       return NextResponse.json(
-        { error: "Invalid payment request" },
+        { error: "Invalid amount" },
         { status: 400 }
       );
     }
 
-    const unit = await prisma.unit.findUnique({
-      where: { id: unitId },
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
+      },
       include: {
         property: true,
-        assignments: {
-          where: { moveOut: null },
-          include: { tenant: true },
-        },
       },
     });
 
     if (!unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-    }
-
-    const propertyStatus = String(unit.property?.status || "PREVIEW").toUpperCase();
-    if (propertyStatus !== "LIVE") {
       return NextResponse.json(
-        { error: "Payments are disabled for this property." },
-        { status: 403 }
+        { error: "Unit not found" },
+        { status: 404 }
       );
     }
 
-    const tenant = unit.assignments[0]?.tenant;
-    if (!tenant) {
-      return NextResponse.json(
-        { error: "No active tenant" },
-        { status: 400 }
-      );
-    }
-
-    const summary = await getUnitLedgerSummary(unit.id);
-    const balance = Number(summary.balance || 0);
-
-    if (balance <= 0) {
-      return NextResponse.json({ error: "No balance due" }, { status: 400 });
-    }
-
-    const amount = Number(rawAmount.toFixed(2));
-
-    if (amount > balance) {
-      return NextResponse.json(
-        { error: "Amount exceeds current balance" },
-        { status: 400 }
-      );
-    }
-
-    const session = await stripe.checkout.sessions.create({
+    const checkout = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
+      payment_method_types: ["us_bank_account"],
       line_items: [
         {
           price_data: {
@@ -82,19 +60,21 @@ export async function POST(req: Request) {
         },
       ],
       metadata: {
-        unitId: unit.id,
-        tenantId: tenant.id,
-        amount: String(amount),
+        propertyId: session.propertyId,
+        unitId: session.unitId,
       },
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment-success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment-cancel`,
+      success_url: `${process.env.APP_URL}/tenant/payment-history`,
+      cancel_url: `${process.env.APP_URL}/tenant/dashboard`,
     });
 
-    return NextResponse.json({ url: session.url });
-  } catch (err) {
-    console.error(err);
+    return NextResponse.json({
+      ok: true,
+      url: checkout.url,
+    });
+  } catch (error) {
+    console.error("create-session error", error);
     return NextResponse.json(
-      { error: "Failed to create session" },
+      { error: "Server error" },
       { status: 500 }
     );
   }
