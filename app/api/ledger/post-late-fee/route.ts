@@ -1,105 +1,140 @@
+// app/api/ledger/post-late-fee/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUnitLedgerSummary } from "@/lib/ledger";
-import { getUnitDelinquencySummary } from "@/lib/delinquency";
-import { getPropertySettings } from "@/lib/propertySettings";
-import { getLateFeePreview } from "@/lib/lateFees";
+import { getSession } from "@/lib/session";
+import { canManageFinancials } from "@/lib/financialAccess";
 
-export async function POST(req: Request) {
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+export async function POST() {
   try {
-    const body = await req.json();
-    const unitId = String(body.unitId || "");
+    const session = await getSession();
 
-    if (!unitId) {
-      return NextResponse.json({ error: "Missing unitId" }, { status: 400 });
+    if (!session || !session.propertyId || !canManageFinancials(session.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const unit = await prisma.unit.findUnique({
-      where: { id: unitId },
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+
+    const property = await prisma.property.findUnique({
+      where: { id: session.propertyId },
       include: {
-        assignments: {
-          where: { moveOut: null },
-          include: { tenant: true },
+        settings: true,
+        units: {
+          include: {
+            assignments: {
+              where: { moveOut: null },
+              take: 1,
+            },
+          },
         },
       },
     });
 
-    if (!unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    if (!property || !property.settings) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    const activeTenant = unit.assignments[0]?.tenant;
+    const lateFeeAmount = Number(property.settings.lateFeeDefault ?? 0);
 
-    // ✅ HARD GUARD
-    if (!activeTenant) {
-      return NextResponse.json(
-        { error: "No active tenant for unit" },
-        { status: 400 }
-      );
+    if (lateFeeAmount <= 0) {
+      return NextResponse.json({ error: "Late fee default is not configured" }, { status: 400 });
     }
 
-    const summary = await getUnitLedgerSummary(unit.id);
-    const delinquency = await getUnitDelinquencySummary(unit.id);
-    const settings = await getPropertySettings(unit.propertyId);
+    let posted = 0;
+    let skipped = 0;
 
-    const preview = getLateFeePreview({
-      balance: summary.balance,
-      isDelinquent: delinquency.isDelinquent,
-      settings,
-    });
+    for (const unit of property.units) {
+      const occupied = unit.assignments.length > 0;
+      if (!occupied) {
+        skipped += 1;
+        continue;
+      }
 
-    // ❌ not eligible
-    if (!preview.eligible) {
-      return NextResponse.json(
-        { error: "Late fee not eligible" },
-        { status: 400 }
-      );
+      const existingLateFee = await prisma.ledgerEntry.findFirst({
+        where: {
+          propertyId: property.id,
+          unitId: unit.id,
+          type: "LATE_FEE",
+          effectiveDate: {
+            gte: monthStart,
+            lte: monthEnd,
+          },
+        },
+      });
+
+      if (existingLateFee) {
+        skipped += 1;
+        continue;
+      }
+
+      const monthEntries = await prisma.ledgerEntry.findMany({
+        where: {
+          propertyId: property.id,
+          unitId: unit.id,
+          effectiveDate: {
+            gte: monthStart,
+            lte: monthEnd,
+          },
+        },
+      });
+
+      const balance = monthEntries.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+      if (balance <= 0) {
+        skipped += 1;
+        continue;
+      }
+
+      await prisma.ledgerEntry.create({
+        data: {
+          propertyId: property.id,
+          unitId: unit.id,
+          type: "LATE_FEE",
+          amount: lateFeeAmount,
+          description: `Late fee - ${monthStart.toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          })}`,
+          effectiveDate: now,
+        },
+      });
+
+      posted += 1;
     }
 
-    // ❌ invalid amount
-    if (!preview.recommendedLateFee || preview.recommendedLateFee <= 0) {
-      return NextResponse.json(
-        { error: "Invalid late fee amount" },
-        { status: 400 }
-      );
-    }
-
-    // ❌ duplicate same day
-    const existing = await prisma.ledgerEntry.findFirst({
-      where: {
-        unitId: unit.id,
-        type: "LATE_FEE",
-        effectiveDate: new Date(),
-      },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "Late fee already posted for today" },
-        { status: 400 }
-      );
-    }
-
-    // ✅ POST
-    await prisma.ledgerEntry.create({
+    await prisma.auditLog.create({
       data: {
-        propertyId: unit.propertyId,
-        unitId: unit.id,
-        tenantId: activeTenant.id,
-        type: "LATE_FEE",
-        amount: Number(preview.recommendedLateFee),
-        effectiveDate: new Date(),
-        memo: "Late fee",
-        source: "SYSTEM",
+        propertyId: property.id,
+        actorRole: session.role,
+        actorLabel: session.managementUserId || "management",
+        action: "LATE_FEES_POSTED",
+        entityType: "PROPERTY",
+        entityId: property.id,
+        notes: JSON.stringify({
+          posted,
+          skipped,
+          month: monthStart.toISOString(),
+        }),
       },
     });
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: "Failed to post late fee" },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      ok: true,
+      posted,
+      skipped,
+    });
+  } catch (error) {
+    console.error("POST /api/ledger/post-late-fee error:", error);
+    return NextResponse.json({ error: "Failed to post late fees" }, { status: 500 });
   }
 }

@@ -8,10 +8,10 @@ export async function GET() {
   try {
     const session = await getSession();
 
-    // ✅ allow BOTH manager + maintenance
     if (
       !session ||
-      (session.role !== "MANAGER" && session.role !== "MAINTENANCE")
+      !["OWNER", "MANAGER", "STAFF"].includes(session.role) ||
+      !session.propertyId
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -20,14 +20,12 @@ export async function GET() {
       where: {
         propertyId: session.propertyId,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: [{ createdAt: "desc" }],
       include: {
         unit: {
           select: {
-            id: true,
             unitNumber: true,
+            tenantName: true,
           },
         },
       },
@@ -35,19 +33,20 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      requests: requests.map((r) => ({
-        id: r.id,
-        category: r.category,
-        urgency: r.urgency,
-        status: r.status,
-        description: r.description,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-        unitNumber: r.unit.unitNumber,
+      requests: requests.map((row) => ({
+        id: row.id,
+        unitNumber: row.unit.unitNumber,
+        tenantName: row.unit.tenantName,
+        category: row.category,
+        urgency: row.urgency,
+        status: row.status,
+        description: row.description,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       })),
     });
   } catch (error) {
-    console.error("maintenance GET error", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("GET /api/manager/maintenance error:", error);
+    return NextResponse.json({ error: "Failed to load maintenance" }, { status: 500 });
   }
 }

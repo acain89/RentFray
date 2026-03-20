@@ -1,8 +1,10 @@
 // app/api/admin/properties/[id]/lifecycle/route.ts
+// [path: app/api/admin/properties/[id]/lifecycle/route.ts]
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { getLiveReadiness } from "@/lib/liveGating";
 
 const ALLOWED_STATUSES = ["SETUP", "TEST", "READY", "LIVE", "SUSPENDED"] as const;
 
@@ -50,6 +52,10 @@ export async function GET(
         name: true,
         code: true,
         status: true,
+        settings: true,
+        units: {
+          select: { id: true },
+        },
         paymentConnectionStatus: {
           select: {
             stripeConnected: true,
@@ -66,18 +72,12 @@ export async function GET(
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    const payment = property.paymentConnectionStatus;
-    const readyForLive = Boolean(
-      payment?.stripeConnected &&
-        payment?.achEnabled &&
-        payment?.onboardingComplete &&
-        payment?.adminApproved
-    );
+    const readiness = getLiveReadiness(property);
 
     return NextResponse.json({
       ok: true,
       property,
-      readyForLive,
+      readiness,
       allowedStatuses: ALLOWED_STATUSES,
     });
   } catch (error) {
@@ -114,6 +114,10 @@ export async function POST(
         name: true,
         code: true,
         status: true,
+        settings: true,
+        units: {
+          select: { id: true },
+        },
         paymentConnectionStatus: {
           select: {
             stripeConnected: true,
@@ -138,26 +142,18 @@ export async function POST(
 
     if (!canTransition(currentStatus, nextStatus)) {
       return NextResponse.json(
-        {
-          error: `Invalid transition: ${currentStatus} → ${nextStatus}`,
-        },
+        { error: `Invalid transition: ${currentStatus} → ${nextStatus}` },
         { status: 400 }
       );
     }
 
-    const payment = property.paymentConnectionStatus;
-    const readyForLive = Boolean(
-      payment?.stripeConnected &&
-        payment?.achEnabled &&
-        payment?.onboardingComplete &&
-        payment?.adminApproved
-    );
+    const readiness = getLiveReadiness(property);
 
-    if (nextStatus === "LIVE" && !readyForLive) {
+    if (nextStatus === "LIVE" && !readiness.readyForLive) {
       return NextResponse.json(
         {
           error:
-            "Property cannot go LIVE until Stripe is connected, ACH is enabled, onboarding is complete, and admin approval is set.",
+            "Property cannot go LIVE until units exist, settings exist, Stripe is connected, ACH is enabled, onboarding is complete, and admin approval is set.",
         },
         { status: 400 }
       );
@@ -188,7 +184,7 @@ export async function POST(
           from: currentStatus,
           to: nextStatus,
           reason,
-          readyForLive,
+          readiness,
         }),
       },
     });
@@ -197,7 +193,7 @@ export async function POST(
       ok: true,
       property: updated,
       previousStatus: currentStatus,
-      readyForLive,
+      readiness,
     });
   } catch (error) {
     console.error("POST /api/admin/properties/[id]/lifecycle error:", error);

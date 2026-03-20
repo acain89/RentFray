@@ -1,4 +1,5 @@
 // app/admin/properties/[id]/setup/page.tsx
+// [path: app/admin/properties/[id]/setup/page.tsx]
 
 "use client";
 
@@ -17,6 +18,17 @@ type PaymentStatus = {
   adminApproved: boolean;
   notes: string | null;
 } | null;
+
+type Readiness = {
+  hasUnits: boolean;
+  hasSettings: boolean;
+  stripeConnected: boolean;
+  achEnabled: boolean;
+  onboardingComplete: boolean;
+  adminApproved: boolean;
+  paymentReady: boolean;
+  readyForLive: boolean;
+};
 
 type Property = {
   id: string;
@@ -40,6 +52,7 @@ export default function PropertySetupPage({
 }) {
   const [propertyId, setPropertyId] = useState("");
   const [property, setProperty] = useState<Property | null>(null);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [savingSetup, setSavingSetup] = useState(false);
@@ -76,9 +89,6 @@ export default function PropertySetupPage({
   const [overrideReason, setOverrideReason] = useState("");
   const [selectedUnitId, setSelectedUnitId] = useState("");
 
-  const readyForLive =
-    stripeConnected && achEnabled && onboardingComplete && adminApproved;
-
   useEffect(() => {
     async function resolveParams() {
       const { id } = await params;
@@ -102,15 +112,9 @@ export default function PropertySetupPage({
       setOverrideError("");
 
       const [setupRes, paymentRes, lifecycleRes] = await Promise.all([
-        fetch(`/api/admin/properties/${propertyId}/setup`, {
-          cache: "no-store",
-        }),
-        fetch(`/api/admin/properties/${propertyId}/payment-status`, {
-          cache: "no-store",
-        }),
-        fetch(`/api/admin/properties/${propertyId}/lifecycle`, {
-          cache: "no-store",
-        }),
+        fetch(`/api/admin/properties/${propertyId}/setup`, { cache: "no-store" }),
+        fetch(`/api/admin/properties/${propertyId}/payment-status`, { cache: "no-store" }),
+        fetch(`/api/admin/properties/${propertyId}/lifecycle`, { cache: "no-store" }),
       ]);
 
       const setupData = await setupRes.json();
@@ -129,6 +133,8 @@ export default function PropertySetupPage({
       };
 
       setProperty(loadedProperty);
+      setReadiness(lifecycleData?.readiness || null);
+
       setBaseRent(String(loadedProperty.settings?.baseRentDefault ?? ""));
       setConvenienceFee(String(loadedProperty.settings?.convenienceFee ?? ""));
 
@@ -173,9 +179,7 @@ export default function PropertySetupPage({
 
       const res = await fetch(`/api/admin/properties/${propertyId}/setup`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseRent,
           convenienceFee,
@@ -214,9 +218,7 @@ export default function PropertySetupPage({
 
       const res = await fetch(`/api/admin/properties/${propertyId}/payment-status`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stripeConnected,
           achEnabled,
@@ -257,9 +259,7 @@ export default function PropertySetupPage({
 
       const res = await fetch(`/api/admin/properties/${propertyId}/lifecycle`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: selectedStatus,
           reason: statusReason,
@@ -304,9 +304,7 @@ export default function PropertySetupPage({
 
       const res = await fetch(`/api/admin/properties/${propertyId}/override`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -352,16 +350,25 @@ export default function PropertySetupPage({
       </div>
 
       <div className="border p-4 rounded-xl space-y-3">
+        <h2 className="font-semibold">Live Readiness</h2>
+
+        <div className="text-sm">Has units: {readiness?.hasUnits ? "YES" : "NO"}</div>
+        <div className="text-sm">Has settings: {readiness?.hasSettings ? "YES" : "NO"}</div>
+        <div className="text-sm">Stripe connected: {readiness?.stripeConnected ? "YES" : "NO"}</div>
+        <div className="text-sm">ACH enabled: {readiness?.achEnabled ? "YES" : "NO"}</div>
+        <div className="text-sm">Onboarding complete: {readiness?.onboardingComplete ? "YES" : "NO"}</div>
+        <div className="text-sm">Admin approved: {readiness?.adminApproved ? "YES" : "NO"}</div>
+        <div className="text-sm font-medium">
+          Ready for LIVE: {readiness?.readyForLive ? "YES" : "NO"}
+        </div>
+      </div>
+
+      <div className="border p-4 rounded-xl space-y-3">
         <h2 className="font-semibold">Lifecycle</h2>
 
         <div className="text-sm">
           <span className="font-medium">Current Status: </span>
           <span>{property.status}</span>
-        </div>
-
-        <div className="text-sm">
-          <span className="font-medium">Ready for LIVE: </span>
-          <span>{readyForLive ? "YES" : "NO"}</span>
         </div>
 
         <select
@@ -383,13 +390,8 @@ export default function PropertySetupPage({
           onChange={(e) => setStatusReason(e.target.value)}
         />
 
-        {lifecycleError ? (
-          <div className="text-sm text-red-600">{lifecycleError}</div>
-        ) : null}
-
-        {lifecycleSuccess ? (
-          <div className="text-sm text-green-600">{lifecycleSuccess}</div>
-        ) : null}
+        {lifecycleError ? <div className="text-sm text-red-600">{lifecycleError}</div> : null}
+        {lifecycleSuccess ? <div className="text-sm text-green-600">{lifecycleSuccess}</div> : null}
 
         <button
           onClick={saveLifecycle}
@@ -519,18 +521,8 @@ export default function PropertySetupPage({
           onChange={(e) => setPaymentNotes(e.target.value)}
         />
 
-        <div className="text-sm">
-          <span className="font-medium">Ready for LIVE: </span>
-          <span>{readyForLive ? "YES" : "NO"}</span>
-        </div>
-
-        {paymentError ? (
-          <div className="text-sm text-red-600">{paymentError}</div>
-        ) : null}
-
-        {paymentSuccess ? (
-          <div className="text-sm text-green-600">{paymentSuccess}</div>
-        ) : null}
+        {paymentError ? <div className="text-sm text-red-600">{paymentError}</div> : null}
+        {paymentSuccess ? <div className="text-sm text-green-600">{paymentSuccess}</div> : null}
 
         <button
           onClick={savePaymentStatus}
@@ -544,9 +536,7 @@ export default function PropertySetupPage({
       <div className="border p-4 rounded-xl space-y-4">
         <div>
           <h2 className="font-semibold">Admin Override Tools</h2>
-          <p className="text-sm text-neutral-600">
-            Emergency-only admin controls.
-          </p>
+          <p className="text-sm text-neutral-600">Emergency-only admin controls.</p>
         </div>
 
         <textarea
@@ -605,13 +595,8 @@ export default function PropertySetupPage({
           </button>
         </div>
 
-        {overrideError ? (
-          <div className="text-sm text-red-600">{overrideError}</div>
-        ) : null}
-
-        {overrideSuccess ? (
-          <div className="text-sm text-green-600">{overrideSuccess}</div>
-        ) : null}
+        {overrideError ? <div className="text-sm text-red-600">{overrideError}</div> : null}
+        {overrideSuccess ? <div className="text-sm text-green-600">{overrideSuccess}</div> : null}
       </div>
 
       {setupError ? <div className="text-sm text-red-600">{setupError}</div> : null}

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
+import { canManageMaintenancePins } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,7 @@ async function saveMaintenancePin(formData: FormData) {
 
   const session = await getSession();
 
-  if (!session || !["OWNER", "MANAGER"].includes(session.role)) {
+  if (!session || !canManageMaintenancePins(session.role)) {
     redirect("/");
   }
 
@@ -334,7 +335,7 @@ export default async function PinResetPage({
         )}
       </div>
 
-      {["OWNER", "MANAGER"].includes(session.role) ? (
+      {canManageMaintenancePins(session.role) ? (
         <div className="border rounded-xl p-4 bg-white space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Maintenance PIN Create / Reset</h2>

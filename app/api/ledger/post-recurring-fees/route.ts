@@ -1,4 +1,4 @@
-// app/api/ledger/post-rent/route.ts
+// app/api/ledger/post-recurring-fees/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -28,19 +28,19 @@ export async function POST() {
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
       include: {
-        settings: true,
         units: {
           include: {
             assignments: {
               where: { moveOut: null },
               take: 1,
             },
+            recurringFees: true,
           },
         },
       },
     });
 
-    if (!property || !property.settings) {
+    if (!property) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
@@ -53,45 +53,43 @@ export async function POST() {
         continue;
       }
 
-      const existingRent = await prisma.ledgerEntry.findFirst({
-        where: {
-          propertyId: property.id,
-          unitId: unit.id,
-          type: "RENT_CHARGE",
-          effectiveDate: {
-            gte: monthStart,
-            lte: monthEnd,
+      for (const fee of unit.recurringFees) {
+        const description = `${fee.name} - ${monthStart.toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        })}`;
+
+        const existing = await prisma.ledgerEntry.findFirst({
+          where: {
+            propertyId: property.id,
+            unitId: unit.id,
+            type: "OTHER_FEE",
+            description,
+            effectiveDate: {
+              gte: monthStart,
+              lte: monthEnd,
+            },
           },
-        },
-      });
+        });
 
-      if (existingRent) {
-        skipped += 1;
-        continue;
+        if (existing) {
+          skipped += 1;
+          continue;
+        }
+
+        await prisma.ledgerEntry.create({
+          data: {
+            propertyId: property.id,
+            unitId: unit.id,
+            type: "OTHER_FEE",
+            amount: Number(fee.amount || 0),
+            description,
+            effectiveDate: monthStart,
+          },
+        });
+
+        posted += 1;
       }
-
-      const amount = Number(unit.baseRent ?? property.settings.baseRentDefault ?? 0);
-
-      if (amount <= 0) {
-        skipped += 1;
-        continue;
-      }
-
-      await prisma.ledgerEntry.create({
-        data: {
-          propertyId: property.id,
-          unitId: unit.id,
-          type: "RENT_CHARGE",
-          amount,
-          description: `Monthly rent - ${monthStart.toLocaleDateString("en-US", {
-            month: "long",
-            year: "numeric",
-          })}`,
-          effectiveDate: monthStart,
-        },
-      });
-
-      posted += 1;
     }
 
     await prisma.auditLog.create({
@@ -99,7 +97,7 @@ export async function POST() {
         propertyId: property.id,
         actorRole: session.role,
         actorLabel: session.managementUserId || "management",
-        action: "RENT_POSTED",
+        action: "RECURRING_FEES_POSTED",
         entityType: "PROPERTY",
         entityId: property.id,
         notes: JSON.stringify({
@@ -112,7 +110,10 @@ export async function POST() {
 
     return NextResponse.json({ ok: true, posted, skipped });
   } catch (error) {
-    console.error("POST /api/ledger/post-rent error:", error);
-    return NextResponse.json({ error: "Failed to post rent" }, { status: 500 });
+    console.error("POST /api/ledger/post-recurring-fees error:", error);
+    return NextResponse.json(
+      { error: "Failed to post recurring fees" },
+      { status: 500 }
+    );
   }
 }

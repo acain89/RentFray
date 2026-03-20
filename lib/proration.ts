@@ -1,53 +1,39 @@
-export function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
+// lib/proration.ts
 
-export function daysInMonth(year: number, monthIndexZeroBased: number) {
-  return new Date(year, monthIndexZeroBased + 1, 0).getDate();
-}
+export type ProrationResult = {
+  fullMonthRent: number;
+  dailyRate: number;
+  daysInMonth: number;
+  billableDays: number;
+  proratedRent: number;
+};
 
-export function roundMoney(value: number) {
-  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
-}
-
-export function getProratedRentAmount(
-  monthlyRent: number,
-  moveInDate: Date
-) {
-  const rent = Number(monthlyRent || 0);
-  const moveIn = startOfDay(moveInDate);
-
-  if (!Number.isFinite(rent) || rent <= 0) {
-    return 0;
-  }
-
-  const year = moveIn.getFullYear();
-  const month = moveIn.getMonth();
-  const day = moveIn.getDate();
-
-  const totalDays = daysInMonth(year, month);
-  const occupiedDays = totalDays - day + 1;
-  const dailyRate = rent / totalDays;
-
-  return roundMoney(dailyRate * occupiedDays);
+function getDaysInMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 }
 
 export function getProrationSummary(
-  monthlyRent: number,
-  moveInDate: Date
-) {
-  const moveIn = startOfDay(moveInDate);
-  const year = moveIn.getFullYear();
-  const month = moveIn.getMonth();
-  const day = moveIn.getDate();
-  const totalDays = daysInMonth(year, month);
-  const occupiedDays = totalDays - day + 1;
-  const proratedAmount = getProratedRentAmount(monthlyRent, moveInDate);
+  moveInDate: Date,
+  monthlyRent: number
+): ProrationResult {
+  const year = moveInDate.getFullYear();
+  const month = moveInDate.getMonth();
+
+  const daysInMonth = getDaysInMonth(moveInDate);
+
+  const moveInDay = moveInDate.getDate();
+
+  const billableDays = daysInMonth - moveInDay + 1;
+
+  const dailyRate = monthlyRent / daysInMonth;
+
+  const proratedRent = Number((dailyRate * billableDays).toFixed(2));
 
   return {
-    moveInDate: moveIn,
-    totalDays,
-    occupiedDays,
-    proratedAmount,
+    fullMonthRent: monthlyRent,
+    dailyRate: Number(dailyRate.toFixed(4)),
+    daysInMonth,
+    billableDays,
+    proratedRent,
   };
 }
