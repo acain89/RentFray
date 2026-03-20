@@ -1,6 +1,11 @@
+// app/api/tenant/session/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
+
+const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"]);
 
 export async function POST(req: Request) {
   try {
@@ -24,7 +29,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (pin.length !== 4) {
+    if (!/^\d{4}$/.test(pin)) {
       return NextResponse.json(
         { error: "Invalid PIN." },
         { status: 400 }
@@ -32,47 +37,61 @@ export async function POST(req: Request) {
     }
 
     const property = await prisma.property.findUnique({
-      where: { code: propertyCode },
-      select: { id: true, status: true },
+      where: { propertyCode },
+      select: {
+        id: true,
+        status: true,
+        isActive: true,
+      },
     });
 
-    if (!property) {
+    if (!property || !property.isActive) {
       return NextResponse.json(
         { error: "Property not found." },
         { status: 404 }
       );
     }
 
-    if (property.status !== "READY" && property.status !== "LIVE") {
+    if (!ALLOWED_PROPERTY_STATUSES.has(property.status)) {
       return NextResponse.json(
         { error: "Property not available." },
         { status: 403 }
       );
     }
 
-    const unit = await prisma.unit.findFirst({
+    const unit = await prisma.unit.findUnique({
       where: {
-        unitNumber,
-        propertyId: property.id,
-      },
-      include: {
-        assignments: {
-          where: { moveOut: null },
-          include: { tenant: true },
+        propertyId_unitNumber: {
+          propertyId: property.id,
+          unitNumber,
         },
+      },
+      select: {
+        id: true,
+        isActive: true,
+        portalActivated: true,
+        tenantPinHash: true,
       },
     });
 
-    if (!unit || unit.assignments.length === 0) {
+    if (!unit || !unit.isActive) {
       return NextResponse.json(
-        { error: "No active tenant found." },
+        { error: "Unit not found." },
         { status: 404 }
       );
     }
 
-    const tenant = unit.assignments[0].tenant;
+    if (!unit.portalActivated || !unit.tenantPinHash) {
+      return NextResponse.json(
+        {
+          error:
+            "This unit has not been activated yet. Please use Tenant First Time Use or contact the office.",
+        },
+        { status: 400 }
+      );
+    }
 
-    const valid = await verifyPin(pin, tenant.pinHash);
+    const valid = await verifyPin(pin, unit.tenantPinHash);
 
     if (!valid) {
       return NextResponse.json(
@@ -81,14 +100,23 @@ export async function POST(req: Request) {
       );
     }
 
+    const token = createSessionToken({
+      role: "TENANT",
+      propertyId: property.id,
+      unitId: unit.id,
+    });
+
+    await setSessionCookie(token);
+
     return NextResponse.json({
       ok: true,
-      tenantId: tenant.id,
+      role: "TENANT",
       propertyId: property.id,
       unitId: unit.id,
     });
   } catch (error) {
     console.error("POST /api/tenant/session failed", error);
+
     return NextResponse.json(
       { error: "Login failed." },
       { status: 500 }

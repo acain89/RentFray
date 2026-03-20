@@ -1,25 +1,48 @@
+// app/api/tenant/dashboard/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
+import { getSession } from "@/lib/session";
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    const body = await req.json();
-    const unitId = String(body.unitId || "").trim();
+    const session = await getSession();
 
-    if (!unitId) {
-      return NextResponse.json({ error: "Missing unitId" }, { status: 400 });
+    if (!session || session.role !== "TENANT" || !session.unitId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const unit = await prisma.unit.findUnique({
-      where: { id: unitId },
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
+      },
       include: {
-        property: true,
+        property: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            status: true,
+          },
+        },
         assignments: {
           where: { moveOut: null },
           orderBy: { moveIn: "desc" },
-          include: { tenant: true },
+          include: {
+            tenant: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                status: true,
+              },
+            },
+          },
+          take: 1,
         },
         ledgerEntries: {
           orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
@@ -35,26 +58,28 @@ export async function POST(req: Request) {
     const activeAssignment = unit.assignments[0] ?? null;
     const activeTenant = activeAssignment?.tenant ?? null;
 
-    if (!activeTenant) {
+    if (!activeTenant || !activeAssignment) {
       return NextResponse.json(
         { error: "No active tenant for unit" },
         { status: 400 }
       );
     }
 
-    const summary = await getUnitLedgerSummary(unit.id);
-    const delinquency = await getUnitDelinquencySummary(unit.id);
+    const [summary, delinquency] = await Promise.all([
+      getUnitLedgerSummary(unit.id),
+      getUnitDelinquencySummary(unit.id),
+    ]);
 
     const propertyStatus = String(unit.property?.status || "PREVIEW").toUpperCase();
     const paymentEnabled = propertyStatus === "LIVE";
+    const moveInTime = new Date(activeAssignment.moveIn).getTime();
 
     const currentLedger = unit.ledgerEntries.filter((entry) => {
-      const entryDate = new Date(entry.effectiveDate).getTime();
-      const moveInDate = new Date(activeAssignment.moveIn).getTime();
+      const entryTime = new Date(entry.effectiveDate).getTime();
       const sameTenantOrUnitLevel =
         !entry.tenantId || entry.tenantId === activeTenant.id;
 
-      return entryDate >= moveInDate && sameTenantOrUnitLevel;
+      return entryTime >= moveInTime && sameTenantOrUnitLevel;
     });
 
     return NextResponse.json({
@@ -80,7 +105,7 @@ export async function POST(req: Request) {
       })),
     });
   } catch (err) {
-    console.error(err);
+    console.error("POST /api/tenant/dashboard failed", err);
     return NextResponse.json(
       { error: "Failed to load dashboard" },
       { status: 500 }

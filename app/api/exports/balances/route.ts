@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     });
 
     const rows = await Promise.all(
-      units.map(async (unit) => {
+        units.map(async (unit: (typeof units)[number]) => {
         const summary = await getUnitLedgerSummary(unit.id);
         const delinquency = await getUnitDelinquencySummary(unit.id);
 

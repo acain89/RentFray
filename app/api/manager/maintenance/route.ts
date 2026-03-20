@@ -8,7 +8,11 @@ export async function GET() {
   try {
     const session = await getSession();
 
-    if (!session || session.role !== "MANAGER") {
+    // ✅ allow BOTH manager + maintenance
+    if (
+      !session ||
+      (session.role !== "MANAGER" && session.role !== "MAINTENANCE")
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -39,11 +43,11 @@ export async function GET() {
         description: r.description,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
-        unit: r.unit,
+        unitNumber: r.unit.unitNumber,
       })),
     });
   } catch (error) {
-    console.error("manager maintenance GET error", error);
+    console.error("maintenance GET error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

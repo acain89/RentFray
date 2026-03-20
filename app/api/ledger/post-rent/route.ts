@@ -31,7 +31,6 @@ export async function POST(req: Request) {
 
     const activeTenant = unit.assignments[0]?.tenant;
 
-    // ✅ HARD GUARD: tenant required
     if (!activeTenant) {
       return NextResponse.json(
         { error: "No active tenant for unit" },
@@ -44,14 +43,13 @@ export async function POST(req: Request) {
     const preview = getRentPreview({
       billingDay: settings.billingDay,
       marketRent: Number(unit.marketRent || 0),
-      ledgerEntries: unit.ledgerEntries.map((entry) => ({
+      ledgerEntries: unit.ledgerEntries.map((entry: (typeof unit.ledgerEntries)[number]) => ({
         type: entry.type,
         effectiveDate: entry.effectiveDate,
         amount: Number(entry.amount || 0),
       })),
     });
 
-    // ❌ already posted
     if (preview.hasChargeThisCycle) {
       return NextResponse.json(
         { error: "Rent already posted for this cycle" },
@@ -59,7 +57,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ❌ no valid charge
     if (!preview.upcomingCharge) {
       return NextResponse.json(
         { error: "No valid rent charge available" },
@@ -67,7 +64,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ❌ duplicate safety
     const duplicate = await prisma.ledgerEntry.findFirst({
       where: {
         unitId: unit.id,
@@ -83,7 +79,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ POST
     await prisma.ledgerEntry.create({
       data: {
         propertyId: unit.propertyId,

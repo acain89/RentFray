@@ -1,0 +1,206 @@
+// app/api/admin/properties/[id]/lifecycle/route.ts
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+
+const ALLOWED_STATUSES = ["SETUP", "TEST", "READY", "LIVE", "SUSPENDED"] as const;
+
+type PropertyStatus = (typeof ALLOWED_STATUSES)[number];
+
+function clean(value: unknown) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isValidStatus(value: string): value is PropertyStatus {
+  return ALLOWED_STATUSES.includes(value as PropertyStatus);
+}
+
+function canTransition(from: PropertyStatus, to: PropertyStatus) {
+  if (from === to) return true;
+
+  const allowed: Record<PropertyStatus, PropertyStatus[]> = {
+    SETUP: ["TEST", "SUSPENDED"],
+    TEST: ["SETUP", "READY", "SUSPENDED"],
+    READY: ["TEST", "LIVE", "SUSPENDED"],
+    LIVE: ["SUSPENDED"],
+    SUSPENDED: ["SETUP", "TEST", "READY"],
+  };
+
+  return allowed[from].includes(to);
+}
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    const property = await prisma.property.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        status: true,
+        paymentConnectionStatus: {
+          select: {
+            stripeConnected: true,
+            achEnabled: true,
+            onboardingComplete: true,
+            adminApproved: true,
+            notes: true,
+          },
+        },
+      },
+    });
+
+    if (!property) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    }
+
+    const payment = property.paymentConnectionStatus;
+    const readyForLive = Boolean(
+      payment?.stripeConnected &&
+        payment?.achEnabled &&
+        payment?.onboardingComplete &&
+        payment?.adminApproved
+    );
+
+    return NextResponse.json({
+      ok: true,
+      property,
+      readyForLive,
+      allowedStatuses: ALLOWED_STATUSES,
+    });
+  } catch (error) {
+    console.error("GET /api/admin/properties/[id]/lifecycle error:", error);
+    return NextResponse.json({ error: "Failed to load lifecycle state" }, { status: 500 });
+  }
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await req.json();
+
+    const nextStatusRaw = clean(body.status);
+    const reason = String(body.reason || "").trim() || null;
+
+    if (!isValidStatus(nextStatusRaw)) {
+      return NextResponse.json({ error: "Invalid property status" }, { status: 400 });
+    }
+
+    const property = await prisma.property.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        status: true,
+        paymentConnectionStatus: {
+          select: {
+            stripeConnected: true,
+            achEnabled: true,
+            onboardingComplete: true,
+            adminApproved: true,
+          },
+        },
+      },
+    });
+
+    if (!property) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    }
+
+    const currentStatus = clean(property.status) as PropertyStatus;
+    const nextStatus = nextStatusRaw as PropertyStatus;
+
+    if (!isValidStatus(currentStatus)) {
+      return NextResponse.json({ error: "Current property status is invalid" }, { status: 400 });
+    }
+
+    if (!canTransition(currentStatus, nextStatus)) {
+      return NextResponse.json(
+        {
+          error: `Invalid transition: ${currentStatus} → ${nextStatus}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const payment = property.paymentConnectionStatus;
+    const readyForLive = Boolean(
+      payment?.stripeConnected &&
+        payment?.achEnabled &&
+        payment?.onboardingComplete &&
+        payment?.adminApproved
+    );
+
+    if (nextStatus === "LIVE" && !readyForLive) {
+      return NextResponse.json(
+        {
+          error:
+            "Property cannot go LIVE until Stripe is connected, ACH is enabled, onboarding is complete, and admin approval is set.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.property.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        status: true,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        propertyId: id,
+        actorRole: "ADMIN",
+        actorLabel: session.adminAccessId || "admin",
+        action: "PROPERTY_STATUS_CHANGED",
+        entityType: "PROPERTY",
+        entityId: id,
+        notes: JSON.stringify({
+          from: currentStatus,
+          to: nextStatus,
+          reason,
+          readyForLive,
+        }),
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      property: updated,
+      previousStatus: currentStatus,
+      readyForLive,
+    });
+  } catch (error) {
+    console.error("POST /api/admin/properties/[id]/lifecycle error:", error);
+    return NextResponse.json({ error: "Failed to update property status" }, { status: 500 });
+  }
+}

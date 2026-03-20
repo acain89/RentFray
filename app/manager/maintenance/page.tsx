@@ -23,6 +23,18 @@ type MaintenanceResponse = {
   requests: MaintenanceRequestRow[];
 };
 
+type ErrorResponse = {
+  error?: string;
+};
+
+type UpdateResponse = {
+  ok: true;
+  request: {
+    status: string;
+    updatedAt: string;
+  };
+};
+
 const STATUS_OPTIONS = ["OPEN", "IN_PROGRESS", "COMPLETED", "CLOSED"] as const;
 
 function fmtDateTime(value: string) {
@@ -45,15 +57,25 @@ export default function ManagerMaintenancePage() {
         cache: "no-store",
       });
 
-      const data = (await res.json()) as MaintenanceResponse | { error?: string };
+      const data: MaintenanceResponse | ErrorResponse = await res.json();
 
       if (!res.ok) {
-        setError(data?.error || "Failed to load maintenance requests.");
+        setError(
+          "error" in data
+            ? data.error || "Failed to load maintenance requests."
+            : "Failed to load maintenance requests."
+        );
         setLoading(false);
         return;
       }
 
-      setRequests(data.requests || []);
+      if (!("requests" in data)) {
+        setError("Failed to load maintenance requests.");
+        setLoading(false);
+        return;
+      }
+
+      setRequests(data.requests);
       setLoading(false);
     } catch {
       setError("Failed to load maintenance requests.");
@@ -83,10 +105,20 @@ export default function ManagerMaintenancePage() {
         }),
       });
 
-      const data = await res.json();
+      const data: UpdateResponse | ErrorResponse = await res.json();
 
       if (!res.ok) {
-        setError(data?.error || "Failed to update request.");
+        setError(
+          "error" in data
+            ? data.error || "Failed to update request."
+            : "Failed to update request."
+        );
+        setSavingId("");
+        return;
+      }
+
+      if (!("request" in data)) {
+        setError("Failed to update request.");
         setSavingId("");
         return;
       }

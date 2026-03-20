@@ -8,9 +8,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const code = String(body.code || "").trim();
 
-    if (!code) {
+    if (!code || code.length !== 4) {
       return NextResponse.json(
-        { error: "Property code required" },
+        { error: "Valid 4-digit property code required" },
         { status: 400 }
       );
     }
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       property,
     });
   } catch (err) {
-    console.error(err);
+    console.error("PROPERTY_RESOLVE_ERROR:", err);
     return NextResponse.json(
       { error: "Server error" },
       { status: 500 }

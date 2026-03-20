@@ -73,6 +73,8 @@ export async function getUnitDelinquencySummary(
     throw new Error("Unit not found");
   }
 
+  type LedgerEntry = (typeof unit.ledgerEntries)[number];
+
   const activeAssignment = unit.assignments[0] ?? null;
   const settings = unit.property.settings ?? {
     billingDay: 1,
@@ -113,12 +115,24 @@ export async function getUnitDelinquencySummary(
   }
 
   const unpaidRent = unit.ledgerEntries
-    .filter((entry) => entry.amount > 0 && entry.type === "RENT_CHARGE")
-    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    .filter(
+      (entry: LedgerEntry) =>
+        Number(entry.amount || 0) > 0 && entry.type === "RENT_CHARGE"
+    )
+    .reduce(
+      (sum: number, entry: LedgerEntry) => sum + Number(entry.amount || 0),
+      0
+    );
 
   const lateFeesOwed = unit.ledgerEntries
-    .filter((entry) => entry.amount > 0 && entry.type === "LATE_FEE")
-    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    .filter(
+      (entry: LedgerEntry) =>
+        Number(entry.amount || 0) > 0 && entry.type === "LATE_FEE"
+    )
+    .reduce(
+      (sum: number, entry: LedgerEntry) => sum + Number(entry.amount || 0),
+      0
+    );
 
   const amountDueNow = Math.max(Number(ledger.balance || 0), 0);
   const isDelinquent = amountDueNow > 0 && isPastGrace;

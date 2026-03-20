@@ -1,15 +1,14 @@
-// app/api/tenant/maintenance/list/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
 
 export async function GET() {
   try {
-    const session = await getSession();
+    // ✅ enforce session + role
+    const session = await requireRole("TENANT");
 
-    if (!session || session.role !== "TENANT" || !session.unitId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session.unitId) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     const requests = await prisma.maintenanceRequest.findMany({

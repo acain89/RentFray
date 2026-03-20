@@ -1,18 +1,28 @@
 // lib/session.ts
 
 import crypto from "crypto";
+import { cookies } from "next/headers";
 
-export type SessionRole = "MANAGER" | "TENANT" | "MAINTENANCE";
+export type SessionRole =
+  | "ADMIN"
+  | "OWNER"
+  | "MANAGER"
+  | "STAFF"
+  | "TENANT"
+  | "MAINTENANCE";
 
 export type SessionPayload = {
   role: SessionRole;
-  propertyId: string;
+  propertyId?: string;
+  managementUserId?: string;
   unitId?: string;
+  maintenanceUserId?: string;
   iat: number;
   exp: number;
 };
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+export const SESSION_COOKIE_NAME = "rf_session";
 
 function getSessionSecret() {
   return process.env.SESSION_SECRET || "rentfray-dev-session-secret-change-me";
@@ -28,7 +38,9 @@ function base64UrlEncode(input: string | Buffer) {
 
 function base64UrlDecode(input: string) {
   const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
-  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  const padding =
+    normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+
   return Buffer.from(normalized + padding, "base64").toString("utf8");
 }
 
@@ -38,19 +50,129 @@ function sign(value: string) {
   );
 }
 
-export function createSessionToken(input: {
-  role: SessionRole;
-  propertyId: string;
-  unitId?: string;
-}) {
+function safeEqual(a: string, b: string) {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+
+  if (aBuf.length !== bBuf.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
+function isValidRole(role: unknown): role is SessionRole {
+  return (
+    role === "ADMIN" ||
+    role === "OWNER" ||
+    role === "MANAGER" ||
+    role === "STAFF" ||
+    role === "TENANT" ||
+    role === "MAINTENANCE"
+  );
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidPayloadShape(parsed: Partial<SessionPayload>) {
+  if (!parsed || !isValidRole(parsed.role)) {
+    return false;
+  }
+
+  if (typeof parsed.iat !== "number" || typeof parsed.exp !== "number") {
+    return false;
+  }
+
+  if (
+    parsed.propertyId !== undefined &&
+    !isNonEmptyString(parsed.propertyId)
+  ) {
+    return false;
+  }
+
+  if (
+    parsed.managementUserId !== undefined &&
+    !isNonEmptyString(parsed.managementUserId)
+  ) {
+    return false;
+  }
+
+  if (parsed.unitId !== undefined && !isNonEmptyString(parsed.unitId)) {
+    return false;
+  }
+
+  if (
+    parsed.maintenanceUserId !== undefined &&
+    !isNonEmptyString(parsed.maintenanceUserId)
+  ) {
+    return false;
+  }
+
+  if (parsed.role === "ADMIN") {
+    return true;
+  }
+
+  if (
+    parsed.role === "OWNER" ||
+    parsed.role === "MANAGER" ||
+    parsed.role === "STAFF"
+  ) {
+    return (
+      isNonEmptyString(parsed.propertyId) &&
+      isNonEmptyString(parsed.managementUserId)
+    );
+  }
+
+  if (parsed.role === "TENANT") {
+    return isNonEmptyString(parsed.propertyId) && isNonEmptyString(parsed.unitId);
+  }
+
+  if (parsed.role === "MAINTENANCE") {
+    return (
+      isNonEmptyString(parsed.propertyId) &&
+      isNonEmptyString(parsed.maintenanceUserId)
+    );
+  }
+
+  return false;
+}
+
+export function createSessionToken(input:
+  | { role: "ADMIN" }
+  | {
+      role: "OWNER" | "MANAGER" | "STAFF";
+      propertyId: string;
+      managementUserId: string;
+    }
+  | {
+      role: "TENANT";
+      propertyId: string;
+      unitId: string;
+    }
+  | {
+      role: "MAINTENANCE";
+      propertyId: string;
+      maintenanceUserId: string;
+    }
+) {
   const now = Math.floor(Date.now() / 1000);
 
   const payload: SessionPayload = {
     role: input.role,
-    propertyId: input.propertyId,
-    unitId: input.unitId,
     iat: now,
     exp: now + SESSION_TTL_SECONDS,
+    ...(input.role !== "ADMIN" && input.propertyId
+      ? { propertyId: input.propertyId }
+      : {}),
+    ...("managementUserId" in input
+      ? { managementUserId: input.managementUserId }
+      : {}),
+    ...("unitId" in input ? { unitId: input.unitId } : {}),
+    ...("maintenanceUserId" in input
+      ? { maintenanceUserId: input.maintenanceUserId }
+      : {}),
   };
 
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
@@ -61,7 +183,13 @@ export function createSessionToken(input: {
 
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
-    const [encodedPayload, signature] = token.split(".");
+    const parts = token.split(".");
+
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const [encodedPayload, signature] = parts;
 
     if (!encodedPayload || !signature) {
       return null;
@@ -69,38 +197,49 @@ export function verifySessionToken(token: string): SessionPayload | null {
 
     const expectedSignature = sign(encodedPayload);
 
-    if (signature !== expectedSignature) {
+    if (!safeEqual(signature, expectedSignature)) {
       return null;
     }
 
-    const parsed = JSON.parse(base64UrlDecode(encodedPayload)) as SessionPayload;
+    const parsed = JSON.parse(
+      base64UrlDecode(encodedPayload)
+    ) as Partial<SessionPayload>;
 
-    if (!parsed?.role || !parsed?.propertyId || !parsed?.iat || !parsed?.exp) {
+    const now = Math.floor(Date.now() / 1000);
+
+    if (!isValidPayloadShape(parsed)) {
       return null;
     }
 
-    if (parsed.exp < Math.floor(Date.now() / 1000)) {
+    if (parsed.exp <= now) {
       return null;
     }
 
-    if (
-      parsed.role !== "MANAGER" &&
-      parsed.role !== "TENANT" &&
-      parsed.role !== "MAINTENANCE"
-    ) {
+    if (parsed.iat > now + 60) {
       return null;
     }
 
-    return parsed;
+    return {
+      role: parsed.role,
+      ...(parsed.propertyId ? { propertyId: parsed.propertyId } : {}),
+      ...(parsed.managementUserId
+        ? { managementUserId: parsed.managementUserId }
+        : {}),
+      ...(parsed.unitId ? { unitId: parsed.unitId } : {}),
+      ...(parsed.maintenanceUserId
+        ? { maintenanceUserId: parsed.maintenanceUserId }
+        : {}),
+      iat: parsed.iat,
+      exp: parsed.exp,
+    };
   } catch {
     return null;
   }
 }
 
 export async function getSession() {
-  const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
-  const token = cookieStore.get("rf_session")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
   if (!token) {
     return null;
@@ -127,4 +266,50 @@ export async function requireRole(role: SessionRole) {
   }
 
   return session;
+}
+
+export async function requireManagementSession() {
+  const session = await requireSession();
+
+  if (
+    session.role !== "OWNER" &&
+    session.role !== "MANAGER" &&
+    session.role !== "STAFF"
+  ) {
+    throw new Error("Forbidden");
+  }
+
+  return session;
+}
+
+export async function requireManagerLevelSession() {
+  const session = await requireSession();
+
+  if (session.role !== "OWNER" && session.role !== "MANAGER") {
+    throw new Error("Forbidden");
+  }
+
+  return session;
+}
+
+export async function clearSessionCookie() {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+export async function setSessionCookie(token: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
 }

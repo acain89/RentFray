@@ -77,10 +77,10 @@ function validateInput(body: Record<string, unknown>) {
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = String(params.id || "");
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: "Missing property id." }, { status: 400 });
     }

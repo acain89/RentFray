@@ -40,7 +40,7 @@ export default async function ManagerHomePage() {
     ]);
 
   const unitStats = await Promise.all(
-    units.map(async (unit) => {
+    units.map(async (unit: (typeof units)[number]) => {
       const ledger = await getUnitLedgerSummary(unit.id);
       const delinquency = await getUnitDelinquencySummary(unit.id);
 
@@ -195,7 +195,7 @@ export default async function ManagerHomePage() {
           <div className="text-sm text-gray-500">No properties found.</div>
         ) : (
           <div className="space-y-2">
-            {properties.map((property) => {
+            {properties.map((property: (typeof properties)[number]) => {
               const stats = propertyMap.get(property.id) || {
                 balance: 0,
                 receivable: 0,
@@ -205,11 +205,12 @@ export default async function ManagerHomePage() {
               };
 
               const openMaintenance = property.maintenanceRequests.filter(
-                (r) => r.status === "OPEN"
+                (r: (typeof property.maintenanceRequests)[number]) => r.status === "OPEN"
               ).length;
 
               const inProgressMaintenance = property.maintenanceRequests.filter(
-                (r) => r.status === "IN_PROGRESS"
+                (r: (typeof property.maintenanceRequests)[number]) =>
+                  r.status === "IN_PROGRESS"
               ).length;
 
               return (

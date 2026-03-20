@@ -1,157 +1,162 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+import { generateUniquePropertyCode } from "@/lib/propertyCode";
 
-type PropertyStatus = "PREVIEW" | "READY" | "LIVE";
-type LateFeeType = "FLAT" | "PERCENT";
-
-function isFourDigitCode(value: string) {
-  return /^\d{4}$/.test(value);
+function clean(value: unknown) {
+  return String(value || "").trim();
 }
 
-function normalizeStatus(value: unknown): PropertyStatus {
-  const v = String(value || "").toUpperCase();
-  if (v === "READY") return "READY";
-  if (v === "LIVE") return "LIVE";
-  return "PREVIEW";
-}
-
-function normalizeLateFeeType(value: unknown): LateFeeType {
-  const v = String(value || "").toUpperCase();
-  if (v === "PERCENT") return "PERCENT";
-  return "FLAT";
-}
-
-function toInt(value: unknown, fallback = 0) {
+function toMoneyNumber(value: unknown) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.trunc(n);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function toAmount(value: unknown, fallback = 0) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
+function toOptionalInt(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return null;
   return n;
-}
-
-function validateInput(body: Record<string, unknown>) {
-  const name = String(body.name || "").trim();
-  const code = String(body.code || "").trim();
-  const status = normalizeStatus(body.status);
-  const billingDay = toInt(body.billingDay, 1);
-  const graceDays = toInt(body.graceDays, 0);
-  const lateFeeType = normalizeLateFeeType(body.lateFeeType);
-  const lateFeeAmount = toAmount(body.lateFeeAmount, 0);
-
-  if (!name) {
-    return { error: "Property name is required." };
-  }
-
-  if (!isFourDigitCode(code)) {
-    return { error: "Property code must be exactly 4 digits." };
-  }
-
-  if (billingDay < 1 || billingDay > 31) {
-    return { error: "Billing day must be between 1 and 31." };
-  }
-
-  if (graceDays < 0 || graceDays > 31) {
-    return { error: "Grace days must be between 0 and 31." };
-  }
-
-  if (lateFeeAmount < 0) {
-    return { error: "Late fee amount cannot be negative." };
-  }
-
-  return {
-    value: {
-      name,
-      code,
-      status,
-      billingDay,
-      graceDays,
-      lateFeeType,
-      lateFeeAmount,
-    },
-  };
 }
 
 export async function GET() {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const properties = await prisma.property.findMany({
-      orderBy: [{ name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        status: true,
-        billingDay: true,
-        graceDays: true,
-        lateFeeType: true,
-        lateFeeAmount: true,
-        createdAt: true,
+      orderBy: { createdAt: "desc" },
+      include: {
+        settings: true,
+        _count: {
+          select: {
+            units: true,
+            managementUsers: true,
+            maintenanceUsers: true,
+            maintenanceRequests: true,
+            ledgerEntries: true,
+          },
+        },
       },
     });
 
-    return NextResponse.json({ properties });
+    return NextResponse.json({ ok: true, properties });
   } catch (error) {
-    console.error("GET /api/admin/properties failed", error);
-    return NextResponse.json(
-      { error: "Failed to load properties." },
-      { status: 500 }
-    );
+    console.error("GET /api/admin/properties error:", error);
+    return NextResponse.json({ error: "Failed to load properties" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
-    const parsed = validateInput(body);
 
-    if ("error" in parsed) {
-      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const name = clean(body.name);
+    const legalName = clean(body.legalName);
+    const address1 = clean(body.address1);
+    const address2 = clean(body.address2);
+    const city = clean(body.city);
+    const state = clean(body.state).toUpperCase();
+    const zip = clean(body.zip);
+    const phone = clean(body.phone);
+    const email = clean(body.email).toLowerCase();
+
+    const unitCount = toOptionalInt(body.unitCount);
+    const baseRent = toMoneyNumber(body.baseRent);
+    const convenienceFee = toMoneyNumber(body.convenienceFee);
+
+    if (!name) {
+      return NextResponse.json({ error: "Property name is required" }, { status: 400 });
     }
 
-    const existing = await prisma.property.findUnique({
-      where: { code: parsed.value.code },
-      select: { id: true },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "Property code already exists." },
-        { status: 409 }
-      );
+    if (state && state.length !== 2) {
+      return NextResponse.json({ error: "State must be 2 letters" }, { status: 400 });
     }
+
+    if (unitCount !== null && unitCount < 0) {
+      return NextResponse.json({ error: "Unit count is invalid" }, { status: 400 });
+    }
+
+    if (baseRent < 0) {
+      return NextResponse.json({ error: "Base rent cannot be negative" }, { status: 400 });
+    }
+
+    if (convenienceFee < 0) {
+      return NextResponse.json({ error: "Convenience fee cannot be negative" }, { status: 400 });
+    }
+
+    const code = await generateUniquePropertyCode();
 
     const property = await prisma.property.create({
       data: {
-        name: parsed.value.name,
-        code: parsed.value.code,
-        status: parsed.value.status,
-        billingDay: parsed.value.billingDay,
-        graceDays: parsed.value.graceDays,
-        lateFeeType: parsed.value.lateFeeType,
-        lateFeeAmount: parsed.value.lateFeeAmount,
+        name,
+        code,
+        status: "SETUP",
+        legalName: legalName || null,
+        address1: address1 || null,
+        address2: address2 || null,
+        city: city || null,
+        state: state || null,
+        zip: zip || null,
+        phone: phone || null,
+        email: email || null,
+        settings: {
+          create: {
+            baseRentDefault: baseRent,
+            convenienceFee,
+          },
+        },
+        auditLogs: {
+          create: {
+            actorRole: "ADMIN",
+            actorLabel: session.adminAccessId || "admin",
+            action: "PROPERTY_CREATED",
+            entityType: "PROPERTY",
+            entityId: "",
+            notes: JSON.stringify({
+              propertyName: name,
+              propertyCode: code,
+              unitCount,
+              baseRent,
+              convenienceFee,
+            }),
+          },
+        },
       },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        status: true,
-        billingDay: true,
-        graceDays: true,
-        lateFeeType: true,
-        lateFeeAmount: true,
-        createdAt: true,
+      include: {
+        settings: true,
       },
     });
 
-    return NextResponse.json({ ok: true, property });
+    await prisma.auditLog.updateMany({
+      where: {
+        entityId: "",
+        entityType: "PROPERTY",
+        action: "PROPERTY_CREATED",
+        actorRole: "ADMIN",
+      },
+      data: {
+        entityId: property.id,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      property,
+    });
   } catch (error) {
-    console.error("POST /api/admin/properties failed", error);
-    return NextResponse.json(
-      { error: "Failed to create property." },
-      { status: 500 }
-    );
+    console.error("POST /api/admin/properties error:", error);
+    return NextResponse.json({ error: "Failed to create property" }, { status: 500 });
   }
 }

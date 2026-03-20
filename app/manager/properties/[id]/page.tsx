@@ -50,7 +50,7 @@ export default async function PropertyDetailPage({
   }
 
   const unitRows = await Promise.all(
-    property.units.map(async (unit) => {
+    property.units.map(async (unit: (typeof property.units)[number]) => {
       const summary = await getUnitLedgerSummary(unit.id);
       const delinquency = await getUnitDelinquencySummary(unit.id);
 
@@ -83,15 +83,17 @@ export default async function PropertyDetailPage({
     .reduce((sum, row) => sum + row.balance, 0);
 
   const openMaintenance = property.maintenanceRequests.filter(
-    (r) => r.status === "OPEN"
+    (r: (typeof property.maintenanceRequests)[number]) => r.status === "OPEN"
   ).length;
 
   const inProgressMaintenance = property.maintenanceRequests.filter(
-    (r) => r.status === "IN_PROGRESS"
+    (r: (typeof property.maintenanceRequests)[number]) =>
+      r.status === "IN_PROGRESS"
   ).length;
 
   const completedMaintenance = property.maintenanceRequests.filter(
-    (r) => r.status === "COMPLETED"
+    (r: (typeof property.maintenanceRequests)[number]) =>
+      r.status === "COMPLETED"
   ).length;
 
   const totalMaintenance = property.maintenanceRequests.length;
@@ -261,37 +263,39 @@ export default async function PropertyDetailPage({
           </div>
         ) : (
           <div className="space-y-2">
-            {recentMaintenance.map((request) => (
-              <div
-                key={request.id}
-                className="grid grid-cols-1 gap-3 rounded border p-3 md:grid-cols-5 md:items-center"
-              >
-                <div>
-                  <div className="text-xs text-gray-500">Status</div>
-                  <div className="font-medium">{request.status}</div>
-                </div>
+            {recentMaintenance.map(
+              (request: (typeof recentMaintenance)[number]) => (
+                <div
+                  key={request.id}
+                  className="grid grid-cols-1 gap-3 rounded border p-3 md:grid-cols-5 md:items-center"
+                >
+                  <div>
+                    <div className="text-xs text-gray-500">Status</div>
+                    <div className="font-medium">{request.status}</div>
+                  </div>
 
-                <div>
-                  <div className="text-xs text-gray-500">Urgency</div>
-                  <div>{request.urgency}</div>
-                </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Urgency</div>
+                    <div>{request.urgency}</div>
+                  </div>
 
-                <div>
-                  <div className="text-xs text-gray-500">Unit</div>
-                  <div>{request.unit?.unitNumber || "—"}</div>
-                </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Unit</div>
+                    <div>{request.unit?.unitNumber || "—"}</div>
+                  </div>
 
-                <div>
-                  <div className="text-xs text-gray-500">Submitted</div>
-                  <div>{formatDateTime(request.createdAt)}</div>
-                </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Submitted</div>
+                    <div>{formatDateTime(request.createdAt)}</div>
+                  </div>
 
-                <div>
-                  <div className="text-xs text-gray-500">Category</div>
-                  <div>{request.category}</div>
+                  <div>
+                    <div className="text-xs text-gray-500">Category</div>
+                    <div>{request.category}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         )}
       </div>
@@ -305,7 +309,7 @@ export default async function PropertyDetailPage({
               No units found.
             </div>
           ) : (
-            unitRows.map((row) => (
+            unitRows.map((row: (typeof unitRows)[number]) => (
               <div
                 key={row.id}
                 className="grid grid-cols-1 gap-3 rounded border p-3 md:grid-cols-8 md:items-center"
@@ -341,36 +345,36 @@ export default async function PropertyDetailPage({
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-  <Link
-    href={`/manager/units/${row.id}`}
-    className="text-sm underline"
-  >
-    Open
-  </Link>
+                  <Link
+                    href={`/manager/units/${row.id}`}
+                    className="text-sm underline"
+                  >
+                    Open
+                  </Link>
 
-  <Link
-    href={`/manager/units/${row.id}/history`}
-    className="text-sm underline"
-  >
-    History
-  </Link>
+                  <Link
+                    href={`/manager/units/${row.id}/history`}
+                    className="text-sm underline"
+                  >
+                    History
+                  </Link>
 
-  <Link
-    href={`/manager/properties/${property.id}/maintenance`}
-    className="text-sm underline"
-  >
-    Maintenance
-  </Link>
+                  <Link
+                    href={`/manager/properties/${property.id}/maintenance`}
+                    className="text-sm underline"
+                  >
+                    Maintenance
+                  </Link>
 
-  {row.occupancyStatus === "VACANT" && (
-    <Link
-      href={`/manager/properties/${property.id}/tenants/new?unitId=${row.id}`}
-      className="text-sm underline"
-    >
-      Assign
-    </Link>
-  )}
-</div>
+                  {row.occupancyStatus === "VACANT" && (
+                    <Link
+                      href={`/manager/properties/${property.id}/tenants/new?unitId=${row.id}`}
+                      className="text-sm underline"
+                    >
+                      Assign
+                    </Link>
+                  )}
+                </div>
               </div>
             ))
           )}

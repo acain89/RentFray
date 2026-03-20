@@ -1,8 +1,6 @@
-// app/api/tenant/maintenance/create/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
 
 const VALID_CATEGORIES = [
   "PLUMBING",
@@ -18,27 +16,34 @@ const VALID_URGENCY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
+    // ✅ enforce session + role
+    const session = await requireRole("TENANT");
 
-    if (!session || session.role !== "TENANT" || !session.unitId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session.unitId) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     const body = await req.json();
 
-    const category = String(body.category || "")
-      .trim()
-      .toUpperCase();
-    const urgency = String(body.urgency || "")
-      .trim()
-      .toUpperCase();
+    const category = String(body.category || "").trim().toUpperCase();
+    const urgency = String(body.urgency || "").trim().toUpperCase();
     const description = String(body.description || "").trim();
 
-    if (!category || !VALID_CATEGORIES.includes(category as (typeof VALID_CATEGORIES)[number])) {
+    if (
+      !category ||
+      !VALID_CATEGORIES.includes(
+        category as (typeof VALID_CATEGORIES)[number]
+      )
+    ) {
       return NextResponse.json({ error: "Invalid category" }, { status: 400 });
     }
 
-    if (!urgency || !VALID_URGENCY.includes(urgency as (typeof VALID_URGENCY)[number])) {
+    if (
+      !urgency ||
+      !VALID_URGENCY.includes(
+        urgency as (typeof VALID_URGENCY)[number]
+      )
+    ) {
       return NextResponse.json({ error: "Invalid urgency" }, { status: 400 });
     }
 

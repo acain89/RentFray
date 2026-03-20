@@ -3,20 +3,20 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { buildPropertyLink, buildQRCodeUrl } from "@/lib/qr";
+import { verifySessionToken } from "@/lib/session";
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionCookie = cookieStore.get("rf_session");
 
-    if (!sessionCookie) {
+    if (!sessionCookie?.value) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const session = JSON.parse(sessionCookie.value);
+    const session = verifySessionToken(sessionCookie.value);
 
-    if (session.role !== "MANAGER" || !session.propertyId) {
+    if (!session || session.role !== "MANAGER") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -33,21 +33,17 @@ export async function GET() {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    const link = buildPropertyLink(property.code);
-    const qrUrl = buildQRCodeUrl(property.code);
-
     return NextResponse.json({
       ok: true,
-      propertyName: property.name,
-      propertyCode: property.code,
-      link,
-      qrUrl,
+      property: {
+        id: property.id,
+        name: property.name,
+        code: property.code,
+      },
+      qrValue: property.code,
     });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: "Failed to generate QR" },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error("manager property qr GET error", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

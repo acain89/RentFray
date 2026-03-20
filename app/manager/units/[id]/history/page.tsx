@@ -29,8 +29,14 @@ export default async function UnitHistory({
     return <div>Unit not found</div>;
   }
 
-  const current = unit.assignments.find((a) => !a.moveOut);
-  const history = unit.assignments.filter((a) => a.moveOut);
+  type AssignmentWithTenant = (typeof unit.assignments)[number];
+
+  const current = unit.assignments.find(
+    (a: AssignmentWithTenant) => !a.moveOut
+  );
+  const history = unit.assignments.filter(
+    (a: AssignmentWithTenant) => !!a.moveOut
+  );
 
   return (
     <div style={{ padding: 24 }}>
@@ -42,7 +48,6 @@ export default async function UnitHistory({
         <strong>Unit:</strong> {unit.name}
       </div>
 
-      {/* CURRENT TENANT */}
       <div style={{ marginBottom: 24 }}>
         <h2>Current Tenant</h2>
 
@@ -66,13 +71,12 @@ export default async function UnitHistory({
         )}
       </div>
 
-      {/* HISTORY */}
       <div>
         <h2>Previous Tenants</h2>
 
         {history.length === 0 && <div>No history</div>}
 
-        {history.map((a) => (
+        {history.map((a: AssignmentWithTenant) => (
           <div
             key={a.id}
             style={{

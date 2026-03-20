@@ -4,24 +4,39 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-06-20",
-});
+export const runtime = "nodejs";
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+function getStripe() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY");
+  }
+
+  return new Stripe(secretKey);
+}
+
+function getWebhookSecret() {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!secret) {
+    throw new Error("Missing STRIPE_WEBHOOK_SECRET");
+  }
+
+  return secret;
+}
 
 export async function POST(req: Request) {
   try {
     const sig = req.headers.get("stripe-signature");
 
     if (!sig) {
-      return NextResponse.json(
-        { error: "Missing signature" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
     const body = await req.text();
+    const stripe = getStripe();
+    const webhookSecret = getWebhookSecret();
 
     let event: Stripe.Event;
 
@@ -29,10 +44,7 @@ export async function POST(req: Request) {
       event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
     } catch (err) {
       console.error("Webhook signature verification failed.", err);
-      return NextResponse.json(
-        { error: "Invalid signature" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
     if (event.type === "checkout.session.completed") {
@@ -40,15 +52,14 @@ export async function POST(req: Request) {
 
       const propertyId = String(session.metadata?.propertyId || "");
       const unitId = String(session.metadata?.unitId || "");
+      const tenantId = String(session.metadata?.tenantId || "");
+      const amountTotal = Number(session.amount_total || 0) / 100;
 
-      const amountTotal = (session.amount_total || 0) / 100;
-
-      if (!propertyId || !unitId || !amountTotal) {
+      if (!propertyId || !unitId || amountTotal <= 0) {
         console.error("Missing metadata in Stripe session");
         return NextResponse.json({ received: true });
       }
 
-      // Prevent duplicate entries using Stripe session ID
       const existing = await prisma.ledgerEntry.findFirst({
         where: {
           reference: session.id,
@@ -61,12 +72,13 @@ export async function POST(req: Request) {
           data: {
             propertyId,
             unitId,
+            tenantId: tenantId || null,
             type: "PAYMENT",
             amount: -Math.abs(amountTotal),
-            method: "ACH",
-            reference: session.id,
-            note: "Stripe ACH Payment",
             effectiveDate: new Date(),
+            memo: "Stripe ACH Payment",
+            source: "STRIPE",
+            reference: session.id,
           },
         });
       }
@@ -75,9 +87,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("stripe webhook error", error);
-    return NextResponse.json(
-      { error: "Webhook error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }

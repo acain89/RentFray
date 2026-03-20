@@ -10,21 +10,33 @@ export async function GET() {
   try {
     const session = await getSession();
 
-    if (!session || session.role !== "MANAGER") {
+    if (!session || session.role !== "MANAGER" || !session.propertyId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const propertyId = session.propertyId;
-
     const property = await prisma.property.findUnique({
-      where: { id: propertyId },
-      include: {
+      where: { id: session.propertyId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
         units: {
-          include: {
+          orderBy: { unitNumber: "asc" },
+          select: {
+            id: true,
+            unitNumber: true,
+            marketRent: true,
             assignments: {
               where: { moveOut: null },
-              include: { tenant: true },
+              orderBy: { moveIn: "desc" },
               take: 1,
+              select: {
+                tenant: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
             },
           },
         },
@@ -32,73 +44,86 @@ export async function GET() {
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
     }
 
-    let totalUnits = property.units.length;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const paymentSums = await prisma.ledgerEntry.groupBy({
+      by: ["unitId"],
+      where: {
+        propertyId: property.id,
+        amount: { lt: 0 },
+        effectiveDate: { gte: monthStart },
+        unitId: { not: null },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    const paymentMap = new Map(
+      paymentSums.map((row) => [
+        row.unitId,
+        Math.abs(Number(row._sum.amount || 0)),
+      ])
+    );
+
     let occupiedUnits = 0;
     let vacantUnits = 0;
-
     let totalExpected = 0;
     let totalCollected = 0;
-
     let delinquentCount = 0;
 
-    const unitSummaries = [];
+    const units = await Promise.all(
+      property.units.map(async (unit) => {
+        const activeAssignment = unit.assignments[0] ?? null;
 
-    for (const unit of property.units) {
-      const activeAssignment = unit.assignments[0] ?? null;
+        if (activeAssignment) {
+          occupiedUnits++;
+        } else {
+          vacantUnits++;
+        }
 
-      if (activeAssignment) {
-        occupiedUnits++;
-      } else {
-        vacantUnits++;
-      }
+        const rent = Number(unit.marketRent || 0);
+        totalExpected += rent;
 
-      const ledger = await getUnitLedgerSummary(unit.id);
-      const delinquency = await getUnitDelinquencySummary(unit.id);
+        const collectedForUnit = paymentMap.get(unit.id) || 0;
+        totalCollected += collectedForUnit;
 
-      const rent = Number(unit.marketRent || 0);
+        const [ledger, delinquency] = await Promise.all([
+          getUnitLedgerSummary(unit.id),
+          getUnitDelinquencySummary(unit.id),
+        ]);
 
-      totalExpected += rent;
+        if (delinquency.isDelinquent) {
+          delinquentCount++;
+        }
 
-      // CRITICAL FIX: only count payments THIS MONTH
-      const monthStart = new Date(
-        new Date().getFullYear(),
-        new Date().getMonth(),
-        1
-      );
-
-      const monthPayments = await prisma.ledgerEntry.aggregate({
-        where: {
+        return {
           unitId: unit.id,
-          amount: { lt: 0 },
-          effectiveDate: { gte: monthStart },
-        },
-        _sum: {
-          amount: true,
-        },
+          unitNumber: unit.unitNumber,
+          tenantName: activeAssignment?.tenant?.name || null,
+          balance: Number(ledger.balance || 0),
+          isDelinquent: Boolean(delinquency.isDelinquent),
+          daysPastDue: Number(delinquency.daysPastDue || 0),
+        };
+      })
+    );
+
+    units.sort((a, b) => {
+      if (a.isDelinquent && !b.isDelinquent) return -1;
+      if (!a.isDelinquent && b.isDelinquent) return 1;
+
+      return a.unitNumber.localeCompare(b.unitNumber, undefined, {
+        numeric: true,
+        sensitivity: "base",
       });
-
-      const collectedForUnit = Math.abs(
-        Number(monthPayments._sum.amount || 0)
-      );
-
-      totalCollected += collectedForUnit;
-
-      if (delinquency.isDelinquent) {
-        delinquentCount++;
-      }
-
-      unitSummaries.push({
-        unitId: unit.id,
-        unitNumber: unit.unitNumber,
-        tenantName: activeAssignment?.tenant?.fullName || null,
-        balance: ledger.balance,
-        isDelinquent: delinquency.isDelinquent,
-        daysPastDue: delinquency.daysPastDue,
-      });
-    }
+    });
 
     return NextResponse.json({
       ok: true,
@@ -108,7 +133,7 @@ export async function GET() {
         code: property.code,
       },
       summary: {
-        totalUnits,
+        totalUnits: property.units.length,
         occupiedUnits,
         vacantUnits,
         delinquentUnits: delinquentCount,
@@ -116,14 +141,9 @@ export async function GET() {
       financials: {
         expected: totalExpected,
         collected: totalCollected,
-        collectionRate:
-          totalExpected > 0 ? totalCollected / totalExpected : 0,
+        collectionRate: totalExpected > 0 ? totalCollected / totalExpected : 0,
       },
-      units: unitSummaries.sort((a, b) => {
-        if (a.isDelinquent && !b.isDelinquent) return -1;
-        if (!a.isDelinquent && b.isDelinquent) return 1;
-        return a.unitNumber.localeCompare(b.unitNumber);
-      }),
+      units,
     });
   } catch (error) {
     console.error("manager dashboard GET error", error);

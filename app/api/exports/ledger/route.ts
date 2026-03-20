@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 
     let runningBalance = 0;
 
-    const rows = entries.map((e) => {
+    const rows = entries.map((e: (typeof entries)[number]) => {
       runningBalance += Number(e.amount || 0);
 
       return {
@@ -65,14 +65,11 @@ export async function GET(req: Request) {
         propertyCode: e.property?.code || "",
         unitNumber: e.unit?.unitNumber || "",
         tenantName: e.tenant?.name || "",
-
         type: e.type,
         amount: Number(e.amount || 0),
         runningBalance,
-
         effectiveDate: fmtDate(e.effectiveDate),
         createdAt: fmtDate(e.createdAt),
-
         memo: e.memo || "",
         source: e.source || "",
       };

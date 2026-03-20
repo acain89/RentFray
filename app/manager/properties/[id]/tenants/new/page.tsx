@@ -1,8 +1,9 @@
+// app/manager/properties/[id]/tenants/new/page.tsx
+
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
-import { getProrationSummary } from "@/lib/proration";
-import AssignmentFields from "./AssignmentFields";
 
 export const dynamic = "force-dynamic";
 
@@ -10,24 +11,51 @@ function clean(value: FormDataEntryValue | null) {
   return String(value || "").trim();
 }
 
-async function createTenantAndAssign(formData: FormData) {
+function parseMoveInDate(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return new Date();
+
+  const parsed = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return new Date();
+
+  return parsed;
+}
+
+async function createTenantAssignment(formData: FormData) {
   "use server";
+
+  const session = await getSession();
+
+  if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
+    redirect("/");
+  }
 
   const propertyId = clean(formData.get("propertyId"));
   const unitId = clean(formData.get("unitId"));
-  const name = clean(formData.get("name"));
-  const email = clean(formData.get("email"));
-  const phone = clean(formData.get("phone"));
+  const firstName = clean(formData.get("firstName"));
+  const lastName = clean(formData.get("lastName"));
+  const moveIn = clean(formData.get("moveIn"));
+  const activateNow = clean(formData.get("activateNow")) === "yes";
   const pin = clean(formData.get("pin"));
-  const moveInRaw = clean(formData.get("moveIn"));
-  const postProratedRent = clean(formData.get("postProratedRent")) === "on";
 
-  if (!propertyId || !unitId || !name) {
-    throw new Error("Property, unit, and tenant name are required.");
+  if (!propertyId) {
+    redirect("/manager/properties");
   }
 
-  if (!isValidFourDigitPin(pin)) {
-    throw new Error("PIN must be exactly 4 digits.");
+  if (session.propertyId !== propertyId) {
+    redirect("/manager/dashboard");
+  }
+
+  if (!unitId || !firstName || !lastName) {
+    redirect(
+      `/manager/properties/${propertyId}/tenants/new?error=Missing required fields`
+    );
+  }
+
+  if (activateNow && !isValidFourDigitPin(pin)) {
+    redirect(
+      `/manager/properties/${propertyId}/tenants/new?error=PIN must be exactly 4 digits`
+    );
   }
 
   const unit = await prisma.unit.findFirst({
@@ -38,96 +66,92 @@ async function createTenantAndAssign(formData: FormData) {
     include: {
       assignments: {
         where: { moveOut: null },
-        select: { id: true },
+        take: 1,
       },
     },
   });
 
   if (!unit) {
-    throw new Error("Unit not found.");
+    redirect(`/manager/properties/${propertyId}/tenants/new?error=Unit not found`);
   }
 
   if (unit.assignments.length > 0) {
-    throw new Error("Unit already has an active tenant.");
+    redirect(
+      `/manager/properties/${propertyId}/tenants/new?error=Unit already has an active tenant`
+    );
   }
 
-  const moveIn = moveInRaw ? new Date(`${moveInRaw}T00:00:00`) : new Date();
+  const fullName = `${firstName} ${lastName}`.trim();
+  const pinHash = activateNow ? await hashPin(pin) : null;
 
-  if (Number.isNaN(moveIn.getTime())) {
-    throw new Error("Invalid move-in date.");
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.tenantAssignment.create({
+      data: {
+        unitId,
+        moveIn: parseMoveInDate(moveIn),
+      },
+    });
 
-  const pinHash = hashPin(pin);
+    await tx.unit.update({
+      where: { id: unitId },
+      data: {
+        tenantName: fullName,
+        portalActivated: activateNow,
+        tenantPinHash: pinHash,
+      },
+    });
 
-  const tenant = await prisma.tenant.create({
-    data: {
-      propertyId,
-      name,
-      email,
-      phone,
-      pinHash,
-      status: "ACTIVE",
-    },
-    select: { id: true },
+    await tx.auditLog.create({
+      data: {
+        propertyId,
+        actorRole: session.role,
+        actorLabel: session.managementUserId || "management",
+        action: "TENANT_ASSIGNED",
+        entityType: "UNIT",
+        entityId: unitId,
+        notes: JSON.stringify({
+          unitNumber: unit.unitNumber,
+          tenantName: fullName,
+          moveIn: moveIn || null,
+          activateNow,
+        }),
+      },
+    });
   });
 
-  await prisma.unitAssignment.create({
-    data: {
-      unitId,
-      tenantId: tenant.id,
-      moveIn,
-    },
-  });
-
-  await prisma.unit.update({
-    where: { id: unitId },
-    data: {
-      occupancyStatus: "OCCUPIED",
-    },
-  });
-
-  if (postProratedRent) {
-    const proration = getProrationSummary(Number(unit.marketRent || 0), moveIn);
-
-    if (proration.proratedAmount > 0) {
-      await prisma.ledgerEntry.create({
-        data: {
-          propertyId,
-          unitId: unit.id,
-          tenantId: tenant.id,
-          type: "RENT_CHARGE",
-          amount: proration.proratedAmount,
-          effectiveDate: moveIn,
-          memo: `Prorated first rent (${proration.occupiedDays}/${proration.totalDays} days)`,
-          source: "SYSTEM_PRORATION",
-          sourceRef: tenant.id,
-        },
-      });
-    }
-  }
-
-  redirect(`/manager/units/${unitId}`);
+  redirect(`/manager/properties/${propertyId}?assigned=1`);
 }
 
-export default async function NewTenantPage({
+export default async function NewTenantAssignmentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ error?: string }>;
 }) {
+  const session = await getSession();
+
+  if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
+    redirect("/");
+  }
+
   const { id } = await params;
+  const qp = searchParams ? await searchParams : {};
+  const error = qp?.error ? decodeURIComponent(qp.error) : "";
+
+  if (session.propertyId !== id) {
+    redirect("/manager/dashboard");
+  }
 
   const property = await prisma.property.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      code: true,
+    include: {
       units: {
         orderBy: { unitNumber: "asc" },
         include: {
           assignments: {
             where: { moveOut: null },
-            select: { id: true },
+            take: 1,
           },
         },
       },
@@ -135,97 +159,112 @@ export default async function NewTenantPage({
   });
 
   if (!property) {
-    return <div className="p-6">Property not found</div>;
+    return <div className="p-6">Property not found.</div>;
   }
 
-  const availableUnits = property.units.filter((u) => u.assignments.length === 0);
+  const availableUnits = property.units.filter(
+    (unit: { assignments: { id: string }[] }) => unit.assignments.length === 0
+  );
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Create Tenant + Assign Unit</h1>
-        <div className="text-sm text-gray-600">
-          {property.name} · {property.code}
-        </div>
+        <h1 className="text-2xl font-semibold">Assign Tenant</h1>
+        <p className="text-sm text-neutral-600 mt-1">
+          {property.name} ({property.code})
+        </p>
       </div>
 
       {availableUnits.length === 0 ? (
-        <div className="rounded border p-4 text-sm text-gray-600">
-          No available units to assign.
+        <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
+          No available units.
         </div>
-      ) : (
-        <form
-          action={createTenantAndAssign}
-          className="max-w-2xl space-y-4 rounded border p-4"
-        >
+      ) : null}
+
+      {error ? (
+        <div className="border rounded-xl p-4 bg-white text-sm text-red-600">
+          {error}
+        </div>
+      ) : null}
+
+      {availableUnits.length > 0 ? (
+        <form action={createTenantAssignment} className="border rounded-xl p-4 bg-white space-y-4">
           <input type="hidden" name="propertyId" value={property.id} />
 
-          <AssignmentFields
-            units={availableUnits.map((unit) => ({
-              id: unit.id,
-              unitNumber: unit.unitNumber,
-              marketRent: Number(unit.marketRent || 0),
-            }))}
-          />
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1">
+              <div className="text-sm font-medium">Unit</div>
+              <select name="unitId" className="w-full border rounded-lg px-3 py-2" required>
+                {availableUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.unitNumber}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Tenant Name</label>
-            <input
-              name="name"
-              type="text"
-              required
-              className="w-full rounded border px-3 py-2"
-              placeholder="John Doe"
-            />
+            <label className="space-y-1">
+              <div className="text-sm font-medium">Move-In Date</div>
+              <input
+                type="date"
+                name="moveIn"
+                className="w-full border rounded-lg px-3 py-2"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+              />
+            </label>
+
+            <label className="space-y-1">
+              <div className="text-sm font-medium">First Name</div>
+              <input
+                name="firstName"
+                className="w-full border rounded-lg px-3 py-2"
+                required
+              />
+            </label>
+
+            <label className="space-y-1">
+              <div className="text-sm font-medium">Last Name</div>
+              <input
+                name="lastName"
+                className="w-full border rounded-lg px-3 py-2"
+                required
+              />
+            </label>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Email</label>
-            <input
-              name="email"
-              type="email"
-              className="w-full rounded border px-3 py-2"
-              placeholder="john@test.com"
-            />
-          </div>
+          <div className="border rounded-xl p-4 space-y-3">
+            <div className="font-medium">Portal Activation</div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Phone</label>
-            <input
-              name="phone"
-              type="text"
-              className="w-full rounded border px-3 py-2"
-              placeholder="1234567890"
-            />
-          </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="activateNow" value="no" defaultChecked />
+              Do not activate now
+            </label>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">4-Digit PIN</label>
-            <input
-              name="pin"
-              type="text"
-              inputMode="numeric"
-              pattern="\d{4}"
-              maxLength={4}
-              minLength={4}
-              required
-              defaultValue="1234"
-              className="w-full rounded border px-3 py-2"
-              placeholder="1234"
-            />
-            <div className="text-xs text-gray-500">
-              Tenant login uses Property Code + Unit Number + this 4-digit PIN.
-            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="activateNow" value="yes" />
+              Activate now with a 4-digit PIN
+            </label>
+
+            <label className="space-y-1 block">
+              <div className="text-sm font-medium">4-Digit PIN</div>
+              <input
+                name="pin"
+                inputMode="numeric"
+                maxLength={4}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="Only required if activating now"
+              />
+            </label>
           </div>
 
           <button
             type="submit"
-            className="rounded bg-black px-4 py-2 text-white"
+            className="px-4 py-2 rounded-lg bg-black text-white"
           >
-            Create Tenant + Assign
+            Assign Tenant
           </button>
         </form>
-      )}
+      ) : null}
     </div>
   );
 }

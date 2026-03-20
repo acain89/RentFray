@@ -1,15 +1,14 @@
-// app/api/tenant/payment-history/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
 
 export async function GET() {
   try {
-    const session = await getSession();
+    // ✅ enforce session + role
+    const session = await requireRole("TENANT");
 
-    if (!session || session.role !== "TENANT" || !session.unitId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session.unitId) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     const entries = await prisma.ledgerEntry.findMany({
@@ -17,19 +16,16 @@ export async function GET() {
         unitId: session.unitId,
         propertyId: session.propertyId,
       },
-      orderBy: [
-        { effectiveDate: "desc" },
-        { createdAt: "desc" },
-      ],
+      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
       take: 100,
     });
 
     const payments = entries
-      .filter((e) => e.amount < 0)
+      .filter((e) => Number(e.amount) < 0)
       .map((e) => ({
         id: e.id,
         type: e.type,
-        amount: Math.abs(e.amount),
+        amount: Math.abs(Number(e.amount || 0)),
         method: e.method || "UNKNOWN",
         reference: e.reference || null,
         note: e.note || null,

@@ -1,202 +1,245 @@
+// app/tenant/balance/page.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-type BalanceRow = {
+type TenantInfo = {
   id: string;
-  type: string;
-  label: string;
-  amount: number;
-  effectiveDate: string;
-  memo?: string | null;
-};
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+} | null;
 
 type BalanceData = {
   ok: true;
-  tenantName: string;
-  propertyName: string;
-  unitNumber: string;
-  unitId: string;
-  balance: number;
-  totalCharges: number;
-  totalPaid: number;
-  charges: BalanceRow[];
-  payments: BalanceRow[];
+  property: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  unit: {
+    id: string;
+    unitNumber: string;
+    bedrooms?: number | null;
+    bathrooms?: number | null;
+    squareFeet?: number | null;
+    marketRent?: number | null;
+  };
+  tenant: TenantInfo;
+  balance: {
+    currentBalance: number;
+    totalCharges: number;
+    totalPaid: number;
+    lastPaymentDate?: string | null;
+    lastPaymentAmount: number;
+  };
+  delinquency: {
+    isDelinquent: boolean;
+    daysPastDue: number;
+    lateFeesOwed: number;
+    unpaidRent: number;
+  };
 };
 
 function money(v: number) {
   return `$${Number(v || 0).toFixed(2)}`;
 }
 
-function fmtDate(value: string) {
+function fmtDate(value?: string | null) {
+  if (!value) return "—";
   return new Date(value).toLocaleDateString("en-US");
 }
 
 export default function TenantBalancePage() {
+  const router = useRouter();
+
   const [data, setData] = useState<BalanceData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     async function load() {
-      const unitId = localStorage.getItem("unitId");
-
-      if (!unitId) {
-        window.location.href = "/tenant";
-        return;
-      }
-
       try {
         setLoading(true);
         setError("");
 
         const res = await fetch("/api/tenant/balance", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ unitId }),
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
         });
 
-        const result = await res.json();
+        const result = await res.json().catch(() => null);
 
-        if (!res.ok) {
+        if (!active) return;
+
+        if (res.status === 401 || res.status === 403) {
+          router.replace("/property-code");
+          return;
+        }
+
+        if (!res.ok || !result?.ok) {
           setError(result?.error || "Failed to load balance detail.");
           return;
         }
 
         setData(result);
       } catch {
+        if (!active) return;
         setError("Failed to load balance detail.");
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
     load();
-  }, []);
 
-  if (loading) return <div className="p-6">Loading...</div>;
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
-  if (error) {
+  if (loading) {
     return (
-      <div className="p-6 space-y-3">
-        <div className="text-sm text-red-600">{error}</div>
-        <button
-          onClick={() => (window.location.href = "/tenant/dashboard")}
-          className="rounded border px-4 py-2 text-sm"
-        >
-          Back
-        </button>
-      </div>
+      <main className="min-h-screen bg-white text-black">
+        <div className="mx-auto max-w-5xl px-6 py-8">
+          <div className="text-sm text-neutral-600">Loading...</div>
+        </div>
+      </main>
     );
   }
 
-  if (!data) return <div className="p-6">No balance data found.</div>;
+  if (error) {
+    return (
+      <main className="min-h-screen bg-white text-black">
+        <div className="mx-auto max-w-5xl px-6 py-8 space-y-3">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+          <button
+            onClick={() => router.push("/tenant/dashboard")}
+            className="rounded-xl border border-neutral-300 px-4 py-2 text-sm"
+          >
+            Back
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!data) {
+    return (
+      <main className="min-h-screen bg-white text-black">
+        <div className="mx-auto max-w-5xl px-6 py-8">
+          <div className="text-sm text-neutral-600">No balance data found.</div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Balance Detail</h1>
-        <div className="text-sm text-gray-600">
-          {data.propertyName} · Unit {data.unitNumber}
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded border p-3">
-          <div className="text-xs text-gray-500">Total Charges</div>
-          <div className="text-lg font-semibold">{money(data.totalCharges)}</div>
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto max-w-5xl px-6 py-8 space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Balance Detail
+          </h1>
+          <div className="mt-2 text-sm text-neutral-600">
+            {data.property.name} · Unit {data.unit.unitNumber}
+          </div>
         </div>
 
-        <div className="rounded border p-3">
-          <div className="text-xs text-gray-500">Total Paid</div>
-          <div className="text-lg font-semibold">{money(data.totalPaid)}</div>
-        </div>
-
-        <div className="rounded border p-3">
-          <div className="text-xs text-gray-500">Current Balance</div>
-          <div className="text-lg font-semibold">{money(data.balance)}</div>
-        </div>
-      </div>
-
-      <div>
-        <h2 className="mb-2 font-semibold">Charges</h2>
-        <div className="space-y-2">
-          {data.charges.length === 0 ? (
-            <div className="rounded border p-3 text-sm text-gray-500">
-              No charges found.
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <div className="text-xs text-neutral-500">Total Charges</div>
+            <div className="text-lg font-semibold">
+              {money(data.balance.totalCharges)}
             </div>
-          ) : (
-            data.charges.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-1 gap-2 rounded border p-3 md:grid-cols-4"
-              >
-                <div>
-                  <div className="text-xs text-gray-500">Type</div>
-                  <div className="font-medium">{row.label}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Date</div>
-                  <div>{fmtDate(row.effectiveDate)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Memo</div>
-                  <div>{row.memo || "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Amount</div>
-                  <div className="font-medium">{money(row.amount)}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+          </div>
 
-      <button
-  type="button"
-  onClick={() => {
-    window.location.href = "/tenant/payment-history";
-  }}
-  className="rounded border px-4 py-2 text-sm"
->
-  View Payment History
-</button>
-
-      <div>
-        <h2 className="mb-2 font-semibold">Payments / Credits</h2>
-        <div className="space-y-2">
-          {data.payments.length === 0 ? (
-            <div className="rounded border p-3 text-sm text-gray-500">
-              No payments found.
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <div className="text-xs text-neutral-500">Total Paid</div>
+            <div className="text-lg font-semibold">
+              {money(data.balance.totalPaid)}
             </div>
-          ) : (
-            data.payments.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-1 gap-2 rounded border p-3 md:grid-cols-4"
-              >
-                <div>
-                  <div className="text-xs text-gray-500">Type</div>
-                  <div className="font-medium">{row.label}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Date</div>
-                  <div>{fmtDate(row.effectiveDate)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Memo</div>
-                  <div>{row.memo || "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Amount</div>
-                  <div className="font-medium">{money(row.amount)}</div>
-                </div>
+          </div>
+
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <div className="text-xs text-neutral-500">Current Balance</div>
+            <div className="text-lg font-semibold">
+              {money(data.balance.currentBalance)}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <div className="text-xs text-neutral-500">Last Payment Date</div>
+            <div className="text-sm font-medium">
+              {fmtDate(data.balance.lastPaymentDate)}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <div className="text-xs text-neutral-500">Last Payment Amount</div>
+            <div className="text-sm font-medium">
+              {money(data.balance.lastPaymentAmount)}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <h2 className="mb-3 font-semibold">Delinquency</h2>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <div className="text-xs text-neutral-500">Status</div>
+              <div className="text-sm font-medium">
+                {data.delinquency.isDelinquent ? "DELINQUENT" : "CURRENT"}
               </div>
-            ))
-          )}
+            </div>
+            <div>
+              <div className="text-xs text-neutral-500">Days Past Due</div>
+              <div className="text-sm font-medium">
+                {data.delinquency.daysPastDue}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-neutral-500">Late Fees Owed</div>
+              <div className="text-sm font-medium">
+                {money(data.delinquency.lateFeesOwed)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-neutral-500">Unpaid Rent</div>
+              <div className="text-sm font-medium">
+                {money(data.delinquency.unpaidRent)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/tenant/payment-history")}
+            className="rounded-xl border border-neutral-300 px-4 py-2 text-sm"
+          >
+            View Payment History
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/tenant/dashboard")}
+            className="rounded-xl border border-neutral-300 px-4 py-2 text-sm"
+          >
+            Back to Dashboard
+          </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

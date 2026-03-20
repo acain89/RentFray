@@ -30,17 +30,17 @@ export async function GET() {
         assignments: {
           where: { moveOut: null },
           orderBy: { moveIn: "desc" },
+          take: 1,
           include: {
             tenant: {
               select: {
                 id: true,
-                fullName: true,
+                name: true,
                 email: true,
                 phone: true,
               },
             },
           },
-          take: 1,
         },
       },
     });
@@ -49,8 +49,10 @@ export async function GET() {
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
-    const ledger = await getUnitLedgerSummary(unit.id);
-    const delinquency = await getUnitDelinquencySummary(unit.id);
+    const [ledger, delinquency] = await Promise.all([
+      getUnitLedgerSummary(unit.id),
+      getUnitDelinquencySummary(unit.id),
+    ]);
 
     const activeAssignment = unit.assignments[0] || null;
 
@@ -60,28 +62,34 @@ export async function GET() {
       unit: {
         id: unit.id,
         unitNumber: unit.unitNumber,
-        bedrooms: unit.bedrooms,
-        bathrooms: unit.bathrooms,
-        squareFeet: unit.squareFeet,
-        marketRent: unit.marketRent,
+        tier: unit.tier,
+        occupancyStatus: unit.occupancyStatus,
+        marketRent: Number(unit.marketRent || 0),
       },
-      tenant: activeAssignment?.tenant || null,
+      tenant: activeAssignment?.tenant
+        ? {
+            id: activeAssignment.tenant.id,
+            name: activeAssignment.tenant.name,
+            email: activeAssignment.tenant.email,
+            phone: activeAssignment.tenant.phone,
+          }
+        : null,
       balance: {
-        currentBalance: ledger.balance,
-        totalCharges: ledger.totalCharges,
-        totalPaid: ledger.totalPaid,
+        currentBalance: Number(ledger.balance || 0),
+        totalCharges: Number(ledger.totalCharges || 0),
+        totalPaid: Number(ledger.totalPaid || 0),
         lastPaymentDate: ledger.lastPaymentDate,
-        lastPaymentAmount: ledger.lastPaymentAmount,
+        lastPaymentAmount: Number(ledger.lastPaymentAmount || 0),
       },
       delinquency: {
-        isDelinquent: delinquency.isDelinquent,
-        daysPastDue: delinquency.daysPastDue,
-        lateFeesOwed: delinquency.lateFeesOwed,
-        unpaidRent: delinquency.unpaidRent,
+        isDelinquent: Boolean(delinquency.isDelinquent),
+        daysPastDue: Number(delinquency.daysPastDue || 0),
+        lateFeesOwed: Number(delinquency.lateFeesOwed || 0),
+        unpaidRent: Number(delinquency.unpaidRent || 0),
       },
     });
   } catch (error) {
-    console.error("tenant balance GET error", error);
+    console.error("GET /api/tenant/balance failed", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

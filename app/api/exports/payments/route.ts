@@ -54,7 +54,7 @@ export async function GET(req: Request) {
       },
     });
 
-    const rows = entries.map((e) => ({
+    const rows = entries.map((e: (typeof entries)[number]) => ({
       propertyName: e.property?.name || "",
       propertyCode: e.property?.code || "",
       unitNumber: e.unit?.unitNumber || "",

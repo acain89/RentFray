@@ -44,15 +44,18 @@ export default async function UnitDetail({
     return <div className="p-6">Unit not found</div>;
   }
 
-  const activeAssignment = unit.assignments[0] ?? null;
+  type ActiveAssignment = (typeof unit.assignments)[number];
+  type LedgerEntry = (typeof unit.ledgerEntries)[number];
+
+  const activeAssignment: ActiveAssignment | null = unit.assignments[0] ?? null;
   const tenant = activeAssignment?.tenant ?? null;
 
   const summary = await getUnitLedgerSummary(unit.id);
   const delinquency = await getUnitDelinquencySummary(unit.id);
   const settings = await getPropertySettings(unit.propertyId);
 
-  const currentLedgerEntries = activeAssignment
-    ? unit.ledgerEntries.filter((entry) => {
+  const currentLedgerEntries: LedgerEntry[] = activeAssignment
+    ? unit.ledgerEntries.filter((entry: LedgerEntry) => {
         const entryDate = new Date(entry.effectiveDate).getTime();
         const moveInDate = new Date(activeAssignment.moveIn).getTime();
         const sameTenantOrUnitLevel =
@@ -71,7 +74,7 @@ export default async function UnitDetail({
   const rentPreview = getRentPreview({
     billingDay: settings.billingDay,
     marketRent: Number(unit.marketRent || 0),
-    ledgerEntries: currentLedgerEntries.map((entry) => ({
+    ledgerEntries: currentLedgerEntries.map((entry: LedgerEntry) => ({
       type: entry.type,
       effectiveDate: entry.effectiveDate,
       amount: Number(entry.amount || 0),
@@ -79,7 +82,7 @@ export default async function UnitDetail({
   });
 
   let runningBalance = 0;
-  const ledgerRows = currentLedgerEntries.map((entry) => {
+  const ledgerRows = currentLedgerEntries.map((entry: LedgerEntry) => {
     runningBalance += Number(entry.amount || 0);
     return {
       ...entry,
@@ -117,38 +120,39 @@ export default async function UnitDetail({
         </div>
 
         <div className="flex flex-wrap gap-3">
-  {tenant ? (
-    <Link
-      href={`/manager/units/${unit.id}/move-out`}
-      className="inline-block rounded border px-4 py-2 text-sm font-medium"
-    >
-      Move Out Tenant
-    </Link>
-  ) : null}
+          {tenant ? (
+            <Link
+              href={`/manager/units/${unit.id}/move-out`}
+              className="inline-block rounded border px-4 py-2 text-sm font-medium"
+            >
+              Move Out Tenant
+            </Link>
+          ) : null}
 
-  {tenant ? (
-    <Link
-      href={`/manager/units/${unit.id}/tenant`}
-      className="inline-block rounded border px-4 py-2 text-sm font-medium"
-    >
-      Tenant Details
-    </Link>
-  ) : null}
+          {tenant ? (
+            <Link
+              href={`/manager/units/${unit.id}/tenant`}
+              className="inline-block rounded border px-4 py-2 text-sm font-medium"
+            >
+              Tenant Details
+            </Link>
+          ) : null}
 
-  <a
-    href={`/api/exports/ledger?unitId=${unit.id}`}
-    className="inline-block rounded bg-black px-4 py-2 text-sm font-medium text-white"
-  >
-    Export Ledger CSV
-  </a>
+          <a
+            href={`/api/exports/ledger?unitId=${unit.id}`}
+            className="inline-block rounded bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            Export Ledger CSV
+          </a>
 
-  <a
-    href={`/api/exports/payments?unitId=${unit.id}`}
-    className="inline-block rounded border px-4 py-2 text-sm font-medium"
-  >
-    Export Payments CSV
-  </a>
-</div>
+          <a
+            href={`/api/exports/payments?unitId=${unit.id}`}
+            className="inline-block rounded border px-4 py-2 text-sm font-medium"
+          >
+            Export Payments CSV
+          </a>
+        </div>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded border p-3">
@@ -172,7 +176,9 @@ export default async function UnitDetail({
         <div className="rounded border p-3">
           <div className="text-xs text-gray-500">Last Payment Amount</div>
           <div className="text-lg font-semibold">
-            {summary.lastPaymentDate ? money(summary.lastPaymentAmount) : "—"}
+            {summary.lastPaymentDate && summary.lastPaymentAmount !== null
+              ? money(summary.lastPaymentAmount)
+              : "—"}
           </div>
         </div>
       </div>
@@ -273,20 +279,21 @@ export default async function UnitDetail({
             <ManualChargeForm
               propertyId={unit.propertyId}
               unitId={unit.id}
-              tenantId={tenant?.id}
+              tenantId={tenant.id}
               defaultRent={Number(unit.marketRent || 0)}
             />
 
             <ManualPaymentForm
               propertyId={unit.propertyId}
               unitId={unit.id}
-              tenantId={tenant?.id}
+              tenantId={tenant.id}
             />
           </div>
         </>
       ) : (
         <div className="rounded border p-4 text-sm text-gray-600">
-          Unit is vacant. Current tenant-facing balance and ledger view are reset until a new tenant is assigned.
+          Unit is vacant. Current tenant-facing balance and ledger view are reset
+          until a new tenant is assigned.
         </div>
       )}
 

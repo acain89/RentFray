@@ -1,37 +1,21 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { allocatePayment } from "@/lib/paymentAllocation";
-
-function parseEffectiveDate(value: unknown) {
-  const raw = String(value || "").trim();
-  if (!raw) return new Date();
-  const d = new Date(`${raw}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? new Date() : d;
-}
-
-export async function GET() {
-  return NextResponse.json({ ok: true, route: "manual-payments" });
-}
+import { allocatePayment } from "@/lib/allocatePayment";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const propertyId = String(body.propertyId || "");
     const unitId = String(body.unitId || "");
-    const tenantIdInput = String(body.tenantId || "");
     const amount = Number(body.amount || 0);
-    const memo = String(body.memo || "");
-    const effectiveDate = parseEffectiveDate(body.effectiveDate);
 
-    if (!propertyId || !unitId || !Number.isFinite(amount) || amount <= 0) {
+    if (!unitId || !amount) {
       return NextResponse.json(
-        { error: "Missing required fields." },
+        { error: "Missing unitId or amount" },
         { status: 400 }
       );
     }
 
-    // --- LOAD UNIT + ACTIVE TENANT + LEDGER ---
     const unit = await prisma.unit.findUnique({
       where: { id: unitId },
       include: {
@@ -49,53 +33,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
-    const activeTenant = unit.assignments[0]?.tenant;
+    const tenant = unit.assignments[0]?.tenant;
 
-    // ✅ HARD GUARD: must have tenant
-    if (!activeTenant && !tenantIdInput) {
+    if (!tenant) {
       return NextResponse.json(
-        { error: "No active tenant for unit" },
+        { error: "No active tenant" },
         { status: 400 }
       );
     }
 
-    const tenantId = tenantIdInput || activeTenant?.id || null;
-
-    // --- ALLOCATION ENGINE ---
     const { allocations, remaining } = allocatePayment(
       amount,
-      unit.ledgerEntries.map((e) => ({
+      unit.ledgerEntries.map((e: (typeof unit.ledgerEntries)[number]) => ({
         id: e.id,
         amount: Number(e.amount || 0),
         type: e.type,
-        effectiveDate: e.effectiveDate,
       }))
     );
 
-    // --- CREATE PAYMENT (NEGATIVE ENTRY) ---
-    const payment = await prisma.ledgerEntry.create({
+    await prisma.ledgerEntry.create({
       data: {
-        propertyId,
-        unitId,
-        tenantId,
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        tenantId: tenant.id,
         type: "MANUAL_PAYMENT",
         amount: -Math.abs(amount),
-        effectiveDate,
-        memo: memo || "Manual payment",
+        effectiveDate: new Date(),
+        memo: "Manual payment",
         source: "MANUAL",
       },
     });
 
     return NextResponse.json({
       ok: true,
-      paymentId: payment.id,
       allocations,
-      remaining, // overpayment credit
+      remaining,
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     return NextResponse.json(
-      { error: "Failed to post manual payment." },
+      { error: "Failed to post manual payment" },
       { status: 500 }
     );
   }

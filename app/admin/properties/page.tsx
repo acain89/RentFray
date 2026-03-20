@@ -1,67 +1,59 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-type PropertyStatus = "PREVIEW" | "READY" | "LIVE";
-type LateFeeType = "FLAT" | "PERCENT";
-
-type PropertyRecord = {
+type PropertyRow = {
   id: string;
   name: string;
   code: string;
-  status: PropertyStatus;
-  billingDay: number;
-  graceDays: number;
-  lateFeeType: LateFeeType;
-  lateFeeAmount: number;
-  createdAt?: string;
+  status: string;
+  createdAt: string;
+  settings?: {
+    baseRentDefault: number;
+    convenienceFee: number;
+  } | null;
+  _count?: {
+    units: number;
+    managementUsers: number;
+    maintenanceUsers: number;
+    maintenanceRequests: number;
+    ledgerEntries: number;
+  };
 };
 
-type FormState = {
-  name: string;
-  code: string;
-  status: PropertyStatus;
-  billingDay: string;
-  graceDays: string;
-  lateFeeType: LateFeeType;
-  lateFeeAmount: string;
-};
-
-const DEFAULT_CREATE_FORM: FormState = {
-  name: "",
-  code: "",
-  status: "PREVIEW",
-  billingDay: "1",
-  graceDays: "5",
-  lateFeeType: "FLAT",
-  lateFeeAmount: "50",
-};
-
-function isFourDigitCode(value: string) {
-  return /^\d{4}$/.test(value);
+function money(value: number | null | undefined) {
+  return `$${Number(value || 0).toFixed(2)}`;
 }
 
-function toNumber(value: string, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+function fmtDate(value: string) {
+  return new Date(value).toLocaleString("en-US");
 }
 
 export default function AdminPropertiesPage() {
-  const [properties, setProperties] = useState<PropertyRecord[]>([]);
+  const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState("");
-  const [createError, setCreateError] = useState("");
-  const [createSuccess, setCreateSuccess] = useState("");
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createForm, setCreateForm] = useState<FormState>(DEFAULT_CREATE_FORM);
-  const [editForms, setEditForms] = useState<Record<string, FormState>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [name, setName] = useState("");
+  const [legalName, setLegalName] = useState("");
+  const [address1, setAddress1] = useState("");
+  const [address2, setAddress2] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [unitCount, setUnitCount] = useState("");
+  const [baseRent, setBaseRent] = useState("");
+  const [convenienceFee, setConvenienceFee] = useState("");
 
   async function loadProperties() {
-    setLoading(true);
-    setPageError("");
-
     try {
+      setLoading(true);
+      setError("");
+
       const res = await fetch("/api/admin/properties", {
         cache: "no-store",
       });
@@ -69,30 +61,13 @@ export default function AdminPropertiesPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to load properties.");
+        setError(data?.error || "Failed to load properties.");
+        return;
       }
 
-      const rows: PropertyRecord[] = Array.isArray(data?.properties)
-        ? data.properties
-        : [];
-
-      setProperties(rows);
-
-      const nextEditForms: Record<string, FormState> = {};
-      for (const p of rows) {
-        nextEditForms[p.id] = {
-          name: p.name ?? "",
-          code: p.code ?? "",
-          status: (p.status as PropertyStatus) ?? "PREVIEW",
-          billingDay: String(p.billingDay ?? 1),
-          graceDays: String(p.graceDays ?? 0),
-          lateFeeType: (p.lateFeeType as LateFeeType) ?? "FLAT",
-          lateFeeAmount: String(p.lateFeeAmount ?? 0),
-        };
-      }
-      setEditForms(nextEditForms);
-    } catch (err) {
-      setPageError(err instanceof Error ? err.message : "Failed to load properties.");
+      setProperties(data.properties || []);
+    } catch {
+      setError("Failed to load properties.");
     } finally {
       setLoading(false);
     }
@@ -102,40 +77,14 @@ export default function AdminPropertiesPage() {
     loadProperties();
   }, []);
 
-  const sortedProperties = useMemo(() => {
-    return [...properties].sort((a, b) => a.name.localeCompare(b.name));
-  }, [properties]);
-
-  function updateCreateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setCreateForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function updateEditForm(id: string, key: keyof FormState, value: string) {
-    setEditForms((prev) => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        [key]: value,
-      },
-    }));
-  }
-
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    setCreateError("");
-    setCreateSuccess("");
 
-    if (!createForm.name.trim()) {
-      setCreateError("Property name is required.");
-      return;
-    }
+    if (saving) return;
 
-    if (!isFourDigitCode(createForm.code.trim())) {
-      setCreateError("Property code must be exactly 4 digits.");
-      return;
-    }
-
-    setCreateLoading(true);
+    setSaving(true);
+    setError("");
+    setSuccess("");
 
     try {
       const res = await fetch("/api/admin/properties", {
@@ -144,363 +93,236 @@ export default function AdminPropertiesPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: createForm.name.trim(),
-          code: createForm.code.trim(),
-          status: createForm.status,
-          billingDay: toNumber(createForm.billingDay, 1),
-          graceDays: toNumber(createForm.graceDays, 0),
-          lateFeeType: createForm.lateFeeType,
-          lateFeeAmount: toNumber(createForm.lateFeeAmount, 0),
+          name,
+          legalName,
+          address1,
+          address2,
+          city,
+          state,
+          zip,
+          phone,
+          email,
+          unitCount,
+          baseRent,
+          convenienceFee,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to create property.");
+        setError(data?.error || "Failed to create property.");
+        return;
       }
 
-      setCreateForm(DEFAULT_CREATE_FORM);
-      setCreateSuccess("Property created.");
-      await loadProperties();
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create property.");
-    } finally {
-      setCreateLoading(false);
-    }
-  }
+      setSuccess(`Property created. Code: ${data.property.code}`);
 
-  async function handleSave(id: string) {
-    const form = editForms[id];
-    if (!form) return;
-
-    if (!form.name.trim()) {
-      setPageError("Property name is required.");
-      return;
-    }
-
-    if (!isFourDigitCode(form.code.trim())) {
-      setPageError("Property code must be exactly 4 digits.");
-      return;
-    }
-
-    setPageError("");
-    setSavingId(id);
-
-    try {
-      const res = await fetch(`/api/admin/properties/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          code: form.code.trim(),
-          status: form.status,
-          billingDay: toNumber(form.billingDay, 1),
-          graceDays: toNumber(form.graceDays, 0),
-          lateFeeType: form.lateFeeType,
-          lateFeeAmount: toNumber(form.lateFeeAmount, 0),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to update property.");
-      }
+      setName("");
+      setLegalName("");
+      setAddress1("");
+      setAddress2("");
+      setCity("");
+      setState("");
+      setZip("");
+      setPhone("");
+      setEmail("");
+      setUnitCount("");
+      setBaseRent("");
+      setConvenienceFee("");
 
       await loadProperties();
-    } catch (err) {
-      setPageError(err instanceof Error ? err.message : "Failed to update property.");
+    } catch {
+      setError("Failed to create property.");
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <div className="mb-8">
+    <div className="p-6 space-y-8">
+      <div>
         <h1 className="text-2xl font-semibold">Admin Properties</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Create and manage property setup, codes, status, and billing rules.
+        <p className="text-sm text-neutral-600 mt-1">
+          Create properties, assign unique 4-digit codes, and begin setup.
         </p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[420px_minmax(0,1fr)]">
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Create Property</h2>
+      <form onSubmit={handleCreate} className="border rounded-xl p-4 space-y-4 bg-white">
+        <h2 className="text-lg font-semibold">Create Property</h2>
 
-          <form onSubmit={handleCreate} className="mt-4 space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Property Name</label>
-              <input
-                value={createForm.name}
-                onChange={(e) => updateCreateForm("name", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 outline-none"
-                placeholder="Oak Terrace Apartments"
-              />
-            </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Property Name *</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Sunset Villas"
+              required
+            />
+          </label>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">4-Digit Property Code</label>
-              <input
-                value={createForm.code}
-                onChange={(e) =>
-                  updateCreateForm("code", e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                inputMode="numeric"
-                maxLength={4}
-                className="w-full rounded-lg border px-3 py-2 outline-none"
-                placeholder="1234"
-              />
-            </div>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Legal Name</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={legalName}
+              onChange={(e) => setLegalName(e.target.value)}
+              placeholder="Sunset Villas LLC"
+            />
+          </label>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">Status</label>
-              <select
-                value={createForm.status}
-                onChange={(e) =>
-                  updateCreateForm("status", e.target.value as PropertyStatus)
-                }
-                className="w-full rounded-lg border px-3 py-2 outline-none"
-              >
-                <option value="PREVIEW">PREVIEW</option>
-                <option value="READY">READY</option>
-                <option value="LIVE">LIVE</option>
-              </select>
-            </div>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Address 1</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={address1}
+              onChange={(e) => setAddress1(e.target.value)}
+            />
+          </label>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Billing Day</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={createForm.billingDay}
-                  onChange={(e) => updateCreateForm("billingDay", e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 outline-none"
-                />
-              </div>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Address 2</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={address2}
+              onChange={(e) => setAddress2(e.target.value)}
+            />
+          </label>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium">Grace Days</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={31}
-                  value={createForm.graceDays}
-                  onChange={(e) => updateCreateForm("graceDays", e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 outline-none"
-                />
-              </div>
-            </div>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">City</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+            />
+          </label>
 
-            <div className="grid grid-cols-[1fr_1fr] gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Late Fee Type</label>
-                <select
-                  value={createForm.lateFeeType}
-                  onChange={(e) =>
-                    updateCreateForm("lateFeeType", e.target.value as LateFeeType)
-                  }
-                  className="w-full rounded-lg border px-3 py-2 outline-none"
-                >
-                  <option value="FLAT">FLAT</option>
-                  <option value="PERCENT">PERCENT</option>
-                </select>
-              </div>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">State</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={state}
+              onChange={(e) => setState(e.target.value.toUpperCase())}
+              maxLength={2}
+              placeholder="TX"
+            />
+          </label>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium">Late Fee Amount</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={createForm.lateFeeAmount}
-                  onChange={(e) => updateCreateForm("lateFeeAmount", e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 outline-none"
-                />
-              </div>
-            </div>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">ZIP</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={zip}
+              onChange={(e) => setZip(e.target.value)}
+            />
+          </label>
 
-            {createError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {createError}
-              </div>
-            ) : null}
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Phone</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </label>
 
-            {createSuccess ? (
-              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-                {createSuccess}
-              </div>
-            ) : null}
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Email</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
 
-            <button
-              type="submit"
-              disabled={createLoading}
-              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {createLoading ? "Creating..." : "Create Property"}
-            </button>
-          </form>
-        </section>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Planned Unit Count</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={unitCount}
+              onChange={(e) => setUnitCount(e.target.value)}
+              inputMode="numeric"
+            />
+          </label>
 
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Properties</h2>
-            <button
-              type="button"
-              onClick={loadProperties}
-              className="rounded-lg border px-3 py-2 text-sm font-medium"
-            >
-              Refresh
-            </button>
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Base Rent Default</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={baseRent}
+              onChange={(e) => setBaseRent(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+            />
+          </label>
+
+          <label className="space-y-1">
+            <div className="text-sm font-medium">Convenience Fee</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={convenienceFee}
+              onChange={(e) => setConvenienceFee(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+            />
+          </label>
+        </div>
+
+        {error ? <div className="text-sm text-red-600">{error}</div> : null}
+        {success ? <div className="text-sm text-green-600">{success}</div> : null}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-60"
+        >
+          {saving ? "Creating..." : "Create Property"}
+        </button>
+      </form>
+
+      <div className="border rounded-xl p-4 bg-white">
+        <h2 className="text-lg font-semibold mb-4">Existing Properties</h2>
+
+        {loading ? (
+          <div className="text-sm text-neutral-600">Loading...</div>
+        ) : properties.length === 0 ? (
+          <div className="text-sm text-neutral-600">No properties yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2 pr-4">Name</th>
+                  <th className="py-2 pr-4">Code</th>
+                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Base Rent</th>
+                  <th className="py-2 pr-4">Conv. Fee</th>
+                  <th className="py-2 pr-4">Units</th>
+                  <th className="py-2 pr-4">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {properties.map((property) => (
+                  <tr key={property.id} className="border-b align-top">
+                    <td className="py-2 pr-4">{property.name}</td>
+                    <td className="py-2 pr-4 font-mono">{property.code}</td>
+                    <td className="py-2 pr-4">{property.status}</td>
+                    <td className="py-2 pr-4">
+                      {money(property.settings?.baseRentDefault)}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {money(property.settings?.convenienceFee)}
+                    </td>
+                    <td className="py-2 pr-4">{property._count?.units || 0}</td>
+                    <td className="py-2 pr-4">{fmtDate(property.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          {pageError ? (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {pageError}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div className="text-sm text-gray-600">Loading properties...</div>
-          ) : sortedProperties.length === 0 ? (
-            <div className="text-sm text-gray-600">No properties yet.</div>
-          ) : (
-            <div className="space-y-4">
-              {sortedProperties.map((property) => {
-                const form = editForms[property.id];
-                if (!form) return null;
-
-                return (
-                  <div
-                    key={property.id}
-                    className="rounded-xl border p-4"
-                  >
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <div className="xl:col-span-2">
-                        <label className="mb-1 block text-sm font-medium">Property Name</label>
-                        <input
-                          value={form.name}
-                          onChange={(e) =>
-                            updateEditForm(property.id, "name", e.target.value)
-                          }
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium">4-Digit Code</label>
-                        <input
-                          value={form.code}
-                          onChange={(e) =>
-                            updateEditForm(
-                              property.id,
-                              "code",
-                              e.target.value.replace(/\D/g, "").slice(0, 4)
-                            )
-                          }
-                          inputMode="numeric"
-                          maxLength={4}
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium">Status</label>
-                        <select
-                          value={form.status}
-                          onChange={(e) =>
-                            updateEditForm(property.id, "status", e.target.value)
-                          }
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        >
-                          <option value="PREVIEW">PREVIEW</option>
-                          <option value="READY">READY</option>
-                          <option value="LIVE">LIVE</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium">Billing Day</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={form.billingDay}
-                          onChange={(e) =>
-                            updateEditForm(property.id, "billingDay", e.target.value)
-                          }
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium">Grace Days</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={31}
-                          value={form.graceDays}
-                          onChange={(e) =>
-                            updateEditForm(property.id, "graceDays", e.target.value)
-                          }
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium">Late Fee Type</label>
-                        <select
-                          value={form.lateFeeType}
-                          onChange={(e) =>
-                            updateEditForm(property.id, "lateFeeType", e.target.value)
-                          }
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        >
-                          <option value="FLAT">FLAT</option>
-                          <option value="PERCENT">PERCENT</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium">Late Fee Amount</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={form.lateFeeAmount}
-                          onChange={(e) =>
-                            updateEditForm(property.id, "lateFeeAmount", e.target.value)
-                          }
-                          className="w-full rounded-lg border px-3 py-2 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="text-xs text-gray-500">
-                        ID: {property.id}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleSave(property.id)}
-                        disabled={savingId === property.id}
-                        className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                      >
-                        {savingId === property.id ? "Saving..." : "Save Changes"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        )}
       </div>
     </div>
   );

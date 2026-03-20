@@ -18,8 +18,8 @@ export default function PropertyCodePage() {
 
     const cleanCode = code.trim();
 
-    if (!cleanCode) {
-      setError("Enter property code.");
+    if (!cleanCode || cleanCode.length !== 4) {
+      setError("Enter a valid 4-digit property code.");
       return;
     }
 
@@ -43,7 +43,7 @@ export default function PropertyCodePage() {
         return;
       }
 
-      router.push(`/role-select?code=${encodeURIComponent(cleanCode)}`);
+      router.replace(`/role-select?code=${encodeURIComponent(cleanCode)}`);
     } catch {
       setError("Unable to verify property code.");
       setLoading(false);
@@ -55,7 +55,9 @@ export default function PropertyCodePage() {
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
         <div className="w-full">
           <div className="mb-8">
-            <h1 className="text-3xl font-semibold tracking-tight">Property Code</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Property Code
+            </h1>
             <p className="mt-2 text-sm text-neutral-600">
               Enter your 4-digit property code to continue.
             </p>
@@ -63,21 +65,27 @@ export default function PropertyCodePage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="property-code" className="mb-2 block text-sm font-medium">
+              <label
+                htmlFor="property-code"
+                className="mb-2 block text-sm font-medium"
+              >
                 Property Code
               </label>
               <input
                 id="property-code"
                 type="text"
                 inputMode="numeric"
+                pattern="\d*"
                 autoComplete="one-time-code"
                 maxLength={4}
                 value={code}
                 onChange={(e) => {
-                  const next = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  const next = e.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 4);
                   setCode(next);
                 }}
-                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-lg outline-none transition focus:border-black"
+                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-lg outline-none focus:border-black"
                 placeholder="1234"
               />
             </div>
@@ -91,7 +99,7 @@ export default function PropertyCodePage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
             >
               {loading ? "Checking..." : "Continue"}
             </button>

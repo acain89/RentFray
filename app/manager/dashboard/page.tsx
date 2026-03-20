@@ -48,39 +48,53 @@ export default function ManagerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadDashboard() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/manager/dashboard", {
-        cache: "no-store",
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        setError(json?.error || "Failed to load dashboard.");
-        setLoading(false);
-        return;
-      }
-
-      setData(json);
-      setLoading(false);
-    } catch {
-      setError("Failed to load dashboard.");
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
+    let active = true;
+
+    async function loadDashboard() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const res = await fetch("/api/manager/dashboard", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        const json = await res.json();
+
+        if (!active) return;
+
+        if (!res.ok) {
+          setData(null);
+          setError(json?.error || "Failed to load dashboard.");
+          setLoading(false);
+          return;
+        }
+
+        setData(json);
+        setLoading(false);
+      } catch {
+        if (!active) return;
+        setData(null);
+        setError("Failed to load dashboard.");
+        setLoading(false);
+      }
+    }
+
     loadDashboard();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const filteredUnits = useMemo(() => {
     if (!data) return [];
 
     const q = query.trim().toLowerCase();
+
     if (!q) return data.units;
 
     return data.units.filter((unit) => {
@@ -173,12 +187,16 @@ export default function ManagerDashboardPage() {
                   {filteredUnits.map((unit) => (
                     <tr key={unit.unitId} className="border-b border-neutral-100">
                       <td className="px-4 py-3 text-sm">{unit.unitNumber}</td>
-                      <td className="px-4 py-3 text-sm">{unit.tenantName || "—"}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {unit.tenantName || "—"}
+                      </td>
                       <td className="px-4 py-3 text-sm">{money(unit.balance)}</td>
                       <td className="px-4 py-3 text-sm">
                         {unit.isDelinquent ? "Delinquent" : "Current"}
                       </td>
-                      <td className="px-4 py-3 text-sm">{unit.daysPastDue || 0}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {unit.daysPastDue || 0}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
