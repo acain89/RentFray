@@ -1,4 +1,4 @@
-// app/api/manager/maintenance/route.ts
+// [path: app/api/manager/maintenance/route.ts]
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +25,18 @@ export async function GET() {
         unit: {
           select: {
             unitNumber: true,
-            tenantName: true,
+            tenantAssignments: {
+              where: {
+                isCurrent: true,
+                moveOutDate: null,
+              },
+              orderBy: { moveInDate: "desc" },
+              take: 1,
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -33,17 +44,28 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      requests: requests.map((row) => ({
-        id: row.id,
-        unitNumber: row.unit.unitNumber,
-        tenantName: row.unit.tenantName,
-        category: row.category,
-        urgency: row.urgency,
-        status: row.status,
-        description: row.description,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      })),
+      requests: requests.map((row) => {
+        const assignment = row.unit.tenantAssignments[0] ?? null;
+
+        const tenantName = assignment
+          ? [assignment.firstName, assignment.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || null
+          : null;
+
+        return {
+          id: row.id,
+          unitNumber: row.unit.unitNumber,
+          tenantName,
+          category: row.category,
+          urgency: row.urgency,
+          status: row.status,
+          description: row.description,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        };
+      }),
     });
   } catch (error) {
     console.error("GET /api/manager/maintenance error:", error);

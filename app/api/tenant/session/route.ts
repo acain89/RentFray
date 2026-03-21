@@ -4,8 +4,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
-
-const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"]);
+import {
+  checkPinAllowed,
+  recordFailedAttempt,
+  clearPinAttempts,
+} from "@/lib/pinLockout";
+import { canTenantLogin } from "@/lib/liveGating";
 
 export async function POST(req: Request) {
   try {
@@ -17,21 +21,21 @@ export async function POST(req: Request) {
 
     if (!propertyCode || propertyCode.length !== 4) {
       return NextResponse.json(
-        { error: "Invalid property code." },
+        { error: "Invalid credentials." },
         { status: 400 }
       );
     }
 
     if (!unitNumber) {
       return NextResponse.json(
-        { error: "Unit number required." },
+        { error: "Invalid credentials." },
         { status: 400 }
       );
     }
 
     if (!/^\d{4}$/.test(pin)) {
       return NextResponse.json(
-        { error: "Invalid PIN." },
+        { error: "Invalid credentials." },
         { status: 400 }
       );
     }
@@ -47,12 +51,13 @@ export async function POST(req: Request) {
 
     if (!property || !property.isActive) {
       return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
+        { error: "Invalid credentials." },
+        { status: 401 }
       );
     }
 
-    if (!ALLOWED_PROPERTY_STATUSES.has(property.status)) {
+    // ✅ CENTRALIZED GATING
+    if (!canTenantLogin(property)) {
       return NextResponse.json(
         { error: "Property not available." },
         { status: 403 }
@@ -76,29 +81,39 @@ export async function POST(req: Request) {
 
     if (!unit || !unit.isActive) {
       return NextResponse.json(
-        { error: "Unit not found." },
-        { status: 404 }
+        { error: "Invalid credentials." },
+        { status: 401 }
       );
     }
 
     if (!unit.portalActivated || !unit.tenantPinHash) {
       return NextResponse.json(
-        {
-          error:
-            "This unit has not been activated yet. Please use Tenant First Time Use or contact the office.",
-        },
+        { error: "Unit not activated." },
         { status: 400 }
+      );
+    }
+
+    // 🔒 LOCKOUT CHECK
+    const allowed = await checkPinAllowed(unit.id);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Try again later." },
+        { status: 429 }
       );
     }
 
     const valid = await verifyPin(pin, unit.tenantPinHash);
 
     if (!valid) {
+      await recordFailedAttempt(unit.id);
       return NextResponse.json(
         { error: "Invalid credentials." },
         { status: 401 }
       );
     }
+
+    // ✅ CLEAR LOCKOUT ON SUCCESS
+    await clearPinAttempts(unit.id);
 
     const token = createSessionToken({
       role: "TENANT",

@@ -1,38 +1,64 @@
-// app/api/payments/create-session/route.ts
+// [path: app/api/payments/create-session/route.ts]
 
 import { NextResponse } from "next/server";
+import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
+import { canMakePayments } from "@/lib/liveGating";
 
-function getOrigin(req: Request) {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (envUrl) {
-    return envUrl.replace(/\/+$/, "");
-  }
+export const runtime = "nodejs";
 
-  try {
-    const url = new URL(req.url);
-    return `${url.protocol}//${url.host}`;
-  } catch {
-    return "http://localhost:3000";
-  }
+function moneyCents(value: number) {
+  return Math.round(Number(value || 0) * 100);
 }
 
-function toCents(amount: number) {
-  return Math.round(Number(amount || 0) * 100);
-}
+function getConvenienceFeeAmount(
+  settings: {
+    convenienceFeeEnabled?: boolean | null;
+    convenienceFeeType?: string | null;
+    convenienceFeeAmount?: number | null;
+  } | null | undefined,
+  balanceDue: number
+) {
+  if (!settings?.convenienceFeeEnabled) return 0;
 
-function moneyNumber(value: unknown) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
+  const feeType = String(settings.convenienceFeeType || "FLAT").toUpperCase();
+  const feeAmount = Number(settings.convenienceFeeAmount || 0);
+
+  if (feeAmount <= 0) return 0;
+
+  if (feeType === "PERCENT") {
+    return Math.max(0, (balanceDue * feeAmount) / 100);
+  }
+
+  return Math.max(0, feeAmount);
 }
 
 export async function POST(req: Request) {
   try {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+
+    if (!secretKey) {
+      console.error("Create Stripe session error: missing STRIPE_SECRET_KEY");
+      return NextResponse.json(
+        { error: "Stripe secret key is not configured." },
+        { status: 400 }
+      );
+    }
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: "2023-10-16",
+    });
+
     const session = await getSession();
 
-    if (!session || session.role !== "TENANT" || !session.unitId || !session.propertyId) {
+    if (
+      !session ||
+      session.role !== "TENANT" ||
+      !session.unitId ||
+      !session.propertyId
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -45,8 +71,18 @@ export async function POST(req: Request) {
         property: {
           include: {
             settings: true,
-            paymentConnectionStatus: true,
+            paymentStatus: true,
+            units: true,
           },
+        },
+        tenantAssignments: {
+          where: {
+            isCurrent: true,
+          },
+          orderBy: {
+            moveInDate: "desc",
+          },
+          take: 1,
         },
       },
     });
@@ -55,134 +91,169 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
-    const ledger = await getUnitLedgerSummary(unit.id);
-    const baseAmountDue = Math.max(0, Number(ledger?.balance || 0));
+    const property = unit.property;
 
-    if (baseAmountDue <= 0) {
-      return NextResponse.json({ error: "No balance due" }, { status: 400 });
-    }
+    const propertyForGating = {
+      status: property.status,
+      settings: property.settings,
+      units: property.units,
+      paymentStatus: property.paymentStatus,
+    };
 
-    const convenienceFee = moneyNumber(unit.property.settings?.convenienceFee || 0);
-    const totalAmountDue = moneyNumber(baseAmountDue + convenienceFee);
-
-    const paymentStatus = unit.property.paymentConnectionStatus;
-
-    const paymentReady = Boolean(
-      paymentStatus?.stripeConnected &&
-        paymentStatus?.achEnabled &&
-        paymentStatus?.onboardingComplete &&
-        paymentStatus?.adminApproved
-    );
-
-    if (!paymentReady) {
+    if (!canMakePayments(propertyForGating)) {
       return NextResponse.json(
-        { error: "Payments are not enabled for this property yet." },
+        {
+          error: "Payments are not available for this property yet.",
+          debug: {
+            propertyStatus: property.status,
+            paymentStatus: property.paymentStatus,
+          },
+        },
         { status: 400 }
       );
     }
 
-    const origin = getOrigin(req);
+    const settings = property.settings;
 
-    if (unit.property.status !== "LIVE") {
-      return NextResponse.json({
-        ok: true,
-        preview: true,
-        message: "Property is not LIVE yet. Payment session not created.",
-        baseAmountDue,
-        convenienceFee,
-        totalAmountDue,
-      });
+    if (!settings) {
+      return NextResponse.json(
+        { error: "Property settings not found." },
+        { status: 400 }
+      );
     }
 
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim();
+    const ledger = await getUnitLedgerSummary(unit.id);
+    const balanceDue = Math.max(0, Number(ledger.balance || 0));
 
-    if (!stripeSecretKey) {
-      return NextResponse.json({
-        ok: true,
-        preview: true,
-        message: "Stripe is not configured yet. Payment session not created.",
-        baseAmountDue,
-        convenienceFee,
-        totalAmountDue,
-      });
+    if (balanceDue <= 0) {
+      return NextResponse.json({ error: "No balance due." }, { status: 400 });
     }
 
-    const Stripe = require("stripe");
-    const stripe = new Stripe(stripeSecretKey);
+    const convenienceFee = getConvenienceFeeAmount(settings, balanceDue);
+    const total = balanceDue + convenienceFee;
 
-    const lineItems = [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: `RentFray Balance - Unit ${unit.unitNumber}`,
-          },
-          unit_amount: toCents(baseAmountDue),
-        },
-        quantity: 1,
-      },
-    ];
+    const baseAmountCents = moneyCents(balanceDue);
+    const convenienceFeeCents = moneyCents(convenienceFee);
+    const totalAmountCents = moneyCents(total);
 
-    if (convenienceFee > 0) {
-      lineItems.push({
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: "Convenience Fee",
-          },
-          unit_amount: toCents(convenienceFee),
-        },
-        quantity: 1,
-      });
+    if (totalAmountCents <= 0) {
+      return NextResponse.json(
+        { error: "Invalid payment amount." },
+        { status: 400 }
+      );
     }
+
+    const activeAssignment = unit.tenantAssignments[0] || null;
+    const tenantId = activeAssignment?.id || "";
+    const tenantName = activeAssignment
+      ? [activeAssignment.firstName, activeAssignment.lastName]
+          .filter(Boolean)
+          .join(" ")
+      : `Unit ${unit.unitNumber}`;
+
+    const origin =
+      req.headers.get("origin") ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "http://localhost:10000";
+
+    console.log("Create Stripe session payload", {
+      propertyId: property.id,
+      unitId: unit.id,
+      tenantId,
+      propertyStatus: property.status,
+      paymentStatus: property.paymentStatus,
+      balanceDue,
+      convenienceFee,
+      total,
+      origin,
+    });
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["us_bank_account"],
-      line_items: lineItems,
-      success_url: `${origin}/tenant/pay?success=1`,
-      cancel_url: `${origin}/tenant/pay?canceled=1`,
+      customer_creation: "if_required",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `RentFray payment — Unit ${unit.unitNumber}`,
+              description: `${property.name} balance payment for ${tenantName}`,
+            },
+            unit_amount: baseAmountCents,
+          },
+          quantity: 1,
+        },
+        ...(convenienceFeeCents > 0
+          ? [
+              {
+                price_data: {
+                  currency: "usd",
+                  product_data: {
+                    name: "Convenience fee",
+                    description: `${property.name} payment processing fee`,
+                  },
+                  unit_amount: convenienceFeeCents,
+                },
+                quantity: 1,
+              },
+            ]
+          : []),
+      ],
+      success_url: `${origin}/tenant/pay?status=success`,
+      cancel_url: `${origin}/tenant/pay?status=cancelled`,
       metadata: {
-        propertyId: unit.propertyId,
+        propertyId: property.id,
         unitId: unit.id,
-        unitNumber: unit.unitNumber,
-        tenantName: unit.tenantName || "",
-        source: "tenant_pay_now",
-        baseAmountDue: String(baseAmountDue),
-        convenienceFee: String(convenienceFee),
-        totalAmountDue: String(totalAmountDue),
+        tenantId,
+        baseAmount: balanceDue.toFixed(2),
+        convenienceFee: convenienceFee.toFixed(2),
+        totalAmount: total.toFixed(2),
+        baseAmountCents: String(baseAmountCents),
+        convenienceFeeCents: String(convenienceFeeCents),
+        totalAmountCents: String(totalAmountCents),
       },
     });
 
-    await prisma.auditLog.create({
-      data: {
-        propertyId: unit.propertyId,
-        actorRole: "TENANT",
-        actorLabel: unit.unitNumber,
-        action: "TENANT_PAYMENT_SESSION_CREATED",
-        entityType: "UNIT",
-        entityId: unit.id,
-        notes: JSON.stringify({
-          baseAmountDue,
-          convenienceFee,
-          totalAmountDue,
-          checkoutSessionId: checkoutSession.id,
-        }),
-      },
-    });
+    if (!checkoutSession.url) {
+      console.error("Create Stripe session error: no checkout url returned");
+      return NextResponse.json(
+        { error: "Stripe did not return a checkout URL." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,
-      preview: false,
-      checkoutUrl: checkoutSession.url,
-      baseAmountDue,
+      url: checkoutSession.url,
+      balanceDue,
       convenienceFee,
-      totalAmountDue,
+      total,
     });
   } catch (error) {
-    console.error("POST /api/payments/create-session error:", error);
+    if (error instanceof Stripe.errors.StripeError) {
+      console.error("Create Stripe session StripeError:", {
+        type: error.type,
+        code: error.code,
+        message: error.message,
+        param: error.param,
+      });
+
+      return NextResponse.json(
+        {
+          error: error.message || "Stripe request failed.",
+          type: error.type,
+          code: error.code || null,
+          param: error.param || null,
+        },
+        { status: 400 }
+      );
+    }
+
+    console.error("Create Stripe session error:", error);
+
     return NextResponse.json(
-      { error: "Failed to create payment session" },
+      { error: "Unable to create payment session." },
       { status: 500 }
     );
   }

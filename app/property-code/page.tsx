@@ -37,13 +37,14 @@ export default function PropertyCodePage() {
 
       const data = await res.json();
 
-      if (!res.ok || !data?.ok) {
+      if (!res.ok || !data?.ok || !data?.propertyId) {
         setError(data?.error || "Invalid property code.");
         setLoading(false);
         return;
       }
 
-      router.replace(`/role-select?code=${encodeURIComponent(cleanCode)}`);
+      // ✅ Only navigate if backend confirms valid + active property
+      router.replace(`/property-code/role?code=${encodeURIComponent(cleanCode)}`);
     } catch {
       setError("Unable to verify property code.");
       setLoading(false);

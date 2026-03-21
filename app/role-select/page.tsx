@@ -2,15 +2,29 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 
-export default function RoleSelectPage({
+export default async function RoleSelectPage({
   searchParams,
 }: {
   searchParams: { code?: string };
 }) {
   const code = searchParams?.code?.trim() || "";
 
-  if (!code) {
+  if (!code || code.length !== 4) {
+    redirect("/property-code");
+  }
+
+  // ✅ HARD VALIDATION (no bypass)
+  const property = await prisma.property.findUnique({
+    where: { code },
+    select: {
+      id: true,
+      isActive: true,
+    },
+  });
+
+  if (!property || !property.isActive) {
     redirect("/property-code");
   }
 

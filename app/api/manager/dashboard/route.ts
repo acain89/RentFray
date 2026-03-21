@@ -1,4 +1,4 @@
-// app/api/manager/dashboard/route.ts
+// [path: app/api/manager/dashboard/route.ts]
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,13 @@ export async function GET() {
   try {
     const session = await getSession();
 
-    if (!session || session.role !== "MANAGER" || !session.propertyId) {
+    if (
+      !session ||
+      (session.role !== "OWNER" &&
+        session.role !== "MANAGER" &&
+        session.role !== "STAFF") ||
+      !session.propertyId
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -19,23 +25,23 @@ export async function GET() {
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
         units: {
           orderBy: { unitNumber: "asc" },
           select: {
             id: true,
             unitNumber: true,
-            marketRent: true,
-            assignments: {
-              where: { moveOut: null },
-              orderBy: { moveIn: "desc" },
+            baseRent: true,
+            tenantAssignments: {
+              where: {
+                isCurrent: true,
+                moveOutDate: null,
+              },
+              orderBy: { moveInDate: "desc" },
               take: 1,
               select: {
-                tenant: {
-                  select: {
-                    name: true,
-                  },
-                },
+                firstName: true,
+                lastName: true,
               },
             },
           },
@@ -54,17 +60,16 @@ export async function GET() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const paymentSums = await prisma.ledgerEntry.groupBy({
-      by: ["unitId"],
-      where: {
-        propertyId: property.id,
-        amount: { lt: 0 },
-        effectiveDate: { gte: monthStart },
-        unitId: { not: null },
-      },
-      _sum: {
-        amount: true,
-      },
-    });
+  by: ["unitId"],
+  where: {
+    propertyId: property.id,
+    amount: { lt: 0 },
+    effectiveDate: { gte: monthStart },
+  },
+  _sum: {
+    amount: true,
+  },
+});
 
     const paymentMap = new Map(
       paymentSums.map((row) => [
@@ -81,7 +86,7 @@ export async function GET() {
 
     const units = await Promise.all(
       property.units.map(async (unit) => {
-        const activeAssignment = unit.assignments[0] ?? null;
+        const activeAssignment = unit.tenantAssignments[0] ?? null;
 
         if (activeAssignment) {
           occupiedUnits++;
@@ -89,7 +94,7 @@ export async function GET() {
           vacantUnits++;
         }
 
-        const rent = Number(unit.marketRent || 0);
+        const rent = Number(unit.baseRent || 0);
         totalExpected += rent;
 
         const collectedForUnit = paymentMap.get(unit.id) || 0;
@@ -104,10 +109,17 @@ export async function GET() {
           delinquentCount++;
         }
 
+        const tenantName = activeAssignment
+          ? [activeAssignment.firstName, activeAssignment.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || null
+          : null;
+
         return {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
-          tenantName: activeAssignment?.tenant?.name || null,
+          tenantName,
           balance: Number(ledger.balance || 0),
           isDelinquent: Boolean(delinquency.isDelinquent),
           daysPastDue: Number(delinquency.daysPastDue || 0),
@@ -130,7 +142,7 @@ export async function GET() {
       property: {
         id: property.id,
         name: property.name,
-        code: property.code,
+        propertyCode: property.propertyCode,
       },
       summary: {
         totalUnits: property.units.length,

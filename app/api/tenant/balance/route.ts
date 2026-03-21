@@ -1,4 +1,4 @@
-// app/api/tenant/balance/route.ts
+// [path: app/api/tenant/balance/route.ts]
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,12 @@ export async function GET() {
   try {
     const session = await getSession();
 
-    if (!session || session.role !== "TENANT" || !session.unitId) {
+    if (
+      !session ||
+      session.role !== "TENANT" ||
+      !session.unitId ||
+      !session.propertyId
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -24,23 +29,17 @@ export async function GET() {
           select: {
             id: true,
             name: true,
-            code: true,
+            propertyCode: true,
           },
         },
-        assignments: {
-          where: { moveOut: null },
-          orderBy: { moveIn: "desc" },
-          take: 1,
-          include: {
-            tenant: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-              },
-            },
+        tenantAssignments: {
+          where: {
+            isCurrent: true,
           },
+          orderBy: {
+            moveInDate: "desc",
+          },
+          take: 1,
         },
       },
     });
@@ -54,7 +53,7 @@ export async function GET() {
       getUnitDelinquencySummary(unit.id),
     ]);
 
-    const activeAssignment = unit.assignments[0] || null;
+    const activeAssignment = unit.tenantAssignments[0] || null;
 
     return NextResponse.json({
       ok: true,
@@ -62,16 +61,19 @@ export async function GET() {
       unit: {
         id: unit.id,
         unitNumber: unit.unitNumber,
-        tier: unit.tier,
-        occupancyStatus: unit.occupancyStatus,
-        marketRent: Number(unit.marketRent || 0),
+        unitType: unit.unitType,
+        baseRent: Number(unit.baseRent || 0),
+        isActive: Boolean(unit.isActive),
+        portalActivated: Boolean(unit.portalActivated),
       },
-      tenant: activeAssignment?.tenant
+      tenant: activeAssignment
         ? {
-            id: activeAssignment.tenant.id,
-            name: activeAssignment.tenant.name,
-            email: activeAssignment.tenant.email,
-            phone: activeAssignment.tenant.phone,
+            id: activeAssignment.id,
+            name: [activeAssignment.firstName, activeAssignment.lastName]
+              .filter(Boolean)
+              .join(" "),
+            email: activeAssignment.email,
+            phone: activeAssignment.phone,
           }
         : null,
       balance: {

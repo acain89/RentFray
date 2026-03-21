@@ -25,7 +25,7 @@ export async function GET() {
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
       },
     });
 
@@ -38,9 +38,9 @@ export async function GET() {
       property: {
         id: property.id,
         name: property.name,
-        code: property.code,
+        propertyCode: property.propertyCode,
       },
-      qrValue: property.code,
+      qrValue: property.propertyCode,
     });
   } catch (error) {
     console.error("manager property qr GET error", error);

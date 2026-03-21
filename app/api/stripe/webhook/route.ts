@@ -2,91 +2,158 @@
 
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { canMakePayments } from "@/lib/liveGating";
 
 export const runtime = "nodejs";
 
-function getStripe() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!secretKey) {
-    throw new Error("Missing STRIPE_SECRET_KEY");
-  }
+if (!stripeSecretKey) throw new Error("Missing STRIPE_SECRET_KEY");
+if (!stripeWebhookSecret) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
 
-  return new Stripe(secretKey);
+const stripe = new Stripe(stripeSecretKey, {
+  apiVersion: "2023-10-16",
+});
+
+function parseCents(value: string | undefined) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function getWebhookSecret() {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!secret) {
-    throw new Error("Missing STRIPE_WEBHOOK_SECRET");
-  }
-
-  return secret;
+function safeString(value: unknown) {
+  return String(value || "").trim();
 }
 
 export async function POST(req: Request) {
+  let event: Stripe.Event;
+
   try {
-    const sig = req.headers.get("stripe-signature");
+    const body = await req.text();
+    const sig = (await headers()).get("stripe-signature");
 
     if (!sig) {
       return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    const body = await req.text();
-    const stripe = getStripe();
-    const webhookSecret = getWebhookSecret();
+    event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
+  } catch (error) {
+    console.error("Stripe webhook signature verification failed:", error);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  }
 
-    let event: Stripe.Event;
+  try {
+    switch (event.type) {
+      case "payment_intent.succeeded": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        const metadata = intent.metadata || {};
 
-    try {
-      event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    } catch (err) {
-      console.error("Webhook signature verification failed.", err);
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-    }
+        const propertyId = safeString(metadata.propertyId);
+        const unitId = safeString(metadata.unitId);
+        const tenantId = safeString(metadata.tenantId) || null;
 
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
+        const baseAmountCents = parseCents(metadata.baseAmountCents);
+        const convenienceFeeCents = parseCents(metadata.convenienceFeeCents);
+        const totalAmountCents = parseCents(metadata.totalAmountCents);
 
-      const propertyId = String(session.metadata?.propertyId || "");
-      const unitId = String(session.metadata?.unitId || "");
-      const tenantId = String(session.metadata?.tenantId || "");
-      const amountTotal = Number(session.amount_total || 0) / 100;
+        if (!propertyId || !unitId) {
+          console.warn("Webhook skipped: missing IDs", { intentId: intent.id });
+          break;
+        }
 
-      if (!propertyId || !unitId || amountTotal <= 0) {
-        console.error("Missing metadata in Stripe session");
-        return NextResponse.json({ received: true });
-      }
-
-      const existing = await prisma.ledgerEntry.findFirst({
-        where: {
-          reference: session.id,
-        },
-        select: { id: true },
-      });
-
-      if (!existing) {
-        await prisma.ledgerEntry.create({
-          data: {
-            propertyId,
-            unitId,
-            tenantId: tenantId || null,
-            type: "PAYMENT",
-            amount: -Math.abs(amountTotal),
-            effectiveDate: new Date(),
-            memo: "Stripe ACH Payment",
-            source: "STRIPE",
-            reference: session.id,
+        // ✅ VERIFY PROPERTY + STATUS
+        const property = await prisma.property.findUnique({
+          where: { id: propertyId },
+          include: {
+            units: true,
+            paymentConnectionStatus: true,
           },
         });
-      }
-    }
 
-    return NextResponse.json({ received: true });
+        if (!property || !property.isActive || !canMakePayments(property)) {
+          console.warn("Webhook blocked: property not valid/live", {
+            propertyId,
+          });
+          break;
+        }
+
+        // ✅ VERIFY UNIT BELONGS TO PROPERTY
+        const unit = await prisma.unit.findFirst({
+          where: {
+            id: unitId,
+            propertyId,
+          },
+          select: { id: true },
+        });
+
+        if (!unit) {
+          console.warn("Webhook blocked: invalid unit", { unitId, propertyId });
+          break;
+        }
+
+        const expectedTotalCents = baseAmountCents + convenienceFeeCents;
+        const metadataSettledCents =
+          totalAmountCents > 0 ? totalAmountCents : expectedTotalCents;
+
+        const actualSettledCents =
+          intent.amount_received || intent.amount || metadataSettledCents;
+
+        if (!actualSettledCents || actualSettledCents <= 0) {
+          console.warn("Webhook skipped: invalid amount", {
+            intentId: intent.id,
+          });
+          break;
+        }
+
+        // ⚠️ OPTIONAL STRICT CHECK (recommended)
+        if (actualSettledCents < expectedTotalCents) {
+          console.warn("Webhook mismatch: amount less than expected", {
+            intentId: intent.id,
+            actualSettledCents,
+            expectedTotalCents,
+          });
+        }
+
+        await prisma.$transaction(async (tx) => {
+          const existing = await tx.ledgerEntry.findFirst({
+            where: {
+              source: "STRIPE",
+              sourceRef: intent.id,
+            },
+            select: { id: true },
+          });
+
+          if (existing) return;
+
+          await tx.ledgerEntry.create({
+            data: {
+              propertyId,
+              unitId,
+              tenantId,
+              type: "PAYMENT",
+              amount: -(actualSettledCents / 100),
+              source: "STRIPE",
+              sourceRef: intent.id,
+              description:
+                convenienceFeeCents > 0
+                  ? "Tenant payment (Stripe ACH + convenience fee)"
+                  : "Tenant payment (Stripe ACH)",
+              effectiveDate: new Date(),
+            },
+          });
+        });
+
+        break;
+      }
+
+      default:
+        break;
+    }
   } catch (error) {
-    console.error("stripe webhook error", error);
-    return NextResponse.json({ error: "Webhook error" }, { status: 500 });
+    console.error("Stripe webhook handler error:", error);
   }
+
+  return NextResponse.json({ received: true });
 }

@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { canManagerOperate } from "@/lib/liveGating";
 
-const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"]);
 const ALLOWED_MANAGEMENT_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
 
 export async function POST(req: Request) {
@@ -18,21 +18,14 @@ export async function POST(req: Request) {
 
     if (!propertyCode || propertyCode.length !== 4) {
       return NextResponse.json(
-        { error: "Invalid property code." },
+        { error: "Invalid credentials." },
         { status: 400 }
       );
     }
 
-    if (!username) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: "Username required." },
-        { status: 400 }
-      );
-    }
-
-    if (!password) {
-      return NextResponse.json(
-        { error: "Password required." },
+        { error: "Invalid credentials." },
         { status: 400 }
       );
     }
@@ -48,12 +41,13 @@ export async function POST(req: Request) {
 
     if (!property || !property.isActive) {
       return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
+        { error: "Invalid credentials." },
+        { status: 401 }
       );
     }
 
-    if (!ALLOWED_PROPERTY_STATUSES.has(property.status)) {
+    // ✅ CENTRALIZED GATING
+    if (!canManagerOperate(property)) {
       return NextResponse.json(
         { error: "Property not available." },
         { status: 403 }
@@ -88,13 +82,6 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Invalid credentials." },
         { status: 401 }
-      );
-    }
-
-    if (user.role !== "OWNER" && user.role !== "MANAGER" && user.role !== "STAFF") {
-      return NextResponse.json(
-        { error: "Invalid account role." },
-        { status: 403 }
       );
     }
 

@@ -1,4 +1,4 @@
-// app/api/property/resolve/route.ts
+// [path: app/api/property/resolve/route.ts]
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -6,9 +6,9 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const code = String(body.code || "").trim();
+    const propertyCode = String(body.propertyCode || "").trim();
 
-    if (!code || code.length !== 4) {
+    if (!/^\d{4}$/.test(propertyCode)) {
       return NextResponse.json(
         { error: "Valid 4-digit property code required" },
         { status: 400 }
@@ -16,15 +16,16 @@ export async function POST(req: Request) {
     }
 
     const property = await prisma.property.findFirst({
-      where: { code },
+      where: { propertyCode },
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
+        isActive: true,
       },
     });
 
-    if (!property) {
+    if (!property || !property.isActive) {
       return NextResponse.json(
         { error: "Invalid property code" },
         { status: 404 }
@@ -33,13 +34,14 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      property,
+      property: {
+        id: property.id,
+        name: property.name,
+        propertyCode: property.propertyCode,
+      },
     });
   } catch (err) {
     console.error("PROPERTY_RESOLVE_ERROR:", err);
-    return NextResponse.json(
-      { error: "Server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

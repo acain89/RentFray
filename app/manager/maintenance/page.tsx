@@ -2,234 +2,150 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-type MaintenanceRequestRow = {
+type RequestRow = {
   id: string;
+  unitNumber: string;
   category: string;
   urgency: string;
   status: string;
   description: string;
   createdAt: string;
-  updatedAt: string;
-  unit: {
-    id: string;
-    unitNumber: string;
-  } | null;
 };
 
-type MaintenanceResponse = {
+type MaintenanceData = {
   ok: true;
-  requests: MaintenanceRequestRow[];
+  propertyName: string;
+  requests: RequestRow[];
 };
 
-type ErrorResponse = {
-  error?: string;
-};
-
-type UpdateResponse = {
-  ok: true;
-  request: {
-    status: string;
-    updatedAt: string;
-  };
-};
-
-const STATUS_OPTIONS = ["OPEN", "IN_PROGRESS", "COMPLETED", "CLOSED"] as const;
-
-function fmtDateTime(value: string) {
-  return new Date(value).toLocaleString("en-US");
+function fmtDate(value: string) {
+  return new Date(value).toLocaleDateString("en-US");
 }
 
 export default function ManagerMaintenancePage() {
-  const [requests, setRequests] = useState<MaintenanceRequestRow[]>([]);
+  const router = useRouter();
+
+  const [data, setData] = useState<MaintenanceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-
-  async function loadRequests() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/manager/maintenance", {
-        cache: "no-store",
-      });
-
-      const data: MaintenanceResponse | ErrorResponse = await res.json();
-
-      if (!res.ok) {
-        setError(
-          "error" in data
-            ? data.error || "Failed to load maintenance requests."
-            : "Failed to load maintenance requests."
-        );
-        setLoading(false);
-        return;
-      }
-
-      if (!("requests" in data)) {
-        setError("Failed to load maintenance requests.");
-        setLoading(false);
-        return;
-      }
-
-      setRequests(data.requests);
-      setLoading(false);
-    } catch {
-      setError("Failed to load maintenance requests.");
-      setLoading(false);
-    }
-  }
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    let active = true;
 
-  async function updateStatus(requestId: string, status: string) {
-    if (savingId) return;
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
 
-    setSavingId(requestId);
-    setError("");
+        const res = await fetch("/api/manager/maintenance");
 
-    try {
-      const res = await fetch("/api/manager/maintenance/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          requestId,
-          status,
-        }),
-      });
+        if (res.status === 401) {
+          router.replace("/property-code");
+          return;
+        }
 
-      const data: UpdateResponse | ErrorResponse = await res.json();
+        const json = await res.json();
 
-      if (!res.ok) {
-        setError(
-          "error" in data
-            ? data.error || "Failed to update request."
-            : "Failed to update request."
-        );
-        setSavingId("");
-        return;
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error || "Failed to load");
+        }
+
+        if (active) {
+          setData(json);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || "Something went wrong");
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-
-      if (!("request" in data)) {
-        setError("Failed to update request.");
-        setSavingId("");
-        return;
-      }
-
-      setRequests((prev) =>
-        prev.map((row) =>
-          row.id === requestId
-            ? {
-                ...row,
-                status: data.request.status,
-                updatedAt: data.request.updatedAt,
-              }
-            : row
-        )
-      );
-
-      setSavingId("");
-    } catch {
-      setError("Failed to update request.");
-      setSavingId("");
     }
-  }
 
-  const filteredRequests = useMemo(() => {
-    if (statusFilter === "ALL") return requests;
-    return requests.filter((row) => row.status === statusFilter);
-  }, [requests, statusFilter]);
+    load();
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   return (
-    <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Maintenance</h1>
-            <p className="mt-2 text-sm text-neutral-600">
-              Review and update property maintenance requests.
-            </p>
-          </div>
-
-          <div className="w-full sm:w-56">
-            <label className="mb-2 block text-sm font-medium">Status Filter</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
-            >
-              <option value="ALL">All</option>
-              {STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
+    <main className="min-h-screen bg-white text-black px-4 py-8">
+      <div className="mx-auto w-full max-w-md space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Maintenance
+          </h1>
         </div>
 
-        {error ? (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {/* Loading */}
+        {loading && (
+          <div className="text-sm text-neutral-500">Loading...</div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
-        ) : null}
+        )}
 
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-          {loading ? (
-            <div className="p-6 text-sm text-neutral-600">Loading...</div>
-          ) : filteredRequests.length === 0 ? (
-            <div className="p-6 text-sm text-neutral-600">No maintenance requests found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-neutral-200 bg-neutral-50 text-left text-sm">
-                    <th className="px-4 py-3 font-medium">Unit</th>
-                    <th className="px-4 py-3 font-medium">Category</th>
-                    <th className="px-4 py-3 font-medium">Urgency</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Description</th>
-                    <th className="px-4 py-3 font-medium">Created</th>
-                    <th className="px-4 py-3 font-medium">Update</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRequests.map((row) => (
-                    <tr key={row.id} className="border-b border-neutral-100 align-top">
-                      <td className="px-4 py-3 text-sm">{row.unit?.unitNumber || "—"}</td>
-                      <td className="px-4 py-3 text-sm">{row.category}</td>
-                      <td className="px-4 py-3 text-sm">{row.urgency}</td>
-                      <td className="px-4 py-3 text-sm">{row.status}</td>
-                      <td className="px-4 py-3 text-sm">{row.description}</td>
-                      <td className="px-4 py-3 text-sm">{fmtDateTime(row.createdAt)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <select
-                          value={row.status}
-                          disabled={savingId === row.id}
-                          onChange={(e) => updateStatus(row.id, e.target.value)}
-                          className="w-full min-w-[160px] rounded-xl border border-neutral-300 px-3 py-2 outline-none focus:border-black disabled:opacity-60"
-                        >
-                          {STATUS_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Content */}
+        {data && (
+          <>
+            <div className="text-sm text-neutral-500">
+              {data.propertyName}
             </div>
-          )}
-        </div>
+
+            <div className="space-y-3">
+              {data.requests.length === 0 && (
+                <div className="text-sm text-neutral-500">
+                  No maintenance requests.
+                </div>
+              )}
+
+              {data.requests.map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-2xl border border-neutral-200 p-4"
+                >
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">
+                      Unit {r.unitNumber}
+                    </span>
+                    <span className="text-neutral-500">
+                      {fmtDate(r.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-sm">
+                    {r.category} • {r.urgency}
+                  </div>
+
+                  <div className="mt-2 text-sm text-neutral-600">
+                    {r.description}
+                  </div>
+
+                  <div className="mt-3 text-sm font-medium">
+                    Status:{" "}
+                    <span
+                      className={
+                        r.status === "OPEN"
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }
+                    >
+                      {r.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
