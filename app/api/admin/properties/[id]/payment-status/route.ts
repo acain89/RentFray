@@ -28,24 +28,35 @@ export async function GET(
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
         status: true,
-        paymentConnectionStatus: true,
+        paymentStatus: true,
       },
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
       ok: true,
-      property,
-      paymentStatus: property.paymentConnectionStatus,
+      property: {
+        id: property.id,
+        name: property.name,
+        propertyCode: property.propertyCode,
+        status: property.status,
+      },
+      paymentStatus: property.paymentStatus,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("GET /api/admin/properties/[id]/payment-status error:", error);
-    return NextResponse.json({ error: "Failed to load payment status" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load payment status" },
+      { status: 500 }
+    );
   }
 }
 
@@ -61,58 +72,108 @@ export async function POST(
     }
 
     const { id } = await params;
-    const body = await req.json();
+    const body: unknown = await req.json();
 
-    const stripeConnected = toBool(body.stripeConnected);
-    const achEnabled = toBool(body.achEnabled);
-    const onboardingComplete = toBool(body.onboardingComplete);
-    const adminApproved = toBool(body.adminApproved);
-    const notes = clean(body.notes) || null;
+    const processorConnected = toBool(
+      (body as { processorConnected?: unknown; stripeConnected?: unknown })
+        ?.processorConnected ??
+        (body as { stripeConnected?: unknown })?.stripeConnected
+    );
+
+    const bankConnected = toBool(
+      (body as { bankConnected?: unknown; achEnabled?: unknown })?.bankConnected ??
+        (body as { achEnabled?: unknown })?.achEnabled
+    );
+
+    const chargesEnabled = toBool(
+      (body as { chargesEnabled?: unknown; achEnabled?: unknown })?.chargesEnabled ??
+        (body as { achEnabled?: unknown })?.achEnabled
+    );
+
+    const payoutsEnabled = toBool(
+      (body as { payoutsEnabled?: unknown })?.payoutsEnabled
+    );
+
+    const onboardingComplete = toBool(
+      (body as { onboardingComplete?: unknown })?.onboardingComplete
+    );
+
+    const requirementsDue = toBool(
+      (body as { requirementsDue?: unknown })?.requirementsDue
+    );
+
+    const requirementsSummary =
+      clean((body as { requirementsSummary?: unknown; notes?: unknown })
+        ?.requirementsSummary ??
+        (body as { notes?: unknown })?.notes) || null;
 
     const property = await prisma.property.findUnique({
       where: { id },
-      select: { id: true, name: true, code: true },
+      select: {
+        id: true,
+        name: true,
+        propertyCode: true,
+        status: true,
+      },
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
     }
+
+    const readyForLive =
+      processorConnected &&
+      bankConnected &&
+      chargesEnabled &&
+      onboardingComplete &&
+      !requirementsDue;
 
     const paymentStatus = await prisma.paymentConnectionStatus.upsert({
       where: { propertyId: id },
       update: {
-        stripeConnected,
-        achEnabled,
+        processorConnected,
+        bankConnected,
+        chargesEnabled,
+        payoutsEnabled,
         onboardingComplete,
-        adminApproved,
-        notes,
+        requirementsDue,
+        requirementsSummary,
+        readyForLive,
+        lastSyncedAt: new Date(),
       },
       create: {
         propertyId: id,
-        stripeConnected,
-        achEnabled,
+        processorConnected,
+        bankConnected,
+        chargesEnabled,
+        payoutsEnabled,
         onboardingComplete,
-        adminApproved,
-        notes,
+        requirementsDue,
+        requirementsSummary,
+        readyForLive,
+        lastSyncedAt: new Date(),
       },
     });
-
-    const readyForLive =
-      stripeConnected && achEnabled && onboardingComplete && adminApproved;
 
     await prisma.auditLog.create({
       data: {
         propertyId: id,
-        actorRole: "ADMIN",
-        actorLabel: session.adminAccessId || "admin",
+        actorType: "ADMIN",
         action: "PAYMENT_STATUS_UPDATED",
-        entityType: "PROPERTY",
-        entityId: id,
-        notes: JSON.stringify({
-          stripeConnected,
-          achEnabled,
+        targetType: "PROPERTY",
+        targetId: id,
+        summary: "Admin updated payment connection status.",
+        metadataJson: JSON.stringify({
+          processorConnected,
+          bankConnected,
+          chargesEnabled,
+          payoutsEnabled,
           onboardingComplete,
-          adminApproved,
+          requirementsDue,
+          requirementsSummary,
           readyForLive,
         }),
       },
@@ -120,11 +181,20 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
+      property: {
+        id: property.id,
+        name: property.name,
+        propertyCode: property.propertyCode,
+        status: property.status,
+      },
       paymentStatus,
       readyForLive,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("POST /api/admin/properties/[id]/payment-status error:", error);
-    return NextResponse.json({ error: "Failed to save payment status" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to save payment status" },
+      { status: 500 }
+    );
   }
 }

@@ -23,25 +23,32 @@ function getClampedBillingDay(
 }
 
 export async function runDelinquencyJob(asOf = new Date()) {
-  const properties = await prisma.property.findMany({
+  const today = startOfDay(asOf);
+
+  const units = await prisma.unit.findMany({
+    where: {
+      isActive: true,
+    },
     include: {
-      settings: true,
-      units: {
-        include: {
-          assignments: {
-            where: { moveOut: null },
-            take: 1,
-          },
-        },
+      property: true,
+      tier: true,
+      tenantAssignments: {
+        where: { isCurrent: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
       },
     },
   });
 
-  const today = startOfDay(asOf);
+  for (const unit of units) {
+    const property = unit.property;
+    const tier = unit.tier;
+    const assignment = unit.tenantAssignments[0];
 
-  for (const property of properties) {
-    const billingDay = property.settings?.billingDay ?? 1;
-    const gracePeriodDays = property.settings?.gracePeriodDays ?? 5;
+    if (!property || !tier || !assignment) continue;
+
+    const billingDay = Number(tier.rentDueDay || 1);
+    const gracePeriodDays = Number(tier.gracePeriodDays || 0);
 
     const dueDay = getClampedBillingDay(
       today.getFullYear(),
@@ -52,66 +59,60 @@ export async function runDelinquencyJob(asOf = new Date()) {
     const dueDate = startOfDay(
       new Date(today.getFullYear(), today.getMonth(), dueDay)
     );
-    const delinquentDate = startOfDay(addDays(dueDate, gracePeriodDays));
 
-    if (today <= delinquentDate) {
+    const delinquentDate = startOfDay(addDays(dueDate, gracePeriodDays + 1));
+
+    if (today < delinquentDate) {
       continue;
     }
 
-    for (const unit of property.units) {
-      const activeAssignment = unit.assignments[0];
+    const summary = await getUnitLedgerSummary(unit.id);
 
-      if (!activeAssignment) {
-        continue;
-      }
-
-      const summary = await getUnitLedgerSummary(unit.id);
-
-      if (Number(summary.balance || 0) <= 0) {
-        continue;
-      }
-
-      const existingLog = await prisma.auditLog.findFirst({
-        where: {
-          actor: "SYSTEM",
-          propertyId: property.id,
-          action: "UNIT_DELINQUENT",
-          targetType: "UNIT",
-          targetId: unit.id,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      const alreadyLoggedToday =
-        existingLog &&
-        startOfDay(new Date(existingLog.createdAt)).getTime() === today.getTime();
-
-      if (alreadyLoggedToday) {
-        continue;
-      }
-
-      await prisma.auditLog.create({
-        data: {
-          actor: "SYSTEM",
-          propertyId: property.id,
-          action: "UNIT_DELINQUENT",
-          targetType: "UNIT",
-          targetId: unit.id,
-          payloadSnapshot: {
-            balance: summary.balance,
-            totalCharges: summary.totalCharges,
-            totalPaid: summary.totalPaid,
-            unitNumber: unit.unitNumber,
-            tenantId: activeAssignment.tenantId,
-            dueDate: dueDate.toISOString(),
-            delinquentDate: delinquentDate.toISOString(),
-            loggedAt: today.toISOString(),
-          },
-        },
-      });
+    if (Number(summary.balance || 0) <= 0) {
+      continue;
     }
+
+    const existingLog = await prisma.auditLog.findFirst({
+      where: {
+        actorType: "SYSTEM",
+        propertyId: property.id,
+        action: "UNIT_DELINQUENT",
+        targetType: "UNIT",
+        targetId: unit.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const alreadyLoggedToday =
+      existingLog &&
+      startOfDay(new Date(existingLog.createdAt)).getTime() === today.getTime();
+
+    if (alreadyLoggedToday) {
+      continue;
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        actorType: "SYSTEM",
+        propertyId: property.id,
+        action: "UNIT_DELINQUENT",
+        targetType: "UNIT",
+        targetId: unit.id,
+        summary: `Unit ${unit.unitNumber} is delinquent.`,
+        metadataJson: JSON.stringify({
+          balance: Number(summary.balance || 0),
+          totalCharges: Number(summary.totalCharges || 0),
+          totalPaid: Number(summary.totalPaid || 0),
+          unitNumber: unit.unitNumber,
+          tenantAssignmentId: assignment.id,
+          dueDate: dueDate.toISOString(),
+          delinquentDate: delinquentDate.toISOString(),
+          loggedAt: today.toISOString(),
+        }),
+      },
+    });
   }
 
   return { ok: true };

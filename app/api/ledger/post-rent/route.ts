@@ -5,12 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+function getMonthLabel(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export async function POST() {
@@ -22,17 +29,21 @@ export async function POST() {
     }
 
     const now = new Date();
+    const effectiveDate = startOfDay(now);
     const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthLabel = getMonthLabel(now);
 
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
       include: {
-        settings: true,
         units: {
+          where: { isActive: true },
           include: {
-            assignments: {
-              where: { moveOut: null },
+            tier: true,
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
               take: 1,
             },
           },
@@ -40,7 +51,7 @@ export async function POST() {
       },
     });
 
-    if (!property || !property.settings) {
+    if (!property) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
@@ -48,7 +59,16 @@ export async function POST() {
     let skipped = 0;
 
     for (const unit of property.units) {
-      if (unit.assignments.length === 0) {
+      const activeAssignment = unit.tenantAssignments[0];
+
+      if (!activeAssignment) {
+        skipped += 1;
+        continue;
+      }
+
+      const amount = Number(unit.tier?.baseRent ?? unit.baseRent ?? 0);
+
+      if (amount <= 0) {
         skipped += 1;
         continue;
       }
@@ -57,22 +77,18 @@ export async function POST() {
         where: {
           propertyId: property.id,
           unitId: unit.id,
-          type: "RENT_CHARGE",
+          tenantAssignmentId: activeAssignment.id,
+          entryType: "CHARGE",
+          chargeType: "RENT",
           effectiveDate: {
             gte: monthStart,
-            lte: monthEnd,
+            lt: nextMonth,
           },
         },
+        select: { id: true },
       });
 
       if (existingRent) {
-        skipped += 1;
-        continue;
-      }
-
-      const amount = Number(unit.baseRent ?? property.settings.baseRentDefault ?? 0);
-
-      if (amount <= 0) {
         skipped += 1;
         continue;
       }
@@ -81,13 +97,13 @@ export async function POST() {
         data: {
           propertyId: property.id,
           unitId: unit.id,
-          type: "RENT_CHARGE",
+          tenantAssignmentId: activeAssignment.id,
+          entryType: "CHARGE",
+          chargeType: "RENT",
           amount,
-          description: `Monthly rent - ${monthStart.toLocaleDateString("en-US", {
-            month: "long",
-            year: "numeric",
-          })}`,
-          effectiveDate: monthStart,
+          memo: `Monthly rent - ${monthLabel}`,
+          effectiveDate,
+          createdByManagementUserId: session.managementUserId || null,
         },
       });
 
@@ -97,15 +113,17 @@ export async function POST() {
     await prisma.auditLog.create({
       data: {
         propertyId: property.id,
-        actorRole: session.role,
-        actorLabel: session.managementUserId || "management",
+        actorType: "MANAGER",
+        actorManagementUserId: session.managementUserId || null,
         action: "RENT_POSTED",
-        entityType: "PROPERTY",
-        entityId: property.id,
-        notes: JSON.stringify({
+        targetType: "PROPERTY",
+        targetId: property.id,
+        summary: `Manual rent posting completed for ${monthLabel}.`,
+        metadataJson: JSON.stringify({
           posted,
           skipped,
-          month: monthStart.toISOString(),
+          monthStart: monthStart.toISOString(),
+          triggeredAt: effectiveDate.toISOString(),
         }),
       },
     });

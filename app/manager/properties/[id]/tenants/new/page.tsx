@@ -1,6 +1,7 @@
 // app/manager/properties/[id]/tenants/new/page.tsx
 
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
@@ -48,13 +49,17 @@ async function createTenantAssignment(formData: FormData) {
 
   if (!unitId || !firstName || !lastName) {
     redirect(
-      `/manager/properties/${propertyId}/tenants/new?error=Missing required fields`
+      `/manager/properties/${propertyId}/tenants/new?error=${encodeURIComponent(
+        "Missing required fields"
+      )}`
     );
   }
 
   if (activateNow && !isValidFourDigitPin(pin)) {
     redirect(
-      `/manager/properties/${propertyId}/tenants/new?error=PIN must be exactly 4 digits`
+      `/manager/properties/${propertyId}/tenants/new?error=${encodeURIComponent(
+        "PIN must be exactly 4 digits"
+      )}`
     );
   }
 
@@ -64,52 +69,68 @@ async function createTenantAssignment(formData: FormData) {
       propertyId,
     },
     include: {
-      assignments: {
-        where: { moveOut: null },
+      tenantAssignments: {
+        where: { isCurrent: true },
         take: 1,
       },
     },
   });
 
   if (!unit) {
-    redirect(`/manager/properties/${propertyId}/tenants/new?error=Unit not found`);
+    redirect(
+      `/manager/properties/${propertyId}/tenants/new?error=${encodeURIComponent(
+        "Unit not found"
+      )}`
+    );
   }
 
-  if (unit.assignments.length > 0) {
+  if (unit.tenantAssignments.length > 0) {
     redirect(
-      `/manager/properties/${propertyId}/tenants/new?error=Unit already has an active tenant`
+      `/manager/properties/${propertyId}/tenants/new?error=${encodeURIComponent(
+        "Unit already has an active tenant"
+      )}`
     );
   }
 
   const fullName = `${firstName} ${lastName}`.trim();
   const pinHash = activateNow ? await hashPin(pin) : null;
+  const moveInDate = parseMoveInDate(moveIn);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.tenantAssignment.create({
       data: {
+        propertyId,
         unitId,
-        moveIn: parseMoveInDate(moveIn),
+        firstName,
+        lastName,
+        moveInDate,
+        isCurrent: true,
+        createdByManagementUserId: session.managementUserId || null,
       },
     });
 
     await tx.unit.update({
       where: { id: unitId },
       data: {
-        tenantName: fullName,
         portalActivated: activateNow,
         tenantPinHash: pinHash,
+        portalFirstName: firstName,
+        portalLastName: lastName,
+        activatedAt: activateNow ? new Date() : null,
+        activationSource: activateNow ? "STAFF_RESET" : null,
       },
     });
 
     await tx.auditLog.create({
       data: {
         propertyId,
-        actorRole: session.role,
-        actorLabel: session.managementUserId || "management",
+        actorType: session.role,
+        actorManagementUserId: session.managementUserId || null,
         action: "TENANT_ASSIGNED",
-        entityType: "UNIT",
-        entityId: unitId,
-        notes: JSON.stringify({
+        targetType: "UNIT",
+        targetId: unitId,
+        summary: `Tenant assigned to unit ${unit.unitNumber}`,
+        metadataJson: JSON.stringify({
           unitNumber: unit.unitNumber,
           tenantName: fullName,
           moveIn: moveIn || null,
@@ -122,12 +143,22 @@ async function createTenantAssignment(formData: FormData) {
   redirect(`/manager/properties/${propertyId}?assigned=1`);
 }
 
+type PageSearchParams = {
+  error?: string;
+};
+
+type UnitRow = {
+  id: string;
+  unitNumber: string;
+  tenantAssignments: { id: string }[];
+};
+
 export default async function NewTenantAssignmentPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<PageSearchParams>;
 }) {
   const session = await getSession();
 
@@ -149,9 +180,10 @@ export default async function NewTenantAssignmentPage({
       units: {
         orderBy: { unitNumber: "asc" },
         include: {
-          assignments: {
-            where: { moveOut: null },
+          tenantAssignments: {
+            where: { isCurrent: true },
             take: 1,
+            select: { id: true },
           },
         },
       },
@@ -163,39 +195,46 @@ export default async function NewTenantAssignmentPage({
   }
 
   const availableUnits = property.units.filter(
-    (unit: { assignments: { id: string }[] }) => unit.assignments.length === 0
+    (unit: UnitRow) => unit.tenantAssignments.length === 0
   );
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Assign Tenant</h1>
-        <p className="text-sm text-neutral-600 mt-1">
-          {property.name} ({property.code})
+        <p className="mt-1 text-sm text-neutral-600">
+          {property.name} ({property.propertyCode})
         </p>
       </div>
 
       {availableUnits.length === 0 ? (
-        <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
+        <div className="rounded-xl border bg-white p-4 text-sm text-neutral-700">
           No available units.
         </div>
       ) : null}
 
       {error ? (
-        <div className="border rounded-xl p-4 bg-white text-sm text-red-600">
+        <div className="rounded-xl border bg-white p-4 text-sm text-red-600">
           {error}
         </div>
       ) : null}
 
       {availableUnits.length > 0 ? (
-        <form action={createTenantAssignment} className="border rounded-xl p-4 bg-white space-y-4">
+        <form
+          action={createTenantAssignment}
+          className="space-y-4 rounded-xl border bg-white p-4"
+        >
           <input type="hidden" name="propertyId" value={property.id} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1">
               <div className="text-sm font-medium">Unit</div>
-              <select name="unitId" className="w-full border rounded-lg px-3 py-2" required>
-                {availableUnits.map((unit) => (
+              <select
+                name="unitId"
+                className="w-full rounded-lg border px-3 py-2"
+                required
+              >
+                {availableUnits.map((unit: UnitRow) => (
                   <option key={unit.id} value={unit.id}>
                     {unit.unitNumber}
                   </option>
@@ -208,7 +247,7 @@ export default async function NewTenantAssignmentPage({
               <input
                 type="date"
                 name="moveIn"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 defaultValue={new Date().toISOString().slice(0, 10)}
               />
             </label>
@@ -217,7 +256,7 @@ export default async function NewTenantAssignmentPage({
               <div className="text-sm font-medium">First Name</div>
               <input
                 name="firstName"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 required
               />
             </label>
@@ -226,13 +265,13 @@ export default async function NewTenantAssignmentPage({
               <div className="text-sm font-medium">Last Name</div>
               <input
                 name="lastName"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 required
               />
             </label>
           </div>
 
-          <div className="border rounded-xl p-4 space-y-3">
+          <div className="space-y-3 rounded-xl border p-4">
             <div className="font-medium">Portal Activation</div>
 
             <label className="flex items-center gap-2 text-sm">
@@ -245,13 +284,13 @@ export default async function NewTenantAssignmentPage({
               Activate now with a 4-digit PIN
             </label>
 
-            <label className="space-y-1 block">
+            <label className="block space-y-1">
               <div className="text-sm font-medium">4-Digit PIN</div>
               <input
                 name="pin"
                 inputMode="numeric"
                 maxLength={4}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 placeholder="Only required if activating now"
               />
             </label>
@@ -259,7 +298,7 @@ export default async function NewTenantAssignmentPage({
 
           <button
             type="submit"
-            className="px-4 py-2 rounded-lg bg-black text-white"
+            className="rounded-lg bg-black px-4 py-2 text-white"
           >
             Assign Tenant
           </button>

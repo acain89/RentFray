@@ -60,7 +60,7 @@ export type RecentActivityItem = {
 export type DashboardUnitInput = {
   id: string;
   unitNumber: string;
-  marketRent?: number | null;
+  monthlySubtotal?: number | null;
   hasActiveTenant: boolean;
   currentCycleCharges: number;
   currentCyclePayments: number;
@@ -70,7 +70,9 @@ export type DashboardUnitInput = {
 
 export type LedgerActivityInput = {
   id: string;
-  type: string;
+  entryType?: string;
+  chargeType?: string | null;
+  paymentMethod?: string | null;
   amount: number;
   memo?: string | null;
   createdAt: Date | string;
@@ -98,9 +100,13 @@ function toDate(value: Date | string) {
   return value instanceof Date ? value : new Date(value);
 }
 
+function roundMoney(value: number) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
 export function getDashboardCutoffDate(now = new Date()) {
   const cutoff = new Date(now);
-  const day = cutoff.getDay(); // 0 Sun, 1 Mon
+  const day = cutoff.getDay();
 
   cutoff.setHours(17, 0, 0, 0);
 
@@ -166,15 +172,20 @@ export function getUnitStatus(input: {
   if (!hasActiveTenant) return "VACANT";
   if (currentBalance <= 0) return "PAID";
 
-  const delinquentDate = new Date(dueDate);
-  delinquentDate.setDate(delinquentDate.getDate() + Number(gracePeriodDays || 0));
+  const initialLateFeeDate = new Date(dueDate);
+  initialLateFeeDate.setDate(
+    initialLateFeeDate.getDate() + Number(gracePeriodDays || 0) + 1
+  );
 
-  if (now > delinquentDate) return "DELINQUENT";
+  if (now >= initialLateFeeDate) return "DELINQUENT";
   if (currentCyclePayments > 0) return "PARTIAL";
   return "GRACE";
 }
 
-export function sortStatusProblemFirst(a: DashboardUnitStatus, b: DashboardUnitStatus) {
+export function sortStatusProblemFirst(
+  a: DashboardUnitStatus,
+  b: DashboardUnitStatus
+) {
   const order: Record<DashboardUnitStatus, number> = {
     DELINQUENT: 1,
     PARTIAL: 2,
@@ -214,15 +225,17 @@ export function buildExpectedVsCollected(
 
   for (const unit of units) {
     if (unit.hasActiveTenant) {
-      expectedRentThisCycle += asNumber(unit.marketRent);
+      expectedRentThisCycle += asNumber(unit.monthlySubtotal);
     }
 
     collectedThisCycle += asNumber(unit.currentCyclePayments);
   }
 
-  const remainingThisCycle = Math.max(
-    expectedRentThisCycle - collectedThisCycle,
-    0
+  expectedRentThisCycle = roundMoney(expectedRentThisCycle);
+  collectedThisCycle = roundMoney(collectedThisCycle);
+
+  const remainingThisCycle = roundMoney(
+    Math.max(expectedRentThisCycle - collectedThisCycle, 0)
   );
 
   return {
@@ -242,15 +255,17 @@ export function buildDashboardSummary(args: {
 
   for (const entry of args.ledgerEntriesSinceCutoff) {
     const amount = asNumber(entry.amount);
+    const isPayment =
+      String(entry.entryType || "").toUpperCase() === "PAYMENT" || amount < 0;
 
-    if (amount < 0) {
+    if (isPayment && amount < 0) {
       paidSinceClose += Math.abs(amount);
       newPayments++;
     }
   }
 
   return {
-    paidSinceClose,
+    paidSinceClose: roundMoney(paidSinceClose),
     newPayments,
     delinquentUnits: args.units.filter((u) => u.status === "DELINQUENT").length,
     openMaintenance: args.openMaintenanceCount,
@@ -315,8 +330,10 @@ export function buildRecentActivity(args: {
 
   for (const entry of args.ledgerEntriesSinceCutoff) {
     const amount = asNumber(entry.amount);
+    const entryType = String(entry.entryType || "").toUpperCase();
+    const chargeType = String(entry.chargeType || "").toUpperCase();
 
-    if (amount < 0) {
+    if (entryType === "PAYMENT" || amount < 0) {
       items.push({
         type: "PAYMENT",
         title: "Payment received",
@@ -326,7 +343,7 @@ export function buildRecentActivity(args: {
         unitId: entry.unitId,
         unitNumber: entry.unitNumber,
       });
-    } else if (String(entry.type).toUpperCase().includes("LATE_FEE")) {
+    } else if (entryType === "CHARGE" && chargeType === "LATE_FEE") {
       items.push({
         type: "LATE_FEE",
         title: "Late fee applied",

@@ -5,12 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+function getMonthLabel(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export async function POST() {
@@ -22,19 +29,26 @@ export async function POST() {
     }
 
     const now = new Date();
+    const effectiveDate = startOfDay(now);
     const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthLabel = getMonthLabel(now);
 
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
       include: {
         units: {
+          where: { isActive: true },
           include: {
-            assignments: {
-              where: { moveOut: null },
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
               take: 1,
             },
-            recurringFees: true,
+            recurringFees: {
+              where: { isActive: true },
+              orderBy: { displayOrder: "asc" },
+            },
           },
         },
       },
@@ -48,28 +62,38 @@ export async function POST() {
     let skipped = 0;
 
     for (const unit of property.units) {
-      if (unit.assignments.length === 0) {
-        skipped += 1;
+      const activeAssignment = unit.tenantAssignments[0];
+
+      if (!activeAssignment) {
+        skipped += unit.recurringFees.length;
         continue;
       }
 
       for (const fee of unit.recurringFees) {
-        const description = `${fee.name} - ${monthStart.toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        })}`;
+        const amount = Number(fee.amount || 0);
+        const label = String(fee.label || "").trim();
+
+        if (!label || amount <= 0) {
+          skipped += 1;
+          continue;
+        }
+
+        const memo = `${label} - ${monthLabel}`;
 
         const existing = await prisma.ledgerEntry.findFirst({
           where: {
             propertyId: property.id,
             unitId: unit.id,
-            type: "OTHER_FEE",
-            description,
+            tenantAssignmentId: activeAssignment.id,
+            entryType: "CHARGE",
+            chargeType: "RECURRING_FEE",
+            memo,
             effectiveDate: {
               gte: monthStart,
-              lte: monthEnd,
+              lt: nextMonth,
             },
           },
+          select: { id: true },
         });
 
         if (existing) {
@@ -81,10 +105,13 @@ export async function POST() {
           data: {
             propertyId: property.id,
             unitId: unit.id,
-            type: "OTHER_FEE",
-            amount: Number(fee.amount || 0),
-            description,
-            effectiveDate: monthStart,
+            tenantAssignmentId: activeAssignment.id,
+            entryType: "CHARGE",
+            chargeType: "RECURRING_FEE",
+            amount,
+            effectiveDate,
+            memo,
+            createdByManagementUserId: session.managementUserId || null,
           },
         });
 
@@ -95,15 +122,17 @@ export async function POST() {
     await prisma.auditLog.create({
       data: {
         propertyId: property.id,
-        actorRole: session.role,
-        actorLabel: session.managementUserId || "management",
+        actorType: "MANAGER",
+        actorManagementUserId: session.managementUserId || null,
         action: "RECURRING_FEES_POSTED",
-        entityType: "PROPERTY",
-        entityId: property.id,
-        notes: JSON.stringify({
+        targetType: "PROPERTY",
+        targetId: property.id,
+        summary: `Manual recurring fee posting completed for ${monthLabel}.`,
+        metadataJson: JSON.stringify({
           posted,
           skipped,
-          month: monthStart.toISOString(),
+          monthStart: monthStart.toISOString(),
+          triggeredAt: effectiveDate.toISOString(),
         }),
       },
     });

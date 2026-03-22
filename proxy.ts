@@ -3,36 +3,56 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const SESSION_COOKIE = "rf_session";
+
+function isPublicRoute(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname.startsWith("/property-code") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/manager/login") ||
+    pathname.startsWith("/tenant/login") ||
+    pathname.startsWith("/login/manager") ||
+    pathname.startsWith("/login/tenant") ||
+    pathname.startsWith("/login/maintenance") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/request-illustration") ||
+    pathname.startsWith("/role-select") ||
+    pathname.startsWith("/api/admin/session") ||
+    pathname.startsWith("/api/property/resolve") ||
+    pathname.startsWith("/api/public/property/lookup") ||
+    pathname.startsWith("/api/manager/session") ||
+    pathname.startsWith("/api/tenant/session") ||
+    pathname.startsWith("/api/maintenance/session")
+  );
+}
+
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const session = req.cookies.get(SESSION_COOKIE)?.value;
 
   if (
-    pathname === "/" ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/property-code") ||
-    pathname.startsWith("/role-select") ||
-    pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon")
+    pathname.startsWith("/favicon.ico") ||
+    pathname.startsWith("/api/stripe/webhook")
   ) {
     return NextResponse.next();
   }
 
-  const token = req.cookies.get("rf_session")?.value;
+  if (isPublicRoute(pathname)) {
+    return NextResponse.next();
+  }
 
-  if (!token) {
-    return redirectToEntry(req);
+  if (!session) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/property-code";
+    url.search = "";
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
-function redirectToEntry(req: NextRequest) {
-  const url = req.nextUrl.clone();
-  url.pathname = "/property-code";
-  return NextResponse.redirect(url);
-}
-
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

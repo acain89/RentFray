@@ -32,7 +32,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      requests: requests.map((row) => ({
+        requests: requests.map((row: any) => ({
         id: row.id,
         unitNumber: row.unit.unitNumber,
         category: row.category,

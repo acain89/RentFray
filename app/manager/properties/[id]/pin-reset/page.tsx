@@ -1,6 +1,7 @@
 // app/manager/properties/[id]/pin-reset/page.tsx
 
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
@@ -35,7 +36,9 @@ async function resetTenantPin(formData: FormData) {
 
   if (!unitId || !isValidFourDigitPin(pin)) {
     redirect(
-      `/manager/properties/${propertyId}/pin-reset?tenantError=PIN must be exactly 4 digits`
+      `/manager/properties/${propertyId}/pin-reset?tenantError=${encodeURIComponent(
+        "PIN must be exactly 4 digits"
+      )}`
     );
   }
 
@@ -45,8 +48,8 @@ async function resetTenantPin(formData: FormData) {
       propertyId,
     },
     include: {
-      assignments: {
-        where: { moveOut: null },
+      tenantAssignments: {
+        where: { isCurrent: true },
         take: 1,
       },
     },
@@ -54,19 +57,23 @@ async function resetTenantPin(formData: FormData) {
 
   if (!unit) {
     redirect(
-      `/manager/properties/${propertyId}/pin-reset?tenantError=Unit not found`
+      `/manager/properties/${propertyId}/pin-reset?tenantError=${encodeURIComponent(
+        "Unit not found"
+      )}`
     );
   }
 
-  if (unit.assignments.length === 0) {
+  if (unit.tenantAssignments.length === 0) {
     redirect(
-      `/manager/properties/${propertyId}/pin-reset?tenantError=Unit does not have an active tenant`
+      `/manager/properties/${propertyId}/pin-reset?tenantError=${encodeURIComponent(
+        "Unit does not have an active tenant"
+      )}`
     );
   }
 
   const tenantPinHash = await hashPin(pin);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.unit.update({
       where: { id: unitId },
       data: {
@@ -78,12 +85,13 @@ async function resetTenantPin(formData: FormData) {
     await tx.auditLog.create({
       data: {
         propertyId,
-        actorRole: session.role,
-        actorLabel: session.managementUserId || "management",
+        actorType: session.role,
+        actorManagementUserId: session.managementUserId || null,
         action: "TENANT_PIN_RESET",
-        entityType: "UNIT",
-        entityId: unitId,
-        notes: JSON.stringify({
+        targetType: "UNIT",
+        targetId: unitId,
+        summary: `Tenant PIN reset for unit ${unit.unitNumber}`,
+        metadataJson: JSON.stringify({
           unitNumber: unit.unitNumber,
         }),
       },
@@ -117,7 +125,9 @@ async function saveMaintenancePin(formData: FormData) {
 
   if (!isValidFourDigitPin(pin)) {
     redirect(
-      `/manager/properties/${propertyId}/pin-reset?maintenanceError=PIN must be exactly 4 digits`
+      `/manager/properties/${propertyId}/pin-reset?maintenanceError=${encodeURIComponent(
+        "PIN must be exactly 4 digits"
+      )}`
     );
   }
 
@@ -133,11 +143,13 @@ async function saveMaintenancePin(formData: FormData) {
 
     if (!worker) {
       redirect(
-        `/manager/properties/${propertyId}/pin-reset?maintenanceError=Maintenance worker not found`
+        `/manager/properties/${propertyId}/pin-reset?maintenanceError=${encodeURIComponent(
+          "Maintenance worker not found"
+        )}`
       );
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.maintenanceUser.update({
         where: { id: maintenanceUserId },
         data: {
@@ -148,13 +160,14 @@ async function saveMaintenancePin(formData: FormData) {
       await tx.auditLog.create({
         data: {
           propertyId,
-          actorRole: session.role,
-          actorLabel: session.managementUserId || "management",
+          actorType: session.role,
+          actorManagementUserId: session.managementUserId || null,
           action: "MAINTENANCE_PIN_RESET",
-          entityType: "MAINTENANCE_USER",
-          entityId: maintenanceUserId,
-          notes: JSON.stringify({
-            workerName: worker.name,
+          targetType: "MAINTENANCE_USER",
+          targetId: maintenanceUserId,
+          summary: `Maintenance PIN reset for ${worker.displayName}`,
+          metadataJson: JSON.stringify({
+            workerName: worker.displayName,
           }),
         },
       });
@@ -165,40 +178,46 @@ async function saveMaintenancePin(formData: FormData) {
 
   if (!workerName) {
     redirect(
-      `/manager/properties/${propertyId}/pin-reset?maintenanceError=Worker name is required when creating a new maintenance login`
+      `/manager/properties/${propertyId}/pin-reset?maintenanceError=${encodeURIComponent(
+        "Worker name is required when creating a new maintenance login"
+      )}`
     );
   }
 
   const existingByName = await prisma.maintenanceUser.findFirst({
     where: {
       propertyId,
-      name: workerName,
+      displayName: workerName,
     },
   });
 
   if (existingByName) {
     redirect(
-      `/manager/properties/${propertyId}/pin-reset?maintenanceError=A maintenance worker with that name already exists`
+      `/manager/properties/${propertyId}/pin-reset?maintenanceError=${encodeURIComponent(
+        "A maintenance worker with that name already exists"
+      )}`
     );
   }
 
   const created = await prisma.maintenanceUser.create({
     data: {
       propertyId,
-      name: workerName,
+      displayName: workerName,
       pinHash,
+      createdByManagementUserId: session.managementUserId || null,
     },
   });
 
   await prisma.auditLog.create({
     data: {
       propertyId,
-      actorRole: session.role,
-      actorLabel: session.managementUserId || "management",
+      actorType: session.role,
+      actorManagementUserId: session.managementUserId || null,
       action: "MAINTENANCE_USER_CREATED_WITH_PIN",
-      entityType: "MAINTENANCE_USER",
-      entityId: created.id,
-      notes: JSON.stringify({
+      targetType: "MAINTENANCE_USER",
+      targetId: created.id,
+      summary: `Maintenance user created: ${workerName}`,
+      metadataJson: JSON.stringify({
         workerName,
       }),
     },
@@ -207,17 +226,33 @@ async function saveMaintenancePin(formData: FormData) {
   redirect(`/manager/properties/${propertyId}/pin-reset?maintenanceSuccess=1`);
 }
 
+type PageSearchParams = {
+  tenantError?: string;
+  maintenanceError?: string;
+  tenantSuccess?: string;
+  maintenanceSuccess?: string;
+};
+
+type OccupiedUnitRow = {
+  id: string;
+  unitNumber: string;
+  tenantAssignments: {
+    firstName: string | null;
+    lastName: string | null;
+  }[];
+};
+
+type MaintenanceUserRow = {
+  id: string;
+  displayName: string;
+};
+
 export default async function PinResetPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{
-    tenantError?: string;
-    maintenanceError?: string;
-    tenantSuccess?: string;
-    maintenanceSuccess?: string;
-  }>;
+  searchParams?: Promise<PageSearchParams>;
 }) {
   const session = await getSession();
 
@@ -238,14 +273,18 @@ export default async function PinResetPage({
       units: {
         orderBy: { unitNumber: "asc" },
         include: {
-          assignments: {
-            where: { moveOut: null },
+          tenantAssignments: {
+            where: { isCurrent: true },
             take: 1,
+            select: {
+              firstName: true,
+              lastName: true,
+            },
           },
         },
       },
       maintenanceUsers: {
-        orderBy: { name: "asc" },
+        orderBy: { displayName: "asc" },
       },
     },
   });
@@ -255,7 +294,7 @@ export default async function PinResetPage({
   }
 
   const occupiedUnits = property.units.filter(
-    (unit: { assignments: { id: string }[] }) => unit.assignments.length > 0
+    (unit: OccupiedUnitRow) => unit.tenantAssignments.length > 0
   );
 
   const tenantError = qp?.tenantError ? decodeURIComponent(qp.tenantError) : "";
@@ -269,15 +308,15 @@ export default async function PinResetPage({
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">PIN Reset</h1>
-        <p className="text-sm text-neutral-600 mt-1">
-          {property.name} ({property.code})
+        <p className="mt-1 text-sm text-neutral-600">
+          {property.name} ({property.propertyCode})
         </p>
       </div>
 
-      <div className="border rounded-xl p-4 bg-white space-y-4">
+      <div className="space-y-4 rounded-xl border bg-white p-4">
         <div>
           <h2 className="text-lg font-semibold">Tenant PIN Reset</h2>
-          <p className="text-sm text-neutral-600 mt-1">
+          <p className="mt-1 text-sm text-neutral-600">
             Available to owner, manager, and staff.
           </p>
         </div>
@@ -298,28 +337,36 @@ export default async function PinResetPage({
           <form action={resetTenantPin} className="space-y-4">
             <input type="hidden" name="propertyId" value={property.id} />
 
-            <label className="space-y-1 block">
+            <label className="block space-y-1">
               <div className="text-sm font-medium">Occupied Unit</div>
               <select
                 name="unitId"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 required
               >
-                {occupiedUnits.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unitNumber} — {unit.tenantName || "Active Tenant"}
-                  </option>
-                ))}
+                {occupiedUnits.map((unit: OccupiedUnitRow) => {
+                  const assignment = unit.tenantAssignments[0];
+                  const tenantName = [assignment?.firstName, assignment?.lastName]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim();
+
+                  return (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.unitNumber} — {tenantName || "Active Tenant"}
+                    </option>
+                  );
+                })}
               </select>
             </label>
 
-            <label className="space-y-1 block">
+            <label className="block space-y-1">
               <div className="text-sm font-medium">New 4-Digit PIN</div>
               <input
                 name="pin"
                 inputMode="numeric"
                 maxLength={4}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 placeholder="1234"
                 required
               />
@@ -327,7 +374,7 @@ export default async function PinResetPage({
 
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-black text-white"
+              className="rounded-lg bg-black px-4 py-2 text-white"
             >
               Reset Tenant PIN
             </button>
@@ -336,10 +383,12 @@ export default async function PinResetPage({
       </div>
 
       {canManageMaintenancePins(session.role) ? (
-        <div className="border rounded-xl p-4 bg-white space-y-4">
+        <div className="space-y-4 rounded-xl border bg-white p-4">
           <div>
-            <h2 className="text-lg font-semibold">Maintenance PIN Create / Reset</h2>
-            <p className="text-sm text-neutral-600 mt-1">
+            <h2 className="text-lg font-semibold">
+              Maintenance PIN Create / Reset
+            </h2>
+            <p className="mt-1 text-sm text-neutral-600">
               Owner and manager only.
             </p>
           </div>
@@ -357,38 +406,38 @@ export default async function PinResetPage({
           <form action={saveMaintenancePin} className="space-y-4">
             <input type="hidden" name="propertyId" value={property.id} />
 
-            <label className="space-y-1 block">
+            <label className="block space-y-1">
               <div className="text-sm font-medium">Existing Worker</div>
               <select
                 name="maintenanceUserId"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 defaultValue=""
               >
                 <option value="">Create new worker instead</option>
-                {property.maintenanceUsers.map((worker) => (
+                {property.maintenanceUsers.map((worker: MaintenanceUserRow) => (
                   <option key={worker.id} value={worker.id}>
-                    {worker.name}
+                    {worker.displayName}
                   </option>
                 ))}
               </select>
             </label>
 
-            <label className="space-y-1 block">
+            <label className="block space-y-1">
               <div className="text-sm font-medium">New Worker Name</div>
               <input
                 name="workerName"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 placeholder="Only used when creating a new maintenance login"
               />
             </label>
 
-            <label className="space-y-1 block">
+            <label className="block space-y-1">
               <div className="text-sm font-medium">4-Digit PIN</div>
               <input
                 name="pin"
                 inputMode="numeric"
                 maxLength={4}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 placeholder="1234"
                 required
               />
@@ -396,7 +445,7 @@ export default async function PinResetPage({
 
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-black text-white"
+              className="rounded-lg bg-black px-4 py-2 text-white"
             >
               Save Maintenance PIN
             </button>

@@ -23,25 +23,35 @@ function getClampedBillingDay(
 }
 
 export async function runLateFeesJob(asOf = new Date()) {
-  const properties = await prisma.property.findMany({
+  const today = startOfDay(asOf);
+
+  const units = await prisma.unit.findMany({
+    where: {
+      isActive: true,
+    },
     include: {
-      settings: true,
-      units: {
-        include: {
-          assignments: {
-            where: { moveOut: null },
-            take: 1,
-          },
-        },
+      property: true,
+      tier: true,
+      tenantAssignments: {
+        where: { isCurrent: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
       },
     },
   });
 
-  const today = startOfDay(asOf);
+  for (const unit of units) {
+    const property = unit.property;
+    const tier = unit.tier;
+    const assignment = unit.tenantAssignments[0];
 
-  for (const property of properties) {
-    const billingDay = property.settings?.billingDay ?? 1;
-    const gracePeriodDays = property.settings?.gracePeriodDays ?? 5;
+    if (!property || !tier || !assignment) continue;
+
+    const billingDay = Number(tier.rentDueDay || 1);
+    const gracePeriodDays = Number(tier.gracePeriodDays || 0);
+    const lateFeeAmount = Number(tier.lateFeeInitial || 0);
+
+    if (lateFeeAmount <= 0) continue;
 
     const dueDay = getClampedBillingDay(
       today.getFullYear(),
@@ -52,65 +62,54 @@ export async function runLateFeesJob(asOf = new Date()) {
     const dueDate = startOfDay(
       new Date(today.getFullYear(), today.getMonth(), dueDay)
     );
-    const lateFeeDate = startOfDay(addDays(dueDate, gracePeriodDays));
 
-    if (today <= lateFeeDate) {
+    // charge on day after grace expires
+    const lateFeeDate = startOfDay(addDays(dueDate, gracePeriodDays + 1));
+
+    if (today.getTime() !== lateFeeDate.getTime()) {
       continue;
     }
 
-    const lateFeeAmount =
-      property.settings?.lateFeeMode === "FLAT"
-        ? Number(property.settings?.lateFeeAmount || 0)
-        : 0;
+    const summary = await getUnitLedgerSummary(unit.id);
 
-    if (lateFeeAmount <= 0) {
+    if (Number(summary.balance || 0) <= 0) {
       continue;
     }
 
-    for (const unit of property.units) {
-      const activeAssignment = unit.assignments[0];
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
-      if (!activeAssignment) {
-        continue;
-      }
-
-      const summary = await getUnitLedgerSummary(unit.id);
-
-      if (Number(summary.balance || 0) <= 0) {
-        continue;
-      }
-
-      const existingLateFee = await prisma.ledgerEntry.findFirst({
-        where: {
-          unitId: unit.id,
-          type: "LATE_FEE",
-          effectiveDate: {
-            gte: dueDate,
-            lt: addDays(dueDate, 32),
-          },
+    const existingLateFee = await prisma.ledgerEntry.findFirst({
+      where: {
+        unitId: unit.id,
+        entryType: "CHARGE",
+        chargeType: "LATE_FEE",
+        effectiveDate: {
+          gte: monthStart,
+          lt: nextMonth,
         },
-        orderBy: {
-          effectiveDate: "desc",
-        },
-      });
+      },
+      orderBy: {
+        effectiveDate: "desc",
+      },
+    });
 
-      if (existingLateFee) {
-        continue;
-      }
-
-      await prisma.ledgerEntry.create({
-        data: {
-          propertyId: property.id,
-          unitId: unit.id,
-          tenantId: activeAssignment.tenantId,
-          type: "LATE_FEE",
-          amount: lateFeeAmount,
-          effectiveDate: today,
-          memo: "Late Fee",
-          source: "SYSTEM",
-        },
-      });
+    if (existingLateFee) {
+      continue;
     }
+
+    await prisma.ledgerEntry.create({
+      data: {
+        propertyId: property.id,
+        unitId: unit.id,
+        tenantAssignmentId: assignment.id,
+        entryType: "CHARGE",
+        chargeType: "LATE_FEE",
+        amount: lateFeeAmount,
+        effectiveDate: today,
+        memo: "Initial late fee",
+      },
+    });
   }
 
   return { ok: true };

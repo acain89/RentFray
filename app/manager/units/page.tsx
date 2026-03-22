@@ -4,8 +4,14 @@ import Link from "next/link";
 export default async function UnitsPage() {
   const units = await prisma.unit.findMany({
     include: {
-      assignments: {
-        include: { tenant: true },
+      tenantAssignments: {
+        where: { isCurrent: true },
+        orderBy: { moveInDate: "desc" },
+        take: 1,
+        select: {
+          firstName: true,
+          lastName: true,
+        },
       },
     },
     orderBy: { unitNumber: "asc" },
@@ -19,7 +25,10 @@ export default async function UnitsPage() {
 
       <div className="space-y-3">
         {units.map((u: UnitRow) => {
-          const tenant = u.assignments[0]?.tenant;
+          const assignment = u.tenantAssignments[0] ?? null;
+          const tenantName = assignment
+            ? `${assignment.firstName || ""} ${assignment.lastName || ""}`.trim()
+            : "";
 
           return (
             <Link
@@ -31,11 +40,11 @@ export default async function UnitsPage() {
                 <div>
                   <div className="font-semibold">Unit {u.unitNumber}</div>
                   <div className="text-sm text-gray-500">
-                    {tenant?.name || "Vacant"}
+                    {tenantName || "Vacant"}
                   </div>
                 </div>
 
-                <div>${Number(u.marketRent || 0).toFixed(2)}</div>
+                <div>${Number(u.baseRent || 0).toFixed(2)}</div>
               </div>
             </Link>
           );

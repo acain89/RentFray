@@ -12,6 +12,8 @@ type PropertyLike = {
   settings?: unknown;
   units?: Array<unknown>;
   paymentConnectionStatus?: PaymentLike;
+  isActive?: boolean | null;
+  status?: string | null;
 } | null | undefined;
 
 export function getLiveReadiness(property: PropertyLike) {
@@ -40,4 +42,32 @@ export function getLiveReadiness(property: PropertyLike) {
     paymentReady,
     readyForLive,
   };
+}
+
+/* =========================
+   COMPATIBILITY LAYER
+========================= */
+
+function isActive(property: PropertyLike) {
+  return property?.isActive !== false;
+}
+
+export function canManagerOperate(property: PropertyLike) {
+  const r = getLiveReadiness(property);
+  return isActive(property) && r.readyForLive;
+}
+
+export function canTenantLogin(property: PropertyLike) {
+  const r = getLiveReadiness(property);
+  return isActive(property) && r.readyForLive;
+}
+
+export function canAccessTenantPortal(property: PropertyLike) {
+  const r = getLiveReadiness(property);
+  return isActive(property) && r.readyForLive;
+}
+
+export function canMakePayments(property: PropertyLike) {
+  const r = getLiveReadiness(property);
+  return isActive(property) && r.paymentReady;
 }

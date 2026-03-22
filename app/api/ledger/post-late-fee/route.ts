@@ -4,13 +4,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/financialAccess";
+import { getUnitLedgerSummary } from "@/lib/ledger";
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+function getMonthLabel(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export async function POST() {
@@ -22,17 +30,21 @@ export async function POST() {
     }
 
     const now = new Date();
+    const effectiveDate = startOfDay(now);
     const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthLabel = getMonthLabel(now);
 
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
       include: {
-        settings: true,
         units: {
+          where: { isActive: true },
           include: {
-            assignments: {
-              where: { moveOut: null },
+            tier: true,
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
               take: 1,
             },
           },
@@ -40,22 +52,24 @@ export async function POST() {
       },
     });
 
-    if (!property || !property.settings) {
+    if (!property) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
-
-    const lateFeeAmount = Number(property.settings.lateFeeDefault ?? 0);
-
-    if (lateFeeAmount <= 0) {
-      return NextResponse.json({ error: "Late fee default is not configured" }, { status: 400 });
     }
 
     let posted = 0;
     let skipped = 0;
 
     for (const unit of property.units) {
-      const occupied = unit.assignments.length > 0;
-      if (!occupied) {
+      const activeAssignment = unit.tenantAssignments[0];
+
+      if (!activeAssignment) {
+        skipped += 1;
+        continue;
+      }
+
+      const lateFeeAmount = Number(unit.tier?.lateFeeInitial || 0);
+
+      if (lateFeeAmount <= 0) {
         skipped += 1;
         continue;
       }
@@ -64,12 +78,15 @@ export async function POST() {
         where: {
           propertyId: property.id,
           unitId: unit.id,
-          type: "LATE_FEE",
+          tenantAssignmentId: activeAssignment.id,
+          entryType: "CHARGE",
+          chargeType: "LATE_FEE",
           effectiveDate: {
             gte: monthStart,
-            lte: monthEnd,
+            lt: nextMonth,
           },
         },
+        select: { id: true },
       });
 
       if (existingLateFee) {
@@ -77,20 +94,9 @@ export async function POST() {
         continue;
       }
 
-      const monthEntries = await prisma.ledgerEntry.findMany({
-        where: {
-          propertyId: property.id,
-          unitId: unit.id,
-          effectiveDate: {
-            gte: monthStart,
-            lte: monthEnd,
-          },
-        },
-      });
+      const summary = await getUnitLedgerSummary(unit.id);
 
-      const balance = monthEntries.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-
-      if (balance <= 0) {
+      if (Number(summary.balance || 0) <= 0) {
         skipped += 1;
         continue;
       }
@@ -99,13 +105,13 @@ export async function POST() {
         data: {
           propertyId: property.id,
           unitId: unit.id,
-          type: "LATE_FEE",
+          tenantAssignmentId: activeAssignment.id,
+          entryType: "CHARGE",
+          chargeType: "LATE_FEE",
           amount: lateFeeAmount,
-          description: `Late fee - ${monthStart.toLocaleDateString("en-US", {
-            month: "long",
-            year: "numeric",
-          })}`,
-          effectiveDate: now,
+          memo: `Initial late fee - ${monthLabel}`,
+          effectiveDate,
+          createdByManagementUserId: session.managementUserId || null,
         },
       });
 
@@ -115,15 +121,17 @@ export async function POST() {
     await prisma.auditLog.create({
       data: {
         propertyId: property.id,
-        actorRole: session.role,
-        actorLabel: session.managementUserId || "management",
+        actorType: "MANAGER",
+        actorManagementUserId: session.managementUserId || null,
         action: "LATE_FEES_POSTED",
-        entityType: "PROPERTY",
-        entityId: property.id,
-        notes: JSON.stringify({
+        targetType: "PROPERTY",
+        targetId: property.id,
+        summary: `Manual late fee posting completed for ${monthLabel}.`,
+        metadataJson: JSON.stringify({
           posted,
           skipped,
-          month: monthStart.toISOString(),
+          monthStart: monthStart.toISOString(),
+          triggeredAt: effectiveDate.toISOString(),
         }),
       },
     });

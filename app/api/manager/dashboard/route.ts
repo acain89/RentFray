@@ -6,6 +6,10 @@ import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 
+function roundMoney(value: number) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -32,6 +36,23 @@ export async function GET() {
             id: true,
             unitNumber: true,
             baseRent: true,
+            tier: {
+              select: {
+                id: true,
+                name: true,
+                baseRent: true,
+                processingFee: true,
+              },
+            },
+            recurringFees: {
+              where: { isActive: true },
+              orderBy: { displayOrder: "asc" },
+              select: {
+                id: true,
+                label: true,
+                amount: true,
+              },
+            },
             tenantAssignments: {
               where: {
                 isCurrent: true,
@@ -40,6 +61,7 @@ export async function GET() {
               orderBy: { moveInDate: "desc" },
               take: 1,
               select: {
+                id: true,
                 firstName: true,
                 lastName: true,
               },
@@ -60,19 +82,21 @@ export async function GET() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const paymentSums = await prisma.ledgerEntry.groupBy({
-  by: ["unitId"],
-  where: {
-    propertyId: property.id,
-    amount: { lt: 0 },
-    effectiveDate: { gte: monthStart },
-  },
-  _sum: {
-    amount: true,
-  },
-});
+      by: ["unitId"],
+      where: {
+        propertyId: property.id,
+        entryType: "PAYMENT",
+        amount: { lt: 0 },
+        effectiveDate: { gte: monthStart },
+        voidedAt: null,
+      },
+      _sum: {
+        amount: true,
+      },
+    });
 
-    const paymentMap = new Map(
-      paymentSums.map((row) => [
+    const paymentMap = new Map<string, number>(
+      paymentSums.map((row: any): [string, number] => [
         row.unitId,
         Math.abs(Number(row._sum.amount || 0)),
       ])
@@ -85,7 +109,7 @@ export async function GET() {
     let delinquentCount = 0;
 
     const units = await Promise.all(
-      property.units.map(async (unit) => {
+      property.units.map(async (unit: any) => {
         const activeAssignment = unit.tenantAssignments[0] ?? null;
 
         if (activeAssignment) {
@@ -94,10 +118,24 @@ export async function GET() {
           vacantUnits++;
         }
 
-        const rent = Number(unit.baseRent || 0);
-        totalExpected += rent;
+        const baseRent = roundMoney(
+          Number(unit.tier?.baseRent ?? unit.baseRent ?? 0)
+        );
 
-        const collectedForUnit = paymentMap.get(unit.id) || 0;
+        const recurringChargeTotal = roundMoney(
+          unit.recurringFees.reduce(
+            (sum: number, fee: any) => sum + Number(fee.amount || 0),
+            0
+          )
+        );
+
+        const monthlySubtotal = roundMoney(baseRent + recurringChargeTotal);
+
+        if (activeAssignment) {
+          totalExpected += monthlySubtotal;
+        }
+
+        const collectedForUnit = roundMoney(paymentMap.get(unit.id) || 0);
         totalCollected += collectedForUnit;
 
         const [ledger, delinquency] = await Promise.all([
@@ -120,7 +158,19 @@ export async function GET() {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
           tenantName,
-          balance: Number(ledger.balance || 0),
+          tier: unit.tier
+            ? {
+                id: unit.tier.id,
+                name: unit.tier.name,
+              }
+            : null,
+          charges: {
+            baseRent,
+            recurringChargeTotal,
+            monthlySubtotal,
+            processingFee: roundMoney(Number(unit.tier?.processingFee || 0)),
+          },
+          balance: roundMoney(Number(ledger.balance || 0)),
           isDelinquent: Boolean(delinquency.isDelinquent),
           daysPastDue: Number(delinquency.daysPastDue || 0),
         };
@@ -136,6 +186,9 @@ export async function GET() {
         sensitivity: "base",
       });
     });
+
+    totalExpected = roundMoney(totalExpected);
+    totalCollected = roundMoney(totalCollected);
 
     return NextResponse.json({
       ok: true,

@@ -1,6 +1,7 @@
 // app/manager/properties/[id]/tenants/remove/page.tsx
 
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
@@ -44,7 +45,9 @@ async function removeTenantAssignment(formData: FormData) {
 
   if (!unitId) {
     redirect(
-      `/manager/properties/${propertyId}/tenants/remove?error=Missing unit selection`
+      `/manager/properties/${propertyId}/tenants/remove?error=${encodeURIComponent(
+        "Missing unit selection"
+      )}`
     );
   }
 
@@ -54,35 +57,50 @@ async function removeTenantAssignment(formData: FormData) {
       propertyId,
     },
     include: {
-      assignments: {
-        where: { moveOut: null },
-        orderBy: { moveIn: "desc" },
+      tenantAssignments: {
+        where: { isCurrent: true },
+        orderBy: { moveInDate: "desc" },
         take: 1,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          moveInDate: true,
+        },
       },
     },
   });
 
   if (!unit) {
     redirect(
-      `/manager/properties/${propertyId}/tenants/remove?error=Unit not found`
+      `/manager/properties/${propertyId}/tenants/remove?error=${encodeURIComponent(
+        "Unit not found"
+      )}`
     );
   }
 
-  const activeAssignment = unit.assignments[0];
+  const activeAssignment = unit.tenantAssignments[0];
 
   if (!activeAssignment) {
     redirect(
-      `/manager/properties/${propertyId}/tenants/remove?error=No active tenant found for that unit`
+      `/manager/properties/${propertyId}/tenants/remove?error=${encodeURIComponent(
+        "No active tenant found for that unit"
+      )}`
     );
   }
 
   const moveOutDate = parseMoveOutDate(moveOut);
+  const tenantName = [activeAssignment.firstName, activeAssignment.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.tenantAssignment.update({
       where: { id: activeAssignment.id },
       data: {
-        moveOut: moveOutDate,
+        moveOutDate,
+        isCurrent: false,
       },
     });
 
@@ -91,20 +109,25 @@ async function removeTenantAssignment(formData: FormData) {
       data: {
         portalActivated: false,
         tenantPinHash: null,
-        tenantName: null,
+        portalFirstName: null,
+        portalLastName: null,
+        activatedAt: null,
+        activationSource: null,
       },
     });
 
     await tx.auditLog.create({
       data: {
         propertyId,
-        actorRole: session.role,
-        actorLabel: session.managementUserId || "management",
+        actorType: session.role,
+        actorManagementUserId: session.managementUserId || null,
         action: "TENANT_REMOVED",
-        entityType: "UNIT",
-        entityId: unitId,
-        notes: JSON.stringify({
+        targetType: "UNIT",
+        targetId: unitId,
+        summary: `Tenant removed from unit ${unit.unitNumber}`,
+        metadataJson: JSON.stringify({
           unitNumber: unit.unitNumber,
+          tenantName: tenantName || null,
           moveOut: moveOut || null,
           reason: reason || null,
         }),
@@ -115,12 +138,26 @@ async function removeTenantAssignment(formData: FormData) {
   redirect(`/manager/properties/${propertyId}?removed=1`);
 }
 
+type PageSearchParams = {
+  error?: string;
+};
+
+type UnitRow = {
+  id: string;
+  unitNumber: string;
+  tenantAssignments: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  }[];
+};
+
 export default async function RemoveTenantPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<PageSearchParams>;
 }) {
   const session = await getSession();
 
@@ -142,10 +179,15 @@ export default async function RemoveTenantPage({
       units: {
         orderBy: { unitNumber: "asc" },
         include: {
-          assignments: {
-            where: { moveOut: null },
-            orderBy: { moveIn: "desc" },
+          tenantAssignments: {
+            where: { isCurrent: true },
+            orderBy: { moveInDate: "desc" },
             take: 1,
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
           },
         },
       },
@@ -157,26 +199,26 @@ export default async function RemoveTenantPage({
   }
 
   const occupiedUnits = property.units.filter(
-    (unit: { assignments: { id: string }[] }) => unit.assignments.length > 0
+    (unit: UnitRow) => unit.tenantAssignments.length > 0
   );
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Remove Tenant</h1>
-        <p className="text-sm text-neutral-600 mt-1">
-          {property.name} ({property.code})
+        <p className="mt-1 text-sm text-neutral-600">
+          {property.name} ({property.propertyCode})
         </p>
       </div>
 
       {occupiedUnits.length === 0 ? (
-        <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
+        <div className="rounded-xl border bg-white p-4 text-sm text-neutral-700">
           No occupied units found.
         </div>
       ) : null}
 
       {error ? (
-        <div className="border rounded-xl p-4 bg-white text-sm text-red-600">
+        <div className="rounded-xl border bg-white p-4 text-sm text-red-600">
           {error}
         </div>
       ) : null}
@@ -184,7 +226,7 @@ export default async function RemoveTenantPage({
       {occupiedUnits.length > 0 ? (
         <form
           action={removeTenantAssignment}
-          className="border rounded-xl p-4 bg-white space-y-4"
+          className="space-y-4 rounded-xl border bg-white p-4"
         >
           <input type="hidden" name="propertyId" value={property.id} />
 
@@ -193,14 +235,22 @@ export default async function RemoveTenantPage({
               <div className="text-sm font-medium">Occupied Unit</div>
               <select
                 name="unitId"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 required
               >
-                {occupiedUnits.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unitNumber} — {unit.tenantName || "Active Tenant"}
-                  </option>
-                ))}
+                {occupiedUnits.map((unit: UnitRow) => {
+                  const assignment = unit.tenantAssignments[0];
+                  const tenantName = [assignment?.firstName, assignment?.lastName]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim();
+
+                  return (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.unitNumber} — {tenantName || "Active Tenant"}
+                    </option>
+                  );
+                })}
               </select>
             </label>
 
@@ -209,25 +259,25 @@ export default async function RemoveTenantPage({
               <input
                 type="date"
                 name="moveOut"
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full rounded-lg border px-3 py-2"
                 defaultValue={new Date().toISOString().slice(0, 10)}
               />
             </label>
           </div>
 
-          <label className="space-y-1 block">
+          <label className="block space-y-1">
             <div className="text-sm font-medium">Reason</div>
             <textarea
               name="reason"
-              className="w-full border rounded-lg px-3 py-2 min-h-[110px]"
+              className="min-h-[110px] w-full rounded-lg border px-3 py-2"
               placeholder="Optional removal note"
             />
           </label>
 
-          <div className="border rounded-xl p-4 bg-neutral-50 text-sm text-neutral-700">
+          <div className="rounded-xl border bg-neutral-50 p-4 text-sm text-neutral-700">
             This will:
             <div>• set move-out on the active assignment</div>
-            <div>• clear tenant name</div>
+            <div>• clear portal tenant name</div>
             <div>• disable portal access</div>
             <div>• clear the tenant PIN</div>
             <div>• make the unit available again</div>
@@ -235,7 +285,7 @@ export default async function RemoveTenantPage({
 
           <button
             type="submit"
-            className="px-4 py-2 rounded-lg bg-black text-white"
+            className="rounded-lg bg-black px-4 py-2 text-white"
           >
             Remove Tenant
           </button>

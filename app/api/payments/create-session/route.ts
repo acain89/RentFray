@@ -9,30 +9,24 @@ import { canMakePayments } from "@/lib/liveGating";
 
 export const runtime = "nodejs";
 
+type RecurringFeeItemRow = {
+  id: string;
+  label: string;
+  amount: number;
+};
+
+type RecurringCharge = {
+  id: string;
+  label: string;
+  amount: number;
+};
+
 function moneyCents(value: number) {
   return Math.round(Number(value || 0) * 100);
 }
 
-function getConvenienceFeeAmount(
-  settings: {
-    convenienceFeeEnabled?: boolean | null;
-    convenienceFeeType?: string | null;
-    convenienceFeeAmount?: number | null;
-  } | null | undefined,
-  balanceDue: number
-) {
-  if (!settings?.convenienceFeeEnabled) return 0;
-
-  const feeType = String(settings.convenienceFeeType || "FLAT").toUpperCase();
-  const feeAmount = Number(settings.convenienceFeeAmount || 0);
-
-  if (feeAmount <= 0) return 0;
-
-  if (feeType === "PERCENT") {
-    return Math.max(0, (balanceDue * feeAmount) / 100);
-  }
-
-  return Math.max(0, feeAmount);
+function roundMoney(value: number) {
+  return Math.round(Number(value || 0) * 100) / 100;
 }
 
 export async function POST(req: Request) {
@@ -48,7 +42,7 @@ export async function POST(req: Request) {
     }
 
     const stripe = new Stripe(secretKey, {
-      apiVersion: "2023-10-16",
+      apiVersion: "2026-02-25.clover",
     });
 
     const session = await getSession();
@@ -68,6 +62,16 @@ export async function POST(req: Request) {
         propertyId: session.propertyId,
       },
       include: {
+        tier: true,
+        recurringFeeItems: {
+          where: { isActive: true },
+          orderBy: { displayOrder: "asc" },
+          select: {
+            id: true,
+            label: true,
+            amount: true,
+          },
+        },
         property: {
           include: {
             settings: true,
@@ -88,7 +92,14 @@ export async function POST(req: Request) {
     });
 
     if (!unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      return NextResponse.json({ error: "Unit not found." }, { status: 404 });
+    }
+
+    if (!unit.tier) {
+      return NextResponse.json(
+        { error: "Unit tier not found." },
+        { status: 400 }
+      );
     }
 
     const property = unit.property;
@@ -113,27 +124,46 @@ export async function POST(req: Request) {
       );
     }
 
-    const settings = property.settings;
-
-    if (!settings) {
-      return NextResponse.json(
-        { error: "Property settings not found." },
-        { status: 400 }
-      );
-    }
-
     const ledger = await getUnitLedgerSummary(unit.id);
-    const balanceDue = Math.max(0, Number(ledger.balance || 0));
+    const balanceDue = Math.max(0, roundMoney(Number(ledger.balance || 0)));
 
     if (balanceDue <= 0) {
       return NextResponse.json({ error: "No balance due." }, { status: 400 });
     }
 
-    const convenienceFee = getConvenienceFeeAmount(settings, balanceDue);
-    const total = balanceDue + convenienceFee;
+    const baseRent = roundMoney(
+      Number(unit.tier.baseRent || unit.baseRent || 0)
+    );
+
+    const recurringFeeItems: RecurringFeeItemRow[] = unit.recurringFeeItems.map(
+      (fee: RecurringFeeItemRow) => ({
+        id: fee.id,
+        label: fee.label,
+        amount: Number(fee.amount || 0),
+      })
+    );
+
+    const recurringCharges: RecurringCharge[] = recurringFeeItems.map(
+      (fee: RecurringFeeItemRow) => ({
+        id: fee.id,
+        label: fee.label,
+        amount: roundMoney(Number(fee.amount || 0)),
+      })
+    );
+
+    const recurringChargeTotal = roundMoney(
+      recurringCharges.reduce(
+        (sum: number, fee: RecurringCharge) => sum + fee.amount,
+        0
+      )
+    );
+
+    const monthlySubtotal = roundMoney(baseRent + recurringChargeTotal);
+    const processingFee = roundMoney(Number(unit.tier.processingFee || 0));
+    const total = roundMoney(balanceDue + processingFee);
 
     const baseAmountCents = moneyCents(balanceDue);
-    const convenienceFeeCents = moneyCents(convenienceFee);
+    const processingFeeCents = moneyCents(processingFee);
     const totalAmountCents = moneyCents(total);
 
     if (totalAmountCents <= 0) {
@@ -144,7 +174,7 @@ export async function POST(req: Request) {
     }
 
     const activeAssignment = unit.tenantAssignments[0] || null;
-    const tenantId = activeAssignment?.id || "";
+    const tenantAssignmentId = activeAssignment?.id || "";
     const tenantName = activeAssignment
       ? [activeAssignment.firstName, activeAssignment.lastName]
           .filter(Boolean)
@@ -159,11 +189,15 @@ export async function POST(req: Request) {
     console.log("Create Stripe session payload", {
       propertyId: property.id,
       unitId: unit.id,
-      tenantId,
+      tierId: unit.tier.id,
+      tenantAssignmentId,
       propertyStatus: property.status,
       paymentStatus: property.paymentStatus,
+      baseRent,
+      recurringChargeTotal,
+      monthlySubtotal,
       balanceDue,
-      convenienceFee,
+      processingFee,
       total,
       origin,
     });
@@ -184,18 +218,18 @@ export async function POST(req: Request) {
           },
           quantity: 1,
         },
-        ...(convenienceFeeCents > 0
+        ...(processingFeeCents > 0
           ? [
               {
                 price_data: {
                   currency: "usd",
                   product_data: {
-                    name: "Convenience fee",
-                    description: `${property.name} payment processing fee`,
+                    name: "Processing fee",
+                    description: `${property.name} ACH processing fee`,
                   },
-                  unit_amount: convenienceFeeCents,
+                  unit_amount: processingFeeCents,
                 },
-                quantity: 1,
+                quantity: 1 as const,
               },
             ]
           : []),
@@ -205,12 +239,16 @@ export async function POST(req: Request) {
       metadata: {
         propertyId: property.id,
         unitId: unit.id,
-        tenantId,
-        baseAmount: balanceDue.toFixed(2),
-        convenienceFee: convenienceFee.toFixed(2),
+        tierId: unit.tier.id,
+        tenantAssignmentId,
+        baseRent: baseRent.toFixed(2),
+        recurringChargeTotal: recurringChargeTotal.toFixed(2),
+        monthlySubtotal: monthlySubtotal.toFixed(2),
+        balanceDue: balanceDue.toFixed(2),
+        processingFee: processingFee.toFixed(2),
         totalAmount: total.toFixed(2),
         baseAmountCents: String(baseAmountCents),
-        convenienceFeeCents: String(convenienceFeeCents),
+        processingFeeCents: String(processingFeeCents),
         totalAmountCents: String(totalAmountCents),
       },
     });
@@ -226,11 +264,16 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       url: checkoutSession.url,
-      balanceDue,
-      convenienceFee,
-      total,
+      pricing: {
+        baseRent,
+        recurringChargeTotal,
+        monthlySubtotal,
+        balanceDue,
+        processingFee,
+        total,
+      },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof Stripe.errors.StripeError) {
       console.error("Create Stripe session StripeError:", {
         type: error.type,

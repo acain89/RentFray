@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { headers } from "next/headers";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canMakePayments } from "@/lib/liveGating";
 
@@ -11,16 +12,9 @@ export const runtime = "nodejs";
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-if (!stripeSecretKey) throw new Error("Missing STRIPE_SECRET_KEY");
-if (!stripeWebhookSecret) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
-
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2023-10-16",
-});
-
 function parseCents(value: string | undefined) {
   const n = Number(value || 0);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
 function safeString(value: unknown) {
@@ -28,6 +22,26 @@ function safeString(value: unknown) {
 }
 
 export async function POST(req: Request) {
+  if (!stripeSecretKey) {
+    console.error("Missing STRIPE_SECRET_KEY");
+    return NextResponse.json(
+      { error: "Stripe not configured" },
+      { status: 500 }
+    );
+  }
+
+  if (!stripeWebhookSecret) {
+    console.error("Missing STRIPE_WEBHOOK_SECRET");
+    return NextResponse.json(
+      { error: "Webhook not configured" },
+      { status: 500 }
+    );
+  }
+
+  const stripe = new Stripe(stripeSecretKey, {
+    apiVersion: "2026-02-25.clover",
+  });
+
   let event: Stripe.Event;
 
   try {
@@ -39,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Stripe webhook signature verification failed:", error);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
@@ -52,10 +66,11 @@ export async function POST(req: Request) {
 
         const propertyId = safeString(metadata.propertyId);
         const unitId = safeString(metadata.unitId);
-        const tenantId = safeString(metadata.tenantId) || null;
+        const tenantAssignmentIdFromMetadata =
+          safeString(metadata.tenantAssignmentId) || null;
 
-        const baseAmountCents = parseCents(metadata.baseAmountCents);
-        const convenienceFeeCents = parseCents(metadata.convenienceFeeCents);
+        const balanceDueCents = parseCents(metadata.baseAmountCents);
+        const processingFeeCents = parseCents(metadata.processingFeeCents);
         const totalAmountCents = parseCents(metadata.totalAmountCents);
 
         if (!propertyId || !unitId) {
@@ -63,12 +78,12 @@ export async function POST(req: Request) {
           break;
         }
 
-        // ✅ VERIFY PROPERTY + STATUS
         const property = await prisma.property.findUnique({
           where: { id: propertyId },
           include: {
+            settings: true,
             units: true,
-            paymentConnectionStatus: true,
+            paymentStatus: true,
           },
         });
 
@@ -79,13 +94,20 @@ export async function POST(req: Request) {
           break;
         }
 
-        // ✅ VERIFY UNIT BELONGS TO PROPERTY
         const unit = await prisma.unit.findFirst({
           where: {
             id: unitId,
             propertyId,
           },
-          select: { id: true },
+          select: {
+            id: true,
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: { createdAt: "desc" },
+              select: { id: true },
+              take: 1,
+            },
+          },
         });
 
         if (!unit) {
@@ -93,10 +115,12 @@ export async function POST(req: Request) {
           break;
         }
 
-        const expectedTotalCents = baseAmountCents + convenienceFeeCents;
+        const tenantAssignmentId =
+          tenantAssignmentIdFromMetadata || unit.tenantAssignments[0]?.id || null;
+
+        const expectedTotalCents = balanceDueCents + processingFeeCents;
         const metadataSettledCents =
           totalAmountCents > 0 ? totalAmountCents : expectedTotalCents;
-
         const actualSettledCents =
           intent.amount_received || intent.amount || metadataSettledCents;
 
@@ -107,8 +131,7 @@ export async function POST(req: Request) {
           break;
         }
 
-        // ⚠️ OPTIONAL STRICT CHECK (recommended)
-        if (actualSettledCents < expectedTotalCents) {
+        if (expectedTotalCents > 0 && actualSettledCents < expectedTotalCents) {
           console.warn("Webhook mismatch: amount less than expected", {
             intentId: intent.id,
             actualSettledCents,
@@ -116,31 +139,72 @@ export async function POST(req: Request) {
           });
         }
 
-        await prisma.$transaction(async (tx) => {
-          const existing = await tx.ledgerEntry.findFirst({
+        const paymentAmount = actualSettledCents / 100;
+        const processingFeeAmount = processingFeeCents / 100;
+        const effectiveDate = new Date();
+
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          const existingPayment = await tx.ledgerEntry.findFirst({
             where: {
-              source: "STRIPE",
-              sourceRef: intent.id,
+              referenceNumber: intent.id,
+              entryType: "PAYMENT",
+              paymentMethod: "ACH",
+              unitId,
             },
             select: { id: true },
           });
 
-          if (existing) return;
+          if (existingPayment) {
+            return;
+          }
+
+          if (processingFeeCents > 0) {
+            const existingFee = await tx.ledgerEntry.findFirst({
+              where: {
+                referenceNumber: `${intent.id}:fee`,
+                entryType: "CHARGE",
+                chargeType: "PROCESSING_FEE",
+                unitId,
+              },
+              select: { id: true },
+            });
+
+            if (!existingFee) {
+              await tx.ledgerEntry.create({
+                data: {
+                  propertyId,
+                  unitId,
+                  tenantAssignmentId,
+                  entryType: "CHARGE",
+                  chargeType: "PROCESSING_FEE",
+                  amount: processingFeeAmount,
+                  effectiveDate,
+                  referenceNumber: `${intent.id}:fee`,
+                  memo: "ACH processing fee",
+                  createdByAdminId: null,
+                  createdByManagementUserId: null,
+                  paymentMethod: null,
+                },
+              });
+            }
+          }
 
           await tx.ledgerEntry.create({
             data: {
               propertyId,
               unitId,
-              tenantId,
-              type: "PAYMENT",
-              amount: -(actualSettledCents / 100),
-              source: "STRIPE",
-              sourceRef: intent.id,
-              description:
-                convenienceFeeCents > 0
-                  ? "Tenant payment (Stripe ACH + convenience fee)"
+              tenantAssignmentId,
+              entryType: "PAYMENT",
+              paymentMethod: "ACH",
+              amount: -paymentAmount,
+              effectiveDate,
+              referenceNumber: intent.id,
+              memo:
+                processingFeeCents > 0
+                  ? "Tenant payment (Stripe ACH + processing fee)"
                   : "Tenant payment (Stripe ACH)",
-              effectiveDate: new Date(),
+              createdByAdminId: null,
+              createdByManagementUserId: null,
             },
           });
         });
@@ -151,7 +215,7 @@ export async function POST(req: Request) {
       default:
         break;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Stripe webhook handler error:", error);
   }
 

@@ -14,12 +14,34 @@ export type SessionRole =
 export type SessionPayload = {
   role: SessionRole;
   propertyId?: string;
+  adminAccessId?: string;
   managementUserId?: string;
   unitId?: string;
   maintenanceUserId?: string;
   iat: number;
   exp: number;
 };
+
+type CreateSessionInput =
+  | {
+      role: "ADMIN";
+      adminAccessId?: string;
+    }
+  | {
+      role: "OWNER" | "MANAGER" | "STAFF";
+      propertyId: string;
+      managementUserId: string;
+    }
+  | {
+      role: "TENANT";
+      propertyId: string;
+      unitId: string;
+    }
+  | {
+      role: "MAINTENANCE";
+      propertyId: string;
+      maintenanceUserId: string;
+    };
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 export const SESSION_COOKIE_NAME = "rf_session";
@@ -76,7 +98,7 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isValidPayloadShape(parsed: Partial<SessionPayload>) {
+function isValidPayloadShape(parsed: Partial<SessionPayload>): parsed is SessionPayload {
   if (!parsed || !isValidRole(parsed.role)) {
     return false;
   }
@@ -85,9 +107,13 @@ function isValidPayloadShape(parsed: Partial<SessionPayload>) {
     return false;
   }
 
+  if (parsed.propertyId !== undefined && !isNonEmptyString(parsed.propertyId)) {
+    return false;
+  }
+
   if (
-    parsed.propertyId !== undefined &&
-    !isNonEmptyString(parsed.propertyId)
+    parsed.adminAccessId !== undefined &&
+    !isNonEmptyString(parsed.adminAccessId)
   ) {
     return false;
   }
@@ -126,7 +152,10 @@ function isValidPayloadShape(parsed: Partial<SessionPayload>) {
   }
 
   if (parsed.role === "TENANT") {
-    return isNonEmptyString(parsed.propertyId) && isNonEmptyString(parsed.unitId);
+    return (
+      isNonEmptyString(parsed.propertyId) &&
+      isNonEmptyString(parsed.unitId)
+    );
   }
 
   if (parsed.role === "MAINTENANCE") {
@@ -139,41 +168,53 @@ function isValidPayloadShape(parsed: Partial<SessionPayload>) {
   return false;
 }
 
-export function createSessionToken(input:
-  | { role: "ADMIN" }
-  | {
-      role: "OWNER" | "MANAGER" | "STAFF";
-      propertyId: string;
-      managementUserId: string;
-    }
-  | {
-      role: "TENANT";
-      propertyId: string;
-      unitId: string;
-    }
-  | {
-      role: "MAINTENANCE";
-      propertyId: string;
-      maintenanceUserId: string;
-    }
-) {
+export function createSessionToken(input: CreateSessionInput) {
   const now = Math.floor(Date.now() / 1000);
 
-  const payload: SessionPayload = {
-    role: input.role,
-    iat: now,
-    exp: now + SESSION_TTL_SECONDS,
-    ...(input.role !== "ADMIN" && input.propertyId
-      ? { propertyId: input.propertyId }
-      : {}),
-    ...("managementUserId" in input
-      ? { managementUserId: input.managementUserId }
-      : {}),
-    ...("unitId" in input ? { unitId: input.unitId } : {}),
-    ...("maintenanceUserId" in input
-      ? { maintenanceUserId: input.maintenanceUserId }
-      : {}),
-  };
+  let payload: SessionPayload;
+
+  switch (input.role) {
+    case "ADMIN":
+      payload = {
+        role: "ADMIN",
+        ...(input.adminAccessId ? { adminAccessId: input.adminAccessId } : {}),
+        iat: now,
+        exp: now + SESSION_TTL_SECONDS,
+      };
+      break;
+
+    case "OWNER":
+    case "MANAGER":
+    case "STAFF":
+      payload = {
+        role: input.role,
+        propertyId: input.propertyId,
+        managementUserId: input.managementUserId,
+        iat: now,
+        exp: now + SESSION_TTL_SECONDS,
+      };
+      break;
+
+    case "TENANT":
+      payload = {
+        role: "TENANT",
+        propertyId: input.propertyId,
+        unitId: input.unitId,
+        iat: now,
+        exp: now + SESSION_TTL_SECONDS,
+      };
+      break;
+
+    case "MAINTENANCE":
+      payload = {
+        role: "MAINTENANCE",
+        propertyId: input.propertyId,
+        maintenanceUserId: input.maintenanceUserId,
+        iat: now,
+        exp: now + SESSION_TTL_SECONDS,
+      };
+      break;
+  }
 
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signature = sign(encodedPayload);
@@ -222,6 +263,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
     return {
       role: parsed.role,
       ...(parsed.propertyId ? { propertyId: parsed.propertyId } : {}),
+      ...(parsed.adminAccessId ? { adminAccessId: parsed.adminAccessId } : {}),
       ...(parsed.managementUserId
         ? { managementUserId: parsed.managementUserId }
         : {}),

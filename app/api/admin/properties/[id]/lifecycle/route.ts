@@ -1,13 +1,11 @@
 // app/api/admin/properties/[id]/lifecycle/route.ts
-// [path: app/api/admin/properties/[id]/lifecycle/route.ts]
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getLiveReadiness } from "@/lib/liveGating";
 
 const ALLOWED_STATUSES = ["SETUP", "TEST", "READY", "LIVE", "SUSPENDED"] as const;
-
 type PropertyStatus = (typeof ALLOWED_STATUSES)[number];
 
 function clean(value: unknown) {
@@ -33,7 +31,7 @@ function canTransition(from: PropertyStatus, to: PropertyStatus) {
 }
 
 export async function GET(
-  _req: Request,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -50,7 +48,7 @@ export async function GET(
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
         status: true,
         settings: true,
         units: {
@@ -81,13 +79,16 @@ export async function GET(
       allowedStatuses: ALLOWED_STATUSES,
     });
   } catch (error) {
-    console.error("GET /api/admin/properties/[id]/lifecycle error:", error);
-    return NextResponse.json({ error: "Failed to load lifecycle state" }, { status: 500 });
+    console.error("GET lifecycle error:", error);
+    return NextResponse.json(
+      { error: "Failed to load lifecycle state" },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -104,7 +105,10 @@ export async function POST(
     const reason = String(body.reason || "").trim() || null;
 
     if (!isValidStatus(nextStatusRaw)) {
-      return NextResponse.json({ error: "Invalid property status" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid property status" },
+        { status: 400 }
+      );
     }
 
     const property = await prisma.property.findUnique({
@@ -112,7 +116,7 @@ export async function POST(
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
         status: true,
         settings: true,
         units: {
@@ -133,12 +137,17 @@ export async function POST(
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    const currentStatus = clean(property.status) as PropertyStatus;
-    const nextStatus = nextStatusRaw as PropertyStatus;
+    const currentStatusRaw = clean(property.status);
 
-    if (!isValidStatus(currentStatus)) {
-      return NextResponse.json({ error: "Current property status is invalid" }, { status: 400 });
+    if (!isValidStatus(currentStatusRaw)) {
+      return NextResponse.json(
+        { error: "Current property status invalid" },
+        { status: 400 }
+      );
     }
+
+    const currentStatus = currentStatusRaw;
+    const nextStatus = nextStatusRaw;
 
     if (!canTransition(currentStatus, nextStatus)) {
       return NextResponse.json(
@@ -152,8 +161,7 @@ export async function POST(
     if (nextStatus === "LIVE" && !readiness.readyForLive) {
       return NextResponse.json(
         {
-          error:
-            "Property cannot go LIVE until units exist, settings exist, Stripe is connected, ACH is enabled, onboarding is complete, and admin approval is set.",
+          error: "Property cannot go LIVE until setup and payments are complete.",
         },
         { status: 400 }
       );
@@ -167,7 +175,7 @@ export async function POST(
       select: {
         id: true,
         name: true,
-        code: true,
+        propertyCode: true,
         status: true,
       },
     });
@@ -176,7 +184,7 @@ export async function POST(
       data: {
         propertyId: id,
         actorRole: "ADMIN",
-        actorLabel: session.adminAccessId || "admin",
+        actorLabel: "admin",
         action: "PROPERTY_STATUS_CHANGED",
         entityType: "PROPERTY",
         entityId: id,
@@ -196,7 +204,10 @@ export async function POST(
       readiness,
     });
   } catch (error) {
-    console.error("POST /api/admin/properties/[id]/lifecycle error:", error);
-    return NextResponse.json({ error: "Failed to update property status" }, { status: 500 });
+    console.error("POST lifecycle error:", error);
+    return NextResponse.json(
+      { error: "Failed to update property status" },
+      { status: 500 }
+    );
   }
 }

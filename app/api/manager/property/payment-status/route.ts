@@ -15,18 +15,38 @@ export async function GET() {
 
     const status = await prisma.paymentConnectionStatus.findUnique({
       where: { propertyId: session.propertyId },
+      select: {
+        processorConnected: true,
+        bankConnected: true,
+        chargesEnabled: true,
+        payoutsEnabled: true,
+        onboardingComplete: true,
+        requirementsDue: true,
+        requirementsSummary: true,
+        lastSyncedAt: true,
+        readyForLive: true,
+      },
     });
 
     return NextResponse.json({
       ok: true,
       status: status || {
-        stripeConnected: false,
-        achEnabled: false,
+        processorConnected: false,
+        bankConnected: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
         onboardingComplete: false,
+        requirementsDue: false,
+        requirementsSummary: null,
+        lastSyncedAt: null,
+        readyForLive: false,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("GET payment-status error:", error);
-    return NextResponse.json({ error: "Failed to load payment status" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load payment status" },
+      { status: 500 }
+    );
   }
 }

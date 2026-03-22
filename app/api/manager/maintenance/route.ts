@@ -44,7 +44,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      requests: requests.map((row) => {
+        requests: requests.map((row: any) => {
         const assignment = row.unit.tenantAssignments[0] ?? null;
 
         const tenantName = assignment

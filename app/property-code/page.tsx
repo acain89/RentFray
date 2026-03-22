@@ -5,21 +5,30 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+function fieldClass(hasError: boolean) {
+  return [
+    "w-full rounded-2xl border bg-white px-4 py-3.5 text-lg text-slate-900 outline-none transition",
+    "placeholder:text-slate-400 focus:border-slate-700 focus:ring-2 focus:ring-sky-200",
+    hasError ? "border-rose-300" : "border-sky-200",
+  ].join(" ");
+}
+
 export default function PropertyCodePage() {
   const router = useRouter();
+
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (loading) return;
 
     const cleanCode = code.trim();
 
-    if (!cleanCode || cleanCode.length !== 4) {
-      setError("Enter a valid 4-digit property code.");
+    if (!/^\d{4,5}$/.test(cleanCode)) {
+      setError("Enter a valid 4 or 5 digit property code.");
       return;
     }
 
@@ -37,13 +46,16 @@ export default function PropertyCodePage() {
 
       const data = await res.json();
 
-      if (!res.ok || !data?.ok || !data?.propertyId) {
+      const hasValidProperty =
+        Boolean(data?.ok) &&
+        (Boolean(data?.propertyId) || Boolean(data?.property?.id));
+
+      if (!res.ok || !hasValidProperty) {
         setError(data?.error || "Invalid property code.");
         setLoading(false);
         return;
       }
 
-      // ✅ Only navigate if backend confirms valid + active property
       router.replace(`/property-code/role?code=${encodeURIComponent(cleanCode)}`);
     } catch {
       setError("Unable to verify property code.");
@@ -52,15 +64,19 @@ export default function PropertyCodePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
-        <div className="w-full">
-          <div className="mb-8">
-            <h1 className="text-3xl font-semibold tracking-tight">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 px-4 py-8 text-slate-900 sm:px-6">
+      <div className="mx-auto max-w-md">
+        <div className="mb-8 text-xs font-semibold tracking-[0.2em] text-slate-700">
+          RENTFRAY
+        </div>
+
+        <section className="rounded-[28px] border border-sky-200 bg-white/95 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:p-6">
+          <div className="mb-6">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
               Property Code
             </h1>
-            <p className="mt-2 text-sm text-neutral-600">
-              Enter your 4-digit property code to continue.
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Enter your property code to continue.
             </p>
           </div>
 
@@ -68,31 +84,31 @@ export default function PropertyCodePage() {
             <div>
               <label
                 htmlFor="property-code"
-                className="mb-2 block text-sm font-medium"
+                className="mb-1.5 block text-xs font-medium text-slate-800"
               >
                 Property Code
               </label>
+
               <input
                 id="property-code"
                 type="text"
                 inputMode="numeric"
                 pattern="\d*"
                 autoComplete="one-time-code"
-                maxLength={4}
+                maxLength={5}
                 value={code}
                 onChange={(e) => {
-                  const next = e.target.value
-                    .replace(/\D/g, "")
-                    .slice(0, 4);
+                  const next = e.target.value.replace(/\D/g, "").slice(0, 5);
                   setCode(next);
+                  if (error) setError("");
                 }}
-                className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-lg outline-none focus:border-black"
+                className={fieldClass(!!error)}
                 placeholder="1234"
               />
             </div>
 
             {error ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {error}
               </div>
             ) : null}
@@ -100,12 +116,12 @@ export default function PropertyCodePage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+              className="w-full rounded-2xl bg-slate-900 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
               {loading ? "Checking..." : "Continue"}
             </button>
           </form>
-        </div>
+        </section>
       </div>
     </main>
   );

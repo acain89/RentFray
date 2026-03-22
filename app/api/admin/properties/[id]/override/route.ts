@@ -1,6 +1,7 @@
 // app/api/admin/properties/[id]/override/route.ts
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
@@ -23,7 +24,7 @@ async function requireAdmin() {
 }
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -34,11 +35,11 @@ export async function POST(
     }
 
     const { id } = await params;
-    const body = await req.json();
+    const body: unknown = await req.json();
 
-    const action = cleanUpper(body.action);
-    const reason = clean(body.reason);
-    const unitId = clean(body.unitId);
+    const action = cleanUpper((body as { action?: unknown })?.action);
+    const reason = clean((body as { reason?: unknown })?.reason);
+    const unitId = clean((body as { unitId?: unknown })?.unitId);
 
     if (!action) {
       return NextResponse.json({ error: "Missing action" }, { status: 400 });
@@ -47,22 +48,18 @@ export async function POST(
     const property = await prisma.property.findUnique({
       where: { id },
       include: {
-        paymentConnectionStatus: true,
+        paymentStatus: true,
         units: {
           orderBy: { unitNumber: "asc" },
-          include: {
-            assignments: {
-              where: { moveOut: null },
-              orderBy: { moveIn: "desc" },
-              take: 1,
-            },
-          },
         },
       },
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
     }
 
     if (action === "FORCE_LIVE") {
@@ -72,7 +69,7 @@ export async function POST(
         select: {
           id: true,
           name: true,
-          code: true,
+          propertyCode: true,
           status: true,
         },
       });
@@ -80,12 +77,12 @@ export async function POST(
       await prisma.auditLog.create({
         data: {
           propertyId: id,
-          actorRole: "ADMIN",
-          actorLabel: session.adminAccessId || "admin",
+          actorType: "ADMIN",
           action: "PROPERTY_FORCE_LIVE",
-          entityType: "PROPERTY",
-          entityId: id,
-          notes: JSON.stringify({
+          targetType: "PROPERTY",
+          targetId: id,
+          summary: "Property forced to LIVE by admin override.",
+          metadataJson: JSON.stringify({
             reason: reason || null,
             previousStatus: property.status,
             nextStatus: "LIVE",
@@ -101,7 +98,7 @@ export async function POST(
     }
 
     if (action === "RESET_PROPERTY") {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.maintenanceRequest.deleteMany({
           where: { propertyId: id },
         });
@@ -112,11 +109,12 @@ export async function POST(
 
         await tx.tenantAssignment.updateMany({
           where: {
-            unit: { propertyId: id },
-            moveOut: null,
+            propertyId: id,
+            isCurrent: true,
           },
           data: {
-            moveOut: new Date(),
+            moveOutDate: new Date(),
+            isCurrent: false,
           },
         });
 
@@ -124,27 +122,38 @@ export async function POST(
           where: { propertyId: id },
           data: {
             portalActivated: false,
+            portalFirstName: null,
+            portalLastName: null,
             tenantPinHash: null,
-            tenantName: null,
+            activatedAt: null,
+            activationSource: null,
           },
         });
 
         await tx.paymentConnectionStatus.upsert({
           where: { propertyId: id },
           update: {
-            stripeConnected: false,
-            achEnabled: false,
+            processorConnected: false,
+            bankConnected: false,
+            chargesEnabled: false,
+            payoutsEnabled: false,
             onboardingComplete: false,
-            adminApproved: false,
-            notes: null,
+            requirementsDue: false,
+            requirementsSummary: null,
+            lastSyncedAt: null,
+            readyForLive: false,
           },
           create: {
             propertyId: id,
-            stripeConnected: false,
-            achEnabled: false,
+            processorConnected: false,
+            bankConnected: false,
+            chargesEnabled: false,
+            payoutsEnabled: false,
             onboardingComplete: false,
-            adminApproved: false,
-            notes: null,
+            requirementsDue: false,
+            requirementsSummary: null,
+            lastSyncedAt: null,
+            readyForLive: false,
           },
         });
 
@@ -158,12 +167,12 @@ export async function POST(
         await tx.auditLog.create({
           data: {
             propertyId: id,
-            actorRole: "ADMIN",
-            actorLabel: session.adminAccessId || "admin",
+            actorType: "ADMIN",
             action: "PROPERTY_RESET",
-            entityType: "PROPERTY",
-            entityId: id,
-            notes: JSON.stringify({
+            targetType: "PROPERTY",
+            targetId: id,
+            summary: "Property reset by admin override.",
+            metadataJson: JSON.stringify({
               reason: reason || null,
             }),
           },
@@ -186,20 +195,25 @@ export async function POST(
           id: unitId,
           propertyId: id,
         },
+        select: {
+          id: true,
+          unitNumber: true,
+        },
       });
 
       if (!unit) {
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.tenantAssignment.updateMany({
           where: {
             unitId,
-            moveOut: null,
+            isCurrent: true,
           },
           data: {
-            moveOut: new Date(),
+            moveOutDate: new Date(),
+            isCurrent: false,
           },
         });
 
@@ -207,20 +221,23 @@ export async function POST(
           where: { id: unitId },
           data: {
             portalActivated: false,
+            portalFirstName: null,
+            portalLastName: null,
             tenantPinHash: null,
-            tenantName: null,
+            activatedAt: null,
+            activationSource: null,
           },
         });
 
         await tx.auditLog.create({
           data: {
             propertyId: id,
-            actorRole: "ADMIN",
-            actorLabel: session.adminAccessId || "admin",
+            actorType: "ADMIN",
             action: "UNIT_UNLOCKED_BY_ADMIN",
-            entityType: "UNIT",
-            entityId: unitId,
-            notes: JSON.stringify({
+            targetType: "UNIT",
+            targetId: unitId,
+            summary: "Unit portal access reset by admin override.",
+            metadataJson: JSON.stringify({
               reason: reason || null,
               unitNumber: unit.unitNumber,
             }),
@@ -241,23 +258,27 @@ export async function POST(
         update: {},
         create: {
           propertyId: id,
-          stripeConnected: false,
-          achEnabled: false,
+          processorConnected: false,
+          bankConnected: false,
+          chargesEnabled: false,
+          payoutsEnabled: false,
           onboardingComplete: false,
-          adminApproved: false,
-          notes: null,
+          requirementsDue: false,
+          requirementsSummary: null,
+          lastSyncedAt: null,
+          readyForLive: false,
         },
       });
 
       await prisma.auditLog.create({
         data: {
           propertyId: id,
-          actorRole: "ADMIN",
-          actorLabel: session.adminAccessId || "admin",
+          actorType: "ADMIN",
           action: "PAYMENT_STATUS_REPAIRED",
-          entityType: "PROPERTY",
-          entityId: id,
-          notes: JSON.stringify({
+          targetType: "PROPERTY",
+          targetId: id,
+          summary: "Payment connection status record repaired.",
+          metadataJson: JSON.stringify({
             reason: reason || null,
             paymentStatusId: repaired.id,
           }),
@@ -271,9 +292,15 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ error: "Invalid override action" }, { status: 400 });
-  } catch (error) {
+    return NextResponse.json(
+      { error: "Invalid override action" },
+      { status: 400 }
+    );
+  } catch (error: unknown) {
     console.error("POST /api/admin/properties/[id]/override error:", error);
-    return NextResponse.json({ error: "Override action failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Override action failed" },
+      { status: 500 }
+    );
   }
 }

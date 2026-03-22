@@ -41,36 +41,36 @@ export default function RequestIllustrationPage() {
             <h1 className="text-4xl font-semibold leading-tight tracking-tight lg:text-6xl">
               Request your
               <br />
-              property setup.
+              account setup.
             </h1>
 
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#475569]">
-              Send over the basics and we’ll review your property for setup.
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+            Send over the basics and we’ll handle everything for you.
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-black/10 bg-[#eef3f7] p-5 shadow-sm">
+              <div className="rounded-2xl border border-black/10 bg-sky-50 p-5 shadow-sm">
                 <div className="text-lg font-semibold">Fast review</div>
                 <p className="mt-3 text-sm text-[#475569]">
                   Share the basics. We’ll know what we need immediately.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-black/10 bg-[#eef3f7] p-5 shadow-sm">
+              <div className="rounded-2xl border border-black/10 bg-sky-50 p-5 shadow-sm">
                 <div className="text-lg font-semibold">Clean setup</div>
                 <p className="mt-3 text-sm text-[#475569]">
                   Built correctly from day one.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-black/10 bg-[#eef3f7] p-5 shadow-sm">
+              <div className="rounded-2xl border border-black/10 bg-sky-50 p-5 shadow-sm">
                 <div className="text-lg font-semibold">No cost</div>
                 <p className="mt-3 text-sm text-[#475569]">
                   Property owners will never be charged. It&apos;s free.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-black/10 bg-[#eef3f7] p-5 shadow-sm">
+              <div className="rounded-2xl border border-black/10 bg-sky-50 p-5 shadow-sm">
                 <div className="text-lg font-semibold">Built to run</div>
                 <p className="mt-3 text-sm text-[#475569]">
                   Payments, balances, and operations in one system.
@@ -83,7 +83,7 @@ export default function RequestIllustrationPage() {
           <section className="flex items-center justify-center">
             <div className="w-full max-w-sm rounded-[26px] border border-[#334155] bg-[#233143] p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
               
-              <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-5 min-h-[420px] flex flex-col">
+              <div className="rounded-[20px] border border-white/10 bg-sky-50 p-5 min-h-[420px] flex flex-col">
                 
                 {!submitted ? (
                   <>

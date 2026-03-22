@@ -1,78 +1,96 @@
+// app/api/admin/properties/[id]/route.ts
+
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-type PropertyStatus = "PREVIEW" | "READY" | "LIVE";
-type LateFeeType = "FLAT" | "PERCENT";
+export const dynamic = "force-dynamic";
 
-function isFourDigitCode(value: string) {
-  return /^\d{4}$/.test(value);
+type PatchBody = {
+  name?: unknown;
+  address?: unknown;
+  propertyType?: unknown;
+  isActive?: unknown;
+  rentDueDay?: unknown;
+  gracePeriodDays?: unknown;
+  lateFeeEnabled?: unknown;
+  lateFeeFlat?: unknown;
+  convenienceFeeEnabled?: unknown;
+  convenienceFeeAmount?: unknown;
+};
+
+function safeString(value: unknown) {
+  return String(value ?? "").trim();
 }
 
-function normalizeStatus(value: unknown): PropertyStatus {
-  const v = String(value || "").toUpperCase();
-  if (v === "READY") return "READY";
-  if (v === "LIVE") return "LIVE";
-  return "PREVIEW";
-}
-
-function normalizeLateFeeType(value: unknown): LateFeeType {
-  const v = String(value || "").toUpperCase();
-  if (v === "PERCENT") return "PERCENT";
-  return "FLAT";
-}
-
-function toInt(value: unknown, fallback = 0) {
+function toNumber(value: unknown, fallback = 0) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.trunc(n);
+  return Number.isFinite(n) ? n : fallback;
 }
 
-function toAmount(value: unknown, fallback = 0) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return n;
+function toBoolean(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (v === "true") return true;
+    if (v === "false") return false;
+  }
+  return fallback;
 }
 
-function validateInput(body: Record<string, unknown>) {
-  const name = String(body.name || "").trim();
-  const code = String(body.code || "").trim();
-  const status = normalizeStatus(body.status);
-  const billingDay = toInt(body.billingDay, 1);
-  const graceDays = toInt(body.graceDays, 0);
-  const lateFeeType = normalizeLateFeeType(body.lateFeeType);
-  const lateFeeAmount = toAmount(body.lateFeeAmount, 0);
+function isPrismaKnownError(
+  err: unknown
+): err is Prisma.PrismaClientKnownRequestError {
+  return err instanceof Prisma.PrismaClientKnownRequestError;
+}
 
-  if (!name) {
-    return { error: "Property name is required." };
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
+    }
+
+    const property = await prisma.property.findUnique({
+      where: { id },
+      include: {
+        propertySettings: true,
+        tiers: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          include: {
+            units: {
+              orderBy: { unitNumber: "asc" },
+              include: {
+                recurringFees: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: "asc" },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!property) {
+      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      property,
+    });
+  } catch (error) {
+    console.error("GET /api/admin/properties/[id] failed", error);
+    return NextResponse.json(
+      { error: "Failed to load property." },
+      { status: 500 }
+    );
   }
-
-  if (!isFourDigitCode(code)) {
-    return { error: "Property code must be exactly 4 digits." };
-  }
-
-  if (billingDay < 1 || billingDay > 31) {
-    return { error: "Billing day must be between 1 and 31." };
-  }
-
-  if (graceDays < 0 || graceDays > 31) {
-    return { error: "Grace days must be between 0 and 31." };
-  }
-
-  if (lateFeeAmount < 0) {
-    return { error: "Late fee amount cannot be negative." };
-  }
-
-  return {
-    value: {
-      name,
-      code,
-      status,
-      billingDay,
-      graceDays,
-      lateFeeType,
-      lateFeeAmount,
-    },
-  };
 }
 
 export async function PATCH(
@@ -81,72 +99,157 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+
     if (!id) {
       return NextResponse.json({ error: "Missing property id." }, { status: 400 });
     }
 
-    const body = await req.json();
-    const parsed = validateInput(body);
+    const body = (await req.json()) as PatchBody;
 
-    if ("error" in parsed) {
-      return NextResponse.json({ error: parsed.error }, { status: 400 });
-    }
+    const name = safeString(body.name);
+    const address = safeString(body.address);
+    const propertyType = safeString(body.propertyType || "OTHER");
+    const isActive = toBoolean(body.isActive, true);
 
-    // Ensure property exists
-    const existing = await prisma.property.findUnique({
-      where: { id },
-      select: { id: true, code: true },
-    });
+    const rentDueDay = toNumber(body.rentDueDay, 1);
+    const gracePeriodDays = toNumber(body.gracePeriodDays, 0);
+    const lateFeeEnabled = toBoolean(body.lateFeeEnabled, true);
+    const lateFeeFlat = toNumber(body.lateFeeFlat, 0);
+    const convenienceFeeEnabled = toBoolean(body.convenienceFeeEnabled, true);
+    const convenienceFeeAmount = toNumber(body.convenienceFeeAmount, 0);
 
-    if (!existing) {
+    if (!name) {
       return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
+        { error: "Property name is required." },
+        { status: 400 }
       );
     }
 
-    // If code changed → enforce uniqueness
-    if (parsed.value.code !== existing.code) {
-      const codeTaken = await prisma.property.findUnique({
-        where: { code: parsed.value.code },
-        select: { id: true },
-      });
-
-      if (codeTaken) {
-        return NextResponse.json(
-          { error: "Property code already exists." },
-          { status: 409 }
-        );
-      }
+    if (!address) {
+      return NextResponse.json(
+        { error: "Property address is required." },
+        { status: 400 }
+      );
     }
 
-    const updated = await prisma.property.update({
+    if (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31) {
+      return NextResponse.json(
+        { error: "Rent due day must be between 1 and 31." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !Number.isInteger(gracePeriodDays) ||
+      gracePeriodDays < 0 ||
+      gracePeriodDays > 31
+    ) {
+      return NextResponse.json(
+        { error: "Grace period must be between 0 and 31 days." },
+        { status: 400 }
+      );
+    }
+
+    if (lateFeeFlat < 0) {
+      return NextResponse.json(
+        { error: "Late fee cannot be negative." },
+        { status: 400 }
+      );
+    }
+
+    if (convenienceFeeAmount < 0) {
+      return NextResponse.json(
+        { error: "Convenience fee cannot be negative." },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.property.findUnique({
       where: { id },
-      data: {
-        name: parsed.value.name,
-        code: parsed.value.code,
-        status: parsed.value.status,
-        billingDay: parsed.value.billingDay,
-        graceDays: parsed.value.graceDays,
-        lateFeeType: parsed.value.lateFeeType,
-        lateFeeAmount: parsed.value.lateFeeAmount,
-      },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        status: true,
-        billingDay: true,
-        graceDays: true,
-        lateFeeType: true,
-        lateFeeAmount: true,
-        createdAt: true,
-      },
+      select: { id: true, propertySettings: { select: { id: true } } },
     });
 
-    return NextResponse.json({ ok: true, property: updated });
+    if (!existing) {
+      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+    }
+
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const property = await tx.property.update({
+        where: { id },
+        data: {
+          name,
+          addressLine1: address,
+          propertyType,
+          isActive,
+        },
+        select: {
+          id: true,
+          name: true,
+          propertyCode: true,
+          propertyType: true,
+          addressLine1: true,
+          isActive: true,
+        },
+      });
+
+      const settings =
+        existing.propertySettings
+          ? await tx.propertySettings.update({
+              where: { propertyId: id },
+              data: {
+                rentDueDay,
+                gracePeriodDays,
+                lateFeeEnabled,
+                lateFeeFlat,
+                convenienceFeeEnabled,
+                convenienceFeeAmount,
+              },
+              select: {
+                propertyId: true,
+                rentDueDay: true,
+                gracePeriodDays: true,
+                lateFeeEnabled: true,
+                lateFeeFlat: true,
+                convenienceFeeEnabled: true,
+                convenienceFeeAmount: true,
+              },
+            })
+          : await tx.propertySettings.create({
+              data: {
+                propertyId: id,
+                rentDueDay,
+                gracePeriodDays,
+                lateFeeEnabled,
+                lateFeeFlat,
+                convenienceFeeEnabled,
+                convenienceFeeAmount,
+              },
+              select: {
+                propertyId: true,
+                rentDueDay: true,
+                gracePeriodDays: true,
+                lateFeeEnabled: true,
+                lateFeeFlat: true,
+                convenienceFeeEnabled: true,
+                convenienceFeeAmount: true,
+              },
+            });
+
+      return { property, settings };
+    });
+
+    return NextResponse.json({
+      ok: true,
+      property: updated.property,
+      propertySettings: updated.settings,
+    });
   } catch (error) {
-    console.error("PATCH /api/admin/properties/[id] failed", error);
+    if (isPrismaKnownError(error)) {
+      console.error("PATCH /api/admin/properties/[id] prisma error", error);
+    } else {
+      console.error("PATCH /api/admin/properties/[id] failed", error);
+    }
+
     return NextResponse.json(
       { error: "Failed to update property." },
       { status: 500 }

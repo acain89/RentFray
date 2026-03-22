@@ -1,4 +1,4 @@
-// [path: app/api/property/resolve/route.ts]
+// app/api/property/resolve/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -6,11 +6,14 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const propertyCode = String(body.propertyCode || "").trim();
 
-    if (!/^\d{4}$/.test(propertyCode)) {
+    const propertyCode = String(
+      body.code ?? body.propertyCode ?? ""
+    ).trim();
+
+    if (!/^\d{4,5}$/.test(propertyCode)) {
       return NextResponse.json(
-        { error: "Valid 4-digit property code required" },
+        { error: "Valid 4 or 5 digit property code required" },
         { status: 400 }
       );
     }

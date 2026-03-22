@@ -1,0 +1,23 @@
+
+> rent-platform@0.1.0 build
+> next build
+
+▲ Next.js 16.1.7 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 25.2s
+  Running TypeScript ...
+Failed to compile.
+
+./app/api/admin/properties/route.ts:231:53
+Type error: Parameter 'tx' implicitly has an 'any' type.
+
+[0m [90m 229 |[39m     }
+ [90m 230 |[39m
+[31m[1m>[22m[39m[90m 231 |[39m     [36mconst[39m result [33m=[39m [36mawait[39m prisma[33m.[39m$transaction([36masync[39m (tx) [33m=>[39m {
+ [90m     |[39m                                                     [31m[1m^[22m[39m
+ [90m 232 |[39m       [36mconst[39m createdProperty [33m=[39m [36mawait[39m tx[33m.[39mproperty[33m.[39mcreate({
+ [90m 233 |[39m         data[33m:[39m {
+ [90m 234 |[39m           name[33m:[39m [33mString[39m(property[33m.[39mname)[33m.[39mtrim()[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null
