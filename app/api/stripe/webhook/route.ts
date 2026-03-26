@@ -1,39 +1,118 @@
-// app/api/stripe/webhook/route.ts
-
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canMakePayments } from "@/lib/liveGating";
+import { emitEvent } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-function parseCents(value: string | undefined) {
-  const n = Number(value || 0);
+type PaymentLifecycleStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "PAID"
+  | "FAILED"
+  | "REFUNDED";
+
+function parseCents(value: string | undefined): number {
+  const n = Number(value ?? 0);
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
-function safeString(value: unknown) {
-  return String(value || "").trim();
+function safeString(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function centsToDollars(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
+async function updatePaymentStatusByIntent(
+  intentId: string,
+  status: PaymentLifecycleStatus
+): Promise<void> {
+  if (!intentId) return;
+
+  await prisma.payment.updateMany({
+    where: { stripePaymentIntentId: intentId },
+    data: { status },
+  });
+}
+
+async function linkSessionPaymentToIntent(
+  sessionId: string,
+  intentId: string
+): Promise<void> {
+  if (!sessionId || !intentId) return;
+
+  await prisma.payment.updateMany({
+    where: {
+      stripeSessionId: sessionId,
+      OR: [
+        { stripePaymentIntentId: "" },
+        { stripePaymentIntentId: null as never },
+      ],
+    },
+    data: {
+      stripePaymentIntentId: intentId,
+    },
+  });
+}
+
+async function upsertPaymentLifecycleFromIntent(
+  intent: Stripe.PaymentIntent,
+  status: PaymentLifecycleStatus
+): Promise<void> {
+  const metadata = intent.metadata || {};
+
+  const propertyId = safeString(metadata.propertyId);
+  const unitId = safeString(metadata.unitId);
+  const tenantAssignmentId = safeString(metadata.tenantAssignmentId) || null;
+
+  if (!propertyId || !unitId || !intent.id) return;
+
+  const amountCents = parseCents(metadata.ledgerBalanceCents);
+  const processingFeeCents = parseCents(metadata.processingFeeCents);
+
+  const existing = await prisma.payment.findUnique({
+    where: { stripePaymentIntentId: intent.id },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await prisma.payment.update({
+      where: { stripePaymentIntentId: intent.id },
+      data: {
+        status,
+        paymentMethod: "ACH",
+      },
+    });
+    return;
+  }
+
+  await prisma.payment.create({
+    data: {
+      propertyId,
+      unitId,
+      tenantAssignmentId,
+      stripePaymentIntentId: intent.id,
+      stripeSessionId: null,
+      amountCents,
+      processingFeeCents,
+      status,
+      paymentMethod: "ACH",
+    },
+  });
 }
 
 export async function POST(req: Request) {
-  if (!stripeSecretKey) {
-    console.error("Missing STRIPE_SECRET_KEY");
+  if (!stripeSecretKey || !stripeWebhookSecret) {
     return NextResponse.json(
       { error: "Stripe not configured" },
-      { status: 500 }
-    );
-  }
-
-  if (!stripeWebhookSecret) {
-    console.error("Missing STRIPE_WEBHOOK_SECRET");
-    return NextResponse.json(
-      { error: "Webhook not configured" },
       { status: 500 }
     );
   }
@@ -53,170 +132,227 @@ export async function POST(req: Request) {
     }
 
     event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
-  } catch (error: unknown) {
-    console.error("Stripe webhook signature verification failed:", error);
+  } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
-    switch (event.type) {
-      case "payment_intent.succeeded": {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        const metadata = intent.metadata || {};
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const sessionId = safeString(session.id);
+      const intentId =
+        typeof session.payment_intent === "string"
+          ? safeString(session.payment_intent)
+          : "";
 
-        const propertyId = safeString(metadata.propertyId);
-        const unitId = safeString(metadata.unitId);
-        const tenantAssignmentIdFromMetadata =
-          safeString(metadata.tenantAssignmentId) || null;
+      if (sessionId && intentId) {
+        await linkSessionPaymentToIntent(sessionId, intentId);
+      }
+    }
 
-        const balanceDueCents = parseCents(metadata.baseAmountCents);
-        const processingFeeCents = parseCents(metadata.processingFeeCents);
-        const totalAmountCents = parseCents(metadata.totalAmountCents);
+    if (event.type === "payment_intent.created") {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      await upsertPaymentLifecycleFromIntent(intent, "PROCESSING");
+    }
 
-        if (!propertyId || !unitId) {
-          console.warn("Webhook skipped: missing IDs", { intentId: intent.id });
-          break;
-        }
+    if (event.type === "payment_intent.payment_failed") {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      await upsertPaymentLifecycleFromIntent(intent, "FAILED");
+    }
 
-        const property = await prisma.property.findUnique({
-          where: { id: propertyId },
-          include: {
-            settings: true,
-            units: true,
-            paymentStatus: true,
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : "";
+
+      if (paymentIntentId) {
+        await updatePaymentStatusByIntent(paymentIntentId, "REFUNDED");
+      }
+    }
+
+    if (event.type === "payment_intent.succeeded") {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const metadata = intent.metadata || {};
+
+      const propertyId = safeString(metadata.propertyId);
+      const unitId = safeString(metadata.unitId);
+      const tenantAssignmentIdMeta =
+        safeString(metadata.tenantAssignmentId) || null;
+
+      const ledgerCents = parseCents(metadata.ledgerBalanceCents);
+      const feeCents = parseCents(metadata.processingFeeCents);
+      const totalMetaCents = parseCents(metadata.totalAmountCents);
+
+      if (!propertyId || !unitId) {
+        return NextResponse.json({ received: true });
+      }
+
+      await upsertPaymentLifecycleFromIntent(intent, "PROCESSING");
+
+      const property = await prisma.property.findUnique({
+        where: { id: propertyId },
+        include: {
+          settings: true,
+          units: true,
+          paymentStatus: true,
+        },
+      });
+
+      if (!property || !property.isActive || !canMakePayments(property)) {
+        return NextResponse.json({ received: true });
+      }
+
+      const unit = await prisma.unit.findFirst({
+        where: { id: unitId, propertyId },
+        select: {
+          id: true,
+          tenantAssignments: {
+            where: { isCurrent: true },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+            take: 1,
           },
+        },
+      });
+
+      if (!unit) {
+        return NextResponse.json({ received: true });
+      }
+
+      const tenantAssignmentId =
+        tenantAssignmentIdMeta || unit.tenantAssignments[0]?.id || null;
+
+      const stripeCents =
+        intent.amount_received ??
+        intent.amount ??
+        totalMetaCents ??
+        ledgerCents + feeCents;
+
+      if (!stripeCents || stripeCents <= 0) {
+        return NextResponse.json({ received: true });
+      }
+
+      const expectedCents = ledgerCents + feeCents;
+
+      if (expectedCents > 0 && stripeCents !== expectedCents) {
+        console.error("Stripe mismatch", {
+          expectedCents,
+          stripeCents,
+          intentId: intent.id,
         });
+      }
 
-        if (!property || !property.isActive || !canMakePayments(property)) {
-          console.warn("Webhook blocked: property not valid/live", {
-            propertyId,
-          });
-          break;
-        }
+      const paymentAmount = centsToDollars(stripeCents);
+      const feeAmount = centsToDollars(feeCents);
+      const effectiveDate = new Date();
 
-        const unit = await prisma.unit.findFirst({
+      let didCreatePayment = false;
+
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const existingPayment = await tx.ledgerEntry.findFirst({
           where: {
-            id: unitId,
-            propertyId,
+            referenceNumber: intent.id,
+            entryType: "PAYMENT",
+            unitId,
           },
-          select: {
-            id: true,
-            tenantAssignments: {
-              where: { isCurrent: true },
-              orderBy: { createdAt: "desc" },
-              select: { id: true },
-              take: 1,
-            },
-          },
+          select: { id: true },
         });
 
-        if (!unit) {
-          console.warn("Webhook blocked: invalid unit", { unitId, propertyId });
-          break;
+        if (existingPayment) {
+          return;
         }
 
-        const tenantAssignmentId =
-          tenantAssignmentIdFromMetadata || unit.tenantAssignments[0]?.id || null;
+        if (feeCents > 0) {
+          const feeRef = `${intent.id}:fee`;
 
-        const expectedTotalCents = balanceDueCents + processingFeeCents;
-        const metadataSettledCents =
-          totalAmountCents > 0 ? totalAmountCents : expectedTotalCents;
-        const actualSettledCents =
-          intent.amount_received || intent.amount || metadataSettledCents;
-
-        if (!actualSettledCents || actualSettledCents <= 0) {
-          console.warn("Webhook skipped: invalid amount", {
-            intentId: intent.id,
-          });
-          break;
-        }
-
-        if (expectedTotalCents > 0 && actualSettledCents < expectedTotalCents) {
-          console.warn("Webhook mismatch: amount less than expected", {
-            intentId: intent.id,
-            actualSettledCents,
-            expectedTotalCents,
-          });
-        }
-
-        const paymentAmount = actualSettledCents / 100;
-        const processingFeeAmount = processingFeeCents / 100;
-        const effectiveDate = new Date();
-
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const existingPayment = await tx.ledgerEntry.findFirst({
+          const existingFee = await tx.ledgerEntry.findFirst({
             where: {
-              referenceNumber: intent.id,
-              entryType: "PAYMENT",
-              paymentMethod: "ACH",
+              referenceNumber: feeRef,
+              entryType: "CHARGE",
               unitId,
             },
             select: { id: true },
           });
 
-          if (existingPayment) {
-            return;
-          }
-
-          if (processingFeeCents > 0) {
-            const existingFee = await tx.ledgerEntry.findFirst({
-              where: {
-                referenceNumber: `${intent.id}:fee`,
+          if (!existingFee) {
+            await tx.ledgerEntry.create({
+              data: {
+                propertyId,
+                unitId,
+                tenantAssignmentId,
                 entryType: "CHARGE",
                 chargeType: "PROCESSING_FEE",
-                unitId,
+                amount: feeAmount,
+                effectiveDate,
+                referenceNumber: feeRef,
+                memo: "Processing fee",
               },
-              select: { id: true },
             });
-
-            if (!existingFee) {
-              await tx.ledgerEntry.create({
-                data: {
-                  propertyId,
-                  unitId,
-                  tenantAssignmentId,
-                  entryType: "CHARGE",
-                  chargeType: "PROCESSING_FEE",
-                  amount: processingFeeAmount,
-                  effectiveDate,
-                  referenceNumber: `${intent.id}:fee`,
-                  memo: "ACH processing fee",
-                  createdByAdminId: null,
-                  createdByManagementUserId: null,
-                  paymentMethod: null,
-                },
-              });
-            }
           }
+        }
 
-          await tx.ledgerEntry.create({
-            data: {
-              propertyId,
-              unitId,
-              tenantAssignmentId,
-              entryType: "PAYMENT",
-              paymentMethod: "ACH",
-              amount: -paymentAmount,
-              effectiveDate,
-              referenceNumber: intent.id,
-              memo:
-                processingFeeCents > 0
-                  ? "Tenant payment (Stripe ACH + processing fee)"
-                  : "Tenant payment (Stripe ACH)",
-              createdByAdminId: null,
-              createdByManagementUserId: null,
-            },
-          });
+        await tx.ledgerEntry.create({
+          data: {
+            propertyId,
+            unitId,
+            tenantAssignmentId,
+            entryType: "PAYMENT",
+            paymentMethod: "ACH",
+            amount: -paymentAmount,
+            effectiveDate,
+            referenceNumber: intent.id,
+            memo: "Tenant payment",
+          },
         });
 
-        break;
-      }
+        didCreatePayment = true;
 
-      default:
-        break;
+        await tx.auditLog.create({
+          data: {
+            propertyId,
+            actorType: "SYSTEM",
+            action: "STRIPE_PAYMENT_RECEIVED",
+            targetType: "LEDGER_ENTRY",
+            targetId: intent.id,
+            summary: "Stripe payment recorded",
+            metadataJson: JSON.stringify({
+              intentId: intent.id,
+              stripeCents,
+              expectedCents,
+              feeCents,
+              unitId,
+            }),
+          },
+        });
+      });
+
+      await prisma.payment.updateMany({
+        where: { stripePaymentIntentId: intent.id },
+        data: {
+          status: "PAID",
+          paymentMethod: "ACH",
+        },
+      });
+
+      if (didCreatePayment) {
+        emitEvent("payment:update", {
+          propertyId,
+          unitId,
+          source: "STRIPE",
+        });
+
+        emitEvent("ledger:update", {
+          propertyId,
+          unitId,
+          source: "STRIPE",
+        });
+      }
     }
-  } catch (error: unknown) {
-    console.error("Stripe webhook handler error:", error);
+  } catch (error) {
+    console.error("Stripe webhook error:", error);
+    return NextResponse.json({ received: true });
   }
 
   return NextResponse.json({ received: true });

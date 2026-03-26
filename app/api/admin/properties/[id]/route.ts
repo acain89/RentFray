@@ -1,5 +1,3 @@
-// app/api/admin/properties/[id]/route.ts
-
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -19,16 +17,16 @@ type PatchBody = {
   convenienceFeeAmount?: unknown;
 };
 
-function safeString(value: unknown) {
+function safeString(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-function toNumber(value: unknown, fallback = 0) {
+function toNumber(value: unknown, fallback = 0): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function toBoolean(value: unknown, fallback = false) {
+function toBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "string") {
     const v = value.trim().toLowerCase();
@@ -44,6 +42,9 @@ function isPrismaKnownError(
   return err instanceof Prisma.PrismaClientKnownRequestError;
 }
 
+/* =========================
+   GET PROPERTY
+========================= */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -52,7 +53,10 @@ export async function GET(
     const { id } = await params;
 
     if (!id) {
-      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
     }
 
     const property = await prisma.property.findUnique({
@@ -64,12 +68,6 @@ export async function GET(
           include: {
             units: {
               orderBy: { unitNumber: "asc" },
-              include: {
-                recurringFees: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: "asc" },
-                },
-              },
             },
           },
         },
@@ -77,15 +75,32 @@ export async function GET(
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
       ok: true,
-      property,
+      property: {
+        id: property.id,
+        name: property.name,
+        code: property.propertyCode,
+        type: property.propertyType,
+        isActive: property.isActive,
+        address: property.addressLine1,
+      },
+      settings: property.propertySettings,
+      tiers: property.tiers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        baseRent: t.baseRent,
+        unitCount: t.units.length,
+      })),
     });
   } catch (error) {
-    console.error("GET /api/admin/properties/[id] failed", error);
+    console.error("GET property failed", error);
     return NextResponse.json(
       { error: "Failed to load property." },
       { status: 500 }
@@ -93,6 +108,9 @@ export async function GET(
   }
 }
 
+/* =========================
+   UPDATE PROPERTY + SETTINGS
+========================= */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -101,7 +119,10 @@ export async function PATCH(
     const { id } = await params;
 
     if (!id) {
-      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
     }
 
     const body = (await req.json()) as PatchBody;
@@ -134,7 +155,7 @@ export async function PATCH(
 
     if (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31) {
       return NextResponse.json(
-        { error: "Rent due day must be between 1 and 31." },
+        { error: "Rent due day must be 1–31." },
         { status: 400 }
       );
     }
@@ -145,21 +166,7 @@ export async function PATCH(
       gracePeriodDays > 31
     ) {
       return NextResponse.json(
-        { error: "Grace period must be between 0 and 31 days." },
-        { status: 400 }
-      );
-    }
-
-    if (lateFeeFlat < 0) {
-      return NextResponse.json(
-        { error: "Late fee cannot be negative." },
-        { status: 400 }
-      );
-    }
-
-    if (convenienceFeeAmount < 0) {
-      return NextResponse.json(
-        { error: "Convenience fee cannot be negative." },
+        { error: "Grace period must be 0–31." },
         { status: 400 }
       );
     }
@@ -170,30 +177,25 @@ export async function PATCH(
     });
 
     if (!existing) {
-      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
     }
 
-    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const property = await tx.property.update({
-        where: { id },
-        data: {
-          name,
-          addressLine1: address,
-          propertyType,
-          isActive,
-        },
-        select: {
-          id: true,
-          name: true,
-          propertyCode: true,
-          propertyType: true,
-          addressLine1: true,
-          isActive: true,
-        },
-      });
+    const updated = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const property = await tx.property.update({
+          where: { id },
+          data: {
+            name,
+            addressLine1: address,
+            propertyType,
+            isActive,
+          },
+        });
 
-      const settings =
-        existing.propertySettings
+        const settings = existing.propertySettings
           ? await tx.propertySettings.update({
               where: { propertyId: id },
               data: {
@@ -203,15 +205,6 @@ export async function PATCH(
                 lateFeeFlat,
                 convenienceFeeEnabled,
                 convenienceFeeAmount,
-              },
-              select: {
-                propertyId: true,
-                rentDueDay: true,
-                gracePeriodDays: true,
-                lateFeeEnabled: true,
-                lateFeeFlat: true,
-                convenienceFeeEnabled: true,
-                convenienceFeeAmount: true,
               },
             })
           : await tx.propertySettings.create({
@@ -224,30 +217,25 @@ export async function PATCH(
                 convenienceFeeEnabled,
                 convenienceFeeAmount,
               },
-              select: {
-                propertyId: true,
-                rentDueDay: true,
-                gracePeriodDays: true,
-                lateFeeEnabled: true,
-                lateFeeFlat: true,
-                convenienceFeeEnabled: true,
-                convenienceFeeAmount: true,
-              },
             });
 
-      return { property, settings };
-    });
+        return { property, settings };
+      }
+    );
 
     return NextResponse.json({
       ok: true,
-      property: updated.property,
-      propertySettings: updated.settings,
+      property: {
+        id: updated.property.id,
+        name: updated.property.name,
+      },
+      settings: updated.settings,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (isPrismaKnownError(error)) {
-      console.error("PATCH /api/admin/properties/[id] prisma error", error);
+      console.error("PATCH property prisma error", error);
     } else {
-      console.error("PATCH /api/admin/properties/[id] failed", error);
+      console.error("PATCH property failed", error);
     }
 
     return NextResponse.json(

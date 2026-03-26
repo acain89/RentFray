@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type TenantLoginClientProps = {
@@ -12,17 +12,30 @@ export default function TenantLoginClient({
 }: TenantLoginClientProps) {
   const router = useRouter();
 
-  const [unitNumber, setUnitNumber] = useState("");
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [resolvedCode, setResolvedCode] = useState<string>(propertyCode);
+  const [unitNumber, setUnitNumber] = useState<string>("");
+  const [pin, setPin] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    if (propertyCode) {
+      localStorage.setItem("rf_property_code", propertyCode);
+      setResolvedCode(propertyCode);
+    } else {
+      const stored = localStorage.getItem("rf_property_code");
+      if (stored) {
+        setResolvedCode(stored);
+      }
+    }
+  }, [propertyCode]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (loading) return;
 
-    if (!propertyCode) {
+    if (!resolvedCode) {
       setError("Missing property code.");
       return;
     }
@@ -36,24 +49,23 @@ export default function TenantLoginClient({
     setError("");
 
     try {
-      const res = await fetch("/api/auth/session", {
+      const res = await fetch("/api/tenant/session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
         body: JSON.stringify({
-          role: "TENANT",
-          propertyCode,
+          propertyCode: resolvedCode,
           unitNumber: unitNumber.trim().toUpperCase(),
           pin: pin.trim(),
         }),
       });
 
-      const data = await res.json();
+      const data: { error?: string } = await res.json();
 
       if (!res.ok) {
-        setError(data?.error || "Login failed.");
+        setError(data.error || "Login failed.");
         setLoading(false);
         return;
       }
@@ -79,51 +91,36 @@ export default function TenantLoginClient({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium">
-                Unit Number
-              </label>
-              <input
-                type="text"
-                value={unitNumber}
-                onChange={(e) =>
-                  setUnitNumber(e.target.value.toUpperCase())
-                }
-                className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
-                placeholder="101"
-                autoComplete="off"
-              />
-            </div>
+            <input
+              type="text"
+              value={unitNumber}
+              onChange={(e) =>
+                setUnitNumber(e.target.value.toUpperCase())
+              }
+              className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
+              placeholder="101"
+            />
 
-            <div>
-              <label className="mb-2 block text-sm font-medium">
-                4-Digit PIN
-              </label>
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="\d*"
-                maxLength={4}
-                value={pin}
-                onChange={(e) =>
-                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
-                placeholder="••••"
-                autoComplete="off"
-              />
-            </div>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) =>
+                setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+              }
+              className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
+              placeholder="••••"
+            />
 
-            {error ? (
+            {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
-            ) : null}
+            )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
             >
               {loading ? "Signing in..." : "Login"}
             </button>

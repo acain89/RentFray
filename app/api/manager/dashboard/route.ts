@@ -1,4 +1,4 @@
-// [path: app/api/manager/dashboard/route.ts]
+// app/api/manager/dashboard/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -6,8 +6,35 @@ import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 
-function roundMoney(value: number) {
+type PaymentLifecycleStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "PAID"
+  | "FAILED"
+  | "REFUNDED";
+
+type PaymentIssueRow = {
+  id: string;
+  unitId: string | null;
+  amountCents: number;
+  status: PaymentLifecycleStatus;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type PaymentGroupByRow = {
+  unitId: string | null;
+  _sum: {
+    amount: number | null;
+  };
+};
+
+function roundMoney(value: number): number {
   return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function centsToDollars(cents: number): number {
+  return roundMoney(cents / 100);
 }
 
 export async function GET() {
@@ -26,45 +53,21 @@ export async function GET() {
 
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
-      select: {
-        id: true,
-        name: true,
-        propertyCode: true,
+      include: {
         units: {
           orderBy: { unitNumber: "asc" },
-          select: {
-            id: true,
-            unitNumber: true,
-            baseRent: true,
-            tier: {
-              select: {
-                id: true,
-                name: true,
-                baseRent: true,
-                processingFee: true,
-              },
-            },
+          include: {
+            tier: true,
             recurringFees: {
               where: { isActive: true },
               orderBy: { displayOrder: "asc" },
-              select: {
-                id: true,
-                label: true,
-                amount: true,
-              },
             },
             tenantAssignments: {
               where: {
                 isCurrent: true,
                 moveOutDate: null,
               },
-              orderBy: { moveInDate: "desc" },
               take: 1,
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
             },
           },
         },
@@ -81,7 +84,82 @@ export async function GET() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const paymentSums = await prisma.ledgerEntry.groupBy({
+    const payments = await prisma.payment.findMany({
+      where: { propertyId: property.id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    let paidTotal = 0;
+    let pendingTotal = 0;
+    let processingTotal = 0;
+    let failedTotal = 0;
+    let refundedTotal = 0;
+
+    const paymentSummary = {
+      pending: 0,
+      processing: 0,
+      failed: 0,
+      refunded: 0,
+      paidToday: 0,
+    };
+
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    for (const p of payments) {
+      const amount = centsToDollars(p.amountCents);
+
+      switch (p.status as PaymentLifecycleStatus) {
+        case "PAID":
+          paidTotal += amount;
+          if (new Date(p.updatedAt) >= todayStart) {
+            paymentSummary.paidToday++;
+          }
+          break;
+        case "PENDING":
+          pendingTotal += amount;
+          paymentSummary.pending++;
+          break;
+        case "PROCESSING":
+          processingTotal += amount;
+          paymentSummary.processing++;
+          break;
+        case "FAILED":
+          failedTotal += amount;
+          paymentSummary.failed++;
+          break;
+        case "REFUNDED":
+          refundedTotal += amount;
+          paymentSummary.refunded++;
+          break;
+      }
+    }
+
+    const paymentIssuesRaw = payments
+      .filter((p) =>
+        ["FAILED", "PROCESSING", "PENDING", "REFUNDED"].includes(p.status)
+      )
+      .slice(0, 25);
+
+    const paymentIssues: PaymentIssueRow[] = paymentIssuesRaw.map((p) => ({
+      id: p.id,
+      unitId: p.unitId,
+      amountCents: p.amountCents,
+      status: p.status as PaymentLifecycleStatus,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    }));
+
+    const paymentMap = new Map<string, PaymentIssueRow>(
+      paymentIssues
+        .filter((p) => Boolean(p.unitId))
+        .map((p) => [p.unitId as string, p])
+    );
+
+    const paymentSumsRaw = await prisma.ledgerEntry.groupBy({
       by: ["unitId"],
       where: {
         propertyId: property.id,
@@ -95,11 +173,15 @@ export async function GET() {
       },
     });
 
-    const paymentMap = new Map<string, number>(
-      paymentSums.map((row: any): [string, number] => [
-        row.unitId,
-        Math.abs(Number(row._sum.amount || 0)),
-      ])
+    const paymentSums = paymentSumsRaw as PaymentGroupByRow[];
+
+    const paymentSumMap = new Map<string, number>(
+      paymentSums
+        .filter((row) => Boolean(row.unitId))
+        .map((row) => [
+          row.unitId as string,
+          Math.abs(Number(row._sum.amount || 0)),
+        ])
     );
 
     let occupiedUnits = 0;
@@ -109,83 +191,55 @@ export async function GET() {
     let delinquentCount = 0;
 
     const units = await Promise.all(
-      property.units.map(async (unit: any) => {
+      property.units.map(async (unit) => {
         const activeAssignment = unit.tenantAssignments[0] ?? null;
 
-        if (activeAssignment) {
-          occupiedUnits++;
-        } else {
-          vacantUnits++;
-        }
+        if (activeAssignment) occupiedUnits++;
+        else vacantUnits++;
 
         const baseRent = roundMoney(
           Number(unit.tier?.baseRent ?? unit.baseRent ?? 0)
         );
 
-        const recurringChargeTotal = roundMoney(
+        const recurring = roundMoney(
           unit.recurringFees.reduce(
-            (sum: number, fee: any) => sum + Number(fee.amount || 0),
+            (sum, fee) => sum + Number(fee.amount || 0),
             0
           )
         );
 
-        const monthlySubtotal = roundMoney(baseRent + recurringChargeTotal);
+        const subtotal = roundMoney(baseRent + recurring);
 
-        if (activeAssignment) {
-          totalExpected += monthlySubtotal;
-        }
+        if (activeAssignment) totalExpected += subtotal;
 
-        const collectedForUnit = roundMoney(paymentMap.get(unit.id) || 0);
-        totalCollected += collectedForUnit;
+        const collected = roundMoney(paymentSumMap.get(unit.id) || 0);
+        totalCollected += collected;
 
         const [ledger, delinquency] = await Promise.all([
           getUnitLedgerSummary(unit.id),
           getUnitDelinquencySummary(unit.id),
         ]);
 
-        if (delinquency.isDelinquent) {
-          delinquentCount++;
-        }
+        if (delinquency.isDelinquent) delinquentCount++;
 
-        const tenantName = activeAssignment
-          ? [activeAssignment.firstName, activeAssignment.lastName]
-              .filter(Boolean)
-              .join(" ")
-              .trim() || null
-          : null;
+        const payment = paymentMap.get(unit.id);
 
         return {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
-          tenantName,
-          tier: unit.tier
-            ? {
-                id: unit.tier.id,
-                name: unit.tier.name,
-              }
+          tenantName: activeAssignment
+            ? `${activeAssignment.firstName || ""} ${
+                activeAssignment.lastName || ""
+              }`.trim()
             : null,
-          charges: {
-            baseRent,
-            recurringChargeTotal,
-            monthlySubtotal,
-            processingFee: roundMoney(Number(unit.tier?.processingFee || 0)),
-          },
           balance: roundMoney(Number(ledger.balance || 0)),
           isDelinquent: Boolean(delinquency.isDelinquent),
           daysPastDue: Number(delinquency.daysPastDue || 0),
+          paymentStatus: payment?.status || null,
+          tierName: unit.tier?.name || "Units",
         };
       })
     );
-
-    units.sort((a, b) => {
-      if (a.isDelinquent && !b.isDelinquent) return -1;
-      if (!a.isDelinquent && b.isDelinquent) return 1;
-
-      return a.unitNumber.localeCompare(b.unitNumber, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-    });
 
     totalExpected = roundMoney(totalExpected);
     totalCollected = roundMoney(totalCollected);
@@ -195,7 +249,10 @@ export async function GET() {
       property: {
         id: property.id,
         name: property.name,
-        propertyCode: property.propertyCode,
+        code: property.propertyCode,
+      },
+      session: {
+        role: session.role,
       },
       summary: {
         totalUnits: property.units.length,
@@ -206,12 +263,13 @@ export async function GET() {
       financials: {
         expected: totalExpected,
         collected: totalCollected,
-        collectionRate: totalExpected > 0 ? totalCollected / totalExpected : 0,
+        collectionRate:
+          totalExpected > 0 ? (totalCollected / totalExpected) * 100 : 0,
       },
       units,
     });
   } catch (error) {
-    console.error("manager dashboard GET error", error);
+    console.error("dashboard error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

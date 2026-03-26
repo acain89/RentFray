@@ -1,27 +1,42 @@
-// app/api/tenant/activate/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
-const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"]);
+type ActivateBody = {
+  propertyCode: string;
+  firstName: string;
+  lastName: string;
+  unitNumber: string;
+  confirmUnitNumber: string;
+  pin: string;
+  confirmPin: string;
+};
+
+const ALLOWED_PROPERTY_STATUSES: Set<string> = new Set([
+  "TEST",
+  "READY",
+  "LIVE",
+]);
+
+function clean(value: unknown): string {
+  return String(value ?? "").trim();
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as Partial<ActivateBody>;
 
-    const propertyCode = String(body.propertyCode || "").trim();
-    const firstName = String(body.firstName || "").trim();
-    const lastName = String(body.lastName || "").trim();
-    const unitNumber = String(body.unitNumber || "").trim().toUpperCase();
-    const confirmUnitNumber = String(body.confirmUnitNumber || "")
-      .trim()
-      .toUpperCase();
-    const pin = String(body.pin || "").trim();
-    const confirmPin = String(body.confirmPin || "").trim();
+    const propertyCode = clean(body.propertyCode);
+    const firstName = clean(body.firstName);
+    const lastName = clean(body.lastName);
+    const unitNumber = clean(body.unitNumber).toUpperCase();
+    const confirmUnitNumber = clean(body.confirmUnitNumber).toUpperCase();
+    const pin = clean(body.pin);
+    const confirmPin = clean(body.confirmPin);
 
-    if (!propertyCode || propertyCode.length !== 4) {
+    // 🔒 PROPERTY CODE VALIDATION (4 OR 5 DIGITS)
+    if (!/^\d{4,5}$/.test(propertyCode)) {
       return NextResponse.json(
         { error: "Invalid property code." },
         { status: 400 }
@@ -70,6 +85,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔍 PROPERTY LOOKUP
     const property = await prisma.property.findUnique({
       where: { propertyCode },
       select: {
@@ -93,6 +109,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔍 UNIT LOOKUP
     const unit = await prisma.unit.findUnique({
       where: {
         propertyId_unitNumber: {
@@ -124,8 +141,10 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔐 HASH PIN
     const pinHash = await hashPin(pin);
 
+    // 🧠 ACTIVATE UNIT
     await prisma.unit.update({
       where: { id: unit.id },
       data: {
@@ -138,6 +157,7 @@ export async function POST(req: Request) {
       },
     });
 
+    // 🧾 AUDIT LOG
     await prisma.auditLog.create({
       data: {
         propertyId: property.id,
@@ -155,6 +175,7 @@ export async function POST(req: Request) {
       },
     });
 
+    // 🍪 SESSION
     const token = createSessionToken({
       role: "TENANT",
       propertyId: property.id,
@@ -169,7 +190,7 @@ export async function POST(req: Request) {
       propertyId: property.id,
       unitId: unit.id,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("POST /api/tenant/activate failed", error);
 
     return NextResponse.json(

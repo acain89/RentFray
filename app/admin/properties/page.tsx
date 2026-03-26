@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 
 type Property = {
@@ -10,32 +11,40 @@ type Property = {
   propertyCode: string;
   propertyType: string;
   isActive: boolean;
-  contactName: string;
-  contactEmail: string;
+  contactName: string | null;
+  contactEmail: string | null;
   unitCount: number;
   tierCount: number;
 };
 
 type PropertiesListResponse = {
-  ok?: boolean;
-  properties?: Property[];
+  ok: boolean;
+  properties: Property[];
   error?: string;
 };
 
-export default function AdminPropertiesPage() {
+const PAGE_SIZE = 20;
+
+export default function PropertiesPage() {
+  const router = useRouter();
+
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [propertyCodeSearch, setPropertyCodeSearch] = useState("");
 
-  const trimmedSearch = useMemo(
-    () => propertyCodeSearch.replace(/\D/g, "").slice(0, 5),
-    [propertyCodeSearch]
-  );
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
+  const trimmedSearch = useMemo(() => {
+  const digits = search.replace(/\D/g, "").slice(0, 5);
+  return digits.length >= 4 ? digits : "";
+}, [search]);
+
+  // ---------------- LOAD ----------------
   useEffect(() => {
-    let active = true;
+  let active = true;
 
+  const timeout = setTimeout(() => {
     async function load() {
       try {
         setLoading(true);
@@ -53,10 +62,9 @@ export default function AdminPropertiesPage() {
 
         if (!active) return;
 
-        if (!res.ok) {
+        if (!res.ok || !data.ok) {
           setError(data.error || "Failed to load properties.");
           setProperties([]);
-          setLoading(false);
           return;
         }
 
@@ -65,102 +73,156 @@ export default function AdminPropertiesPage() {
         if (!active) return;
         setError("Network error.");
         setProperties([]);
-      }
-
-      if (active) {
-        setLoading(false);
+      } finally {
+        if (active) setLoading(false);
       }
     }
 
-    void load();
+    load();
+  }, 250); // debounce
 
-    return () => {
-      active = false;
-    };
-  }, [trimmedSearch]);
+  return () => {
+    active = false;
+    clearTimeout(timeout);
+  };
+}, [trimmedSearch]);
 
+  // ---------------- PAGINATION ----------------
+  const totalPages = Math.max(1, Math.ceil(properties.length / PAGE_SIZE));
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return properties.slice(start, start + PAGE_SIZE);
+  }, [properties, page]);
+
+  // keep page valid
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(1);
+    }
+  }, [totalPages, page]);
+
+  // ---------------- NAV ----------------
+  function handleRowClick(id: string) {
+    router.push(`/admin/properties/${id}`);
+  }
+
+  // ---------------- UI ----------------
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
+        {/* HEADER */}
         <div className={styles.header}>
-          <div>
-            <h1 className={styles.title}>Properties</h1>
-            <p className={styles.subtitle}>
-              Search by property code and open any property account.
-            </p>
-          </div>
+          <h1>All Properties</h1>
 
-          <Link href="/admin/properties/new" className={styles.primaryButton}>
-            + New Property
+          <Link href="/admin" className={styles.link}>
+            ← Back to Admin
           </Link>
         </div>
 
-        <div className={styles.searchCard}>
-          <label htmlFor="propertyCodeSearch" className={styles.searchLabel}>
-            Search by property code
-          </label>
+        {/* SEARCH */}
+        <div className={styles.searchRow}>
           <input
-            id="propertyCodeSearch"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="1234"
-            value={propertyCodeSearch}
-            onChange={(e) => setPropertyCodeSearch(e.target.value)}
-            className={styles.searchInput}
+            value={search}
+            onChange={(e) => {
+              setPage(1);
+              setSearch(e.target.value);
+            }}
+            placeholder="Search by property code"
+            className={styles.input}
           />
         </div>
 
-        {loading && <div className={styles.info}>Loading properties...</div>}
-        {!loading && error && <div className={styles.error}>{error}</div>}
+        {/* STATES */}
+        {loading && <div>Loading...</div>}
+
+        {!loading && error && (
+          <div className={styles.error}>{error}</div>
+        )}
 
         {!loading && !error && properties.length === 0 && (
-          <div className={styles.empty}>
-            {trimmedSearch
-              ? "No properties found for that code."
-              : "No properties yet. Create your first one."}
+  <div className={styles.empty}>
+    {trimmedSearch
+      ? "No properties match that code"
+      : "No properties found"}
+  </div>
+)}
+
+        {/* TABLE */}
+        {!loading && !error && properties.length > 0 && (
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Code</th>
+                  <th>Units</th>
+                  <th>Tiers</th>
+                  <th>Status</th>
+                  <th>Contact</th>
+                  <th />
+                </tr>
+              </thead>
+
+              <tbody>
+                {paginated.map((p) => (
+                  <tr
+                    key={p.id}
+                    className={styles.row}
+                    onClick={() => handleRowClick(p.id)}
+                  >
+                    <td>{p.name || "—"}</td>
+                    <td>{p.propertyCode || "—"}</td>
+                    <td>{p.unitCount ?? 0}</td>
+                    <td>{p.tierCount ?? 0}</td>
+
+                    <td>
+                      {p.isActive ? (
+                        <span className={styles.active}>Active</span>
+                      ) : (
+                        <span className={styles.inactive}>Inactive</span>
+                      )}
+                    </td>
+
+                    <td>{p.contactName || "—"}</td>
+
+                    <td>
+                      <Link
+                        href={`/admin/properties/${p.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        <div className={styles.grid}>
-          {properties.map((p) => (
-            <Link
-              key={p.id}
-              href={`/admin/properties/${p.id}`}
-              className={styles.card}
+        {/* PAGINATION */}
+        {!loading && !error && totalPages > 1 && (
+          <div className={styles.pagination}>
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
             >
-              <div className={styles.cardHeader}>
-                <h3 className={styles.cardTitle}>{p.name}</h3>
-                <span className={p.isActive ? styles.active : styles.inactive}>
-                  {p.isActive ? "Active" : "Inactive"}
-                </span>
-              </div>
+              Prev
+            </button>
 
-              <div className={styles.meta}>
-                <div>
-                  <span className={styles.metaLabel}>Code:</span> {p.propertyCode}
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Type:</span> {p.propertyType}
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Contact:</span>{" "}
-                  {p.contactName || "—"}
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Email:</span>{" "}
-                  {p.contactEmail || "—"}
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Units:</span> {p.unitCount}
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Tiers:</span> {p.tierCount}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+            <span>
+              Page {page} / {totalPages}
+            </span>
+
+            <button
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );

@@ -92,17 +92,27 @@ export type MaintenanceActivityInput = {
   unitNumber?: string | null;
 };
 
-function asNumber(value: unknown) {
-  return Number(value || 0);
+// --- HELPERS (STRICT) ---
+
+function toNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function toDate(value: Date | string) {
-  return value instanceof Date ? value : new Date(value);
+function toMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
-function roundMoney(value: number) {
-  return Math.round(Number(value || 0) * 100) / 100;
+function toDateSafe(value: Date | string): Date {
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date(0) : d;
 }
+
+function normalizeEntryType(value: unknown): string {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+// --- CORE FUNCTIONS ---
 
 export function getDashboardCutoffDate(now = new Date()) {
   const cutoff = new Date(now);
@@ -110,13 +120,9 @@ export function getDashboardCutoffDate(now = new Date()) {
 
   cutoff.setHours(17, 0, 0, 0);
 
-  if (day === 1) {
-    cutoff.setDate(cutoff.getDate() - 3);
-  } else if (day === 0) {
-    cutoff.setDate(cutoff.getDate() - 2);
-  } else {
-    cutoff.setDate(cutoff.getDate() - 1);
-  }
+  if (day === 1) cutoff.setDate(cutoff.getDate() - 3);
+  else if (day === 0) cutoff.setDate(cutoff.getDate() - 2);
+  else cutoff.setDate(cutoff.getDate() - 1);
 
   return cutoff;
 }
@@ -130,25 +136,23 @@ export function getCycleDates(
   const year = now.getFullYear();
   const month = now.getMonth();
 
-  let cycleStart = new Date(year, month, safeBillingDay, 0, 0, 0, 0);
+  let cycleStart = new Date(year, month, safeBillingDay);
 
   if (now.getDate() < safeBillingDay) {
-    cycleStart = new Date(year, month - 1, safeBillingDay, 0, 0, 0, 0);
+    cycleStart = new Date(year, month - 1, safeBillingDay);
   }
 
   const cycleEnd = new Date(
     cycleStart.getFullYear(),
     cycleStart.getMonth() + 1,
-    safeBillingDay,
-    0,
-    0,
-    0,
-    0
+    safeBillingDay
   );
 
-  const dueDate = new Date(cycleStart);
-
-  return { cycleStart, cycleEnd, dueDate };
+  return {
+    cycleStart,
+    cycleEnd,
+    dueDate: new Date(cycleStart),
+  };
 }
 
 export function getUnitStatus(input: {
@@ -172,29 +176,13 @@ export function getUnitStatus(input: {
   if (!hasActiveTenant) return "VACANT";
   if (currentBalance <= 0) return "PAID";
 
-  const initialLateFeeDate = new Date(dueDate);
-  initialLateFeeDate.setDate(
-    initialLateFeeDate.getDate() + Number(gracePeriodDays || 0) + 1
-  );
+  const lateDate = new Date(dueDate);
+  lateDate.setDate(lateDate.getDate() + gracePeriodDays + 1);
 
-  if (now >= initialLateFeeDate) return "DELINQUENT";
+  if (now >= lateDate) return "DELINQUENT";
   if (currentCyclePayments > 0) return "PARTIAL";
+
   return "GRACE";
-}
-
-export function sortStatusProblemFirst(
-  a: DashboardUnitStatus,
-  b: DashboardUnitStatus
-) {
-  const order: Record<DashboardUnitStatus, number> = {
-    DELINQUENT: 1,
-    PARTIAL: 2,
-    GRACE: 3,
-    PAID: 4,
-    VACANT: 5,
-  };
-
-  return order[a] - order[b];
 }
 
 export function countStatuses(statuses: DashboardUnitStatus[]): DashboardCounts {
@@ -206,12 +194,8 @@ export function countStatuses(statuses: DashboardUnitStatus[]): DashboardCounts 
     vacant: 0,
   };
 
-  for (const status of statuses) {
-    if (status === "PAID") counts.paid++;
-    if (status === "GRACE") counts.grace++;
-    if (status === "PARTIAL") counts.partial++;
-    if (status === "DELINQUENT") counts.delinquent++;
-    if (status === "VACANT") counts.vacant++;
+  for (const s of statuses) {
+    counts[s.toLowerCase() as keyof DashboardCounts]++;
   }
 
   return counts;
@@ -220,28 +204,23 @@ export function countStatuses(statuses: DashboardUnitStatus[]): DashboardCounts 
 export function buildExpectedVsCollected(
   units: DashboardUnitInput[]
 ): ExpectedCollected {
-  let expectedRentThisCycle = 0;
-  let collectedThisCycle = 0;
+  let expected = 0;
+  let collected = 0;
 
   for (const unit of units) {
     if (unit.hasActiveTenant) {
-      expectedRentThisCycle += asNumber(unit.monthlySubtotal);
+      expected += toNumber(unit.monthlySubtotal);
     }
-
-    collectedThisCycle += asNumber(unit.currentCyclePayments);
+    collected += toNumber(unit.currentCyclePayments);
   }
 
-  expectedRentThisCycle = roundMoney(expectedRentThisCycle);
-  collectedThisCycle = roundMoney(collectedThisCycle);
-
-  const remainingThisCycle = roundMoney(
-    Math.max(expectedRentThisCycle - collectedThisCycle, 0)
-  );
+  expected = toMoney(expected);
+  collected = toMoney(collected);
 
   return {
-    expectedRentThisCycle,
-    collectedThisCycle,
-    remainingThisCycle,
+    expectedRentThisCycle: expected,
+    collectedThisCycle: collected,
+    remainingThisCycle: toMoney(Math.max(expected - collected, 0)),
   };
 }
 
@@ -254,18 +233,19 @@ export function buildDashboardSummary(args: {
   let newPayments = 0;
 
   for (const entry of args.ledgerEntriesSinceCutoff) {
-    const amount = asNumber(entry.amount);
-    const isPayment =
-      String(entry.entryType || "").toUpperCase() === "PAYMENT" || amount < 0;
+    const amount = toNumber(entry.amount);
+    const type = normalizeEntryType(entry.entryType);
 
-    if (isPayment && amount < 0) {
-      paidSinceClose += Math.abs(amount);
-      newPayments++;
+    if (type === "PAYMENT" || amount < 0) {
+      if (amount < 0) {
+        paidSinceClose += Math.abs(amount);
+        newPayments++;
+      }
     }
   }
 
   return {
-    paidSinceClose: roundMoney(paidSinceClose),
+    paidSinceClose: toMoney(paidSinceClose),
     newPayments,
     delinquentUnits: args.units.filter((u) => u.status === "DELINQUENT").length,
     openMaintenance: args.openMaintenanceCount,
@@ -280,31 +260,23 @@ export function buildNeedsAttention(
   const items: NeedsAttentionItem[] = [];
 
   for (const unit of units) {
-    if (unit.status === "DELINQUENT") {
+    if (unit.status === "DELINQUENT" || unit.status === "PARTIAL") {
       items.push({
-        type: "DELINQUENT",
+        type: unit.status,
         unitId: unit.id,
         unitNumber: unit.unitNumber,
-        title: `Unit ${unit.unitNumber} delinquent`,
-        subtitle: "Past due",
-        amount: asNumber(unit.currentBalance),
-      });
-    }
-
-    if (unit.status === "PARTIAL") {
-      items.push({
-        type: "PARTIAL",
-        unitId: unit.id,
-        unitNumber: unit.unitNumber,
-        title: `Unit ${unit.unitNumber} partial`,
-        subtitle: "Partial payment made",
-        amount: asNumber(unit.currentBalance),
+        title: `Unit ${unit.unitNumber} ${unit.status.toLowerCase()}`,
+        subtitle:
+          unit.status === "DELINQUENT"
+            ? "Past due"
+            : "Partial payment made",
+        amount: toNumber(unit.currentBalance),
       });
     }
   }
 
   for (const request of maintenance) {
-    if (request.status !== "COMPLETED" && request.status !== "CLOSED") {
+    if (!["COMPLETED", "CLOSED"].includes(request.status)) {
       items.push({
         type: "MAINTENANCE",
         requestId: request.id,
@@ -329,25 +301,29 @@ export function buildRecentActivity(args: {
   const items: RecentActivityItem[] = [];
 
   for (const entry of args.ledgerEntriesSinceCutoff) {
-    const amount = asNumber(entry.amount);
-    const entryType = String(entry.entryType || "").toUpperCase();
-    const chargeType = String(entry.chargeType || "").toUpperCase();
+    const amount = toNumber(entry.amount);
+    const type = normalizeEntryType(entry.entryType);
+    const chargeType = normalizeEntryType(entry.chargeType);
 
-    if (entryType === "PAYMENT" || amount < 0) {
+    if (type === "PAYMENT" || amount < 0) {
       items.push({
         type: "PAYMENT",
         title: "Payment received",
-        subtitle: entry.unitNumber ? `Unit ${entry.unitNumber}` : entry.memo || null,
+        subtitle: entry.unitNumber
+          ? `Unit ${entry.unitNumber}`
+          : entry.memo || null,
         amount: Math.abs(amount),
         createdAt: entry.createdAt,
         unitId: entry.unitId,
         unitNumber: entry.unitNumber,
       });
-    } else if (entryType === "CHARGE" && chargeType === "LATE_FEE") {
+    } else if (type === "CHARGE" && chargeType === "LATE_FEE") {
       items.push({
         type: "LATE_FEE",
         title: "Late fee applied",
-        subtitle: entry.unitNumber ? `Unit ${entry.unitNumber}` : entry.memo || null,
+        subtitle: entry.unitNumber
+          ? `Unit ${entry.unitNumber}`
+          : entry.memo || null,
         amount,
         createdAt: entry.createdAt,
         unitId: entry.unitId,
@@ -357,34 +333,41 @@ export function buildRecentActivity(args: {
   }
 
   for (const request of args.maintenanceSinceCutoff) {
+    const created = toDateSafe(request.createdAt);
+    const updated = toDateSafe(request.updatedAt || request.createdAt);
+
     items.push({
       type:
-        toDate(request.updatedAt || request.createdAt).getTime() !==
-        toDate(request.createdAt).getTime()
+        updated.getTime() !== created.getTime()
           ? "MAINTENANCE_UPDATED"
           : "MAINTENANCE_CREATED",
       title: `Maintenance ${request.status.toLowerCase()}`,
       subtitle: request.unitNumber
         ? `Unit ${request.unitNumber} • ${request.category}`
         : request.category,
-      createdAt: request.updatedAt || request.createdAt,
+      createdAt: updated,
       unitId: request.unitId,
       unitNumber: request.unitNumber,
     });
   }
 
   return items.sort(
-    (a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime()
+    (a, b) =>
+      toDateSafe(b.createdAt).getTime() -
+      toDateSafe(a.createdAt).getTime()
   );
 }
 
 export function percentCollected(data: ExpectedCollected) {
   if (data.expectedRentThisCycle <= 0) return 0;
+
   return Math.max(
     0,
     Math.min(
       100,
-      Math.round((data.collectedThisCycle / data.expectedRentThisCycle) * 100)
+      Math.round(
+        (data.collectedThisCycle / data.expectedRentThisCycle) * 100
+      )
     )
   );
 }

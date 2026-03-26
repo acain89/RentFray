@@ -47,7 +47,7 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function safeTrim(value: unknown) {
+function safeTrim(value: unknown): string {
   return String(value ?? "").trim();
 }
 
@@ -56,14 +56,14 @@ function parseUnitLabels(raw: string | undefined): string[] {
     ...new Set(
       String(raw || "")
         .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean)
-        .map((v) => v.toUpperCase())
+        .map((v: string) => v.trim())
+        .filter((v: string) => Boolean(v))
+        .map((v: string) => v.toUpperCase())
     ),
   ];
 }
 
-function hasDuplicateValues(values: string[]) {
+function hasDuplicateValues(values: string[]): boolean {
   const seen = new Set<string>();
 
   for (const value of values) {
@@ -74,7 +74,7 @@ function hasDuplicateValues(values: string[]) {
   return false;
 }
 
-function getDuplicateValues(values: string[]) {
+function getDuplicateValues(values: string[]): string[] {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
 
@@ -89,22 +89,18 @@ function getDuplicateValues(values: string[]) {
   return [...duplicates];
 }
 
-function getRecurringChargeTotal(charges: IncomingCharge[] = []) {
-  return charges.reduce((sum, charge) => sum + toNumber(charge.amount, 0), 0);
+function getRecurringChargeTotal(charges: IncomingCharge[] = []): number {
+  return charges.reduce(
+    (sum: number, charge: IncomingCharge) => sum + toNumber(charge.amount, 0),
+    0
+  );
 }
 
-function getMonthlySubtotal(tier: IncomingTier) {
+function getMonthlySubtotal(tier: IncomingTier): number {
   return toNumber(tier.baseRent, 0) + getRecurringChargeTotal(tier.charges || []);
 }
 
-/**
- * Lowest available processing fee estimate for the tier.
- * Mirrors the frontend preview:
- * - card rail: 2.9% + $0.30
- * - ACH rail: 1.0%
- * choose the lower of the two
- */
-function getMinimumProcessingFee(monthlySubtotal: number) {
+function getMinimumProcessingFee(monthlySubtotal: number): number {
   if (monthlySubtotal <= 0) return 0;
 
   const cardFee = monthlySubtotal * 0.029 + 0.3;
@@ -119,15 +115,17 @@ function isPrismaKnownError(
   return err instanceof Prisma.PrismaClientKnownRequestError;
 }
 
-function generateFourDigitCode() {
+function generateFourDigitCode(): string {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-function generateFiveDigitCode() {
+function generateFiveDigitCode(): string {
   return Math.floor(10000 + Math.random() * 90000).toString();
 }
 
-async function generateUniquePropertyCode(tx: Prisma.TransactionClient) {
+async function generateUniquePropertyCode(
+  tx: Prisma.TransactionClient
+): Promise<string> {
   const fourDigitCount = await tx.property.count({
     where: {
       propertyCode: {
@@ -161,7 +159,11 @@ async function generateUniquePropertyCode(tx: Prisma.TransactionClient) {
       select: { propertyCode: true },
     });
 
-    const used = new Set(existingFourDigitRows.map((row) => row.propertyCode));
+    const used = new Set<string>(
+      existingFourDigitRows.map(
+        (row: { propertyCode: string }) => row.propertyCode
+      )
+    );
 
     for (let i = 1000; i <= 9999; i++) {
       const candidate = String(i);
@@ -191,8 +193,8 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as IncomingWizardPayload;
 
-    const property = (body.property || {}) as IncomingProperty;
-    const tiers = Array.isArray(body.tiers) ? body.tiers : [];
+    const property: IncomingProperty = body.property || {};
+    const tiers: IncomingTier[] = Array.isArray(body.tiers) ? body.tiers : [];
     const applySameRulesToAll = Boolean(body.applySameRulesToAll);
 
     if (!safeTrim(property.name) || !safeTrim(property.address)) {
@@ -209,7 +211,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const normalizedAllLabels = tiers.flatMap((tier) =>
+    const normalizedAllLabels = tiers.flatMap((tier: IncomingTier) =>
       parseUnitLabels(tier.unitLabels)
     );
 
@@ -231,7 +233,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const firstTier = tiers[0];
+    const firstTier: IncomingTier | undefined = tiers[0];
 
     if (!firstTier) {
       return NextResponse.json(
@@ -241,17 +243,22 @@ export async function POST(req: Request) {
     }
 
     for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
-      const tier = tiers[tierIndex];
+      const tier: IncomingTier | undefined = tiers[tierIndex];
+
+      if (!tier) {
+        continue;
+      }
+
       const tierName = safeTrim(tier.name);
       const unitLabels = parseUnitLabels(tier.unitLabels);
       const unitCount = unitLabels.length;
       const baseRent = toNumber(tier.baseRent);
-      const ruleSource = applySameRulesToAll ? firstTier : tier;
-      const dueDay = toNumber(ruleSource?.dueDay);
-      const graceDays = toNumber(ruleSource?.graceDays);
-      const lateFeeInitial = toNumber(ruleSource?.lateFeeInitial);
-      const lateFeeDaily = toNumber(ruleSource?.lateFeeDaily);
-      const lateFeeMaxDays = toNumber(ruleSource?.lateFeeMaxDays);
+      const ruleSource: IncomingTier = applySameRulesToAll ? firstTier : tier;
+      const dueDay = toNumber(ruleSource.dueDay);
+      const graceDays = toNumber(ruleSource.graceDays);
+      const lateFeeInitial = toNumber(ruleSource.lateFeeInitial);
+      const lateFeeDaily = toNumber(ruleSource.lateFeeDaily);
+      const lateFeeMaxDays = toNumber(ruleSource.lateFeeMaxDays);
       const monthlySubtotal = getMonthlySubtotal(tier);
       const processingFee = getMinimumProcessingFee(monthlySubtotal);
 
@@ -324,7 +331,9 @@ export async function POST(req: Request) {
         );
       }
 
-      const charges = Array.isArray(tier.charges) ? tier.charges : [];
+      const charges: IncomingCharge[] = Array.isArray(tier.charges)
+        ? tier.charges
+        : [];
 
       for (const charge of charges) {
         const label = safeTrim(charge.label);
@@ -361,20 +370,15 @@ export async function POST(req: Request) {
           },
         });
 
-        const propertySettingsRuleSource = applySameRulesToAll
-          ? firstTier
-          : firstTier;
+        const propertySettingsRuleSource: IncomingTier = firstTier;
 
         await tx.propertySettings.create({
           data: {
             propertyId: createdProperty.id,
-            rentDueDay: toNumber(propertySettingsRuleSource?.dueDay, 1),
-            gracePeriodDays: toNumber(propertySettingsRuleSource?.graceDays, 0),
+            rentDueDay: toNumber(propertySettingsRuleSource.dueDay, 1),
+            gracePeriodDays: toNumber(propertySettingsRuleSource.graceDays, 0),
             lateFeeEnabled: true,
-            lateFeeFlat: toNumber(
-              propertySettingsRuleSource?.lateFeeInitial,
-              0
-            ),
+            lateFeeFlat: toNumber(propertySettingsRuleSource.lateFeeInitial, 0),
             convenienceFeeEnabled: true,
             convenienceFeeType: "FLAT",
             convenienceFeeAmount: getMinimumProcessingFee(
@@ -384,10 +388,15 @@ export async function POST(req: Request) {
         });
 
         for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
-          const tier = tiers[tierIndex];
+          const tier: IncomingTier | undefined = tiers[tierIndex];
+
+          if (!tier) {
+            continue;
+          }
+
           const unitLabels = parseUnitLabels(tier.unitLabels);
           const recurringTotal = getRecurringChargeTotal(tier.charges || []);
-          const ruleSource = applySameRulesToAll ? firstTier : tier;
+          const ruleSource: IncomingTier = applySameRulesToAll ? firstTier : tier;
           const calculatedProcessingFee = getMinimumProcessingFee(
             getMonthlySubtotal(tier)
           );
@@ -397,11 +406,11 @@ export async function POST(req: Request) {
             name: safeTrim(tier.name),
             baseRent: toNumber(tier.baseRent),
             unitCount: unitLabels.length,
-            rentDueDay: toNumber(ruleSource?.dueDay, 1),
-            gracePeriodDays: toNumber(ruleSource?.graceDays, 0),
-            lateFeeInitial: toNumber(ruleSource?.lateFeeInitial, 0),
-            lateFeeDaily: toNumber(ruleSource?.lateFeeDaily, 0),
-            lateFeeMaxDays: toNumber(ruleSource?.lateFeeMaxDays, 0),
+            rentDueDay: toNumber(ruleSource.dueDay, 1),
+            gracePeriodDays: toNumber(ruleSource.graceDays, 0),
+            lateFeeInitial: toNumber(ruleSource.lateFeeInitial, 0),
+            lateFeeDaily: toNumber(ruleSource.lateFeeDaily, 0),
+            maxLateFeeDays: toNumber(ruleSource.lateFeeMaxDays, 0),
             processingFee: calculatedProcessingFee,
             sortOrder: tierIndex,
             isActive: true,
@@ -426,13 +435,17 @@ export async function POST(req: Request) {
               data: unitData,
             });
 
-            const charges = Array.isArray(tier.charges) ? tier.charges : [];
+            const charges: IncomingCharge[] = Array.isArray(tier.charges)
+              ? tier.charges
+              : [];
 
             if (charges.length) {
               const validCharges: Prisma.UnitRecurringFeeCreateManyInput[] =
                 charges
-                  .filter((charge) => safeTrim(charge.label))
-                  .map((charge, index) => ({
+                  .filter((charge: IncomingCharge) =>
+                    Boolean(safeTrim(charge.label))
+                  )
+                  .map((charge: IncomingCharge, index: number) => ({
                     propertyId: createdProperty.id,
                     unitId: createdUnit.id,
                     label: safeTrim(charge.label),

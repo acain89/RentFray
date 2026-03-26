@@ -1,40 +1,45 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
   try {
-    const session = await requireRole("TENANT");
+    const session = await getSession();
+
+    if (!session || session.role !== "TENANT") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { propertyId, unitId } = session;
+
+    if (!propertyId || !unitId) {
+      return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+    }
 
     const unit = await prisma.unit.findUnique({
-      where: { id: session.unitId },
-      include: {
-        property: true,
-        assignments: {
-          where: { moveOut: null },
-          orderBy: { moveIn: "desc" },
-          include: { tenant: true },
-        },
+      where: { id: unitId },
+      select: {
+        id: true,
+        unitNumber: true,
+        portalFirstName: true,
+        portalLastName: true,
       },
     });
 
-    if (!unit || unit.assignments.length === 0) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+    if (!unit) {
+      return NextResponse.json({ error: "Unit not found." }, { status: 404 });
     }
-
-    const tenant = unit.assignments[0].tenant;
 
     return NextResponse.json({
       ok: true,
-      tenantId: tenant.id,
-      tenantName: tenant.name,
-      propertyId: unit.propertyId,
-      propertyName: unit.property?.name || "",
-      propertyCode: unit.property?.code || "",
-      unitId: unit.id,
-      unitNumber: unit.unitNumber,
+      unit,
     });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error: unknown) {
+    console.error("GET /api/tenant/me failed", error);
+
+    return NextResponse.json(
+      { error: "Failed to load tenant data." },
+      { status: 500 }
+    );
   }
 }

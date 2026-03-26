@@ -5,14 +5,18 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
+type AdminSessionRequest = {
+  code?: unknown;
+};
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const code = String(body.code || "").trim();
+    const body = (await req.json()) as AdminSessionRequest;
+    const code = String(body.code ?? "").trim();
 
     if (!/^\d{6}$/.test(code)) {
       return NextResponse.json(
-        { error: "Invalid admin code." },
+        { ok: false, error: "Invalid admin code." },
         { status: 400 }
       );
     }
@@ -28,16 +32,16 @@ export async function POST(req: Request) {
 
     if (!adminAccess) {
       return NextResponse.json(
-        { error: "Admin access is not configured." },
+        { ok: false, error: "Admin access is not configured." },
         { status: 500 }
       );
     }
 
-    const ok = await bcrypt.compare(code, adminAccess.codeHash);
+    const isValid = await bcrypt.compare(code, adminAccess.codeHash);
 
-    if (!ok) {
+    if (!isValid) {
       return NextResponse.json(
-        { error: "Invalid admin code." },
+        { ok: false, error: "Invalid admin code." },
         { status: 401 }
       );
     }
@@ -50,12 +54,15 @@ export async function POST(req: Request) {
       data: { lastUsedAt: new Date() },
     });
 
-    return NextResponse.json({ ok: true, role: "ADMIN" });
+    return NextResponse.json({
+      ok: true,
+      role: "ADMIN",
+    });
   } catch (error) {
     console.error("POST /api/admin/session failed", error);
 
     return NextResponse.json(
-      { error: "Admin login failed." },
+      { ok: false, error: "Admin login failed." },
       { status: 500 }
     );
   }

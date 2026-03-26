@@ -1,56 +1,337 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+// app/api/ledger/charges/route.ts
 
-function parseEffectiveDate(value: unknown) {
-  const raw = String(value || "").trim();
-  if (!raw) return new Date();
-  const d = new Date(`${raw}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? new Date() : d;
+import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+import { canManageFinancials } from "@/lib/permissions";
+import { emitEvent } from "@/lib/realtime";
+
+type ApiSuccess<T> = {
+  ok: true;
+  data: T;
+};
+
+type ApiError = {
+  ok: false;
+  error: string;
+};
+
+type AllowedChargeType = "RENT_CHARGE" | "LATE_FEE" | "OTHER_FEE";
+type LedgerChargeType = "RENT" | "LATE_FEE" | "OTHER_FEE";
+
+type ParsedChargeBody = {
+  propertyId: string;
+  unitId: string;
+  tenantAssignmentId: string | null;
+  type: AllowedChargeType;
+  amount: number;
+  memo: string | null;
+  effectiveDate: Date;
+  referenceNumber: string | null;
+};
+
+type SessionLike = {
+  propertyId?: string | null;
+  role?: string | null;
+  managementUserId?: string | null;
+};
+
+const ALLOWED_TYPES: Set<AllowedChargeType> = new Set([
+  "RENT_CHARGE",
+  "LATE_FEE",
+  "OTHER_FEE",
+]);
+
+const MAX_CHARGE_AMOUNT = 1_000_000;
+
+function clean(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function normalizeOptional(value: unknown): string | null {
+  const trimmed = clean(value);
+  return trimmed ? trimmed : null;
+}
+
+function toMoney(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+
+  const rounded = Math.round(n * 100) / 100;
+  if (rounded <= 0 || rounded > MAX_CHARGE_AMOUNT) return null;
+
+  return rounded;
+}
+
+function parseEffectiveDate(value: unknown): Date | null {
+  const raw = clean(value);
+  if (!raw) return null;
+
+  const parsed = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed;
+}
+
+function isAllowedChargeType(value: string): value is AllowedChargeType {
+  return ALLOWED_TYPES.has(value as AllowedChargeType);
+}
+
+function toLedgerChargeType(value: AllowedChargeType): LedgerChargeType {
+  switch (value) {
+    case "RENT_CHARGE":
+      return "RENT";
+    case "LATE_FEE":
+      return "LATE_FEE";
+    case "OTHER_FEE":
+    default:
+      return "OTHER_FEE";
+  }
+}
+
+function badRequest(error: string) {
+  return NextResponse.json<ApiError>({ ok: false, error }, { status: 400 });
+}
+
+async function parseBody(req: Request): Promise<ParsedChargeBody | null> {
+  const body = (await req.json()) as Record<string, unknown>;
+
+  const propertyId = clean(body.propertyId);
+  const unitId = clean(body.unitId);
+  const tenantAssignmentIdRaw = clean(body.tenantAssignmentId ?? body.tenantId);
+  const typeRaw = clean(body.type).toUpperCase();
+  const amount = toMoney(body.amount);
+  const memo = normalizeOptional(body.memo);
+  const effectiveDate = parseEffectiveDate(body.effectiveDate);
+  const referenceNumber = normalizeOptional(body.referenceNumber);
+
+  if (!propertyId || !unitId) return null;
+  if (!isAllowedChargeType(typeRaw)) return null;
+  if (amount === null) return null;
+  if (!effectiveDate) return null;
+
+  return {
+    propertyId,
+    unitId,
+    tenantAssignmentId: tenantAssignmentIdRaw || null,
+    type: typeRaw,
+    amount,
+    memo,
+    effectiveDate,
+    referenceNumber,
+  };
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, route: "ledger-charges" });
+  return NextResponse.json<ApiSuccess<{ route: string }>>({
+    ok: true,
+    data: { route: "ledger-charges" },
+  });
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const session = (await getSession()) as SessionLike | null;
 
-    const propertyId = String(body.propertyId || "");
-    const unitId = String(body.unitId || "");
-    const tenantId = String(body.tenantId || "");
-    const type = String(body.type || "");
-    const amount = Number(body.amount || 0);
-    const memo = String(body.memo || "");
-    const effectiveDate = parseEffectiveDate(body.effectiveDate);
-
-    const allowedTypes = new Set(["RENT_CHARGE", "LATE_FEE", "OTHER_FEE"]);
-
-    if (!propertyId || !unitId || !allowedTypes.has(type) || !Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json(
-        { error: "Missing or invalid required fields." },
-        { status: 400 }
+    if (!session || !session.propertyId || !canManageFinancials(session.role ?? "")) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "Only owner or manager can post charges." },
+        { status: 401 }
       );
     }
 
-    await prisma.ledgerEntry.create({
-      data: {
+    let parsed: ParsedChargeBody | null = null;
+
+    try {
+      parsed = await parseBody(req);
+    } catch {
+      return badRequest("Invalid request body.");
+    }
+
+    if (!parsed) {
+      return badRequest("Missing or invalid required fields.");
+    }
+
+    const {
+      propertyId,
+      unitId,
+      tenantAssignmentId,
+      type,
+      amount,
+      memo,
+      effectiveDate,
+      referenceNumber,
+    } = parsed;
+
+    if (propertyId !== session.propertyId) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "Invalid property." },
+        { status: 403 }
+      );
+    }
+
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: unitId,
         propertyId,
-        unitId,
-        tenantId: tenantId || null,
-        type,
-        amount: Math.abs(amount),
-        effectiveDate,
-        memo,
-        source: "MANUAL",
+      },
+      select: {
+        id: true,
+        propertyId: true,
+        unitNumber: true,
       },
     });
 
-    return NextResponse.json({ ok: true });
+    if (!unit) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "Unit not found for this property." },
+        { status: 404 }
+      );
+    }
+
+    let activeAssignment:
+      | {
+          id: string;
+          unitId: string;
+          propertyId: string;
+        }
+      | null = null;
+
+    if (tenantAssignmentId) {
+      activeAssignment = await prisma.tenantAssignment.findFirst({
+        where: {
+          id: tenantAssignmentId,
+          unitId,
+          propertyId,
+          isCurrent: true,
+        },
+        select: {
+          id: true,
+          unitId: true,
+          propertyId: true,
+        },
+      });
+
+      if (!activeAssignment) {
+        return NextResponse.json<ApiError>(
+          { ok: false, error: "Tenant assignment is not active for this unit." },
+          { status: 400 }
+        );
+      }
+    } else {
+      activeAssignment = await prisma.tenantAssignment.findFirst({
+        where: {
+          unitId,
+          propertyId,
+          isCurrent: true,
+        },
+        select: {
+          id: true,
+          unitId: true,
+          propertyId: true,
+        },
+      });
+    }
+
+    const chargeType = toLedgerChargeType(type);
+
+    const result = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const entry = await tx.ledgerEntry.create({
+          data: {
+            propertyId,
+            unitId,
+            tenantAssignmentId: activeAssignment?.id ?? null,
+            entryType: "CHARGE",
+            chargeType,
+            amount,
+            effectiveDate,
+            memo,
+            referenceNumber,
+            createdByManagementUserId: session.managementUserId ?? null,
+          },
+          select: {
+            id: true,
+            propertyId: true,
+            unitId: true,
+            tenantAssignmentId: true,
+            entryType: true,
+            chargeType: true,
+            amount: true,
+            effectiveDate: true,
+            memo: true,
+            referenceNumber: true,
+            createdByManagementUserId: true,
+            createdAt: true,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            propertyId,
+            actorType: session.role ?? "MANAGER",
+            actorManagementUserId: session.managementUserId ?? null,
+            action: "MANUAL_CHARGE_POSTED",
+            targetType: "LEDGER_ENTRY",
+            targetId: entry.id,
+            summary: `Manual ${chargeType} charge posted for unit ${unit.unitNumber}`,
+            metadataJson: JSON.stringify({
+              unitId: unit.id,
+              unitNumber: unit.unitNumber,
+              tenantAssignmentId: activeAssignment?.id ?? null,
+              entryType: entry.entryType,
+              chargeType: entry.chargeType,
+              amount: entry.amount,
+              memo: entry.memo,
+              effectiveDate: entry.effectiveDate.toISOString(),
+              referenceNumber: entry.referenceNumber,
+            }),
+          },
+        });
+
+        return entry;
+      }
+    );
+
+    emitEvent("ledger:update", {
+      propertyId,
+      unitId,
+      tenantAssignmentId: result.tenantAssignmentId,
+      entryId: result.id,
+      entryType: result.entryType,
+      chargeType: result.chargeType,
+      source: "MANUAL_CHARGE",
+    });
+
+    return NextResponse.json<
+      ApiSuccess<{
+        entry: {
+          id: string;
+          propertyId: string;
+          unitId: string;
+          tenantAssignmentId: string | null;
+          entryType: string;
+          chargeType: string | null;
+          amount: number;
+          effectiveDate: Date;
+          memo: string | null;
+          referenceNumber: string | null;
+          createdByManagementUserId: string | null;
+          createdAt: Date;
+        };
+      }>
+    >({
+      ok: true,
+      data: {
+        entry: result,
+      },
+    });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: "Failed to post charge." },
+    console.error("POST /api/ledger/charges error:", error);
+
+    return NextResponse.json<ApiError>(
+      { ok: false, error: "Failed to post charge." },
       { status: 500 }
     );
   }

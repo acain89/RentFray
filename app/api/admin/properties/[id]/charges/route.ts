@@ -1,10 +1,12 @@
-// app/api/admin/properties/[id]/charges/route.ts
-
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 
 type ChargePostBody = {
   unitId?: unknown;
@@ -22,11 +24,11 @@ type ChargeDeleteBody = {
   chargeId?: unknown;
 };
 
-function safeString(value: unknown) {
+function safeString(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-function toNumber(value: unknown, fallback = 0) {
+function toNumber(value: unknown, fallback = 0): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -44,10 +46,10 @@ async function getProperty(propertyId: string) {
   });
 }
 
-async function recalculateUnitRecurringFees(
+async function calculateUnitRecurringFees(
   tx: Prisma.TransactionClient,
   unitId: string
-) {
+): Promise<number> {
   const activeFees = await tx.unitRecurringFee.findMany({
     where: {
       unitId,
@@ -58,27 +60,15 @@ async function recalculateUnitRecurringFees(
     },
   });
 
-  const recurringFees = activeFees.reduce(
-    (sum, fee) => sum + Number(fee.amount || 0),
+  return activeFees.reduce<number>(
+    (sum, fee) => sum + Number(fee.amount ?? 0),
     0
   );
-
-  await tx.unit.update({
-    where: { id: unitId },
-    data: {
-      recurringFees,
-    },
-  });
-
-  return recurringFees;
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: Request, context: RouteContext) {
   try {
-    const { id: propertyId } = await params;
+    const { id: propertyId } = await context.params;
 
     if (!propertyId) {
       return NextResponse.json(
@@ -141,44 +131,46 @@ export async function POST(
       );
     }
 
-    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const existingCount = await tx.unitRecurringFee.count({
-        where: { unitId },
-      });
+    const created = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const existingCount = await tx.unitRecurringFee.count({
+          where: { unitId },
+        });
 
-      const charge = await tx.unitRecurringFee.create({
-        data: {
-          propertyId,
-          unitId,
-          label,
-          amount,
-          isActive: true,
-          displayOrder: existingCount,
-        },
-        select: {
-          id: true,
-          propertyId: true,
-          unitId: true,
-          label: true,
-          amount: true,
-          isActive: true,
-          displayOrder: true,
-        },
-      });
+        const charge = await tx.unitRecurringFee.create({
+          data: {
+            propertyId,
+            unitId,
+            label,
+            amount,
+            isActive: true,
+            displayOrder: existingCount,
+          },
+          select: {
+            id: true,
+            propertyId: true,
+            unitId: true,
+            label: true,
+            amount: true,
+            isActive: true,
+            displayOrder: true,
+          },
+        });
 
-      const recurringFees = await recalculateUnitRecurringFees(tx, unitId);
+        const recurringFees = await calculateUnitRecurringFees(tx, unitId);
 
-      return {
-        ...charge,
-        recurringFees,
-      };
-    });
+        return {
+          ...charge,
+          recurringFees,
+        };
+      }
+    );
 
     return NextResponse.json({
       ok: true,
       charge: created,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (isPrismaKnownError(error)) {
       console.error(
         "POST /api/admin/properties/[id]/charges prisma error",
@@ -195,12 +187,9 @@ export async function POST(
   }
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: Request, context: RouteContext) {
   try {
-    const { id: propertyId } = await params;
+    const { id: propertyId } = await context.params;
 
     if (!propertyId) {
       return NextResponse.json(
@@ -263,40 +252,42 @@ export async function PATCH(
       );
     }
 
-    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const charge = await tx.unitRecurringFee.update({
-        where: { id: chargeId },
-        data: {
-          label,
-          amount,
-        },
-        select: {
-          id: true,
-          propertyId: true,
-          unitId: true,
-          label: true,
-          amount: true,
-          isActive: true,
-          displayOrder: true,
-        },
-      });
+    const updated = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const charge = await tx.unitRecurringFee.update({
+          where: { id: chargeId },
+          data: {
+            label,
+            amount,
+          },
+          select: {
+            id: true,
+            propertyId: true,
+            unitId: true,
+            label: true,
+            amount: true,
+            isActive: true,
+            displayOrder: true,
+          },
+        });
 
-      const recurringFees = await recalculateUnitRecurringFees(
-        tx,
-        existingCharge.unitId
-      );
+        const recurringFees = await calculateUnitRecurringFees(
+          tx,
+          existingCharge.unitId
+        );
 
-      return {
-        ...charge,
-        recurringFees,
-      };
-    });
+        return {
+          ...charge,
+          recurringFees,
+        };
+      }
+    );
 
     return NextResponse.json({
       ok: true,
       charge: updated,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (isPrismaKnownError(error)) {
       console.error(
         "PATCH /api/admin/properties/[id]/charges prisma error",
@@ -313,12 +304,9 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: Request, context: RouteContext) {
   try {
-    const { id: propertyId } = await params;
+    const { id: propertyId } = await context.params;
 
     if (!propertyId) {
       return NextResponse.json(
@@ -364,41 +352,43 @@ export async function DELETE(
       );
     }
 
-    const deleted = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.unitRecurringFee.delete({
-        where: { id: chargeId },
-      });
-
-      const recurringFees = await recalculateUnitRecurringFees(
-        tx,
-        existingCharge.unitId
-      );
-
-      const remainingCharges = await tx.unitRecurringFee.findMany({
-        where: { unitId: existingCharge.unitId },
-        orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true },
-      });
-
-      for (let index = 0; index < remainingCharges.length; index++) {
-        await tx.unitRecurringFee.update({
-          where: { id: remainingCharges[index].id },
-          data: { displayOrder: index },
+    const deleted = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await tx.unitRecurringFee.delete({
+          where: { id: chargeId },
         });
-      }
 
-      return {
-        chargeId,
-        unitId: existingCharge.unitId,
-        recurringFees,
-      };
-    });
+        const recurringFees = await calculateUnitRecurringFees(
+          tx,
+          existingCharge.unitId
+        );
+
+        const remainingCharges = await tx.unitRecurringFee.findMany({
+          where: { unitId: existingCharge.unitId },
+          orderBy: [{ displayOrder: "asc" }],
+          select: { id: true },
+        });
+
+        for (const [index, charge] of remainingCharges.entries()) {
+          await tx.unitRecurringFee.update({
+            where: { id: charge.id },
+            data: { displayOrder: index },
+          });
+        }
+
+        return {
+          chargeId,
+          unitId: existingCharge.unitId,
+          recurringFees,
+        };
+      }
+    );
 
     return NextResponse.json({
       ok: true,
       deleted,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (isPrismaKnownError(error)) {
       console.error(
         "DELETE /api/admin/properties/[id]/charges prisma error",

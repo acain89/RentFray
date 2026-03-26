@@ -5,25 +5,59 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
-const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"]);
+const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"] as const);
+
+type MaintenanceLoginBody = {
+  propertyCode?: unknown;
+  pin?: unknown;
+};
+
+type MaintenanceLoginSuccessResponse = {
+  ok: true;
+  role: "MAINTENANCE";
+  propertyId: string;
+  maintenanceUserId: string;
+};
+
+type MaintenanceLoginErrorResponse = {
+  ok: false;
+  error: string;
+};
+
+type MaintenanceUserRow = {
+  id: string;
+  pinHash: string;
+};
+
+function clean(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function isValidPropertyCode(value: string): boolean {
+  return /^\d{4}$/.test(value);
+}
+
+function isValidPin(value: string): boolean {
+  return /^\d{4}$/.test(value);
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as MaintenanceLoginBody;
 
-    const propertyCode = String(body.propertyCode || "").trim();
-    const pin = String(body.pin || "").trim();
+    const propertyCode = clean(body.propertyCode);
+    const pin = clean(body.pin);
 
-    if (!propertyCode || propertyCode.length !== 4) {
-      return NextResponse.json(
-        { error: "Invalid property code." },
+    if (!isValidPropertyCode(propertyCode)) {
+      return NextResponse.json<MaintenanceLoginErrorResponse>(
+        { ok: false, error: "Invalid property code." },
         { status: 400 }
       );
     }
 
-    if (!/^\d{4}$/.test(pin)) {
-      return NextResponse.json(
-        { error: "Invalid PIN." },
+    if (!isValidPin(pin)) {
+      return NextResponse.json<MaintenanceLoginErrorResponse>(
+        { ok: false, error: "Invalid PIN." },
         { status: 400 }
       );
     }
@@ -38,15 +72,19 @@ export async function POST(req: Request) {
     });
 
     if (!property || !property.isActive) {
-      return NextResponse.json(
-        { error: "Property not found." },
+      return NextResponse.json<MaintenanceLoginErrorResponse>(
+        { ok: false, error: "Property not found." },
         { status: 404 }
       );
     }
 
-    if (!ALLOWED_PROPERTY_STATUSES.has(property.status)) {
-      return NextResponse.json(
-        { error: "Property not available." },
+    if (
+      !ALLOWED_PROPERTY_STATUSES.has(
+        property.status as "TEST" | "READY" | "LIVE"
+      )
+    ) {
+      return NextResponse.json<MaintenanceLoginErrorResponse>(
+        { ok: false, error: "Property not available." },
         { status: 403 }
       );
     }
@@ -64,17 +102,18 @@ export async function POST(req: Request) {
 
     let matchedUserId: string | null = null;
 
-    for (const user of users) {
-      const ok = await bcrypt.compare(pin, user.pinHash);
-      if (ok) {
+    for (const user of users as MaintenanceUserRow[]) {
+      const isMatch = await bcrypt.compare(pin, user.pinHash);
+
+      if (isMatch) {
         matchedUserId = user.id;
         break;
       }
     }
 
     if (!matchedUserId) {
-      return NextResponse.json(
-        { error: "Invalid PIN." },
+      return NextResponse.json<MaintenanceLoginErrorResponse>(
+        { ok: false, error: "Invalid PIN." },
         { status: 401 }
       );
     }
@@ -89,10 +128,12 @@ export async function POST(req: Request) {
 
     await prisma.maintenanceUser.update({
       where: { id: matchedUserId },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+      },
     });
 
-    return NextResponse.json({
+    return NextResponse.json<MaintenanceLoginSuccessResponse>({
       ok: true,
       role: "MAINTENANCE",
       propertyId: property.id,
@@ -101,8 +142,8 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("POST /api/maintenance/session failed", error);
 
-    return NextResponse.json(
-      { error: "Login failed." },
+    return NextResponse.json<MaintenanceLoginErrorResponse>(
+      { ok: false, error: "Login failed." },
       { status: 500 }
     );
   }

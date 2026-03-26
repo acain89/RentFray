@@ -1,5 +1,3 @@
-// app/admin/properties/[id]/page.tsx
-
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -11,14 +9,14 @@ import PropertyChargeEditor from "./PropertyChargeEditor";
 
 export const dynamic = "force-dynamic";
 
-type PropertyPageProps = {
-  params: Promise<{
-    id: string;
-  }>;
+type AssignmentDisplay = {
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
 };
 
 function formatMoney(value: number) {
-  return `$${value.toFixed(2)}`;
+  return `$${Number(value || 0).toFixed(2)}`;
 }
 
 function formatBusinessType(value: string | null | undefined) {
@@ -27,15 +25,11 @@ function formatBusinessType(value: string | null | undefined) {
   return value
     .toLowerCase()
     .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
 
-function getAssignmentDisplayName(assignment: {
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-}) {
+function getAssignmentDisplayName(assignment: AssignmentDisplay) {
   const fullName = `${assignment.firstName ?? ""} ${assignment.lastName ?? ""}`.trim();
   if (fullName) return fullName;
   if (assignment.email?.trim()) return assignment.email.trim();
@@ -44,8 +38,14 @@ function getAssignmentDisplayName(assignment: {
 
 export default async function PropertyDashboard({
   params,
-}: PropertyPageProps) {
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
+
+  if (!id) {
+    throw new Error("Missing property id");
+  }
 
   const property = await prisma.property.findUnique({
     where: { id },
@@ -61,7 +61,7 @@ export default async function PropertyDashboard({
                 where: { isActive: true },
                 orderBy: { displayOrder: "asc" },
               },
-              assignments: {
+              tenantAssignments: {
                 where: {
                   moveOutDate: null,
                   isCurrent: true,
@@ -76,14 +76,25 @@ export default async function PropertyDashboard({
   });
 
   if (!property) {
-    return notFound();
+    notFound();
   }
 
-  const totalUnits = property.tiers.reduce((sum, tier) => sum + tier.units.length, 0);
+  type TierRecord = (typeof property.tiers)[number];
+  type UnitRecord = TierRecord["units"][number];
+  type ChargeRecord = UnitRecord["recurringFeeItems"][number];
+  type AssignmentRecord = UnitRecord["tenantAssignments"][number];
+
+  const totalUnits = property.tiers.reduce(
+    (sum: number, tier: TierRecord) => sum + tier.units.length,
+    0
+  );
 
   const occupiedUnits = property.tiers.reduce(
-    (sum, tier) =>
-      sum + tier.units.filter((unit) => unit.assignments.length > 0).length,
+    (sum: number, tier: TierRecord) =>
+      sum +
+      tier.units.filter(
+        (unit: UnitRecord) => unit.tenantAssignments.length > 0
+      ).length,
     0
   );
 
@@ -127,7 +138,9 @@ export default async function PropertyDashboard({
             </div>
 
             <div
-              className={property.isActive ? styles.activeBadge : styles.inactiveBadge}
+              className={
+                property.isActive ? styles.activeBadge : styles.inactiveBadge
+              }
             >
               {property.isActive ? "Active" : "Inactive"}
             </div>
@@ -169,8 +182,10 @@ export default async function PropertyDashboard({
                   gracePeriodDays: property.settings.gracePeriodDays,
                   lateFeeEnabled: property.settings.lateFeeEnabled,
                   lateFeeFlat: property.settings.lateFeeFlat,
-                  convenienceFeeEnabled: property.settings.convenienceFeeEnabled,
-                  convenienceFeeAmount: property.settings.convenienceFeeAmount,
+                  convenienceFeeEnabled:
+                    property.settings.convenienceFeeEnabled,
+                  convenienceFeeAmount:
+                    property.settings.convenienceFeeAmount,
                 }
               : null,
           }}
@@ -178,7 +193,7 @@ export default async function PropertyDashboard({
 
         <PropertyTierEditor
           propertyId={property.id}
-          tiers={property.tiers.map((tier) => ({
+          tiers={property.tiers.map((tier: TierRecord) => ({
             id: tier.id,
             name: tier.name,
             baseRent: Number(tier.baseRent || 0),
@@ -188,7 +203,7 @@ export default async function PropertyDashboard({
             lateFeeInitial: Number(tier.lateFeeInitial || 0),
             lateFeeDaily: Number(tier.lateFeeDaily || 0),
             lateFeeMaxDays: tier.maxLateFeeDays,
-            units: tier.units.map((unit) => ({
+            units: tier.units.map((unit: UnitRecord) => ({
               id: unit.id,
               unitNumber: unit.unitNumber,
             })),
@@ -197,10 +212,10 @@ export default async function PropertyDashboard({
 
         <PropertyUnitEditor
           propertyId={property.id}
-          tiers={property.tiers.map((tier) => ({
+          tiers={property.tiers.map((tier: TierRecord) => ({
             id: tier.id,
             name: tier.name,
-            units: tier.units.map((unit) => ({
+            units: tier.units.map((unit: UnitRecord) => ({
               id: unit.id,
               unitNumber: unit.unitNumber,
               baseRent: Number(unit.baseRent || 0),
@@ -212,14 +227,14 @@ export default async function PropertyDashboard({
 
         <PropertyChargeEditor
           propertyId={property.id}
-          tiers={property.tiers.map((tier) => ({
+          tiers={property.tiers.map((tier: TierRecord) => ({
             id: tier.id,
             name: tier.name,
-            units: tier.units.map((unit) => ({
+            units: tier.units.map((unit: UnitRecord) => ({
               id: unit.id,
               unitNumber: unit.unitNumber,
               recurringFees: Number(unit.recurringFees || 0),
-              charges: unit.recurringFeeItems.map((charge) => ({
+              charges: unit.recurringFeeItems.map((charge: ChargeRecord) => ({
                 id: charge.id,
                 label: charge.label,
                 amount: Number(charge.amount || 0),
@@ -279,7 +294,9 @@ export default async function PropertyDashboard({
             <div className={styles.ruleItem}>
               <span className={styles.ruleLabel}>Convenience fee amount</span>
               <span className={styles.ruleValue}>
-                {formatMoney(Number(property.settings?.convenienceFeeAmount || 0))}
+                {formatMoney(
+                  Number(property.settings?.convenienceFeeAmount || 0)
+                )}
               </span>
             </div>
           </div>
@@ -297,11 +314,13 @@ export default async function PropertyDashboard({
 
           <div className={styles.tierList}>
             {property.tiers.length === 0 ? (
-              <div className={styles.emptyState}>No tiers found for this property.</div>
+              <div className={styles.emptyState}>
+                No tiers found for this property.
+              </div>
             ) : (
-              property.tiers.map((tier) => {
+              property.tiers.map((tier: TierRecord) => {
                 const tierOccupied = tier.units.filter(
-                  (unit) => unit.assignments.length > 0
+                  (unit: UnitRecord) => unit.tenantAssignments.length > 0
                 ).length;
 
                 const tierVacant = tier.units.length - tierOccupied;
@@ -313,7 +332,8 @@ export default async function PropertyDashboard({
                         <h3 className={styles.tierTitle}>{tier.name}</h3>
                         <p className={styles.tierSubtitle}>
                           {formatMoney(Number(tier.baseRent || 0))} rent ·{" "}
-                          {formatMoney(Number(tier.processingFee || 0))} processing fee
+                          {formatMoney(Number(tier.processingFee || 0))}{" "}
+                          processing fee
                         </p>
                       </div>
 
@@ -367,9 +387,11 @@ export default async function PropertyDashboard({
                           No units in this tier.
                         </div>
                       ) : (
-                        tier.units.map((unit) => {
-                          const activeAssignment =
-                            unit.assignments.length > 0 ? unit.assignments[0] : null;
+                        tier.units.map((unit: UnitRecord) => {
+                          const activeAssignment: AssignmentRecord | null =
+                            unit.tenantAssignments.length > 0
+                              ? unit.tenantAssignments[0]
+                              : null;
 
                           return (
                             <div key={unit.id} className={styles.unitCard}>
@@ -378,7 +400,8 @@ export default async function PropertyDashboard({
                                   Unit {unit.unitNumber}
                                 </span>
                                 <span className={styles.unitFee}>
-                                  {formatMoney(Number(unit.recurringFees || 0))} add-ons
+                                  {formatMoney(Number(unit.recurringFees || 0))}{" "}
+                                  add-ons
                                 </span>
                               </div>
 

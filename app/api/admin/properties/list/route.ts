@@ -41,38 +41,30 @@ export async function GET(req: Request) {
         propertyCode: true,
         propertyType: true,
         isActive: true,
-        tiers: {
+        ownerDisplayName: true,
+        contactEmail: true,
+        _count: {
           select: {
-            id: true,
-            units: {
-              select: {
-                id: true,
-              },
-            },
+            units: true,
+            tiers: true,
           },
         },
       },
     });
 
-    const rows: PropertyListRow[] = properties.map((property) => {
-      const tierCount = property.tiers.length;
-      const unitCount = property.tiers.reduce(
-        (sum, tier) => sum + tier.units.length,
-        0
-      );
-
-      return {
+    const rows: PropertyListRow[] = properties.map(
+      (property: (typeof properties)[number]) => ({
         id: property.id,
         name: property.name,
         propertyCode: property.propertyCode,
-        propertyType: property.propertyType,
+        propertyType: safeString(property.propertyType),
         isActive: property.isActive,
-        contactName: "",
-        contactEmail: "",
-        unitCount,
-        tierCount,
-      };
-    });
+        contactName: safeString(property.ownerDisplayName),
+        contactEmail: safeString(property.contactEmail),
+        unitCount: property._count.units,
+        tierCount: property._count.tiers,
+      })
+    );
 
     return NextResponse.json({
       ok: true,

@@ -1,12 +1,14 @@
+// app/api/exports/payments/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-function toCSV(rows: Record<string, any>[]) {
-  if (rows.length === 0) return "";
+function toCSV(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return "";
 
   const headers = Object.keys(rows[0]);
 
-  const escape = (value: any) => {
+  const escape = (value: unknown): string => {
     if (value === null || value === undefined) return "";
     const str = String(value);
     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -16,12 +18,14 @@ function toCSV(rows: Record<string, any>[]) {
   };
 
   const headerLine = headers.join(",");
-  const lines = rows.map((row) => headers.map((h) => escape(row[h])).join(","));
+  const lines = rows.map((row) =>
+    headers.map((h) => escape(row[h])).join(",")
+  );
 
   return [headerLine, ...lines].join("\n");
 }
 
-function fmtDate(value: Date | string | null) {
+function fmtDate(value: Date | string | null): string {
   if (!value) return "";
   return new Date(value).toISOString().split("T")[0];
 }
@@ -31,40 +35,32 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
     const propertyId = searchParams.get("propertyId");
-    const unitId = searchParams.get("unitId");
+    const status = searchParams.get("status");
 
-    if (!propertyId && !unitId) {
+    if (!propertyId) {
       return NextResponse.json(
-        { error: "propertyId or unitId required" },
+        { error: "propertyId required" },
         { status: 400 }
       );
     }
 
-    const entries = await prisma.ledgerEntry.findMany({
+    const payments = await prisma.payment.findMany({
       where: {
-        ...(propertyId ? { propertyId } : {}),
-        ...(unitId ? { unitId } : {}),
-        amount: { lt: 0 },
+        propertyId,
+        ...(status ? { status } : {}),
       },
-      orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
+      orderBy: { createdAt: "desc" },
       include: {
-        property: true,
         unit: true,
-        tenant: true,
       },
     });
 
-    const rows = entries.map((e: (typeof entries)[number]) => ({
-      propertyName: e.property?.name || "",
-      propertyCode: e.property?.code || "",
-      unitNumber: e.unit?.unitNumber || "",
-      tenantName: e.tenant?.name || "",
-      paymentType: e.type,
-      paymentAmount: Math.abs(Number(e.amount || 0)),
-      effectiveDate: fmtDate(e.effectiveDate),
-      createdAt: fmtDate(e.createdAt),
-      memo: e.memo || "",
-      source: e.source || "",
+    const rows = payments.map((p) => ({
+      unitNumber: p.unit?.unitNumber || "",
+      status: p.status,
+      amount: Math.abs(p.amountCents) / 100,
+      createdAt: fmtDate(p.createdAt),
+      updatedAt: fmtDate(p.updatedAt),
     }));
 
     const csv = toCSV(rows);
@@ -72,13 +68,13 @@ export async function GET(req: Request) {
     return new NextResponse(csv, {
       headers: {
         "Content-Type": "text/csv",
-        "Content-Disposition": 'attachment; filename="payments-export.csv"',
+        "Content-Disposition": "attachment; filename=payments-report.csv",
       },
     });
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      { error: "Failed to export payments" },
+      { error: "Export failed" },
       { status: 500 }
     );
   }

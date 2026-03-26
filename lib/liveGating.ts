@@ -8,16 +8,47 @@ type PaymentLike = {
   adminApproved?: boolean | null;
 } | null | undefined;
 
+type PropertyStatus = "TEST" | "READY" | "LIVE" | "PAUSED" | "INACTIVE" | string;
+
 type PropertyLike = {
   settings?: unknown;
-  units?: Array<unknown>;
+  units?: unknown[] | null;
   paymentConnectionStatus?: PaymentLike;
   isActive?: boolean | null;
-  status?: string | null;
+  status?: PropertyStatus | null;
 } | null | undefined;
 
-export function getLiveReadiness(property: PropertyLike) {
-  const hasUnits = Boolean(property?.units && property.units.length > 0);
+type LiveReadiness = {
+  hasUnits: boolean;
+  hasSettings: boolean;
+  stripeConnected: boolean;
+  achEnabled: boolean;
+  onboardingComplete: boolean;
+  adminApproved: boolean;
+  paymentReady: boolean;
+  readyForLive: boolean;
+};
+
+const TENANT_ACCESS_STATUSES: ReadonlySet<string> = new Set([
+  "TEST",
+  "READY",
+  "LIVE",
+]);
+
+function normalizeStatus(status: PropertyStatus | null | undefined): string {
+  return String(status ?? "").trim().toUpperCase();
+}
+
+function isPropertyActive(property: PropertyLike): boolean {
+  return property?.isActive !== false;
+}
+
+function isTenantAccessibleStatus(property: PropertyLike): boolean {
+  return TENANT_ACCESS_STATUSES.has(normalizeStatus(property?.status));
+}
+
+export function getLiveReadiness(property: PropertyLike): LiveReadiness {
+  const hasUnits = Array.isArray(property?.units) && property.units.length > 0;
   const hasSettings = Boolean(property?.settings);
 
   const payment = property?.paymentConnectionStatus;
@@ -48,26 +79,20 @@ export function getLiveReadiness(property: PropertyLike) {
    COMPATIBILITY LAYER
 ========================= */
 
-function isActive(property: PropertyLike) {
-  return property?.isActive !== false;
+export function canManagerOperate(property: PropertyLike): boolean {
+  const readiness = getLiveReadiness(property);
+  return isPropertyActive(property) && readiness.readyForLive;
 }
 
-export function canManagerOperate(property: PropertyLike) {
-  const r = getLiveReadiness(property);
-  return isActive(property) && r.readyForLive;
+export function canTenantLogin(property: PropertyLike): boolean {
+  return isPropertyActive(property) && isTenantAccessibleStatus(property);
 }
 
-export function canTenantLogin(property: PropertyLike) {
-  const r = getLiveReadiness(property);
-  return isActive(property) && r.readyForLive;
+export function canAccessTenantPortal(property: PropertyLike): boolean {
+  return isPropertyActive(property) && isTenantAccessibleStatus(property);
 }
 
-export function canAccessTenantPortal(property: PropertyLike) {
-  const r = getLiveReadiness(property);
-  return isActive(property) && r.readyForLive;
-}
-
-export function canMakePayments(property: PropertyLike) {
-  const r = getLiveReadiness(property);
-  return isActive(property) && r.paymentReady;
+export function canMakePayments(property: PropertyLike): boolean {
+  const readiness = getLiveReadiness(property);
+  return isPropertyActive(property) && readiness.paymentReady;
 }
