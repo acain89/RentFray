@@ -14,18 +14,37 @@ type LedgerEntry = {
   memo?: string | null;
 };
 
+type StatementItem = {
+  label: string;
+  amount: number;
+};
+
+type StatementData = {
+  rent: number;
+  recurringCharges: number;
+  lateFees: number;
+  processingFee: number;
+  credits: number;
+  subtotal: number;
+  totalDue: number;
+  items: StatementItem[];
+};
+
 type DashboardData = {
   ok: true;
   tenantName: string;
   propertyName?: string;
   propertyStatus: string;
   paymentEnabled: boolean;
+  dueDate?: string;
+  graceEndsOn?: string;
   unitNumber?: string;
   unitId: string;
   balance: number;
   totalPaid: number;
   isDelinquent: boolean;
   ledger: LedgerEntry[];
+  statement?: StatementData;
 };
 
 type DashboardError = {
@@ -33,15 +52,15 @@ type DashboardError = {
   ok?: false;
 };
 
-function money(v: number): string {
-  return `$${Number(v || 0).toFixed(2)}`;
+function money(value: number): string {
+  return `$${Number(value || 0).toFixed(2)}`;
 }
 
 function fmtDate(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "";
+    return "—";
   }
 
   return date.toLocaleDateString("en-US");
@@ -111,6 +130,53 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
         }))
     : [];
 
+  let statement: StatementData | undefined;
+
+  if (data.statement && typeof data.statement === "object") {
+    const candidate = data.statement as Partial<StatementData>;
+
+    const items: StatementItem[] = Array.isArray(candidate.items)
+      ? candidate.items
+          .filter((item): item is StatementItem => {
+            if (!item || typeof item !== "object") {
+              return false;
+            }
+
+            const row = item as Partial<StatementItem>;
+
+            return (
+              typeof row.label === "string" &&
+              typeof row.amount === "number"
+            );
+          })
+          .map((item) => ({
+            label: item.label,
+            amount: item.amount,
+          }))
+      : [];
+
+    if (
+      typeof candidate.rent === "number" &&
+      typeof candidate.recurringCharges === "number" &&
+      typeof candidate.lateFees === "number" &&
+      typeof candidate.credits === "number" &&
+      typeof candidate.subtotal === "number" &&
+      typeof candidate.totalDue === "number" &&
+      typeof candidate.processingFee === "number"
+    ) {
+      statement = {
+  rent: candidate.rent,
+  recurringCharges: candidate.recurringCharges,
+  lateFees: candidate.lateFees,
+  processingFee: candidate.processingFee,
+  credits: candidate.credits,
+  subtotal: candidate.subtotal,
+  totalDue: candidate.totalDue,
+  items,
+};
+    }
+  }
+
   return {
     ok: true,
     tenantName: data.tenantName,
@@ -118,6 +184,9 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
       typeof data.propertyName === "string" ? data.propertyName : undefined,
     propertyStatus: data.propertyStatus,
     paymentEnabled: data.paymentEnabled,
+    dueDate: typeof data.dueDate === "string" ? data.dueDate : undefined,
+    graceEndsOn:
+      typeof data.graceEndsOn === "string" ? data.graceEndsOn : undefined,
     unitNumber:
       typeof data.unitNumber === "string" ? data.unitNumber : undefined,
     unitId: data.unitId,
@@ -125,6 +194,7 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
     totalPaid: data.totalPaid,
     isDelinquent: data.isDelinquent,
     ledger,
+    statement,
   };
 }
 
@@ -174,7 +244,11 @@ export default function TenantDashboard() {
         }
 
         setData(normalized);
-        setAmount(String(Number(normalized.balance || 0).toFixed(2)));
+
+        const dueAmount =
+          normalized.statement?.totalDue ?? normalized.balance ?? 0;
+
+        setAmount(String(Number(dueAmount || 0).toFixed(2)));
       } catch {
         if (!active) return;
         setError("Failed to load dashboard.");
@@ -185,7 +259,7 @@ export default function TenantDashboard() {
       }
     }
 
-    load();
+    void load();
 
     return () => {
       active = false;
@@ -206,6 +280,7 @@ export default function TenantDashboard() {
         <div className="space-y-3 text-center">
           <div className="text-sm text-red-600">{error || "Error loading."}</div>
           <button
+            type="button"
             onClick={() => router.replace("/property-code")}
             className="rounded-xl border px-4 py-2 text-sm"
           >
@@ -217,12 +292,14 @@ export default function TenantDashboard() {
   }
 
   const ledger = Array.isArray(data.ledger) ? data.ledger : [];
-  const numericAmount = Number(amount || 0);
+  const statement = data.statement;
   const paymentBlocked = !data.paymentEnabled;
+  const totalDue = statement?.totalDue ?? data.balance;
+  const numericAmount = Number(amount || 0);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 px-4 py-6 text-slate-900">
-      <div className="mx-auto max-w-md space-y-6">
+      <div className="mx-auto max-w-md space-y-5">
         <div>
           <div className="text-xs font-semibold tracking-[0.2em] text-slate-700">
             RENTFRAY
@@ -239,7 +316,7 @@ export default function TenantDashboard() {
           <p className="text-xs text-slate-500">Current Balance</p>
 
           <p className="mt-2 text-4xl font-semibold tracking-tight">
-            {money(data.balance)}
+            {money(totalDue)}
           </p>
 
           <p className="mt-2 text-sm font-medium">
@@ -251,8 +328,86 @@ export default function TenantDashboard() {
           </p>
         </div>
 
-        {!paymentBlocked && data.balance > 0 && (
-          <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5">
+        {statement ? (
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-sm font-semibold text-slate-900">
+              Current Statement
+            </h2>
+
+            <div className="mt-4 space-y-3 text-sm text-slate-700">
+              {statement.items.length > 0 ? (
+                statement.items.map((item, index) => (
+                  <div
+                    key={`${item.label}-${index}`}
+                    className="flex items-start justify-between gap-3"
+                  >
+                    <div className="flex min-w-0 items-start gap-2">
+                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                      <span className="break-words">{item.label}</span>
+                    </div>
+
+                    <span
+                      className={`shrink-0 font-medium ${
+                        item.amount < 0 ? "text-emerald-600" : "text-slate-900"
+                      }`}
+                    >
+                      {item.amount < 0
+                        ? `- ${money(Math.abs(item.amount))}`
+                        : money(item.amount)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-slate-500">
+                  No charges have been posted for this billing period yet.
+                </div>
+              )}
+
+              <div className="my-2 border-t border-slate-200" />
+
+              <div className="flex justify-between">
+                <span>Rent</span>
+                <span className="font-medium">{money(statement.rent)}</span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Charges</span>
+                <span className="font-medium">
+                  {money(statement.recurringCharges)}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Late Fees</span>
+                <span className="font-medium">{money(statement.lateFees)}</span>
+              </div>
+
+              <div className="flex justify-between">
+  <span>Processing Fee</span>
+  <span className="font-medium">{money(statement.processingFee ?? 0)}</span>
+</div>
+
+              <div className="border-t border-slate-200 pt-3" />
+
+              <div className="flex justify-between text-base font-semibold text-slate-950">
+                <span>
+                  Total due
+                  {data.dueDate ? ` on ${fmtDate(data.dueDate)}` : ""}
+                </span>
+                <span>{money(totalDue)}</span>
+              </div>
+
+              {data.graceEndsOn ? (
+                <div className="text-sm text-slate-500">
+                  Grace period ends {fmtDate(data.graceEndsOn)}.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {!paymentBlocked && totalDue > 0 ? (
+          <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold">Make a Payment</p>
 
             <input
@@ -266,16 +421,17 @@ export default function TenantDashboard() {
 
             <PayNowButton unitId={data.unitId} amount={numericAmount} />
           </div>
-        )}
+        ) : null}
 
-        {paymentBlocked && (
+        {paymentBlocked ? (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
             Payments are currently disabled.
           </div>
-        )}
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3">
           <button
+            type="button"
             onClick={() => router.push("/tenant/payment-history")}
             className="rounded-xl border px-4 py-3 text-sm"
           >
@@ -283,6 +439,7 @@ export default function TenantDashboard() {
           </button>
 
           <button
+            type="button"
             onClick={() => router.push("/tenant/maintenance")}
             className="rounded-xl border px-4 py-3 text-sm"
           >
@@ -300,7 +457,10 @@ export default function TenantDashboard() {
               </div>
             ) : (
               ledger.slice(0, 5).map((entry) => (
-                <div key={entry.id} className="rounded-xl border bg-white p-3 text-sm">
+                <div
+                  key={entry.id}
+                  className="rounded-xl border bg-white p-3 text-sm"
+                >
                   <div className="flex justify-between gap-3">
                     <span>{entry.type}</span>
                     <span>{money(entry.amount)}</span>
@@ -311,7 +471,9 @@ export default function TenantDashboard() {
                   </div>
 
                   {entry.memo ? (
-                    <div className="mt-1 text-xs text-slate-500">{entry.memo}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {entry.memo}
+                    </div>
                   ) : null}
                 </div>
               ))

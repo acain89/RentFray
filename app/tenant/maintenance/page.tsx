@@ -1,4 +1,4 @@
-// app/tenant/maintenance/page.tsx
+// /app/tenant/maintenance/page.tsx
 
 "use client";
 
@@ -21,36 +21,48 @@ type MaintenanceData = {
   requests: MaintenanceRow[];
 };
 
-function fmtDateTime(value: string) {
-  return new Date(value).toLocaleString("en-US");
+type ErrorResponse = {
+  ok?: false;
+  error?: string;
+};
+
+function fmtDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-US");
 }
 
 export default function TenantMaintenancePage() {
   const [data, setData] = useState<MaintenanceData | null>(null);
-  const [category, setCategory] = useState("PLUMBING");
-  const [urgency, setUrgency] = useState("NORMAL");
-  const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState<string>("PLUMBING");
+  const [urgency, setUrgency] = useState<string>("NORMAL");
+  const [description, setDescription] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [saving, setSaving] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  async function load() {
+  async function load(): Promise<void> {
     try {
       setLoading(true);
       setError("");
 
-      const res = await fetch("/api/tenant/maintenance", {
+      const res = await fetch("/api/tenant/maintenance/list", {
         cache: "no-store",
       });
 
-      const json = await res.json();
+      const json = (await res.json().catch(() => null)) as
+        | MaintenanceData
+        | ErrorResponse
+        | null;
 
-      if (!res.ok) {
-        setError(json?.error || "Failed to load maintenance.");
+      if (!res.ok || !json || !("ok" in json) || !json.ok) {
+        setError(
+          (json as ErrorResponse)?.error || "Failed to load maintenance."
+        );
         return;
       }
 
-      setData(json);
+      setData(json as MaintenanceData);
     } catch {
       setError("Failed to load maintenance.");
     } finally {
@@ -59,10 +71,12 @@ export default function TenantMaintenancePage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
-  async function submitRequest(e: React.FormEvent) {
+  async function submitRequest(
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> {
     e.preventDefault();
 
     if (saving) return;
@@ -71,7 +85,7 @@ export default function TenantMaintenancePage() {
       setSaving(true);
       setError("");
 
-      const res = await fetch("/api/tenant/maintenance", {
+      const res = await fetch("/api/tenant/maintenance/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -83,9 +97,11 @@ export default function TenantMaintenancePage() {
         }),
       });
 
-      const json = await res.json();
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
 
-      if (!res.ok) {
+      if (!res.ok || !json?.ok) {
         setError(json?.error || "Failed to submit request.");
         return;
       }
@@ -104,22 +120,25 @@ export default function TenantMaintenancePage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-semibold">Maintenance</h1>
-        <p className="text-sm text-neutral-600 mt-1">
+        <p className="mt-1 text-sm text-neutral-600">
           {data?.propertyName} — Unit {data?.unitNumber}
         </p>
       </div>
 
-      <form onSubmit={submitRequest} className="border rounded-xl p-4 bg-white space-y-4">
+      <form
+        onSubmit={submitRequest}
+        className="space-y-4 rounded-xl border bg-white p-4"
+      >
         <h2 className="text-lg font-semibold">Create Request</h2>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1">
             <div className="text-sm font-medium">Category</div>
             <select
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full rounded-lg border px-3 py-2"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
@@ -128,29 +147,30 @@ export default function TenantMaintenancePage() {
               <option value="HVAC">HVAC</option>
               <option value="APPLIANCE">APPLIANCE</option>
               <option value="GENERAL">GENERAL</option>
-              <option value="OTHER">OTHER</option>
+              <option value="PEST">PEST</option>
+              <option value="LOCKS">LOCKS</option>
             </select>
           </label>
 
           <label className="space-y-1">
             <div className="text-sm font-medium">Urgency</div>
             <select
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full rounded-lg border px-3 py-2"
               value={urgency}
               onChange={(e) => setUrgency(e.target.value)}
             >
               <option value="LOW">LOW</option>
               <option value="NORMAL">NORMAL</option>
               <option value="HIGH">HIGH</option>
-              <option value="EMERGENCY">EMERGENCY</option>
+              <option value="URGENT">URGENT</option>
             </select>
           </label>
         </div>
 
-        <label className="space-y-1 block">
+        <label className="block space-y-1">
           <div className="text-sm font-medium">Description</div>
           <textarea
-            className="w-full border rounded-lg px-3 py-2 min-h-[120px]"
+            className="min-h-[120px] w-full rounded-lg border px-3 py-2"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe the issue"
@@ -158,33 +178,51 @@ export default function TenantMaintenancePage() {
           />
         </label>
 
-        {error ? <div className="text-sm text-red-600">{error}</div> : null}
+        {error ? (
+          <div className="text-sm text-red-600">{error}</div>
+        ) : null}
 
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-60"
+          className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-60"
         >
           {saving ? "Submitting..." : "Submit Request"}
         </button>
       </form>
 
-      <div className="border rounded-xl p-4 bg-white space-y-4">
+      <div className="space-y-4 rounded-xl border bg-white p-4">
         <h2 className="text-lg font-semibold">Request History</h2>
 
         {!data?.requests?.length ? (
-          <div className="text-sm text-neutral-600">No requests yet.</div>
+          <div className="text-sm text-neutral-600">
+            No requests yet.
+          </div>
         ) : (
           <div className="space-y-3">
             {data.requests.map((row) => (
-              <div key={row.id} className="border rounded-xl p-4">
+              <div
+                key={row.id}
+                className="rounded-xl border p-4"
+              >
                 <div className="flex flex-wrap gap-3 text-sm">
-                  <div><span className="font-medium">Category:</span> {row.category}</div>
-                  <div><span className="font-medium">Urgency:</span> {row.urgency}</div>
-                  <div><span className="font-medium">Status:</span> {row.status}</div>
+                  <div>
+                    <span className="font-medium">Category:</span>{" "}
+                    {row.category}
+                  </div>
+                  <div>
+                    <span className="font-medium">Urgency:</span>{" "}
+                    {row.urgency}
+                  </div>
+                  <div>
+                    <span className="font-medium">Status:</span>{" "}
+                    {row.status}
+                  </div>
                 </div>
 
-                <div className="mt-3 text-sm whitespace-pre-wrap">{row.description}</div>
+                <div className="mt-3 whitespace-pre-wrap text-sm">
+                  {row.description}
+                </div>
 
                 <div className="mt-3 text-xs text-neutral-500">
                   Created: {fmtDateTime(row.createdAt)}

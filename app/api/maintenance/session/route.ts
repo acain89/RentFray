@@ -5,7 +5,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
-const ALLOWED_PROPERTY_STATUSES = new Set(["TEST", "READY", "LIVE"] as const);
+const ALLOWED_PROPERTY_STATUSES = new Set(
+  ["TEST", "READY", "LIVE", "SETUP", "DRAFT"] as const
+);
 
 type MaintenanceLoginBody = {
   propertyCode?: unknown;
@@ -34,8 +36,9 @@ function clean(value: unknown): string {
 }
 
 function isValidPropertyCode(value: string): boolean {
-  return /^\d{4}$/.test(value);
+  return value.length >= 4;
 }
+
 
 function isValidPin(value: string): boolean {
   return /^\d{4}$/.test(value);

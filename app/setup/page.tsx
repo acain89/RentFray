@@ -1,5 +1,3 @@
-// app/setup/page.tsx
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -25,8 +23,8 @@ type TierDraft = {
 
 type FormState = {
   email: string;
-  username: string;
   password: string;
+  confirmPassword: string;
   propertyName: string;
   addressLine1: string;
   addressLine2: string;
@@ -38,6 +36,34 @@ type FormState = {
 };
 
 type TouchedState = Record<string, boolean>;
+
+type SetupApiSuccess = {
+  ok: true;
+  propertyId: string;
+  propertyCode: string;
+  redirectTo?: string;
+};
+
+type SetupApiError = {
+  ok: false;
+  error?: string;
+};
+
+type SetupApiResponse = SetupApiSuccess | SetupApiError | null;
+
+type ManagerSessionSuccess = {
+  ok?: true;
+  success?: true;
+  redirectTo?: string;
+};
+
+type ManagerSessionError = {
+  ok?: false;
+  success?: false;
+  error?: string;
+};
+
+type ManagerSessionResponse = ManagerSessionSuccess | ManagerSessionError | null;
 
 const STORAGE_KEY = "rentfray_self_serve_setup_v1";
 
@@ -60,8 +86,8 @@ function createTier(index: number): TierDraft {
 function getInitialState(): FormState {
   return {
     email: "",
-    username: "",
     password: "",
+    confirmPassword: "",
     propertyName: "",
     addressLine1: "",
     addressLine2: "",
@@ -117,6 +143,16 @@ function ordinalDay(value: number): string {
   return `${value}th`;
 }
 
+function getMaxLateWindow(
+  billingFrequency: BillingFrequency,
+  dueDay: string
+): number {
+  if (billingFrequency !== "MONTHLY") return 31;
+  const due = Number(dueDay || 0);
+  if (due < 1 || due > 31) return 31;
+  return 31 - due;
+}
+
 function formatMoney(value: number, lateFeeType: LateFeeType): string {
   if (lateFeeType === "PERCENT") {
     return `${value.toFixed(2)}%`;
@@ -162,9 +198,9 @@ function buildLateFeeSummary(tier: TierDraft): string {
   const lateStartDay = dueDay > 0 ? dueDay + gracePeriodDays : 0;
   const dailyStartDay = lateStartDay > 0 ? lateStartDay + 1 : 0;
   const dailyEndDay =
-  dailyStartDay > 0 && maxLateFeeDays > 0
-    ? dailyStartDay + maxLateFeeDays - 1
-    : 0;
+    dailyStartDay > 0 && maxLateFeeDays > 0
+      ? dailyStartDay + maxLateFeeDays - 1
+      : 0;
 
   const words = getScheduleWords(tier.billingFrequency);
 
@@ -172,29 +208,29 @@ function buildLateFeeSummary(tier: TierDraft): string {
     tier.billingFrequency === "MONTHLY"
       ? ordinalDay(dueDay)
       : dueDay > 0
-      ? `day ${dueDay}`
-      : "—";
+        ? `day ${dueDay}`
+        : "—";
 
   const lateStartText =
     tier.billingFrequency === "MONTHLY"
       ? ordinalDay(lateStartDay)
       : lateStartDay > 0
-      ? `day ${lateStartDay}`
-      : "—";
+        ? `day ${lateStartDay}`
+        : "—";
 
   const dailyStartText =
     tier.billingFrequency === "MONTHLY"
       ? ordinalDay(dailyStartDay)
       : dailyStartDay > 0
-      ? `day ${dailyStartDay}`
-      : "—";
+        ? `day ${dailyStartDay}`
+        : "—";
 
   const dailyEndText =
     tier.billingFrequency === "MONTHLY"
       ? ordinalDay(dailyEndDay)
       : dailyEndDay > 0
-      ? `day ${dailyEndDay}`
-      : "—";
+        ? `day ${dailyEndDay}`
+        : "—";
 
   return `Payment due on the ${dueText}${
     words.due ? ` ${words.due}` : ""
@@ -213,17 +249,25 @@ function buildLateFeeSummary(tier: TierDraft): string {
   } and ending on the ${dailyEndText}${words.end ? ` ${words.end}` : ""}.`;
 }
 
+async function readJsonSafely<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export default function SetupPage() {
   const router = useRouter();
 
   const [form, setForm] = useState<FormState>(getInitialState);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState<number>(1);
   const [touched, setTouched] = useState<TouchedState>({});
-  const [hydrated, setHydrated] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("Progress auto-saves.");
-  const [submitError, setSubmitError] = useState("");
-  const [sameForAllLoading, setSameForAllLoading] = useState(false);
+  const [hydrated, setHydrated] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [saveMessage, setSaveMessage] = useState<string>("Progress auto-saves.");
+  const [submitError, setSubmitError] = useState<string>("");
+  const [sameForAllLoading, setSameForAllLoading] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -277,6 +321,7 @@ export default function SetupPage() {
       return () => window.clearTimeout(timeout);
     } catch {
       setSaveMessage("Could not save locally");
+      return undefined;
     }
   }, [form, step, hydrated]);
 
@@ -284,13 +329,13 @@ export default function SetupPage() {
 
   const step1Errors = {
     email: touched.email && !isEmail(form.email) ? "Enter a valid email." : "",
-    username:
-      touched.username && form.username.trim().length < 3
-        ? "Username must be at least 3 characters."
-        : "",
     password:
       touched.password && form.password.length < 8
         ? "Password must be at least 8 characters."
+        : "",
+    confirmPassword:
+      touched.confirmPassword && form.password !== form.confirmPassword
+        ? "Passwords do not match."
         : "",
   };
 
@@ -345,8 +390,13 @@ export default function SetupPage() {
           ? "Enter daily late fee."
           : "",
       maxLateFeeDays:
-        touched[`lateMax-${tier.id}`] && !(Number(tier.maxLateFeeDays) >= 0)
-          ? "Enter max days."
+        touched[`lateMax-${tier.id}`] &&
+        Number(tier.gracePeriodDays) + Number(tier.maxLateFeeDays) >
+          getMaxLateWindow(tier.billingFrequency, tier.dueDay)
+          ? `Grace period + max late fee days cannot exceed ${getMaxLateWindow(
+              tier.billingFrequency,
+              tier.dueDay
+            )}.`
           : "",
     };
   }
@@ -417,24 +467,24 @@ export default function SetupPage() {
     }, 250);
   }
 
-  function validateStep1() {
+  function validateStep1(): boolean {
     const nextTouched: TouchedState = {
       ...touched,
       email: true,
-      username: true,
       password: true,
+      confirmPassword: true,
     };
 
     setTouched(nextTouched);
 
     return (
       isEmail(form.email) &&
-      form.username.trim().length >= 3 &&
-      form.password.length >= 8
+      form.password.length >= 8 &&
+      form.password === form.confirmPassword
     );
   }
 
-  function validateStep2() {
+  function validateStep2(): boolean {
     const nextTouched: TouchedState = {
       ...touched,
       propertyName: true,
@@ -457,8 +507,8 @@ export default function SetupPage() {
     );
   }
 
-  function validateStep3() {
-    const nextTouched = { ...touched };
+  function validateStep3(): boolean {
+    const nextTouched: TouchedState = { ...touched };
 
     form.tiers.forEach((tier) => {
       nextTouched[`price-${tier.id}`] = true;
@@ -472,8 +522,8 @@ export default function SetupPage() {
     );
   }
 
-  function validateStep4() {
-    const nextTouched = { ...touched };
+  function validateStep4(): boolean {
+    const nextTouched: TouchedState = { ...touched };
 
     form.tiers.forEach((tier) => {
       nextTouched[`dueDay-${tier.id}`] = true;
@@ -490,12 +540,17 @@ export default function SetupPage() {
         tier.billingFrequency !== "MONTHLY" ||
         (Number(tier.dueDay) >= 1 && Number(tier.dueDay) <= 31);
 
+      const withinLateWindow =
+        Number(tier.gracePeriodDays) + Number(tier.maxLateFeeDays) <=
+        getMaxLateWindow(tier.billingFrequency, tier.dueDay);
+
       return (
         monthlyDueValid &&
         Number(tier.gracePeriodDays) >= 0 &&
         Number(tier.lateFeeInitial) >= 0 &&
         Number(tier.lateFeeDaily) >= 0 &&
-        Number(tier.maxLateFeeDays) >= 0
+        Number(tier.maxLateFeeDays) >= 0 &&
+        withinLateWindow
       );
     });
   }
@@ -525,7 +580,6 @@ export default function SetupPage() {
     const payload = {
       account: {
         email: form.email.trim(),
-        username: form.username.trim(),
         password: form.password,
       },
       property: {
@@ -555,21 +609,54 @@ export default function SetupPage() {
     setSaving(true);
 
     try {
-      const res = await fetch("/api/setup", {
+      const setupRes = await fetch("/api/setup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
-      const result = await res.json().catch(() => null);
+      const setupResult = await readJsonSafely<SetupApiResponse>(setupRes);
 
-      if (!res.ok || !result?.ok) {
-        setSubmitError(result?.error || "Could not complete setup.");
+      if (!setupRes.ok || !setupResult || !setupResult.ok) {
+        setSubmitError(
+          setupResult && "error" in setupResult && setupResult.error
+            ? setupResult.error
+            : "Could not complete setup."
+        );
+        return;
+      }
+
+      const sessionRes = await fetch("/api/manager/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+        }),
+      });
+
+      const sessionResult =
+        await readJsonSafely<ManagerSessionResponse>(sessionRes);
+
+      if (!sessionRes.ok) {
+        setSubmitError(
+          sessionResult && "error" in sessionResult && sessionResult.error
+            ? sessionResult.error
+            : "Property created, but automatic login failed."
+        );
         return;
       }
 
       localStorage.removeItem(STORAGE_KEY);
-      router.push(result.redirectTo || "/admin");
+
+      const redirectTo =
+        sessionResult?.redirectTo || setupResult.redirectTo || "/manager/dashboard";
+
+      router.push(redirectTo);
     } catch {
       setSubmitError("Network error. Please try again.");
     } finally {
@@ -635,8 +722,8 @@ export default function SetupPage() {
                     active
                       ? "bg-white text-[#0f172a]"
                       : done
-                      ? "bg-white/20 text-white"
-                      : "bg-white/10 text-white/75"
+                        ? "bg-white/20 text-white"
+                        : "bg-white/10 text-white/75"
                   }`}
                 >
                   {label}
@@ -658,7 +745,7 @@ export default function SetupPage() {
                   Create your account
                 </h2>
                 <p className="mt-1 text-sm text-[#64748b]">
-                  Simple email, username, and password.
+                  Simple email and password.
                 </p>
               </div>
 
@@ -674,17 +761,6 @@ export default function SetupPage() {
                 />
 
                 <Field
-                  label="Username"
-                  value={form.username}
-                  error={step1Errors.username}
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, username: true }))
-                  }
-                  onChange={(value) => setField("username", value)}
-                  placeholder="yourusername"
-                />
-
-                <Field
                   label="Password"
                   value={form.password}
                   error={step1Errors.password}
@@ -693,6 +769,18 @@ export default function SetupPage() {
                   }
                   onChange={(value) => setField("password", value)}
                   placeholder="At least 8 characters"
+                  type="password"
+                />
+
+                <Field
+                  label="Confirm Password"
+                  value={form.confirmPassword}
+                  error={step1Errors.confirmPassword}
+                  onBlur={() =>
+                    setTouched((prev) => ({ ...prev, confirmPassword: true }))
+                  }
+                  onChange={(value) => setField("confirmPassword", value)}
+                  placeholder="Re-enter password"
                   type="password"
                 />
               </div>
@@ -964,11 +1052,7 @@ export default function SetupPage() {
                         />
 
                         <Field
-                          label={
-                            tier.billingFrequency === "MONTHLY"
-                              ? "Due day"
-                              : "Due day"
-                          }
+                          label="Due day"
                           value={tier.dueDay}
                           error={errors.dueDay}
                           onBlur={() =>
@@ -1102,13 +1186,13 @@ export default function SetupPage() {
                       </div>
 
                       <div className="mt-4 rounded-[24px] border border-[#334155] bg-[#233143] px-5 py-5 text-white shadow-[0_20px_50px_rgba(15,23,42,0.25)]">
-                       <div className="mb-2 text-xs font-semibold tracking-[0.18em] text-white/70 uppercase">
-                       Billing Summary
-                       </div>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                          Billing Summary
+                        </div>
 
-                       <p className="text-base sm:text-lg leading-7 font-medium text-white">
-                       {buildLateFeeSummary(tier)}
-                       </p>
+                        <p className="text-base font-medium leading-7 text-white sm:text-lg">
+                          {buildLateFeeSummary(tier)}
+                        </p>
                       </div>
                     </div>
                   );
@@ -1166,7 +1250,15 @@ type FieldProps = {
   onBlur: () => void;
   placeholder?: string;
   type?: HTMLInputTypeAttribute;
-  inputMode?: "text" | "search" | "email" | "tel" | "url" | "none" | "numeric" | "decimal";
+  inputMode?:
+    | "text"
+    | "search"
+    | "email"
+    | "tel"
+    | "url"
+    | "none"
+    | "numeric"
+    | "decimal";
   maxLength?: number;
 };
 

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
+import { Prisma } from "@prisma/client";
 
 type VacateBody = {
   unitId?: unknown;
@@ -121,63 +122,63 @@ export async function POST(req: Request) {
       },
     });
 
-    const result = await prisma.$transaction(async (tx) => {
-      let vacatedAssignmentId: string | null = null;
+    const result = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        let vacatedAssignmentId: string | null = null;
 
-      if (activeAssignment) {
-        await tx.tenantAssignment.update({
-          where: { id: activeAssignment.id },
+        if (activeAssignment) {
+          await tx.tenantAssignment.update({
+            where: { id: activeAssignment.id },
+            data: {
+              isCurrent: false,
+              moveOutDate,
+              notes: note || undefined,
+            },
+          });
+
+          vacatedAssignmentId = activeAssignment.id;
+        }
+
+        await tx.unit.update({
+          where: { id: unit.id },
           data: {
-            isCurrent: false,
-            moveOutDate,
-            notes: note
-              ? note
-              : undefined,
+            portalActivated: false,
+            portalFirstName: null,
+            portalLastName: null,
+            tenantPinHash: null,
+            activatedAt: null,
+            activationSource: null,
           },
         });
 
-        vacatedAssignmentId = activeAssignment.id;
+        await tx.auditLog.create({
+          data: {
+            propertyId: session.propertyId,
+            actorType: session.role,
+            actorManagementUserId: session.managementUserId ?? null,
+            action: "UNIT_VACATED",
+            targetType: "UNIT",
+            targetId: unit.id,
+            summary: `Unit ${unit.unitNumber} marked vacant`,
+            metadataJson: JSON.stringify({
+              unitId: unit.id,
+              unitNumber: unit.unitNumber,
+              tenantAssignmentId: vacatedAssignmentId,
+              moveOutDate: formatDateOnly(moveOutDate),
+              clearedPortalAccess: true,
+              note: note || null,
+            }),
+          },
+        });
+
+        return {
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+          vacatedAssignmentId,
+          moveOutDate: formatDateOnly(moveOutDate),
+        };
       }
-
-      await tx.unit.update({
-        where: { id: unit.id },
-        data: {
-          portalActivated: false,
-          portalFirstName: null,
-          portalLastName: null,
-          tenantPinHash: null,
-          activatedAt: null,
-          activationSource: null,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          propertyId: session.propertyId,
-          actorType: session.role,
-          actorManagementUserId: session.managementUserId ?? null,
-          action: "UNIT_VACATED",
-          targetType: "UNIT",
-          targetId: unit.id,
-          summary: `Unit ${unit.unitNumber} marked vacant`,
-          metadataJson: JSON.stringify({
-            unitId: unit.id,
-            unitNumber: unit.unitNumber,
-            tenantAssignmentId: vacatedAssignmentId,
-            moveOutDate: formatDateOnly(moveOutDate),
-            clearedPortalAccess: true,
-            note: note || null,
-          }),
-        },
-      });
-
-      return {
-        unitId: unit.id,
-        unitNumber: unit.unitNumber,
-        vacatedAssignmentId,
-        moveOutDate: formatDateOnly(moveOutDate),
-      };
-    });
+    );
 
     emitEvent("tenant:update", {
       propertyId: session.propertyId,

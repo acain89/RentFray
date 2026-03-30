@@ -2,12 +2,23 @@
 
 import MaintenanceLoginClient from "./MaintenanceLoginClient";
 
-export default function MaintenanceLoginPage({
-  searchParams,
-}: {
-  searchParams: { code?: string };
-}) {
-  const propertyCode = searchParams?.code || "";
+type MaintenanceLoginPageProps = {
+  searchParams: Promise<{
+    code?: string | string[];
+  }>;
+};
 
-  return <MaintenanceLoginClient propertyCode={propertyCode} />;
+export default async function MaintenanceLoginPage({
+  searchParams,
+}: MaintenanceLoginPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const rawCode = resolvedSearchParams?.code;
+  const propertyCode = Array.isArray(rawCode) ? rawCode[0] ?? "" : rawCode ?? "";
+
+  return (
+    <MaintenanceLoginClient
+      propertyCode={propertyCode || ""}
+      key={propertyCode}
+    />
+  );
 }

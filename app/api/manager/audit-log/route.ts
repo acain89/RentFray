@@ -24,7 +24,7 @@ export async function GET() {
       take: 100,
     });
 
-    const audit = payments.map((p) => ({
+    const audit = payments.map((p: (typeof payments)[number]) => ({
       id: p.id,
       type: "PAYMENT",
       status: p.status,

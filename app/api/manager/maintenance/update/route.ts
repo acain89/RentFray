@@ -1,19 +1,22 @@
-// app/api/manager/maintenance/update/route.ts
+// /app/api/manager/maintenance/update/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { Prisma } from "@prisma/client";
 
-const ALLOWED_STATUSES = new Set(["OPEN", "IN_PROGRESS", "COMPLETE"] as const);
-const ALLOWED_ROLES = new Set([
-  "OWNER",
-  "MANAGER",
-  "STAFF",
-  "MAINTENANCE",
-] as const);
+const ALLOWED_STATUSES = new Set(
+  ["OPEN", "IN_PROGRESS", "COMPLETE", "THIRD_PARTY"] as const
+);
 
-type AllowedStatus = "OPEN" | "IN_PROGRESS" | "COMPLETE";
+const ALLOWED_ROLES = new Set(
+  ["OWNER", "MANAGER", "STAFF", "MAINTENANCE"] as const
+);
+
+type AllowedStatus = "OPEN" | "IN_PROGRESS" | "COMPLETE" | "THIRD_PARTY";
 type AllowedAction = "DELETE";
+
+type AllowedRole = "OWNER" | "MANAGER" | "STAFF" | "MAINTENANCE";
 
 type RequestBody = {
   requestId?: unknown;
@@ -65,27 +68,23 @@ function parseStatus(value: unknown): AllowedStatus | null {
 
 function parseAction(value: unknown): AllowedAction | null {
   const normalized = clean(value).toUpperCase();
-
-  if (normalized === "DELETE") {
-    return "DELETE";
-  }
-
-  return null;
+  return normalized === "DELETE" ? "DELETE" : null;
 }
 
-function isAllowedRole(
-  role: string
-): role is "OWNER" | "MANAGER" | "STAFF" | "MAINTENANCE" {
-  return ALLOWED_ROLES.has(
-    role as "OWNER" | "MANAGER" | "STAFF" | "MAINTENANCE"
-  );
+function isAllowedRole(role: string): role is AllowedRole {
+  return ALLOWED_ROLES.has(role as AllowedRole);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<NextResponse> {
   try {
     const session = await getSession();
 
-    if (!session || !session.propertyId || !isAllowedRole(session.role)) {
+    if (
+      !session ||
+      !session.propertyId ||
+      !session.role ||
+      !isAllowedRole(session.role)
+    ) {
       return NextResponse.json<UpdateErrorResponse>(
         { ok: false, error: "Unauthorized" },
         { status: 401 }
@@ -134,7 +133,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "DELETE") {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.maintenanceRequest.delete({
           where: { id: requestId },
         });
@@ -239,7 +238,7 @@ export async function POST(req: Request) {
       ok: true,
       request: updated,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("POST /api/manager/maintenance/update error:", error);
 
     return NextResponse.json<UpdateErrorResponse>(

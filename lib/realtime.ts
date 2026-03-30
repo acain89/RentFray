@@ -2,6 +2,8 @@
 
 export type RealtimeEvent =
   | "ledger:update"
+  | "tenant:update"
+  | "unit:update"
   | "payment:update"
   | "maintenance:update"
   | "admin:update"

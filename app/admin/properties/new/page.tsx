@@ -161,10 +161,11 @@ export default function NewPropertyPage() {
 
   const [data, setData] = useState<WizardData>({
     account: {
-      fullName: "",
-      email: "",
-      password: "",
-    },
+  fullName: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+},
     property: {
       name: "",
       address: "",
@@ -218,10 +219,14 @@ export default function NewPropertyPage() {
     }
 
     if (!data.account.password.trim()) {
-      errors.password = "Enter a password.";
-    } else if (data.account.password.trim().length < 6) {
-      errors.password = "Password must be at least 6 characters.";
-    }
+  errors.password = "Enter a password.";
+} else if (data.account.password.trim().length < 6) {
+  errors.password = "Password must be at least 6 characters.";
+}
+
+if (data.account.password !== data.account.confirmPassword) {
+  errors.confirmPassword = "Passwords do not match.";
+}
 
     if (!data.property.name.trim()) {
       errors.propertyName = "Enter a property name.";
@@ -379,7 +384,10 @@ export default function NewPropertyPage() {
   };
 
   const hasStep1Errors =
-    !!validation.fullName || !!validation.email || !!validation.password;
+  !!validation.fullName ||
+  !!validation.email ||
+  !!validation.password ||
+  !!validation.confirmPassword;
 
   const hasStep2Errors =
     !!validation.propertyName || !!validation.propertyAddress;
@@ -508,6 +516,8 @@ export default function NewPropertyPage() {
         propertyCode: result.property.propertyCode,
         propertyName: result.property.name,
       });
+
+      router.replace(`/login/manager?code=${result.property.propertyCode}`);
 
       setStep(TOTAL_STEPS);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -653,6 +663,28 @@ Click "Tenants" to log in and view balance.`
                   <p className="wizard-error-text">{validation.password}</p>
                 )}
               </div>
+               <div>
+  <label className="wizard-label">Confirm Password</label>
+  <input
+    type="password"
+    autoComplete="new-password"
+    className="wizard-input"
+    value={data.account.confirmPassword}
+    onChange={(e) =>
+      setData((prev) => ({
+        ...prev,
+        account: {
+          ...prev.account,
+          confirmPassword: e.target.value,
+        },
+      }))
+    }
+    placeholder="Re-enter password"
+  />
+  {submitAttempted && validation.confirmPassword && (
+    <p className="wizard-error-text">{validation.confirmPassword}</p>
+  )}
+</div>
             </div>
           </section>
         )}
@@ -1332,13 +1364,13 @@ Click "Tenants" to log in and view balance.`
 
               <button
                 type="button"
-                onClick={() =>
-                  router.push(`/admin/properties/${successData.propertyId}`)
-                }
-                className="wizard-primary-button"
-              >
-                Go to dashboard
-              </button>
+                  onClick={() =>
+                   router.replace(`/login/manager?code=${successData.propertyCode}`)
+                   }
+                  className="wizard-primary-button"
+                  >
+                 Continue to login
+                </button>
             </div>
           </section>
         )}

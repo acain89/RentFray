@@ -13,12 +13,6 @@ type ActivateBody = {
   confirmPin: string;
 };
 
-const ALLOWED_PROPERTY_STATUSES: Set<string> = new Set([
-  "TEST",
-  "READY",
-  "LIVE",
-]);
-
 function clean(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -35,7 +29,6 @@ export async function POST(req: Request) {
     const pin = clean(body.pin);
     const confirmPin = clean(body.confirmPin);
 
-    // 🔒 PROPERTY CODE VALIDATION (4 OR 5 DIGITS)
     if (!/^\d{4,5}$/.test(propertyCode)) {
       return NextResponse.json(
         { error: "Invalid property code." },
@@ -85,31 +78,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔍 PROPERTY LOOKUP
     const property = await prisma.property.findUnique({
       where: { propertyCode },
       select: {
         id: true,
-        status: true,
         isActive: true,
       },
     });
 
     if (!property || !property.isActive) {
       return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
-      );
-    }
-
-    if (!ALLOWED_PROPERTY_STATUSES.has(property.status)) {
-      return NextResponse.json(
         { error: "Property not available." },
         { status: 403 }
       );
     }
 
-    // 🔍 UNIT LOOKUP
     const unit = await prisma.unit.findUnique({
       where: {
         propertyId_unitNumber: {
@@ -141,10 +124,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔐 HASH PIN
     const pinHash = await hashPin(pin);
 
-    // 🧠 ACTIVATE UNIT
     await prisma.unit.update({
       where: { id: unit.id },
       data: {
@@ -157,7 +138,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // 🧾 AUDIT LOG
     await prisma.auditLog.create({
       data: {
         propertyId: property.id,
@@ -175,7 +155,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // 🍪 SESSION
     const token = createSessionToken({
       role: "TENANT",
       propertyId: property.id,

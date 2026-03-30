@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-type RouteContext = {
-  params: Promise<{ id: string }>;
+type ChargeInput = {
+  label?: string;
+  amount?: string | number;
+  isActive?: boolean;
 };
 
-type ChargePostBody = {
-  unitId?: unknown;
-  label?: unknown;
-  amount?: unknown;
+type TierChargesInput = {
+  tierId?: string;
+  charges?: ChargeInput[];
 };
 
-type ChargePatchBody = {
-  chargeId?: unknown;
-  label?: unknown;
-  amount?: unknown;
+type PostBody = {
+  tiers?: TierChargesInput[];
 };
 
-type ChargeDeleteBody = {
-  chargeId?: unknown;
-};
-
-function safeString(value: unknown): string {
+function clean(value: unknown): string {
   return String(value ?? "").trim();
 }
 
@@ -33,373 +28,316 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function isPrismaKnownError(
-  err: unknown
-): err is Prisma.PrismaClientKnownRequestError {
-  return err instanceof Prisma.PrismaClientKnownRequestError;
+function firstDayOfCurrentMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
-async function getProperty(propertyId: string) {
-  return prisma.property.findUnique({
-    where: { id: propertyId },
-    select: { id: true },
-  });
+function firstDayOfNextMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
 }
 
-async function calculateUnitRecurringFees(
-  tx: Prisma.TransactionClient,
-  unitId: string
-): Promise<number> {
-  const activeFees = await tx.unitRecurringFee.findMany({
-    where: {
-      unitId,
-      isActive: true,
-    },
-    select: {
-      amount: true,
-    },
-  });
-
-  return activeFees.reduce<number>(
-    (sum, fee) => sum + Number(fee.amount ?? 0),
-    0
-  );
+function isAuthorized(role: string | null | undefined): boolean {
+  return role === "OWNER" || role === "MANAGER";
 }
 
-export async function POST(req: Request, context: RouteContext) {
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id: propertyId } = await context.params;
+    const session = await getSession();
+
+    if (!session || !isAuthorized(session.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const propertyId = clean(id);
 
     if (!propertyId) {
-      return NextResponse.json(
-        { error: "Missing property id." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
     }
 
-    const property = await getProperty(propertyId);
-
-    if (!property) {
-      return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
-      );
-    }
-
-    const body = (await req.json()) as ChargePostBody;
-
-    const unitId = safeString(body.unitId);
-    const label = safeString(body.label);
-    const amount = toNumber(body.amount, 0);
-
-    if (!unitId) {
-      return NextResponse.json(
-        { error: "Unit id is required." },
-        { status: 400 }
-      );
-    }
-
-    if (!label) {
-      return NextResponse.json(
-        { error: "Charge label is required." },
-        { status: 400 }
-      );
-    }
-
-    if (amount < 0) {
-      return NextResponse.json(
-        { error: "Charge amount must be 0 or greater." },
-        { status: 400 }
-      );
-    }
-
-    const unit = await prisma.unit.findFirst({
-      where: {
-        id: unitId,
-        propertyId,
-      },
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
       select: {
         id: true,
-        propertyId: true,
+        name: true,
+        tiers: {
+          where: {
+            isActive: true,
+          },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            sortOrder: true,
+          },
+        },
       },
     });
 
-    if (!unit) {
-      return NextResponse.json(
-        { error: "Unit not found for this property." },
-        { status: 404 }
-      );
+    if (!property) {
+      return NextResponse.json({ error: "Property not found." }, { status: 404 });
     }
 
-    const created = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        const existingCount = await tx.unitRecurringFee.count({
-          where: { unitId },
-        });
+    const tierIds = property.tiers.map((tier) => tier.id);
 
-        const charge = await tx.unitRecurringFee.create({
-          data: {
+    const activeCharges = tierIds.length
+      ? await prisma.propertyTierCharge.findMany({
+          where: {
             propertyId,
-            unitId,
-            label,
-            amount,
+            tierId: { in: tierIds },
             isActive: true,
-            displayOrder: existingCount,
           },
+          orderBy: [
+            { tierId: "asc" },
+            { effectiveDate: "desc" },
+            { sortOrder: "asc" },
+            { createdAt: "asc" },
+          ],
           select: {
             id: true,
-            propertyId: true,
-            unitId: true,
+            tierId: true,
             label: true,
             amount: true,
-            isActive: true,
-            displayOrder: true,
+            effectiveDate: true,
+            sortOrder: true,
           },
-        });
+        })
+      : [];
 
-        const recurringFees = await calculateUnitRecurringFees(tx, unitId);
+    const latestEffectiveByTier = new Map<string, number>();
 
-        return {
-          ...charge,
-          recurringFees,
-        };
+    for (const charge of activeCharges) {
+      const effectiveTime = charge.effectiveDate.getTime();
+      const existing = latestEffectiveByTier.get(charge.tierId);
+
+      if (existing === undefined || effectiveTime > existing) {
+        latestEffectiveByTier.set(charge.tierId, effectiveTime);
       }
-    );
+    }
+
+    const tiers = property.tiers.map((tier) => {
+      const latestEffectiveTime = latestEffectiveByTier.get(tier.id);
+
+      const charges = activeCharges
+        .filter((charge) => {
+          if (charge.tierId !== tier.id) return false;
+          if (latestEffectiveTime === undefined) return false;
+          return charge.effectiveDate.getTime() === latestEffectiveTime;
+        })
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((charge) => ({
+          id: charge.id,
+          label: charge.label,
+          amount: charge.amount,
+          effectiveDate: charge.effectiveDate.toISOString(),
+          sortOrder: charge.sortOrder,
+        }));
+
+      return {
+        tierId: tier.id,
+        tierName: tier.name,
+        charges,
+      };
+    });
 
     return NextResponse.json({
       ok: true,
-      charge: created,
+      property: {
+        id: property.id,
+        name: property.name,
+      },
+      effectiveMonth: firstDayOfCurrentMonth().toISOString(),
+      nextEffectiveMonth: firstDayOfNextMonth().toISOString(),
+      tiers,
     });
-  } catch (error: unknown) {
-    if (isPrismaKnownError(error)) {
-      console.error(
-        "POST /api/admin/properties/[id]/charges prisma error",
-        error
-      );
-    } else {
-      console.error("POST /api/admin/properties/[id]/charges failed", error);
-    }
-
+  } catch (error) {
+    console.error("GET property tier charges failed", error);
     return NextResponse.json(
-      { error: "Failed to create charge." },
+      { error: "Failed to load charges." },
       { status: 500 }
     );
   }
 }
 
-export async function PATCH(req: Request, context: RouteContext) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id: propertyId } = await context.params;
+    const session = await getSession();
+
+    if (!session || !isAuthorized(session.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const propertyId = clean(id);
 
     if (!propertyId) {
-      return NextResponse.json(
-        { error: "Missing property id." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
     }
 
-    const property = await getProperty(propertyId);
+    const body = (await req.json().catch(() => null)) as PostBody | null;
+    const submittedTiers = Array.isArray(body?.tiers) ? body!.tiers : [];
 
-    if (!property) {
-      return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
-      );
-    }
-
-    const body = (await req.json()) as ChargePatchBody;
-
-    const chargeId = safeString(body.chargeId);
-    const label = safeString(body.label);
-    const amount = toNumber(body.amount, 0);
-
-    if (!chargeId) {
-      return NextResponse.json(
-        { error: "Charge id is required." },
-        { status: 400 }
-      );
-    }
-
-    if (!label) {
-      return NextResponse.json(
-        { error: "Charge label is required." },
-        { status: 400 }
-      );
-    }
-
-    if (amount < 0) {
-      return NextResponse.json(
-        { error: "Charge amount must be 0 or greater." },
-        { status: 400 }
-      );
-    }
-
-    const existingCharge = await prisma.unitRecurringFee.findFirst({
-      where: {
-        id: chargeId,
-        propertyId,
-      },
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
       select: {
         id: true,
-        unitId: true,
-      },
-    });
-
-    if (!existingCharge) {
-      return NextResponse.json(
-        { error: "Charge not found for this property." },
-        { status: 404 }
-      );
-    }
-
-    const updated = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        const charge = await tx.unitRecurringFee.update({
-          where: { id: chargeId },
-          data: {
-            label,
-            amount,
+        tiers: {
+          where: {
+            isActive: true,
           },
           select: {
             id: true,
-            propertyId: true,
-            unitId: true,
-            label: true,
-            amount: true,
-            isActive: true,
-            displayOrder: true,
+            name: true,
+            sortOrder: true,
           },
-        });
-
-        const recurringFees = await calculateUnitRecurringFees(
-          tx,
-          existingCharge.unitId
-        );
-
-        return {
-          ...charge,
-          recurringFees,
-        };
-      }
-    );
-
-    return NextResponse.json({
-      ok: true,
-      charge: updated,
+        },
+      },
     });
-  } catch (error: unknown) {
-    if (isPrismaKnownError(error)) {
-      console.error(
-        "PATCH /api/admin/properties/[id]/charges prisma error",
-        error
-      );
-    } else {
-      console.error("PATCH /api/admin/properties/[id]/charges failed", error);
-    }
-
-    return NextResponse.json(
-      { error: "Failed to update charge." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(req: Request, context: RouteContext) {
-  try {
-    const { id: propertyId } = await context.params;
-
-    if (!propertyId) {
-      return NextResponse.json(
-        { error: "Missing property id." },
-        { status: 400 }
-      );
-    }
-
-    const property = await getProperty(propertyId);
 
     if (!property) {
-      return NextResponse.json(
-        { error: "Property not found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Property not found." }, { status: 404 });
     }
 
-    const body = (await req.json()) as ChargeDeleteBody;
-    const chargeId = safeString(body.chargeId);
+    const validTierMap = new Map(
+      property.tiers.map((tier) => [tier.id, tier] as const)
+    );
 
-    if (!chargeId) {
-      return NextResponse.json(
-        { error: "Charge id is required." },
-        { status: 400 }
-      );
-    }
+    const sanitizedTiers = submittedTiers
+      .map((tierBlock) => {
+        const tierId = clean(tierBlock?.tierId);
 
-    const existingCharge = await prisma.unitRecurringFee.findFirst({
-      where: {
-        id: chargeId,
-        propertyId,
-      },
-      select: {
-        id: true,
-        unitId: true,
-      },
-    });
-
-    if (!existingCharge) {
-      return NextResponse.json(
-        { error: "Charge not found for this property." },
-        { status: 404 }
-      );
-    }
-
-    const deleted = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        await tx.unitRecurringFee.delete({
-          where: { id: chargeId },
-        });
-
-        const recurringFees = await calculateUnitRecurringFees(
-          tx,
-          existingCharge.unitId
-        );
-
-        const remainingCharges = await tx.unitRecurringFee.findMany({
-          where: { unitId: existingCharge.unitId },
-          orderBy: [{ displayOrder: "asc" }],
-          select: { id: true },
-        });
-
-        for (const [index, charge] of remainingCharges.entries()) {
-          await tx.unitRecurringFee.update({
-            where: { id: charge.id },
-            data: { displayOrder: index },
-          });
+        if (!tierId || !validTierMap.has(tierId)) {
+          return null;
         }
 
+        const rawCharges = Array.isArray(tierBlock?.charges) ? tierBlock.charges : [];
+
+        const charges = rawCharges
+          .map((charge, index) => {
+            const label = clean(charge?.label);
+            const amount = Math.round(toNumber(charge?.amount) * 100) / 100;
+            const isActive = charge?.isActive !== false;
+
+            if (!label || !isActive) {
+              return null;
+            }
+
+            if (!Number.isFinite(amount) || amount < 0) {
+              return null;
+            }
+
+            return {
+              label,
+              amount,
+              sortOrder: index,
+            };
+          })
+          .filter((charge): charge is { label: string; amount: number; sortOrder: number } => {
+            return Boolean(charge);
+          });
+
         return {
-          chargeId,
-          unitId: existingCharge.unitId,
-          recurringFees,
+          tierId,
+          charges,
         };
+      })
+      .filter((tier): tier is { tierId: string; charges: { label: string; amount: number; sortOrder: number }[] } => {
+        return Boolean(tier);
+      });
+
+    const nextEffectiveDate = firstDayOfNextMonth();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.propertyTierCharge.updateMany({
+        where: {
+          propertyId,
+          effectiveDate: {
+            gte: nextEffectiveDate,
+          },
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+        },
+      });
+
+      for (const tier of sanitizedTiers) {
+        for (const charge of tier.charges) {
+          await tx.propertyTierCharge.create({
+            data: {
+              propertyId,
+              tierId: tier.tierId,
+              label: charge.label,
+              amount: charge.amount,
+              effectiveDate: nextEffectiveDate,
+              isActive: true,
+              sortOrder: charge.sortOrder,
+            },
+          });
+        }
       }
-    );
+    });
+
+    const refreshedCharges = await prisma.propertyTierCharge.findMany({
+      where: {
+        propertyId,
+        isActive: true,
+        effectiveDate: nextEffectiveDate,
+      },
+      orderBy: [
+        { tierId: "asc" },
+        { sortOrder: "asc" },
+        { createdAt: "asc" },
+      ],
+      select: {
+        id: true,
+        tierId: true,
+        label: true,
+        amount: true,
+        effectiveDate: true,
+        sortOrder: true,
+      },
+    });
+
+    const tiers = property.tiers
+      .sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.name.localeCompare(b.name, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      })
+      .map((tier) => ({
+        tierId: tier.id,
+        tierName: tier.name,
+        charges: refreshedCharges
+          .filter((charge) => charge.tierId === tier.id)
+          .map((charge) => ({
+            id: charge.id,
+            label: charge.label,
+            amount: charge.amount,
+            effectiveDate: charge.effectiveDate.toISOString(),
+            sortOrder: charge.sortOrder,
+          })),
+      }));
 
     return NextResponse.json({
       ok: true,
-      deleted,
+      effectiveDate: nextEffectiveDate.toISOString(),
+      tiers,
     });
-  } catch (error: unknown) {
-    if (isPrismaKnownError(error)) {
-      console.error(
-        "DELETE /api/admin/properties/[id]/charges prisma error",
-        error
-      );
-    } else {
-      console.error("DELETE /api/admin/properties/[id]/charges failed", error);
-    }
-
+  } catch (error) {
+    console.error("SAVE property tier charges failed", error);
     return NextResponse.json(
-      { error: "Failed to delete charge." },
+      { error: "Failed to save charges." },
       { status: 500 }
     );
   }

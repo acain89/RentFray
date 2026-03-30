@@ -9,7 +9,6 @@ import {
   recordFailedAttempt,
   clearPinAttempts,
 } from "@/lib/pinLockout";
-import { canTenantLogin } from "@/lib/liveGating";
 
 export async function POST(req: Request) {
   try {
@@ -44,7 +43,6 @@ export async function POST(req: Request) {
       where: { propertyCode },
       select: {
         id: true,
-        status: true,
         isActive: true,
       },
     });
@@ -53,14 +51,6 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Invalid credentials." },
         { status: 401 }
-      );
-    }
-
-    // ✅ CENTRALIZED GATING
-    if (!canTenantLogin(property)) {
-      return NextResponse.json(
-        { error: "Property not available." },
-        { status: 403 }
       );
     }
 
@@ -93,7 +83,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔒 LOCKOUT CHECK
     const allowed = await checkPinAllowed(unit.id);
     if (!allowed) {
       return NextResponse.json(
@@ -112,7 +101,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ CLEAR LOCKOUT ON SUCCESS
     await clearPinAttempts(unit.id);
 
     const token = createSessionToken({

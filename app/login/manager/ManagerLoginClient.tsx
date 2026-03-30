@@ -2,8 +2,8 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ManagerLoginClientProps = {
   propertyCode?: string;
@@ -19,7 +19,6 @@ export default function ManagerLoginClient({
   propertyCode,
 }: ManagerLoginClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,13 +26,8 @@ export default function ManagerLoginClient({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const propertyCodeFromQuery = useMemo(() => {
-    return cleanPropertyCode(searchParams.get("code"));
-  }, [searchParams]);
-
   useEffect(() => {
     const fromProp = cleanPropertyCode(propertyCode);
-    const fromQuery = propertyCodeFromQuery;
     const fromStorage =
       typeof window !== "undefined"
         ? cleanPropertyCode(
@@ -41,7 +35,7 @@ export default function ManagerLoginClient({
           )
         : "";
 
-    const finalCode = fromProp || fromQuery || fromStorage;
+    const finalCode = fromProp || fromStorage;
 
     if (finalCode) {
       setResolvedPropertyCode(finalCode);
@@ -50,7 +44,7 @@ export default function ManagerLoginClient({
         window.localStorage.setItem(PROPERTY_CODE_STORAGE_KEY, finalCode);
       }
     }
-  }, [propertyCode, propertyCodeFromQuery]);
+  }, [propertyCode]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -60,7 +54,6 @@ export default function ManagerLoginClient({
     const finalPropertyCode =
       resolvedPropertyCode ||
       cleanPropertyCode(propertyCode) ||
-      propertyCodeFromQuery ||
       (typeof window !== "undefined"
         ? cleanPropertyCode(
             window.localStorage.getItem(PROPERTY_CODE_STORAGE_KEY)
@@ -105,15 +98,17 @@ export default function ManagerLoginClient({
         }),
       });
 
-      const data: { ok?: boolean; error?: string } = await res.json();
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
 
-      if (!res.ok) {
-        setError(data.error || "Login failed.");
-        setLoading(false);
-        return;
-      }
+ if (!res.ok || !data?.ok) {
+  setError(`Login failed | status=${res.status} | error=${data?.error || "unknown"}`);
+  setLoading(false);
+  return;
+}
 
-      router.replace("/manager/dashboard");
+      window.location.href = `/manager/dashboard?code=${finalPropertyCode}`;
     } catch {
       setError("Login error.");
       setLoading(false);

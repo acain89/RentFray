@@ -1,4 +1,4 @@
-// proxy.ts
+// /proxy.ts
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -52,9 +52,14 @@ export function proxy(req: NextRequest) {
   }
 
   if (!session) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const url = req.nextUrl.clone();
     url.pathname = "/property-code";
     url.search = "";
+
     return NextResponse.redirect(url);
   }
 

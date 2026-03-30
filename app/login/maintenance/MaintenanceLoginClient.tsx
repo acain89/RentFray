@@ -2,8 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 type Props = {
   propertyCode?: string;
@@ -16,27 +15,19 @@ function clean(value: string | null | undefined): string {
 }
 
 export default function MaintenanceLoginClient({ propertyCode }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
   const [pin, setPin] = useState("");
   const [resolvedPropertyCode, setResolvedPropertyCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const propertyCodeFromQuery = useMemo(() => {
-    return clean(searchParams.get("code"));
-  }, [searchParams]);
-
   useEffect(() => {
     const fromProp = clean(propertyCode);
-    const fromQuery = propertyCodeFromQuery;
     const fromStorage =
       typeof window !== "undefined"
         ? clean(window.localStorage.getItem(PROPERTY_CODE_STORAGE_KEY))
         : "";
 
-    const finalCode = fromProp || fromQuery || fromStorage;
+    const finalCode = fromProp || fromStorage;
 
     if (finalCode) {
       setResolvedPropertyCode(finalCode);
@@ -45,7 +36,7 @@ export default function MaintenanceLoginClient({ propertyCode }: Props) {
         window.localStorage.setItem(PROPERTY_CODE_STORAGE_KEY, finalCode);
       }
     }
-  }, [propertyCode, propertyCodeFromQuery]);
+  }, [propertyCode]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,7 +46,6 @@ export default function MaintenanceLoginClient({ propertyCode }: Props) {
     const finalPropertyCode =
       resolvedPropertyCode ||
       clean(propertyCode) ||
-      propertyCodeFromQuery ||
       (typeof window !== "undefined"
         ? clean(window.localStorage.getItem(PROPERTY_CODE_STORAGE_KEY))
         : "");
@@ -95,15 +85,19 @@ export default function MaintenanceLoginClient({ propertyCode }: Props) {
         }),
       });
 
-      const data: { ok?: boolean; error?: string } = await res.json();
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
 
-      if (!res.ok) {
-        setError(data.error || "Login failed.");
+      if (!res.ok || !data?.ok) {
+        setError(
+          `Login failed | status=${res.status} | error=${data?.error || "unknown"}`
+        );
         setLoading(false);
         return;
       }
 
-      router.replace("/maintenance");
+      window.location.href = `/maintenance?code=${finalPropertyCode}`;
     } catch {
       setError("Login error.");
       setLoading(false);

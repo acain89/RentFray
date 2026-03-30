@@ -60,10 +60,6 @@ function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function slugUsername(value: string): string {
-  return value.trim().replace(/\s+/g, "");
-}
-
 function hashPasswordForNow(password: string): string {
   return `plain:${password}`;
 }
@@ -98,7 +94,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as SetupPayload;
 
     const email = clean(body?.account?.email).toLowerCase();
-    const username = slugUsername(clean(body?.account?.username));
+    const username = clean(body?.account?.username).toLowerCase() || email;
     const password = clean(body?.account?.password);
 
     const propertyName = clean(body?.property?.name);
@@ -114,13 +110,6 @@ export async function POST(req: Request) {
     if (!isEmail(email)) {
       return NextResponse.json(
         { ok: false, error: "Valid email is required." },
-        { status: 400 }
-      );
-    }
-
-    if (username.length < 3) {
-      return NextResponse.json(
-        { ok: false, error: "Username must be at least 3 characters." },
         { status: 400 }
       );
     }
@@ -196,15 +185,10 @@ export async function POST(req: Request) {
       where: {
         OR: [{ email }, { username }],
       },
-      select: { id: true },
+      select: {
+        id: true,
+      },
     });
-
-    if (existingManager) {
-      return NextResponse.json(
-        { ok: false, error: "That email or username is already in use." },
-        { status: 409 }
-      );
-    }
 
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const propertyCode = await generateUniquePropertyCode(tx);
@@ -216,7 +200,7 @@ export async function POST(req: Request) {
           propertyType: businessType,
           status: "SETUP",
           isActive: true,
-          ownerDisplayName: username,
+          ownerDisplayName: email,
           contactEmail: email,
           addressLine1,
           addressLine2: addressLine2 || null,
@@ -226,16 +210,28 @@ export async function POST(req: Request) {
         },
       });
 
-      const createdManager = await tx.managementUser.create({
-        data: {
-          propertyId: createdProperty.id,
-          email,
-          username,
-          passwordHash: hashPasswordForNow(password),
-          role: "PRIMARY",
-          isActive: true,
-        },
-      });
+      const managerRecord = existingManager
+        ? await tx.managementUser.update({
+            where: { id: existingManager.id },
+            data: {
+              propertyId: createdProperty.id,
+              email,
+              username,
+              passwordHash: hashPasswordForNow(password),
+              role: "OWNER",
+              isActive: true,
+            },
+          })
+        : await tx.managementUser.create({
+            data: {
+              propertyId: createdProperty.id,
+              email,
+              username,
+              passwordHash: hashPasswordForNow(password),
+              role: "PRIMARY",
+              isActive: true,
+            },
+          });
 
       let nextUnitNumber = 101;
 
@@ -301,7 +297,7 @@ export async function POST(req: Request) {
       return {
         propertyId: createdProperty.id,
         propertyCode: createdProperty.propertyCode,
-        managerId: createdManager.id,
+        managerId: managerRecord.id,
       };
     });
 
@@ -309,7 +305,7 @@ export async function POST(req: Request) {
       ok: true,
       propertyId: result.propertyId,
       propertyCode: result.propertyCode,
-      redirectTo: "/admin",
+      redirectTo: "/manager/dashboard",
     });
   } catch (error) {
     const message =

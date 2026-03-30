@@ -55,7 +55,7 @@ export async function GET(req: Request) {
       },
     });
 
-    const rows = payments.map((p) => ({
+    const rows = payments.map((p: (typeof payments)[number]) => ({
       unitNumber: p.unit?.unitNumber || "",
       status: p.status,
       amount: Math.abs(p.amountCents) / 100,

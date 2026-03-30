@@ -35,7 +35,6 @@ export default function AdminPage() {
     setRefreshTick((p) => p + 1);
   }, []);
 
-  // LOAD PROPERTIES
   useEffect(() => {
     let active = true;
 
@@ -48,11 +47,14 @@ export default function AdminPage() {
           ? `?propertyCode=${encodeURIComponent(trimmedSearch)}`
           : "";
 
-        const res = await fetch(`/api/admin/properties/list${query}`, {
+        const res = await fetch(`/api/admin/properties${query}`, {
           cache: "no-store",
         });
 
-        const data = await res.json();
+        const data = (await res.json()) as {
+          error?: string;
+          properties?: Property[];
+        };
 
         if (!active) return;
 
@@ -72,7 +74,8 @@ export default function AdminPage() {
       }
     }
 
-    load();
+    void load();
+
     return () => {
       active = false;
     };
@@ -81,7 +84,6 @@ export default function AdminPage() {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        {/* HEADER */}
         <div className={styles.hero}>
           <div>
             <div className={styles.eyebrow}>ADMIN</div>
@@ -89,7 +91,7 @@ export default function AdminPage() {
           </div>
 
           <div className={styles.actions}>
-            <button onClick={refresh} className={styles.searchButton}>
+            <button type="button" onClick={refresh} className={styles.searchButton}>
               Refresh
             </button>
 
@@ -99,26 +101,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 🔥 PRIMARY CTA */}
-        <div className={styles.setupCard}>
-          <div>
-            <div className={styles.cardTitle}>Complete account setup</div>
-            <div className={styles.cardText}>
-              Finish setup to start accepting payments.
-            </div>
-          </div>
-
-          <button
-            className={styles.pulseButton}
-            onClick={() => alert(
-              "1) Connect bank account\n2) Confirm unit labels\n3) Add managers (optional)"
-            )}
-          >
-            Complete setup
-          </button>
-        </div>
-
-        {/* SEARCH */}
         <div className={styles.searchCard}>
           <div className={styles.cardTitle}>Find a property</div>
 
@@ -130,30 +112,46 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* LIST */}
         <div className={styles.searchCard}>
           <div className={styles.cardTitle}>Your properties</div>
 
           {loading && <div>Loading...</div>}
           {error && <div>{error}</div>}
 
-          {!loading && properties.length === 0 && (
-            <div>No properties yet</div>
-          )}
+          {!loading && properties.length === 0 && <div>No properties yet</div>}
 
           {!loading && properties.length > 0 && (
             <div className={styles.propertyList}>
               {properties.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/admin/properties/${p.id}`}
-                  className={styles.propertyCard}
-                >
-                  <div className={styles.propertyName}>{p.name}</div>
-                  <div className={styles.propertyMeta}>
-                    Code: {p.propertyCode}
-                  </div>
-                </Link>
+                <div key={p.id} className={styles.propertyCard}>
+                  <Link href={`/admin/properties/${p.id}`}>
+                    <div className={styles.propertyName}>{p.name}</div>
+                    <div className={styles.propertyMeta}>
+                      Code: {p.propertyCode}
+                    </div>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm("Delete this property permanently?")) return;
+
+                      const res = await fetch(`/api/admin/properties/${p.id}`, {
+                        method: "DELETE",
+                      });
+
+                      if (!res.ok) {
+                        setError("Failed to delete property.");
+                        return;
+                      }
+
+                      refresh();
+                    }}
+                    style={{ marginTop: 8, color: "red" }}
+                  >
+                    Delete Property
+                  </button>
+                </div>
               ))}
             </div>
           )}

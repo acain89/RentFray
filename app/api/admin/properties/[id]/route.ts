@@ -60,19 +60,19 @@ export async function GET(
     }
 
     const property = await prisma.property.findUnique({
-      where: { id },
+  where: { id },
+  include: {
+    settings: true,
+    tiers: {
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       include: {
-        propertySettings: true,
-        tiers: {
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-          include: {
-            units: {
-              orderBy: { unitNumber: "asc" },
-            },
-          },
+        units: {
+          orderBy: { unitNumber: "asc" },
         },
       },
-    });
+    },
+  },
+});
 
     if (!property) {
       return NextResponse.json(
@@ -91,8 +91,8 @@ export async function GET(
         isActive: property.isActive,
         address: property.addressLine1,
       },
-      settings: property.propertySettings,
-      tiers: property.tiers.map((t) => ({
+      settings: property.settings,
+      tiers: property.tiers.map((t: (typeof property.tiers)[number]) => ({
         id: t.id,
         name: t.name,
         baseRent: t.baseRent,
@@ -111,6 +111,32 @@ export async function GET(
 /* =========================
    UPDATE PROPERTY + SETTINGS
 ========================= */
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing id." }, { status: 400 });
+    }
+
+    await prisma.property.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("DELETE property failed", error);
+    return NextResponse.json(
+      { error: "Failed to delete property." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -173,7 +199,7 @@ export async function PATCH(
 
     const existing = await prisma.property.findUnique({
       where: { id },
-      select: { id: true, propertySettings: { select: { id: true } } },
+      select: { id: true, settings: { select: { id: true } } },
     });
 
     if (!existing) {
@@ -195,7 +221,7 @@ export async function PATCH(
           },
         });
 
-        const settings = existing.propertySettings
+        const settings = existing.settings
           ? await tx.propertySettings.update({
               where: { propertyId: id },
               data: {

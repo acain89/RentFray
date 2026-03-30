@@ -2,12 +2,26 @@
 
 import TenantLoginClient from "./TenantLoginClient";
 
-export default function TenantLoginPage({
-  searchParams,
-}: {
-  searchParams: { code?: string };
-}) {
-  const propertyCode = searchParams?.code || "";
+type TenantLoginPageProps = {
+  searchParams: Promise<{
+    code?: string | string[] | undefined;
+  }>;
+};
 
-  return <TenantLoginClient propertyCode={propertyCode} />;
+export default async function TenantLoginPage({
+  searchParams,
+}: TenantLoginPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const rawCode = resolvedSearchParams?.code;
+
+  const propertyCode = Array.isArray(rawCode)
+    ? rawCode[0] ?? ""
+    : rawCode ?? "";
+
+  return (
+    <TenantLoginClient
+      propertyCode={propertyCode || ""}
+      key={propertyCode}
+    />
+  );
 }

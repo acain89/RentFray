@@ -1,4 +1,4 @@
-// app/maintenance/page.tsx
+// /app/maintenance/page.tsx
 
 "use client";
 
@@ -28,14 +28,11 @@ type UpdateResponse = {
   error?: string;
 };
 
-type RequestAction = "COMPLETE" | "IN_PROGRESS";
+type RequestAction = "COMPLETE" | "IN_PROGRESS" | "THIRD_PARTY";
 
 function formatDate(value: string): string {
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
+  if (Number.isNaN(date.getTime())) return "—";
 
   return date.toLocaleDateString("en-US", {
     month: "short",
@@ -64,6 +61,8 @@ function statusBadgeClass(status: string): string {
       return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "IN_PROGRESS":
       return "border-violet-200 bg-violet-50 text-violet-700";
+    case "THIRD_PARTY":
+      return "border-orange-200 bg-orange-50 text-orange-700";
     case "OPEN":
     default:
       return "border-slate-200 bg-slate-100 text-slate-700";
@@ -74,10 +73,10 @@ export default function MaintenancePage() {
   const router = useRouter();
 
   const [data, setData] = useState<RequestRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [activeRequestId, setActiveRequestId] = useState("");
-  const [actionError, setActionError] = useState("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
+  const [activeRequestId, setActiveRequestId] = useState<string>("");
+  const [actionError, setActionError] = useState<string>("");
 
   useEffect(() => {
     let active = true;
@@ -113,9 +112,7 @@ export default function MaintenancePage() {
         if (!active) return;
         setError("Failed to load maintenance.");
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
@@ -127,11 +124,11 @@ export default function MaintenancePage() {
   }, [router]);
 
   const sortedRequests = useMemo(() => {
-    return [...data].sort((a, b) => {
-      return (
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    });
+    return [...data].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() -
+        new Date(a.createdAt).getTime()
+    );
   }, [data]);
 
   async function updateRequestStatus(
@@ -161,7 +158,9 @@ export default function MaintenancePage() {
         | null;
 
       if (!res.ok || !json?.ok) {
-        setActionError(json?.error || "Failed to update maintenance request.");
+        setActionError(
+          json?.error || "Failed to update maintenance request."
+        );
         return;
       }
 
@@ -178,6 +177,44 @@ export default function MaintenancePage() {
       );
     } catch {
       setActionError("Failed to update maintenance request.");
+    } finally {
+      setActiveRequestId("");
+    }
+  }
+
+  async function deleteRequest(requestId: string): Promise<void> {
+    if (activeRequestId) return;
+
+    try {
+      setActiveRequestId(requestId);
+      setActionError("");
+
+      const res = await fetch("/api/manager/maintenance/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          requestId,
+          action: "DELETE",
+        }),
+      });
+
+      const json = (await res.json().catch(() => null)) as
+        | UpdateResponse
+        | null;
+
+      if (!res.ok || !json?.ok) {
+        setActionError(json?.error || "Failed to delete request.");
+        return;
+      }
+
+      setData((current) =>
+        current.filter((request) => request.id !== requestId)
+      );
+    } catch {
+      setActionError("Failed to delete request.");
     } finally {
       setActiveRequestId("");
     }
@@ -219,8 +256,8 @@ export default function MaintenancePage() {
               Work Orders
             </h1>
             <p className="text-sm text-slate-600">
-              Review open requests from newest to oldest and mark work as
-              completed when finished.
+              Review open requests from newest to oldest and update, escalate, or
+              delete them as needed.
             </p>
           </div>
         </section>
@@ -241,9 +278,10 @@ export default function MaintenancePage() {
           <section className="space-y-3">
             {sortedRequests.map((request) => {
               const isBusy = activeRequestId === request.id;
-              const isComplete = request.status.toUpperCase() === "COMPLETE";
-              const isInProgress =
-                request.status.toUpperCase() === "IN_PROGRESS";
+              const normalizedStatus = request.status.toUpperCase();
+              const isComplete = normalizedStatus === "COMPLETE";
+              const isInProgress = normalizedStatus === "IN_PROGRESS";
+              const isThirdParty = normalizedStatus === "THIRD_PARTY";
 
               return (
                 <div
@@ -263,7 +301,7 @@ export default function MaintenancePage() {
                               request.status
                             )}`}
                           >
-                            {request.status.replace("_", " ")}
+                            {request.status.replace(/_/g, " ")}
                           </span>
 
                           <span
@@ -280,12 +318,15 @@ export default function MaintenancePage() {
                         </div>
 
                         <div className="mt-1 text-sm text-slate-600">
-                          {request.tenantName || "No tenant name available"}
+                          {request.tenantName ||
+                            "No tenant name available"}
                         </div>
                       </div>
 
                       <div className="text-xs text-slate-500 sm:text-right">
-                        <div>Created {formatDate(request.createdAt)}</div>
+                        <div>
+                          Created {formatDate(request.createdAt)}
+                        </div>
                         <div className="mt-1">
                           Updated {formatDate(request.updatedAt)}
                         </div>
@@ -301,12 +342,31 @@ export default function MaintenancePage() {
                         <button
                           type="button"
                           onClick={() =>
-                            void updateRequestStatus(request.id, "IN_PROGRESS")
+                            void updateRequestStatus(
+                              request.id,
+                              "IN_PROGRESS"
+                            )
                           }
                           disabled={isBusy}
                           className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {isBusy ? "Updating..." : "3rd Party / In Progress"}
+                          {isBusy ? "Updating..." : "In Progress"}
+                        </button>
+                      ) : null}
+
+                      {!isComplete && !isThirdParty ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void updateRequestStatus(
+                              request.id,
+                              "THIRD_PARTY"
+                            )
+                          }
+                          disabled={isBusy}
+                          className="rounded-2xl border border-orange-300 bg-white px-4 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isBusy ? "Updating..." : "3rd Party"}
                         </button>
                       ) : null}
 
@@ -314,7 +374,10 @@ export default function MaintenancePage() {
                         <button
                           type="button"
                           onClick={() =>
-                            void updateRequestStatus(request.id, "COMPLETE")
+                            void updateRequestStatus(
+                              request.id,
+                              "COMPLETE"
+                            )
                           }
                           disabled={isBusy}
                           className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
@@ -325,10 +388,13 @@ export default function MaintenancePage() {
 
                       <button
                         type="button"
-                        disabled
-                        className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
+                        onClick={() =>
+                          void deleteRequest(request.id)
+                        }
+                        disabled={isBusy}
+                        className="rounded-2xl border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Delete
+                        {isBusy ? "Updating..." : "Delete"}
                       </button>
                     </div>
                   </div>

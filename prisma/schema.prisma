@@ -48,8 +48,9 @@ model Property {
   auditLogs           AuditLog[]
   recurringFees       UnitRecurringFee[]
   payments            Payment[]
+  tierCharges         PropertyTierCharge[]
 
-  unitNotes           UnitNote[]
+  unitNotes UnitNote[]
 
   @@index([status])
   @@index([isActive])
@@ -114,12 +115,32 @@ model PropertyTier {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   units    Unit[]
+  charges  PropertyTierCharge[]
 
   @@unique([propertyId, name])
   @@index([propertyId, sortOrder])
   @@index([propertyId, isActive])
+}
+
+model PropertyTierCharge {
+  id            String   @id @default(cuid())
+  propertyId    String
+  tierId        String
+  label         String
+  amount        Float
+  effectiveDate DateTime
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  property Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tier     PropertyTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, tierId, isActive])
+  @@index([tierId, effectiveDate])
 }
 
 model ManagementUser {
@@ -161,7 +182,6 @@ model Unit {
   baseRent   Float?
   isActive   Boolean @default(true)
 
-  recurringFees Float @default(0)
 
   portalActivated  Boolean   @default(false)
   portalFirstName  String?
@@ -180,8 +200,8 @@ model Unit {
   ledgerEntries       LedgerEntry[]
   recurringFeeItems   UnitRecurringFee[]
   payments            Payment[]
-  
-  notes               UnitNote[]
+
+  notes UnitNote[]
 
   @@unique([propertyId, unitNumber])
   @@index([propertyId, tierId])
@@ -223,7 +243,7 @@ model TenantAssignment {
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
-  payments            Payment[]
+  payments Payment[]
 
   property                Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   unit                    Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -382,12 +402,12 @@ model UnitNote {
 }
 
 model Payment {
-  id                 String   @id @default(cuid())
+  id                 String  @id @default(cuid())
   propertyId         String
   unitId             String
   tenantAssignmentId String?
 
-  stripePaymentIntentId String @unique
+  stripePaymentIntentId String  @unique
   stripeSessionId       String?
 
   amountCents        Int

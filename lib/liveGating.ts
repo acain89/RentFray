@@ -80,8 +80,7 @@ export function getLiveReadiness(property: PropertyLike): LiveReadiness {
 ========================= */
 
 export function canManagerOperate(property: PropertyLike): boolean {
-  const readiness = getLiveReadiness(property);
-  return isPropertyActive(property) && readiness.readyForLive;
+  return isPropertyActive(property);
 }
 
 export function canTenantLogin(property: PropertyLike): boolean {

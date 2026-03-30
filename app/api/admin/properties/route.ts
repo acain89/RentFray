@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 type IncomingCharge = {
   label?: string;
@@ -189,6 +190,74 @@ async function generateUniquePropertyCode(
   throw new Error("Unable to generate a unique property code.");
 }
 
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const propertyCode = safeTrim(searchParams.get("propertyCode"));
+
+    const properties = await prisma.property.findMany({
+      where: propertyCode
+        ? {
+            propertyCode: {
+              contains: propertyCode,
+            },
+          }
+        : undefined,
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        name: true,
+        propertyCode: true,
+        propertyType: true,
+        isActive: true,
+        managementUsers: {
+          where: {
+            role: "OWNER",
+          },
+          select: {
+            displayName: true,
+            email: true,
+          },
+          take: 1,
+        },
+        _count: {
+          select: {
+            units: true,
+            tiers: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      properties: properties.map((property) => {
+        const owner = property.managementUsers[0];
+
+        return {
+  id: property.id,
+  name: property.name,
+  propertyCode: property.propertyCode,
+  propertyType: property.propertyType,
+  isActive: property.isActive,
+  contactName: owner?.displayName ?? "",
+  contactEmail: owner?.email ?? "",
+  unitCount: property._count.units,
+  tierCount: property._count.tiers,
+};
+      }),
+    });
+  } catch (err: unknown) {
+    console.error(err);
+    return NextResponse.json(
+      { error: "Failed to load properties." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as IncomingWizardPayload;
@@ -233,11 +302,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const firstTier: IncomingTier | undefined = tiers[0];
+    const firstTier = tiers[0];
 
     if (!firstTier) {
       return NextResponse.json(
         { error: "At least one tier is required." },
+        { status: 400 }
+      );
+    }
+
+    const account = body.account || {};
+    const email = safeTrim(account.email).toLowerCase();
+    const password = safeTrim(account.password);
+    const fullName = safeTrim(account.fullName);
+
+    if (!email || !password || !fullName) {
+      return NextResponse.json(
+        { error: "Missing account setup information." },
         { status: 400 }
       );
     }
@@ -370,15 +451,27 @@ export async function POST(req: Request) {
           },
         });
 
-        const propertySettingsRuleSource: IncomingTier = firstTier;
+        const passwordHash = await bcrypt.hash(password, 10);
+        
+        await tx.managementUser.create({
+          data: {
+            propertyId: createdProperty.id,
+            email,
+            username: email,
+            passwordHash,
+            role: "OWNER",
+            isActive: true,
+            displayName: fullName,
+          },
+        });
 
         await tx.propertySettings.create({
           data: {
             propertyId: createdProperty.id,
-            rentDueDay: toNumber(propertySettingsRuleSource.dueDay, 1),
-            gracePeriodDays: toNumber(propertySettingsRuleSource.graceDays, 0),
+            rentDueDay: toNumber(firstTier.dueDay, 1),
+            gracePeriodDays: toNumber(firstTier.graceDays, 0),
             lateFeeEnabled: true,
-            lateFeeFlat: toNumber(propertySettingsRuleSource.lateFeeInitial, 0),
+            lateFeeFlat: toNumber(firstTier.lateFeeInitial, 0),
             convenienceFeeEnabled: true,
             convenienceFeeType: "FLAT",
             convenienceFeeAmount: getMinimumProcessingFee(

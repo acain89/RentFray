@@ -24,7 +24,7 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
 
-    const receipts = payments.map((p) => ({
+    const receipts = payments.map((p: (typeof payments)[number]) => ({
       id: p.id,
       amount: centsToDollars(p.amountCents),
       date: p.updatedAt,

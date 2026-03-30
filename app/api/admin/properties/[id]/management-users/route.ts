@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
 
 type CreateBody = {
-  username?: unknown;
+  email?: unknown;
   password?: unknown;
   role?: unknown;
 };
@@ -70,11 +70,11 @@ export async function POST(
   const { id: propertyId } = await params;
   const body = (await req.json()) as CreateBody;
 
-  const username = clean(body.username);
+  const email = clean(body.email).toLowerCase();
   const password = clean(body.password);
   const role = clean(body.role || "STAFF");
 
-  if (!username || !password) {
+  if (!email || !password) {
     return NextResponse.json({ error: "Invalid input." }, { status: 400 });
   }
 
@@ -83,14 +83,14 @@ export async function POST(
   const created = await prisma.managementUser.create({
     data: {
       propertyId,
-      username,
+      email,
       passwordHash,
       role,
       createdByUserId: session.managementUserId,
     },
     select: {
       id: true,
-      username: true,
+      email: true,
       role: true,
       isActive: true,
     },

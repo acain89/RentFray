@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 type TenantLoginClientProps = {
   propertyCode: string;
@@ -10,8 +9,6 @@ type TenantLoginClientProps = {
 export default function TenantLoginClient({
   propertyCode,
 }: TenantLoginClientProps) {
-  const router = useRouter();
-
   const [resolvedCode, setResolvedCode] = useState<string>(propertyCode);
   const [unitNumber, setUnitNumber] = useState<string>("");
   const [pin, setPin] = useState<string>("");
@@ -62,15 +59,19 @@ export default function TenantLoginClient({
         }),
       });
 
-      const data: { error?: string } = await res.json();
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
 
-      if (!res.ok) {
-        setError(data.error || "Login failed.");
+      if (!res.ok || !data?.ok) {
+        setError(
+          `Login failed | status=${res.status} | error=${data?.error || "unknown"}`
+        );
         setLoading(false);
         return;
       }
 
-      router.replace("/tenant/dashboard");
+      window.location.href = `/tenant/dashboard?code=${resolvedCode}`;
     } catch {
       setError("Login error.");
       setLoading(false);
@@ -94,9 +95,7 @@ export default function TenantLoginClient({
             <input
               type="text"
               value={unitNumber}
-              onChange={(e) =>
-                setUnitNumber(e.target.value.toUpperCase())
-              }
+              onChange={(e) => setUnitNumber(e.target.value.toUpperCase())}
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 outline-none focus:border-black"
               placeholder="101"
             />
@@ -120,7 +119,7 @@ export default function TenantLoginClient({
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
+              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
             >
               {loading ? "Signing in..." : "Login"}
             </button>

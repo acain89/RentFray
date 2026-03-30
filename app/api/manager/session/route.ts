@@ -28,58 +28,45 @@ export async function POST(req: Request) {
 
     const loginIdentifier = username || email;
 
-    if (!propertyCode || propertyCode.length !== 4) {
-      return NextResponse.json({ error: "Invalid login." }, { status: 400 });
-    }
-
     if (!loginIdentifier || !password) {
       return NextResponse.json({ error: "Invalid login." }, { status: 400 });
     }
 
-    const property = await prisma.property.findUnique({
-      where: { propertyCode },
-      select: {
-        id: true,
-        isActive: true,
-        status: true,
-      },
-    });
+    let propertyId: string | null = null;
 
-    if (!property || !property.isActive) {
-      return NextResponse.json({ error: "Invalid login." }, { status: 401 });
-    }
+    if (propertyCode && propertyCode.length >= 4 && propertyCode.length <= 5) {
+      const property = await prisma.property.findUnique({
+        where: { propertyCode },
+        select: { id: true, isActive: true, status: true },
+      });
 
-    if (!canManagerOperate(property)) {
-      return NextResponse.json(
-        { error: "Property not available." },
-        { status: 403 }
-      );
+      if (!property) {
+        return NextResponse.json({ error: "Invalid login." }, { status: 401 });
+      }
+
+      if (!canManagerOperate(property) && property.status !== "SETUP") {
+        return NextResponse.json(
+          { error: "Property not available." },
+          { status: 403 }
+        );
+      }
+
+      propertyId = property.id;
     }
 
     const user = await prisma.managementUser.findFirst({
       where: {
-        propertyId: property.id,
         isActive: true,
-        role: {
-          in: ["OWNER", "MANAGER", "STAFF"],
-        },
+        role: { in: ["OWNER", "MANAGER", "STAFF"] },
+        ...(propertyId ? { propertyId } : {}),
         OR: [
-          username
-            ? {
-                username: username,
-              }
-            : undefined,
-          email
-            ? {
-                email: email,
-              }
-            : undefined,
+          username ? { username } : undefined,
+          email ? { email } : undefined,
         ].filter(
           (
             clause
-          ): clause is
-            | { username: string }
-            | { email: string } => Boolean(clause)
+          ): clause is { username: string } | { email: string } =>
+            Boolean(clause)
         ),
       },
       select: {
@@ -87,6 +74,7 @@ export async function POST(req: Request) {
         role: true,
         passwordHash: true,
         isActive: true,
+        propertyId: true,
       },
     });
 
@@ -94,7 +82,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid login." }, { status: 401 });
     }
 
-    const passwordOk = await bcrypt.compare(password, user.passwordHash);
+    let passwordOk = false;
+
+    if (user.passwordHash.startsWith("plain:")) {
+      passwordOk = user.passwordHash === `plain:${password}`;
+    } else {
+      passwordOk = await bcrypt.compare(password, user.passwordHash);
+    }
 
     if (!passwordOk) {
       return NextResponse.json({ error: "Invalid login." }, { status: 401 });
@@ -102,7 +96,7 @@ export async function POST(req: Request) {
 
     const token = createSessionToken({
       role: user.role,
-      propertyId: property.id,
+      propertyId: user.propertyId,
       managementUserId: user.id,
     });
 
@@ -110,9 +104,7 @@ export async function POST(req: Request) {
 
     await prisma.managementUser.update({
       where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-      },
+      data: { lastLoginAt: new Date() },
     });
 
     return NextResponse.json({

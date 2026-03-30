@@ -4,7 +4,6 @@ import { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { canAccessTenantPortal } from "@/lib/liveGating";
 
 export default async function TenantLayout({
   children,
@@ -27,11 +26,6 @@ export default async function TenantLayout({
   });
 
   if (!property || !property.isActive) {
-    redirect("/tenant");
-  }
-
-  // ✅ ENFORCE PORTAL ACCESS
-  if (!canAccessTenantPortal(property)) {
     redirect("/tenant");
   }
 
