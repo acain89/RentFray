@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, HTMLInputTypeAttribute } from "react";
 
-type BillingFrequency = "MONTHLY" | "BIWEEKLY" | "WEEKLY";
+type BillingFrequency = "MONTHLY";
 type LateFeeType = "FLAT" | "PERCENT";
 
 type TierDraft = {
@@ -50,20 +50,6 @@ type SetupApiError = {
 };
 
 type SetupApiResponse = SetupApiSuccess | SetupApiError | null;
-
-type ManagerSessionSuccess = {
-  ok?: true;
-  success?: true;
-  redirectTo?: string;
-};
-
-type ManagerSessionError = {
-  ok?: false;
-  success?: false;
-  error?: string;
-};
-
-type ManagerSessionResponse = ManagerSessionSuccess | ManagerSessionError | null;
 
 type UnitPreviewItem = {
   tierId: string;
@@ -155,11 +141,7 @@ function ordinalDay(value: number): string {
   return `${value}th`;
 }
 
-function getMaxLateWindow(
-  billingFrequency: BillingFrequency,
-  dueDay: string
-): number {
-  if (billingFrequency !== "MONTHLY") return 31;
+function getMaxLateWindow(_billingFrequency: BillingFrequency, dueDay: string): number {
   const due = Number(dueDay || 0);
   if (due < 1 || due > 31) return 31;
   return 31 - due;
@@ -171,35 +153,6 @@ function formatMoney(value: number, lateFeeType: LateFeeType): string {
   }
 
   return `$${value.toFixed(2)}`;
-}
-
-function getScheduleWords(
-  frequency: BillingFrequency
-): { due: string; late: string; daily: string; end: string } {
-  if (frequency === "WEEKLY") {
-    return {
-      due: "day",
-      late: "day",
-      daily: "day",
-      end: "day",
-    };
-  }
-
-  if (frequency === "BIWEEKLY") {
-    return {
-      due: "day",
-      late: "day",
-      daily: "day",
-      end: "day",
-    };
-  }
-
-  return {
-    due: "",
-    late: "",
-    daily: "",
-    end: "",
-  };
 }
 
 function buildLateFeeSummary(tier: TierDraft): string {
@@ -216,51 +169,20 @@ function buildLateFeeSummary(tier: TierDraft): string {
       ? dailyStartDay + maxLateFeeDays - 1
       : 0;
 
-  const words = getScheduleWords(tier.billingFrequency);
+  const dueText = ordinalDay(dueDay);
+  const lateStartText = ordinalDay(lateStartDay);
+  const dailyStartText = ordinalDay(dailyStartDay);
+  const dailyEndText = ordinalDay(dailyEndDay);
 
-  const dueText =
-    tier.billingFrequency === "MONTHLY"
-      ? ordinalDay(dueDay)
-      : dueDay > 0
-        ? `day ${dueDay}`
-        : "—";
-
-  const lateStartText =
-    tier.billingFrequency === "MONTHLY"
-      ? ordinalDay(lateStartDay)
-      : lateStartDay > 0
-        ? `day ${lateStartDay}`
-        : "—";
-
-  const dailyStartText =
-    tier.billingFrequency === "MONTHLY"
-      ? ordinalDay(dailyStartDay)
-      : dailyStartDay > 0
-        ? `day ${dailyStartDay}`
-        : "—";
-
-  const dailyEndText =
-    tier.billingFrequency === "MONTHLY"
-      ? ordinalDay(dailyEndDay)
-      : dailyEndDay > 0
-        ? `day ${dailyEndDay}`
-        : "—";
-
-  return `Payment due on the ${dueText}${
-    words.due ? ` ${words.due}` : ""
-  }. Grace period of ${gracePeriodDays} day${
+  return `Payment due on the ${dueText}. Grace period of ${gracePeriodDays} day${
     gracePeriodDays === 1 ? "" : "s"
   }. Late fee of ${formatMoney(
     lateFeeInitial,
     tier.lateFeeType
-  )} added on the ${lateStartText}${
-    words.late ? ` ${words.late}` : ""
-  }. Daily late fee of ${formatMoney(
+  )} added on the ${lateStartText}. Daily late fee of ${formatMoney(
     lateFeeDaily,
     tier.lateFeeType
-  )} added per day starting on the ${dailyStartText}${
-    words.daily ? ` ${words.daily}` : ""
-  } and ending on the ${dailyEndText}${words.end ? ` ${words.end}` : ""}.`;
+  )} added per day starting on the ${dailyStartText} and ending on the ${dailyEndText}.`;
 }
 
 async function readJsonSafely<T>(res: Response): Promise<T | null> {
@@ -302,6 +224,7 @@ export default function SetupPage() {
                   ...createTier(index),
                   ...tier,
                   name: tier.name || `Tier ${index + 1}`,
+                  billingFrequency: "MONTHLY",
                 }))
               : [createTier(0)],
         });
@@ -393,7 +316,6 @@ export default function SetupPage() {
           : "",
       dueDay:
         touched[`dueDay-${tier.id}`] &&
-        tier.billingFrequency === "MONTHLY" &&
         !(Number(tier.dueDay) >= 1 && Number(tier.dueDay) <= 31)
           ? "Use 1 to 31."
           : "",
@@ -451,6 +373,7 @@ export default function SetupPage() {
           ? next.map((tier: TierDraft, index: number) => ({
               ...tier,
               name: `Tier ${index + 1}`,
+              billingFrequency: "MONTHLY",
             }))
           : [createTier(0)],
       };
@@ -471,7 +394,7 @@ export default function SetupPage() {
           ? tier
           : {
               ...tier,
-              billingFrequency: first.billingFrequency,
+              billingFrequency: "MONTHLY",
               dueDay: first.dueDay,
               gracePeriodDays: first.gracePeriodDays,
               lateFeeType: first.lateFeeType,
@@ -557,8 +480,7 @@ export default function SetupPage() {
 
     return form.tiers.every((tier: TierDraft) => {
       const monthlyDueValid =
-        tier.billingFrequency !== "MONTHLY" ||
-        (Number(tier.dueDay) >= 1 && Number(tier.dueDay) <= 31);
+        Number(tier.dueDay) >= 1 && Number(tier.dueDay) <= 31;
 
       const withinLateWindow =
         Number(tier.gracePeriodDays) + Number(tier.maxLateFeeDays) <=
@@ -615,9 +537,8 @@ export default function SetupPage() {
         name: `Tier ${index + 1}`,
         price: Number(tier.price),
         unitCount: Number(tier.unitCount),
-        billingFrequency: tier.billingFrequency,
-        dueDay:
-          tier.billingFrequency === "MONTHLY" ? Number(tier.dueDay || 1) : null,
+        billingFrequency: "MONTHLY" as const,
+        dueDay: Number(tier.dueDay || 1),
         gracePeriodDays: Number(tier.gracePeriodDays || 0),
         lateFeeType: tier.lateFeeType,
         lateFeeInitial: Number(tier.lateFeeInitial || 0),
@@ -648,35 +569,12 @@ export default function SetupPage() {
         return;
       }
 
-      const sessionRes = await fetch("/api/manager/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: form.email.trim(),
-          password: form.password,
-        }),
-      });
-
-      const sessionResult =
-        await readJsonSafely<ManagerSessionResponse>(sessionRes);
-
-      if (!sessionRes.ok) {
-        setSubmitError(
-          sessionResult && "error" in sessionResult && sessionResult.error
-            ? sessionResult.error
-            : "Property created, but automatic login failed."
-        );
-        return;
-      }
-
       localStorage.removeItem(STORAGE_KEY);
 
       const redirectTo =
-  sessionResult && "redirectTo" in sessionResult && sessionResult.redirectTo
-    ? sessionResult.redirectTo
-    : setupResult.redirectTo || "/manager/dashboard";
+        "redirectTo" in setupResult && typeof setupResult.redirectTo === "string"
+          ? setupResult.redirectTo
+          : "/manager/dashboard";
 
       router.push(redirectTo);
     } catch {
@@ -818,7 +716,7 @@ export default function SetupPage() {
                   Property info
                 </h2>
                 <p className="mt-1 text-sm text-[#64748b]">
-                  Name, address, and business type.
+                  Name, address, and property type.
                 </p>
               </div>
 
@@ -892,7 +790,7 @@ export default function SetupPage() {
                 />
 
                 <SelectField
-                  label="Business type"
+                  label="Property type"
                   value={form.businessType}
                   error={step2Errors.businessType}
                   onBlur={() =>
@@ -901,11 +799,12 @@ export default function SetupPage() {
                   onChange={(value) => setField("businessType", value)}
                   options={[
                     { label: "Select one", value: "" },
-                    { label: "Apartment", value: "APARTMENT" },
-                    { label: "Multi-family", value: "MULTI_FAMILY" },
-                    { label: "Mobile home park", value: "MOBILE_HOME_PARK" },
-                    { label: "Storage", value: "STORAGE" },
-                    { label: "Other", value: "OTHER" },
+                    { label: "Apartment", value: "Apartment" },
+                    { label: "Mobile Home Park", value: "Mobile Home Park" },
+                    { label: "RV Park", value: "RV Park" },
+                    { label: "Storage Units", value: "Storage Units" },
+                    { label: "BHPH Car Lot", value: "BHPH Car Lot" },
+                    { label: "Other", value: "Other" },
                   ]}
                 />
               </div>
@@ -920,7 +819,7 @@ export default function SetupPage() {
                     Tier setup
                   </h2>
                   <p className="mt-1 text-sm text-[#64748b]">
-                    Price + unit count. Units auto-generate starting at 101.
+                    Set the monthly price and unit count for each tier.
                   </p>
                 </div>
 
@@ -952,8 +851,8 @@ export default function SetupPage() {
                           </div>
                           <div className="text-sm text-[#64748b]">
                             {preview?.count
-                              ? `Units ${preview.start}–${preview.end}`
-                              : "Enter unit count to preview auto-generated numbers"}
+                              ? `${preview.count} units planned`
+                              : "Enter unit count to preview this tier"}
                           </div>
                         </div>
 
@@ -1022,7 +921,7 @@ export default function SetupPage() {
                     Billing rules
                   </h2>
                   <p className="mt-1 text-sm text-[#64748b]">
-                    Set billing per tier. You can copy the first tier to all.
+                    Set monthly billing per tier. You can copy the first tier to all.
                   </p>
                 </div>
 
@@ -1055,24 +954,13 @@ export default function SetupPage() {
                       </div>
 
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <SelectField
-                          label="Billing frequency"
-                          value={tier.billingFrequency}
-                          error=""
-                          onBlur={() => {}}
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "billingFrequency",
-                              value as BillingFrequency
-                            )
-                          }
-                          options={[
-                            { label: "Monthly", value: "MONTHLY" },
-                            { label: "Biweekly", value: "BIWEEKLY" },
-                            { label: "Weekly", value: "WEEKLY" },
-                          ]}
-                        />
+                        <Field
+                           label="Billing frequency"
+                           value="Monthly"
+                           error=""
+                           onBlur={() => {}}
+                           onChange={() => {}}
+                           />
 
                         <Field
                           label="Due day"
@@ -1091,9 +979,7 @@ export default function SetupPage() {
                               onlyDigits(value).slice(0, 2)
                             )
                           }
-                          placeholder={
-                            tier.billingFrequency === "MONTHLY" ? "1 to 31" : "1"
-                          }
+                          placeholder="1 to 31"
                           inputMode="numeric"
                         />
 

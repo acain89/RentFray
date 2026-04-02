@@ -203,6 +203,10 @@ export async function GET() {
         code: property.propertyCode,
       },
 
+      session: {
+        role: session.role,
+      },
+
       summary: {
         totalUnits: property.units.length,
         occupiedUnits,

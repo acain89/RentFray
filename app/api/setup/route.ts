@@ -3,8 +3,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
 
-type BillingFrequency = "MONTHLY" | "BIWEEKLY" | "WEEKLY";
+type BillingFrequency = "MONTHLY";
 type LateFeeType = "FLAT" | "PERCENT";
 
 type SetupTierInput = {
@@ -64,14 +65,30 @@ function hashPasswordForNow(password: string): string {
   return `plain:${password}`;
 }
 
-async function generateUniquePropertyCode(tx: {
-  property: {
-    findFirst(args: {
-      where: { propertyCode: string };
-      select: { id: true };
-    }): Promise<{ id: string } | null>;
-  };
-}): Promise<string> {
+function normalizePropertyType(value: string): string {
+  const normalized = clean(value);
+
+  switch (normalized) {
+    case "Apartment":
+      return "Apartment";
+    case "Mobile Home Park":
+      return "Mobile Home Park";
+    case "RV Park":
+      return "RV Park";
+    case "Storage Units":
+      return "Storage Units";
+    case "BHPH Car Lot":
+      return "BHPH Car Lot";
+    case "Other":
+      return "Other";
+    default:
+      return "Other";
+  }
+}
+
+async function generateUniquePropertyCode(
+  tx: Prisma.TransactionClient
+): Promise<string> {
   for (let i = 0; i < 100; i += 1) {
     const code = String(Math.floor(1000 + Math.random() * 9000));
     const existing = await tx.property.findFirst({
@@ -103,7 +120,7 @@ export async function POST(req: Request) {
     const city = clean(body?.property?.city);
     const state = clean(body?.property?.state).toUpperCase().slice(0, 2);
     const zip = onlyDigits(body?.property?.zip).slice(0, 5);
-    const businessType = clean(body?.property?.businessType) || "OTHER";
+    const propertyType = normalizePropertyType(body?.property?.businessType ?? "");
 
     const tiers = Array.isArray(body?.tiers) ? body.tiers : [];
 
@@ -149,10 +166,7 @@ export async function POST(req: Request) {
         );
       }
 
-      if (
-        tier.billingFrequency === "MONTHLY" &&
-        (toInt(tier.dueDay) < 1 || toInt(tier.dueDay) > 31)
-      ) {
+      if (toInt(tier.dueDay, 0) < 1 || toInt(tier.dueDay, 0) > 31) {
         return NextResponse.json(
           { ok: false, error: "Monthly tiers need a due day from 1 to 31." },
           { status: 400 }
@@ -181,7 +195,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const existingManager = await prisma.managementUser.findFirst({
+    const duplicateManager = await prisma.managementUser.findFirst({
       where: {
         OR: [{ email }, { username }],
       },
@@ -190,116 +204,131 @@ export async function POST(req: Request) {
       },
     });
 
-    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const propertyCode = await generateUniquePropertyCode(tx);
-
-      const createdProperty = await tx.property.create({
-        data: {
-          name: propertyName,
-          propertyCode,
-          propertyType: businessType,
-          status: "SETUP",
-          isActive: true,
-          ownerDisplayName: email,
-          contactEmail: email,
-          addressLine1,
-          addressLine2: addressLine2 || null,
-          city,
-          state,
-          zip,
+    if (duplicateManager) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "An account with that email or username already exists.",
         },
-      });
+        { status: 409 }
+      );
+    }
 
-      const managerRecord = existingManager
-        ? await tx.managementUser.update({
-            where: { id: existingManager.id },
-            data: {
-              propertyId: createdProperty.id,
-              email,
-              username,
-              passwordHash: hashPasswordForNow(password),
-              role: "OWNER",
-              isActive: true,
-            },
-          })
-        : await tx.managementUser.create({
-            data: {
-              propertyId: createdProperty.id,
-              email,
-              username,
-              passwordHash: hashPasswordForNow(password),
-              role: "PRIMARY",
-              isActive: true,
-            },
-          });
+    const result = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const propertyCode = await generateUniquePropertyCode(tx);
 
-      let nextUnitNumber = 101;
+        const createdProperty = await tx.property.create({
+          data: {
+            name: propertyName,
+            propertyCode,
+            propertyType,
+            status: "SETUP",
+            isActive: true,
+            ownerDisplayName: email,
+            contactEmail: email,
+            addressLine1,
+            addressLine2: addressLine2 || null,
+            city,
+            state,
+            zip,
+          },
+        });
 
-      for (let index = 0; index < tiers.length; index += 1) {
-        const tier = tiers[index];
-        const tierName = clean(tier.name) || `Tier ${index + 1}`;
-        const baseRentCents = Math.round(toMoney(tier.price) * 100);
-        const unitCount = toInt(tier.unitCount);
-        const gracePeriodDays = toInt(tier.gracePeriodDays, 0);
-        const lateFeeInitial = toMoney(tier.lateFeeInitial);
-        const lateFeeDaily = toMoney(tier.lateFeeDaily);
-        const maxLateFeeDays = toInt(tier.maxLateFeeDays, 0);
-        const dueDay =
-          tier.billingFrequency === "MONTHLY" ? toInt(tier.dueDay, 1) : 1;
-
-                const createdTier = await tx.propertyTier.create({
+        const managerRecord = await tx.managementUser.create({
           data: {
             propertyId: createdProperty.id,
-            name: tierName,
-            baseRentCents: baseRentCents,
-            unitCount,
-            billingFrequency: tier.billingFrequency,
-            rentDueDay: dueDay,
-            gracePeriodDays,
-            lateFeeType: tier.lateFeeType,
-            lateFeeInitialCents: Math.round(lateFeeInitial * 100),
-            lateFeeDailyCents: Math.round(lateFeeDaily * 100),
-            maxLateFeeDays,
-            sortOrder: index,
+            email,
+            username,
+            passwordHash: hashPasswordForNow(password),
+            role: "OWNER",
             isActive: true,
           },
         });
 
-        const unitNumbers = buildUnitNumbers(unitCount, nextUnitNumber);
-        nextUnitNumber += unitCount;
+        let nextUnitNumber = 101;
 
-        if (unitNumbers.length > 0) {
-          await tx.unit.createMany({
-            data: unitNumbers.map((unitNumber) => ({
+        for (let index = 0; index < tiers.length; index += 1) {
+          const tier = tiers[index];
+          const tierName = clean(tier.name) || `Tier ${index + 1}`;
+          const baseRentCents = Math.round(toMoney(tier.price) * 100);
+          const unitCount = toInt(tier.unitCount);
+          const gracePeriodDays = toInt(tier.gracePeriodDays, 0);
+          const lateFeeInitial = toMoney(tier.lateFeeInitial);
+          const lateFeeDaily = toMoney(tier.lateFeeDaily);
+          const maxLateFeeDays = toInt(tier.maxLateFeeDays, 0);
+          const dueDay = toInt(tier.dueDay, 1);
+
+          const createdTier = await tx.propertyTier.create({
+            data: {
               propertyId: createdProperty.id,
-              tierId: createdTier.id,
-              unitNumber,
+              name: tierName,
               baseRentCents,
+              unitCount,
+              billingFrequency: "MONTHLY",
+              rentDueDay: dueDay,
+              gracePeriodDays,
+              lateFeeType: tier.lateFeeType,
+              lateFeeInitialCents: Math.round(lateFeeInitial * 100),
+              lateFeeDailyCents: Math.round(lateFeeDaily * 100),
+              maxLateFeeDays,
+              sortOrder: index,
               isActive: true,
-            })),
+            },
           });
+
+          const unitNumbers = buildUnitNumbers(unitCount, nextUnitNumber);
+          nextUnitNumber += unitCount;
+
+          if (unitNumbers.length > 0) {
+            await tx.unit.createMany({
+              data: unitNumbers.map((unitNumber) => ({
+                propertyId: createdProperty.id,
+                tierId: createdTier.id,
+                unitNumber,
+                baseRentCents,
+                isActive: true,
+              })),
+            });
+          }
         }
-      }
 
-      await tx.propertySettings.upsert({
-        where: { propertyId: createdProperty.id },
-        update: {
-          onboardingComplete: true,
-          setupComplete: true,
-        },
-        create: {
+        await tx.propertySettings.upsert({
+          where: { propertyId: createdProperty.id },
+          update: {
+            onboardingComplete: true,
+            setupComplete: true,
+          },
+          create: {
+            propertyId: createdProperty.id,
+            onboardingComplete: true,
+            setupComplete: true,
+          },
+        });
+
+        await tx.paymentConnectionStatus.upsert({
+          where: { propertyId: createdProperty.id },
+          update: {},
+          create: {
+            propertyId: createdProperty.id,
+          },
+        });
+
+        return {
           propertyId: createdProperty.id,
-          onboardingComplete: true,
-          setupComplete: true,
-        },
-      });
+          propertyCode: createdProperty.propertyCode,
+          managementUserId: managerRecord.id,
+        };
+      }
+    );
 
-      return {
-        propertyId: createdProperty.id,
-        propertyCode: createdProperty.propertyCode,
-        managerId: managerRecord.id,
-      };
+    const token = createSessionToken({
+      role: "OWNER",
+      propertyId: result.propertyId,
+      managementUserId: result.managementUserId,
     });
+
+    await setSessionCookie(token);
 
     return NextResponse.json({
       ok: true,
@@ -311,9 +340,6 @@ export async function POST(req: Request) {
     const message =
       error instanceof Error ? error.message : "Could not complete setup.";
 
-    return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

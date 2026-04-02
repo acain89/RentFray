@@ -62,7 +62,7 @@ type DashboardData = {
 
 type UnitStatus = "PAID" | "PARTIAL" | "GRACE" | "DELINQUENT" | "VACANT";
 
-type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | null;
+type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | "bank" | null;
 
 type UnitWithStatus = Unit & {
   status: UnitStatus;
@@ -372,6 +372,8 @@ export default function Page() {
   const [savingCharges, setSavingCharges] = useState(false);
   const [chargesEffectiveMonth, setChargesEffectiveMonth] = useState("");
   const [viewMode, setViewMode] = useState<"simple" | "full">("simple");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
 
   const [managers, setManagers] = useState<ManagerUser[]>([]);
   const [managersLoading, setManagersLoading] = useState(false);
@@ -395,7 +397,7 @@ export default function Page() {
   const [maintenancePinError, setMaintenancePinError] = useState("");
   const [maintenancePinSuccess, setMaintenancePinSuccess] = useState("");
 
-  const sessionRole = data?.session?.role ?? "STAFF";
+  const sessionRole = data?.session?.role || "OWNER";
   const canManageMoney = sessionRole === "OWNER" || sessionRole === "MANAGER";
   const canVacateUnit = sessionRole === "OWNER" || sessionRole === "MANAGER";
   const canManageMaintenance =
@@ -405,6 +407,7 @@ export default function Page() {
   const canEditLateFeeSettings =
     sessionRole === "OWNER" || sessionRole === "MANAGER";
   const canManageManagers = sessionRole === "OWNER";
+  const isOwner = sessionRole === "OWNER";
   const propertyName = data?.property?.name ?? "Manager Dashboard";
   const propertyCode = data?.property?.code ?? "----";
 
@@ -1367,6 +1370,13 @@ async function saveLocalRentSettings(): Promise<void> {
                   </button>
 
                   <button
+                    onClick={() => openPanel("bank")}
+                    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
+                  >
+                    Accnt
+                  </button>
+
+                  <button
                     type="button"
                     onClick={() => openPanel("info")}
                     className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
@@ -1768,6 +1778,50 @@ async function saveLocalRentSettings(): Promise<void> {
           </div>
         </OverlayShell>
       ) : null}
+
+     {activePanel === "bank" ? (
+  <OverlayShell title="Bank Account" onClose={closePanel}>
+    <div className="space-y-4">
+
+      <input
+        placeholder="Routing Number"
+        className="w-full border p-3 rounded-xl"
+        disabled={!isOwner}
+      />
+
+      <input
+        placeholder="Account Number"
+        value={accountNumber}
+        onChange={(e) => setAccountNumber(e.target.value)}
+        className="w-full border p-3 rounded-xl"
+        disabled={!isOwner}
+      />
+
+      <input
+        placeholder="Confirm Account Number"
+        value={confirmAccountNumber}
+        onChange={(e) => setConfirmAccountNumber(e.target.value)}
+        className="w-full border p-3 rounded-xl"
+        disabled={!isOwner}
+      />
+
+      <button
+        onClick={() => {
+          if (accountNumber !== confirmAccountNumber) {
+            alert("Account numbers do not match");
+            return;
+          }
+          alert("Save logic next");
+        }}
+        disabled={!isOwner}
+        className="w-full bg-black text-white p-3 rounded-xl"
+      >
+        Save
+      </button>
+
+    </div>
+  </OverlayShell>
+) : null}
 
 {activePanel === "charges" ? (
   <OverlayShell

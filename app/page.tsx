@@ -51,12 +51,12 @@ export default function Home() {
 
         <section className="mt-10 grid gap-4">
 
-  {[
-    "Create your full property setup in under 2 minutes.",
-    "Every unit auto-generated — no manual setup.",
-    "No manual client data entry. Clients onboard themselves.",
-    "Payments, balances, billing, and tracking — fully automated."
-  ].map((text) => (
+ {[
+  "Create your full property setup in under 5 minutes.",
+  "Everything in one place — no spreadsheets needed.",
+  "No manual data entry — tenants onboard themselves.",
+  "Payments, balances, and billing — fully automated."
+].map((text) => (
     <div
       key={text}
 className="rounded-[24px] border border-[#bfe8cd] bg-[#e8f7ee] px-5 py-5 text-[#0f172a] shadow-sm hover:shadow-md transition"
