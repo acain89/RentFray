@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   }
 
   const stripe = new Stripe(stripeSecretKey, {
-    apiVersion: "2026-02-25.clover",
+    apiVersion: "2026-03-25.dahlia"
   });
 
   let event: Stripe.Event;
@@ -106,6 +106,7 @@ export async function POST(req: Request) {
     if (event.type === "payment_intent.payment_failed") {
       const intent = event.data.object as Stripe.PaymentIntent;
       await updatePaymentStatus(intent.id, "FAILED");
+      emitEvent("payment:update", { propertyId: "", unitId: "" });
     }
 
     if (event.type === "charge.refunded") {
@@ -230,7 +231,7 @@ export async function POST(req: Request) {
             tenantAssignmentId,
             entryType: "PAYMENT",
             paymentMethod: "ACH",
-            amountCents: -stripeCents,
+            amountCents: -balanceCents,
             effectiveDate,
             billingCycle,
             paymentId: existingPayment.id,

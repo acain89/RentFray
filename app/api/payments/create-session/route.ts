@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     const stripe = new Stripe(secretKey, {
-      apiVersion: "2026-02-25.clover",
+      apiVersion: "2024-06-20",
     });
 
     const session = await getSession();
@@ -154,7 +154,17 @@ export async function POST(req: Request) {
 
     const billingCycle = getBillingCycle(new Date());
 
+    if (!property.stripeAccountId) {
+  return NextResponse.json({ ok: false, error: "Bank not connected" }, { status: 400 });
+}
+
     const checkoutSession = await stripe.checkout.sessions.create({
+      payment_intent_data: {
+  application_fee_amount: processingFeeCents,
+  transfer_data: {
+    destination: property.stripeAccountId!,
+  },
+},
       mode: "payment",
       payment_method_types: ["us_bank_account"],
       customer_creation: "if_required",
@@ -215,7 +225,7 @@ export async function POST(req: Request) {
         propertyId: property.id,
         unitId: unit.id,
         tenantAssignmentId,
-        stripePaymentIntentId: `pending:${checkoutSession.id}`,
+        stripePaymentIntentId: checkoutSession.id,
         stripeSessionId: checkoutSession.id,
         billingCycle,
         amountCents: balanceCents,

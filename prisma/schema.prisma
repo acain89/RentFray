@@ -41,6 +41,7 @@ model Property {
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  stripeAccountId  String?
 
   settings            PropertySettings?
   paymentStatus       PaymentConnectionStatus?

@@ -410,6 +410,7 @@ export default function Page() {
   const isOwner = sessionRole === "OWNER";
   const propertyName = data?.property?.name ?? "Manager Dashboard";
   const propertyCode = data?.property?.code ?? "----";
+  const bankConnected = data?.property?.paymentStatus?.bankConnected;
 
   async function loadDashboard(): Promise<void> {
     try {
@@ -1783,6 +1784,10 @@ async function saveLocalRentSettings(): Promise<void> {
   <OverlayShell title="Bank Account" onClose={closePanel}>
     <div className="space-y-4">
 
+      <div className="text-sm font-semibold">
+      Status: {data?.property?.paymentStatus?.bankConnected ? "Connected" : "Not connected"}
+     </div>
+
       <input
         placeholder="Routing Number"
         className="w-full border p-3 rounded-xl"
@@ -1806,18 +1811,20 @@ async function saveLocalRentSettings(): Promise<void> {
       />
 
       <button
-        onClick={() => {
-          if (accountNumber !== confirmAccountNumber) {
-            alert("Account numbers do not match");
-            return;
-          }
-          alert("Save logic next");
-        }}
-        disabled={!isOwner}
-        className="w-full bg-black text-white p-3 rounded-xl"
-      >
-        Save
-      </button>
+  onClick={async () => {
+    if (accountNumber !== confirmAccountNumber) {
+      alert("Account numbers do not match");
+      return;
+    }
+
+    const res = await fetch("/api/stripe/connect", { method: "POST" });
+    const json = await res.json();
+
+    if (json?.url) window.location.href = json.url;
+  }}
+>
+  Save
+</button>
 
     </div>
   </OverlayShell>
