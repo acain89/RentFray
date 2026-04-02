@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
@@ -17,6 +18,32 @@ type TierChargesInput = {
 
 type PostBody = {
   tiers?: TierChargesInput[];
+};
+
+type PropertyTierRow = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+type ActiveChargeRow = {
+  id: string;
+  tierId: string;
+  label: string;
+  amountCents: number;
+  effectiveDate: Date;
+  sortOrder: number;
+};
+
+type SanitizedCharge = {
+  label: string;
+  amountCents: number;
+  sortOrder: number;
+};
+
+type SanitizedTier = {
+  tierId: string;
+  charges: SanitizedCharge[];
 };
 
 function clean(value: unknown): string {
@@ -43,8 +70,8 @@ function isAuthorized(role: string | null | undefined): boolean {
 }
 
 export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -53,11 +80,14 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
     const propertyId = clean(id);
 
     if (!propertyId) {
-      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
     }
 
     const property = await prisma.property.findUnique({
@@ -66,9 +96,7 @@ export async function GET(
         id: true,
         name: true,
         tiers: {
-          where: {
-            isActive: true,
-          },
+          where: { isActive: true },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           select: {
             id: true,
@@ -80,12 +108,21 @@ export async function GET(
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
     }
 
-    const tierIds = property.tiers.map((tier) => tier.id);
+    const typedTiers: PropertyTierRow[] = property.tiers.map((tier: PropertyTierRow) => ({
+      id: tier.id,
+      name: tier.name,
+      sortOrder: tier.sortOrder,
+    }));
 
-    const activeCharges = tierIds.length
+    const tierIds = typedTiers.map((tier) => tier.id);
+
+    const activeCharges: ActiveChargeRow[] = tierIds.length
       ? await prisma.propertyTierCharge.findMany({
           where: {
             propertyId,
@@ -102,7 +139,7 @@ export async function GET(
             id: true,
             tierId: true,
             label: true,
-            amount: true,
+            amountCents: true,
             effectiveDate: true,
             sortOrder: true,
           },
@@ -120,7 +157,7 @@ export async function GET(
       }
     }
 
-    const tiers = property.tiers.map((tier) => {
+    const tiers = typedTiers.map((tier) => {
       const latestEffectiveTime = latestEffectiveByTier.get(tier.id);
 
       const charges = activeCharges
@@ -133,7 +170,7 @@ export async function GET(
         .map((charge) => ({
           id: charge.id,
           label: charge.label,
-          amount: charge.amount,
+          amount: charge.amountCents / 100,
           effectiveDate: charge.effectiveDate.toISOString(),
           sortOrder: charge.sortOrder,
         }));
@@ -165,8 +202,8 @@ export async function GET(
 }
 
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -175,24 +212,29 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
     const propertyId = clean(id);
 
     if (!propertyId) {
-      return NextResponse.json({ error: "Missing property id." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
     }
 
-    const body = (await req.json().catch(() => null)) as PostBody | null;
-    const submittedTiers = Array.isArray(body?.tiers) ? body!.tiers : [];
+    const rawBody: unknown = await req.json().catch(() => null);
+    const body = rawBody as PostBody | null;
+
+    const submittedTiers: TierChargesInput[] = Array.isArray(body?.tiers)
+      ? body.tiers
+      : [];
 
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
       select: {
         id: true,
         tiers: {
-          where: {
-            isActive: true,
-          },
+          where: { isActive: true },
           select: {
             id: true,
             name: true,
@@ -203,70 +245,63 @@ export async function POST(
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
     }
 
-    const validTierMap = new Map(
-      property.tiers.map((tier) => [tier.id, tier] as const)
+    const typedTiers: PropertyTierRow[] = property.tiers.map((tier: PropertyTierRow) => ({
+      id: tier.id,
+      name: tier.name,
+      sortOrder: tier.sortOrder,
+    }));
+
+    const validTierMap = new Map<string, PropertyTierRow>(
+      typedTiers.map((tier) => [tier.id, tier])
     );
 
-    const sanitizedTiers = submittedTiers
+    const sanitizedTiers: SanitizedTier[] = submittedTiers
       .map((tierBlock) => {
         const tierId = clean(tierBlock?.tierId);
 
-        if (!tierId || !validTierMap.has(tierId)) {
-          return null;
-        }
+        if (!tierId || !validTierMap.has(tierId)) return null;
 
-        const rawCharges = Array.isArray(tierBlock?.charges) ? tierBlock.charges : [];
+        const rawCharges = Array.isArray(tierBlock?.charges)
+          ? tierBlock.charges
+          : [];
 
-        const charges = rawCharges
+        const charges: SanitizedCharge[] = rawCharges
           .map((charge, index) => {
             const label = clean(charge?.label);
-            const amount = Math.round(toNumber(charge?.amount) * 100) / 100;
+            const amount = Math.round(toNumber(charge?.amount) * 100);
             const isActive = charge?.isActive !== false;
 
-            if (!label || !isActive) {
-              return null;
-            }
-
-            if (!Number.isFinite(amount) || amount < 0) {
-              return null;
-            }
+            if (!label || !isActive) return null;
+            if (!Number.isFinite(amount) || amount < 0) return null;
 
             return {
               label,
-              amount,
+              amountCents: amount,
               sortOrder: index,
             };
           })
-          .filter((charge): charge is { label: string; amount: number; sortOrder: number } => {
-            return Boolean(charge);
-          });
+          .filter((c): c is SanitizedCharge => c !== null);
 
-        return {
-          tierId,
-          charges,
-        };
+        return { tierId, charges };
       })
-      .filter((tier): tier is { tierId: string; charges: { label: string; amount: number; sortOrder: number }[] } => {
-        return Boolean(tier);
-      });
+      .filter((t): t is SanitizedTier => t !== null);
 
     const nextEffectiveDate = firstDayOfNextMonth();
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.propertyTierCharge.updateMany({
         where: {
           propertyId,
-          effectiveDate: {
-            gte: nextEffectiveDate,
-          },
+          effectiveDate: { gte: nextEffectiveDate },
           isActive: true,
         },
-        data: {
-          isActive: false,
-        },
+        data: { isActive: false },
       });
 
       for (const tier of sanitizedTiers) {
@@ -276,7 +311,7 @@ export async function POST(
               propertyId,
               tierId: tier.tierId,
               label: charge.label,
-              amount: charge.amount,
+              amountCents: charge.amountCents,
               effectiveDate: nextEffectiveDate,
               isActive: true,
               sortOrder: charge.sortOrder,
@@ -286,28 +321,29 @@ export async function POST(
       }
     });
 
-    const refreshedCharges = await prisma.propertyTierCharge.findMany({
-      where: {
-        propertyId,
-        isActive: true,
-        effectiveDate: nextEffectiveDate,
-      },
-      orderBy: [
-        { tierId: "asc" },
-        { sortOrder: "asc" },
-        { createdAt: "asc" },
-      ],
-      select: {
-        id: true,
-        tierId: true,
-        label: true,
-        amount: true,
-        effectiveDate: true,
-        sortOrder: true,
-      },
-    });
+    const refreshedCharges: ActiveChargeRow[] =
+      await prisma.propertyTierCharge.findMany({
+        where: {
+          propertyId,
+          isActive: true,
+          effectiveDate: nextEffectiveDate,
+        },
+        orderBy: [
+          { tierId: "asc" },
+          { sortOrder: "asc" },
+          { createdAt: "asc" },
+        ],
+        select: {
+          id: true,
+          tierId: true,
+          label: true,
+          amountCents: true,
+          effectiveDate: true,
+          sortOrder: true,
+        },
+      });
 
-    const tiers = property.tiers
+    const tiers = [...typedTiers]
       .sort((a, b) => {
         if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
         return a.name.localeCompare(b.name, undefined, {
@@ -319,13 +355,13 @@ export async function POST(
         tierId: tier.id,
         tierName: tier.name,
         charges: refreshedCharges
-          .filter((charge) => charge.tierId === tier.id)
-          .map((charge) => ({
-            id: charge.id,
-            label: charge.label,
-            amount: charge.amount,
-            effectiveDate: charge.effectiveDate.toISOString(),
-            sortOrder: charge.sortOrder,
+          .filter((c) => c.tierId === tier.id)
+          .map((c) => ({
+            id: c.id,
+            label: c.label,
+            amount: c.amountCents / 100,
+            effectiveDate: c.effectiveDate.toISOString(),
+            sortOrder: c.sortOrder,
           })),
       }));
 

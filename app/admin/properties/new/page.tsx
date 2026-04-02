@@ -26,12 +26,16 @@ type TierRow = {
   charges: ChargeRow[];
 };
 
+type TierEditableField = Exclude<keyof TierRow, "charges">;
+
 type WizardData = {
   account: {
-    fullName: string;
-    email: string;
-    password: string;
-  };
+  fullName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
+
   property: {
     name: string;
     address: string;
@@ -311,14 +315,18 @@ if (data.account.password !== data.account.confirmPassword) {
 
   const progressPercent = (step / TOTAL_STEPS) * 100;
 
-  const updateTier = (tierId: string, field: keyof TierRow, value: string) => {
-    setData((prev) => ({
-      ...prev,
-      tiers: prev.tiers.map((tier) =>
-        tier.id === tierId ? { ...tier, [field]: value } : tier
-      ),
-    }));
-  };
+ const updateTier = (
+  tierId: string,
+  field: TierEditableField,
+  value: string
+) => {
+  setData((prev) => ({
+    ...prev,
+    tiers: prev.tiers.map((tier) =>
+      tier.id === tierId ? { ...tier, [field]: value } : tier
+    ),
+  }));
+};
 
   const addTier = () => {
     setData((prev) => ({

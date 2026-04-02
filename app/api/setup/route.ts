@@ -238,7 +238,7 @@ export async function POST(req: Request) {
       for (let index = 0; index < tiers.length; index += 1) {
         const tier = tiers[index];
         const tierName = clean(tier.name) || `Tier ${index + 1}`;
-        const baseRent = toMoney(tier.price);
+        const baseRentCents = Math.round(toMoney(tier.price) * 100);
         const unitCount = toInt(tier.unitCount);
         const gracePeriodDays = toInt(tier.gracePeriodDays, 0);
         const lateFeeInitial = toMoney(tier.lateFeeInitial);
@@ -247,18 +247,18 @@ export async function POST(req: Request) {
         const dueDay =
           tier.billingFrequency === "MONTHLY" ? toInt(tier.dueDay, 1) : 1;
 
-        const createdTier = await tx.propertyTier.create({
+                const createdTier = await tx.propertyTier.create({
           data: {
             propertyId: createdProperty.id,
             name: tierName,
-            baseRent,
+            baseRentCents: baseRentCents,
             unitCount,
             billingFrequency: tier.billingFrequency,
             rentDueDay: dueDay,
             gracePeriodDays,
             lateFeeType: tier.lateFeeType,
-            lateFeeInitial,
-            lateFeeDaily,
+            lateFeeInitialCents: Math.round(lateFeeInitial * 100),
+            lateFeeDailyCents: Math.round(lateFeeDaily * 100),
             maxLateFeeDays,
             sortOrder: index,
             isActive: true,
@@ -274,7 +274,7 @@ export async function POST(req: Request) {
               propertyId: createdProperty.id,
               tierId: createdTier.id,
               unitNumber,
-              baseRent,
+              baseRentCents,
               isActive: true,
             })),
           });

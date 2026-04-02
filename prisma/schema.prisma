@@ -1,12 +1,18 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REVERSED
 }
 
 model AdminAccess {
@@ -49,8 +55,7 @@ model Property {
   recurringFees       UnitRecurringFee[]
   payments            Payment[]
   tierCharges         PropertyTierCharge[]
-
-  unitNotes UnitNote[]
+  unitNotes           UnitNote[]
 
   @@index([status])
   @@index([isActive])
@@ -61,12 +66,12 @@ model PropertySettings {
   propertyId               String   @unique
   rentDueDay               Int      @default(1)
   gracePeriodDays          Int      @default(0)
-  lateFeeFlat              Float?
-  lateFeePercent           Float?
+  lateFeeFlatCents         Int?
+  lateFeePercentBps        Int? // basis points: 100 = 1.00%
   lateFeeEnabled           Boolean  @default(false)
   convenienceFeeEnabled    Boolean  @default(false)
   convenienceFeeType       String? // FLAT | PERCENT
-  convenienceFeeAmount     Float?
+  convenienceFeeAmountCents Int?
   allowTestMode            Boolean  @default(true)
   tenantPortalEnabled      Boolean  @default(true)
   maintenancePortalEnabled Boolean  @default(true)
@@ -97,23 +102,23 @@ model PaymentConnectionStatus {
 }
 
 model PropertyTier {
-  id               String   @id @default(cuid())
-  propertyId       String
-  name             String
-  baseRent         Float    @default(0)
-  unitCount        Int      @default(0)
-  billingFrequency String   @default("MONTHLY") // MONTHLY | BIWEEKLY | WEEKLY
-  rentDueDay       Int      @default(1)
-  gracePeriodDays  Int      @default(0)
-  lateFeeType      String   @default("FLAT") // FLAT | PERCENT
-  lateFeeInitial   Float    @default(0)
-  lateFeeDaily     Float    @default(0)
-  maxLateFeeDays   Int      @default(0)
-  processingFee    Float    @default(0)
-  sortOrder        Int      @default(0)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  propertyId          String
+  name                String
+  baseRentCents       Int      @default(0)
+  unitCount           Int      @default(0)
+  billingFrequency    String   @default("MONTHLY") // MONTHLY | BIWEEKLY | WEEKLY
+  rentDueDay          Int      @default(1)
+  gracePeriodDays     Int      @default(0)
+  lateFeeType         String   @default("FLAT") // FLAT | PERCENT
+  lateFeeInitialCents Int      @default(0)
+  lateFeeDailyCents   Int      @default(0)
+  maxLateFeeDays      Int      @default(0)
+  processingFeeCents  Int      @default(0)
+  sortOrder           Int      @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   property Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   units    Unit[]
@@ -129,7 +134,7 @@ model PropertyTierCharge {
   propertyId    String
   tierId        String
   label         String
-  amount        Float
+  amountCents   Int
   effectiveDate DateTime
   isActive      Boolean  @default(true)
   sortOrder     Int      @default(0)
@@ -174,14 +179,13 @@ model ManagementUser {
 }
 
 model Unit {
-  id         String  @id @default(cuid())
-  propertyId String
-  tierId     String?
-  unitNumber String
-  unitType   String?
-  baseRent   Float?
-  isActive   Boolean @default(true)
-
+  id            String  @id @default(cuid())
+  propertyId    String
+  tierId        String?
+  unitNumber    String
+  unitType      String?
+  baseRentCents Int?
+  isActive      Boolean @default(true)
 
   portalActivated  Boolean   @default(false)
   portalFirstName  String?
@@ -200,8 +204,7 @@ model Unit {
   ledgerEntries       LedgerEntry[]
   recurringFeeItems   UnitRecurringFee[]
   payments            Payment[]
-
-  notes UnitNote[]
+  notes               UnitNote[]
 
   @@unique([propertyId, unitNumber])
   @@index([propertyId, tierId])
@@ -214,7 +217,7 @@ model UnitRecurringFee {
   propertyId   String
   unitId       String
   label        String
-  amount       Float
+  amountCents  Int
   isActive     Boolean  @default(true)
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
@@ -316,14 +319,17 @@ model LedgerEntry {
   unitId             String
   tenantAssignmentId String?
 
+  paymentId    String?
+  billingCycle String?
+
   entryType     String // CHARGE | PAYMENT | CREDIT | ADJUSTMENT
   chargeType    String? // RENT | LATE_FEE | RECURRING_FEE | PROCESSING_FEE | OTHER_FEE
   paymentMethod String? // ACH | CASH | CHECK | MONEY_ORDER | CARD | OTHER
 
-  amount          Float
-  effectiveDate   DateTime
-  memo            String?
-  referenceNumber String?
+  amountCents      Int
+  effectiveDate    DateTime
+  memo             String?
+  referenceNumber  String?
 
   createdByManagementUserId String?
   createdByAdminId          String?
@@ -339,11 +345,14 @@ model LedgerEntry {
   tenantAssignment        TenantAssignment? @relation(fields: [tenantAssignmentId], references: [id], onDelete: SetNull)
   createdByManagementUser ManagementUser?   @relation("LedgerEntryCreatedBy", fields: [createdByManagementUserId], references: [id], onDelete: SetNull)
   voidedByManagementUser  ManagementUser?   @relation("LedgerEntryVoidedBy", fields: [voidedByManagementUserId], references: [id], onDelete: SetNull)
+  payment                 Payment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@index([propertyId, unitId, effectiveDate])
   @@index([unitId, effectiveDate])
   @@index([tenantAssignmentId])
   @@index([entryType])
+  @@index([paymentId])
+  @@index([billingCycle])
 }
 
 model AuditLog {
@@ -408,14 +417,20 @@ model Payment {
   tenantAssignmentId String?
 
   stripePaymentIntentId String  @unique
-  stripeSessionId       String?
+  stripeSessionId       String? @unique
+
+  billingCycle String?
 
   amountCents        Int
   processingFeeCents Int?
 
-  status String // PENDING | PROCESSING | PAID | FAILED | REFUNDED
+  status PaymentStatus // UNPAID | PENDING | PAID | FAILED | REVERSED
 
   paymentMethod String?
+
+  paidAt     DateTime?
+  failedAt   DateTime?
+  reversedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -423,8 +438,11 @@ model Payment {
   property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   unit             Unit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
   tenantAssignment TenantAssignment? @relation(fields: [tenantAssignmentId], references: [id], onDelete: SetNull)
+  ledgerEntries    LedgerEntry[]
 
   @@index([propertyId, unitId])
   @@index([stripePaymentIntentId])
+  @@index([stripeSessionId])
   @@index([status])
+  @@index([billingCycle])
 }

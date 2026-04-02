@@ -2,13 +2,20 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+import { formatCentsToDollars } from "@/lib/billingConfig";
 
-function toCSV(rows: Record<string, unknown>[]): string {
+type CsvValue = string | number | null;
+type CsvRow = Record<string, CsvValue>;
+
+type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+
+function toCSV(rows: CsvRow[]): string {
   if (!rows.length) return "";
 
   const headers = Object.keys(rows[0]);
 
-  const escape = (value: unknown): string => {
+  const escape = (value: CsvValue): string => {
     if (value === null || value === undefined) return "";
     const str = String(value);
     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -19,27 +26,98 @@ function toCSV(rows: Record<string, unknown>[]): string {
 
   const headerLine = headers.join(",");
   const lines = rows.map((row) =>
-    headers.map((h) => escape(row[h])).join(",")
+    headers.map((h) => escape(row[h] ?? null)).join(",")
   );
 
   return [headerLine, ...lines].join("\n");
 }
 
-function fmtDate(value: Date | string | null): string {
+function fmtDate(value: Date | string | null | undefined): string {
   if (!value) return "";
-  return new Date(value).toISOString().split("T")[0];
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toISOString().split("T")[0] ?? "";
+}
+
+function fmtDateTime(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function normalizePaymentStatus(value: unknown): PaymentStatus | null {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "UNPAID":
+    case "PENDING":
+    case "PAID":
+    case "FAILED":
+    case "REVERSED":
+      return status;
+    default:
+      return null;
+  }
+}
+
+function parseBillingCycleInput(value: string | null): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^\d{2}\/\d{4}$/.test(trimmed)) {
+    const [month, year] = trimmed.split("/");
+    return `${year}-${month}`;
+  }
+
+  return null;
 }
 
 export async function GET(req: Request) {
   try {
+    const session = await getSession();
+
+    if (
+      !session ||
+      (session.role !== "OWNER" &&
+        session.role !== "MANAGER" &&
+        session.role !== "STAFF") ||
+      !session.propertyId
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
 
-    const propertyId = searchParams.get("propertyId");
-    const status = searchParams.get("status");
+    const requestedPropertyId = searchParams.get("propertyId");
+    const requestedStatus = searchParams.get("status");
+    const requestedCycle =
+      searchParams.get("billingCycle") ?? searchParams.get("cycle");
 
-    if (!propertyId) {
+    const propertyId = session.propertyId;
+
+    if (requestedPropertyId && requestedPropertyId !== propertyId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const normalizedStatus = requestedStatus
+      ? normalizePaymentStatus(requestedStatus)
+      : null;
+
+    if (requestedStatus && !normalizedStatus) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
+    const billingCycle = parseBillingCycleInput(requestedCycle);
+
+    if (requestedCycle && !billingCycle) {
       return NextResponse.json(
-        { error: "propertyId required" },
+        { error: "Invalid billingCycle. Use YYYY-MM or MM/YYYY." },
         { status: 400 }
       );
     }
@@ -47,32 +125,72 @@ export async function GET(req: Request) {
     const payments = await prisma.payment.findMany({
       where: {
         propertyId,
-        ...(status ? { status } : {}),
+        ...(normalizedStatus ? { status: normalizedStatus } : {}),
+        ...(billingCycle ? { billingCycle } : {}),
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
-        unit: true,
+        unit: {
+          select: {
+            unitNumber: true,
+          },
+        },
+        tenantAssignment: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
-    const rows = payments.map((p: (typeof payments)[number]) => ({
-      unitNumber: p.unit?.unitNumber || "",
-      status: p.status,
-      amount: Math.abs(p.amountCents) / 100,
-      createdAt: fmtDate(p.createdAt),
-      updatedAt: fmtDate(p.updatedAt),
-    }));
+    type PaymentWithRelations = (typeof payments)[number];
 
+    const rows: CsvRow[] = payments.map((p: PaymentWithRelations) => {
+      const feeCents = p.processingFeeCents ?? 0;
+      const totalChargedCents = (p.amountCents ?? 0) + feeCents;
+
+      const tenantName = `${p.tenantAssignment?.firstName ?? ""} ${
+        p.tenantAssignment?.lastName ?? ""
+      }`.trim();
+
+      const paymentDate =
+        p.paidAt ?? p.failedAt ?? p.reversedAt ?? p.createdAt;
+
+      return {
+        billingCycle: p.billingCycle ?? "",
+        unitNumber: p.unit?.unitNumber ?? "",
+        tenantName: tenantName || "",
+        amountDueCents: p.amountCents ?? 0,
+        amountDue: formatCentsToDollars(p.amountCents ?? 0),
+        feeCents,
+        fee: formatCentsToDollars(feeCents),
+        totalPaidCents: totalChargedCents,
+        totalPaid: formatCentsToDollars(totalChargedCents),
+        status: p.status ?? "",
+        paymentDate: fmtDate(paymentDate),
+        paymentTimestamp: fmtDateTime(paymentDate),
+        transactionId: p.stripePaymentIntentId ?? "",
+        checkoutSessionId: p.stripeSessionId ?? "",
+        createdAt: fmtDateTime(p.createdAt),
+        updatedAt: fmtDateTime(p.updatedAt),
+      };
+    });
+
+    const cycleLabel = billingCycle ?? "all-cycles";
+    const filename = `payments-export-${cycleLabel}.csv`;
     const csv = toCSV(rows);
 
     return new NextResponse(csv, {
       headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": "attachment; filename=payments-report.csv",
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename=${filename}`,
+        "Cache-Control": "no-store",
       },
     });
-  } catch (err) {
-    console.error(err);
+  } catch (err: unknown) {
+    console.error("payments export failed", err);
+
     return NextResponse.json(
       { error: "Export failed" },
       { status: 500 }

@@ -2,85 +2,113 @@
 
 type LedgerLikeEntry = {
   id: string;
-  amount: number;
-  type: string;
-  appliedAmount?: number | null;
+  amountCents: number;
+  entryType: string;
+  appliedAmountCents?: number | null;
 };
 
 type Allocation = {
   ledgerEntryId: string;
-  appliedAmount: number;
+  appliedAmountCents: number;
 };
 
 type AllocationResult = {
   allocations: Allocation[];
-  remaining: number;
+  remainingCents: number;
+  totalOpenChargeCents: number;
+  isExactPaymentMatch: boolean;
 };
 
-function toCents(value: unknown): number {
+type CanonicalLedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
+
+function toSafeInteger(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100);
+  return Math.trunc(n);
 }
 
-function fromCents(cents: number): number {
-  return Math.round(cents) / 100;
+function normalizeLedgerEntryType(value: unknown): CanonicalLedgerEntryType | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+
+  switch (normalized) {
+    case "CHARGE":
+    case "PAYMENT":
+    case "CREDIT":
+    case "ADJUSTMENT":
+      return normalized;
+    default:
+      return null;
+  }
 }
 
-function isChargeType(type: unknown): boolean {
-  const normalized = String(type ?? "").trim().toUpperCase();
-
-  return (
-    normalized === "CHARGE" ||
-    normalized === "RENT" ||
-    normalized === "LATE_FEE" ||
-    normalized === "FEE" ||
-    normalized === "ADJUSTMENT"
-  );
+function isAllocatableChargeType(type: CanonicalLedgerEntryType): boolean {
+  return type === "CHARGE";
 }
 
+/*
+V1 RULE:
+- No partial payments allowed
+- Payment must exactly match total currently open charges
+- If it does not match exactly, return no allocations
+*/
 export function allocatePayment(
-  amount: number,
+  paymentAmountCents: number,
   entries: LedgerLikeEntry[]
 ): AllocationResult {
-  let remainingCents = Math.max(0, toCents(amount));
+  const safePaymentAmountCents = Math.max(0, toSafeInteger(paymentAmountCents));
 
   const openCharges = entries
-    .filter((entry) => {
-      const entryAmountCents = toCents(entry.amount);
-      return isChargeType(entry.type) && entryAmountCents > 0;
-    })
     .map((entry) => {
-      const amountCents = toCents(entry.amount);
-      const alreadyAppliedCents = Math.max(0, toCents(entry.appliedAmount ?? 0));
-      const openAmountCents = Math.max(0, amountCents - alreadyAppliedCents);
+      const entryType = normalizeLedgerEntryType(entry.entryType);
+      const amountCents = Math.max(0, toSafeInteger(entry.amountCents));
+      const appliedAmountCents = Math.max(
+        0,
+        toSafeInteger(entry.appliedAmountCents ?? 0)
+      );
+
+      if (!entryType || !isAllocatableChargeType(entryType)) {
+        return null;
+      }
+
+      const openAmountCents = Math.max(0, amountCents - appliedAmountCents);
+
+      if (openAmountCents <= 0) {
+        return null;
+      }
 
       return {
         id: entry.id,
         openAmountCents,
       };
     })
-    .filter((entry) => entry.openAmountCents > 0);
+    .filter((entry): entry is { id: string; openAmountCents: number } => entry !== null);
 
-  const allocations: Allocation[] = [];
+  const totalOpenChargeCents = openCharges.reduce(
+    (sum, entry) => sum + entry.openAmountCents,
+    0
+  );
 
-  for (const entry of openCharges) {
-    if (remainingCents <= 0) break;
+  const isExactPaymentMatch =
+    safePaymentAmountCents > 0 && safePaymentAmountCents === totalOpenChargeCents;
 
-    const appliedCents = Math.min(remainingCents, entry.openAmountCents);
-
-    if (appliedCents > 0) {
-      allocations.push({
-        ledgerEntryId: entry.id,
-        appliedAmount: fromCents(appliedCents),
-      });
-
-      remainingCents -= appliedCents;
-    }
+  if (!isExactPaymentMatch) {
+    return {
+      allocations: [],
+      remainingCents: safePaymentAmountCents,
+      totalOpenChargeCents,
+      isExactPaymentMatch: false,
+    };
   }
+
+  const allocations: Allocation[] = openCharges.map((entry) => ({
+    ledgerEntryId: entry.id,
+    appliedAmountCents: entry.openAmountCents,
+  }));
 
   return {
     allocations,
-    remaining: fromCents(remainingCents),
+    remainingCents: 0,
+    totalOpenChargeCents,
+    isExactPaymentMatch: true,
   };
 }

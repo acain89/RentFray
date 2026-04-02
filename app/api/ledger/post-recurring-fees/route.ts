@@ -1,5 +1,3 @@
-// app/api/ledger/post-recurring-fees/route.ts
-
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -33,12 +31,6 @@ function getMonthLabel(date: Date): string {
     month: "long",
     year: "numeric",
   });
-}
-
-function toMoney(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100) / 100;
 }
 
 function clean(value: unknown): string {
@@ -84,7 +76,7 @@ export async function POST() {
               select: {
                 id: true,
                 label: true,
-                amount: true,
+                amountCents: true, // ✅ FIX
               },
             },
           },
@@ -108,6 +100,7 @@ export async function POST() {
           gte: monthStart,
           lt: nextMonth,
         },
+        voidedAt: null,
       },
       select: {
         unitId: true,
@@ -117,13 +110,13 @@ export async function POST() {
     });
 
     const existingKeys = new Set<string>(
-  existingEntries.map(
-    (entry: (typeof existingEntries)[number]) =>
-      `${entry.unitId}::${entry.tenantAssignmentId ?? ""}::${clean(
-        entry.memo
+      existingEntries.map(
+  (entry: (typeof existingEntries)[number]) =>
+    `${entry.unitId}::${entry.tenantAssignmentId ?? ""}::${clean(
+      entry.memo
       )}`
-  )
-);
+     )
+    );
 
     let posted = 0;
     let skipped = 0;
@@ -138,10 +131,10 @@ export async function POST() {
         }
 
         for (const fee of unit.recurringFees) {
-          const amount = toMoney(fee.amount);
+          const amountCents = fee.amountCents ?? 0; // ✅ FIX
           const label = clean(fee.label);
 
-          if (!label || amount <= 0) {
+          if (!label || amountCents <= 0) {
             skipped += 1;
             continue;
           }
@@ -166,6 +159,7 @@ export async function POST() {
                 gte: monthStart,
                 lt: nextMonth,
               },
+              voidedAt: null,
             },
             select: { id: true },
           });
@@ -182,10 +176,12 @@ export async function POST() {
               tenantAssignmentId: activeAssignment.id,
               entryType: "CHARGE",
               chargeType: "RECURRING_FEE",
-              amount,
+              amountCents,
               effectiveDate,
+              billingCycle: monthStart.toISOString(),
               memo,
-              createdByManagementUserId: session.managementUserId ?? null,
+              createdByManagementUserId:
+                session.managementUserId ?? null,
             },
           });
 
@@ -198,7 +194,8 @@ export async function POST() {
         data: {
           propertyId: property.id,
           actorType: "MANAGER",
-          actorManagementUserId: session.managementUserId ?? null,
+          actorManagementUserId:
+            session.managementUserId ?? null,
           action: "RECURRING_FEES_POSTED",
           targetType: "PROPERTY",
           targetId: property.id,
@@ -206,7 +203,7 @@ export async function POST() {
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            monthStart: monthStart.toISOString(),
+            billingCycle: monthStart.toISOString(),
             triggeredAt: effectiveDate.toISOString(),
           }),
         },

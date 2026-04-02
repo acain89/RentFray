@@ -33,10 +33,6 @@ function getCurrentCycleDueDate(today: Date, billingDay: number) {
   return new Date(year, monthIndex, day);
 }
 
-function roundMoney(value: number) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
-
 export async function getUnitDelinquencySummary(
   unitId: string,
   asOf = new Date()
@@ -57,7 +53,7 @@ export async function getUnitDelinquencySummary(
         select: {
           entryType: true,
           chargeType: true,
-          amount: true,
+          amountCents: true,
         },
       },
     },
@@ -65,9 +61,10 @@ export async function getUnitDelinquencySummary(
 
   if (!unit) throw new Error("Unit not found");
 
-  const ledger = await getUnitLedgerSummary(unitId);
-  const today = startOfDay(asOf);
+  // ✅ FIXED
+  const ledger = await getUnitLedgerSummary(unit.id);
 
+  const today = startOfDay(asOf);
   const activeAssignment = unit.tenantAssignments[0] ?? null;
 
   const billingDay =
@@ -78,13 +75,14 @@ export async function getUnitDelinquencySummary(
     unit.property.settings?.gracePeriodDays ??
     0;
 
+  // ✅ FIXED (schema aligned)
   const lateFeeInitial =
-    unit.tier?.lateFeeInitial ??
-    unit.property.settings?.lateFeeFlat ??
+    unit.tier?.lateFeeInitialCents ??
+    unit.property.settings?.lateFeeFlatCents ??
     0;
 
-  const lateFeeDaily = unit.tier?.lateFeeDaily ?? 0;
-  const lateFeeMaxDays = unit.tier?.lateFeeMaxDays ?? 0;
+  const lateFeeDaily = unit.tier?.lateFeeDailyCents ?? 0;
+  const lateFeeMaxDays = unit.tier?.maxLateFeeDays ?? 0;
 
   const dueDate = startOfDay(getCurrentCycleDueDate(today, billingDay));
   const graceEndsOn = startOfDay(addDays(dueDate, gracePeriodDays));
@@ -103,15 +101,15 @@ export async function getUnitDelinquencySummary(
       graceEndsOn: null,
       initialLateFeeDate: null,
       dailyLateFeeStartDate: null,
-      amountDueNow: 0,
-      totalBalance: 0,
-      totalCharges: 0,
-      totalPaid: 0,
+      amountDueNowCents: 0,
+      totalBalanceCents: 0,
+      totalChargesCents: 0,
+      totalPaidCents: 0,
       lastPaymentDate: null,
-      lastPaymentAmount: null,
-      unpaidRent: 0,
-      lateFeesOwed: 0,
-      projectedLateFees: 0,
+      lastPaymentAmountCents: null,
+      unpaidRentCents: 0,
+      lateFeesOwedCents: 0,
+      projectedLateFeesCents: 0,
       daysPastDue: 0,
       isDelinquent: false,
       isPastGrace: false,
@@ -120,39 +118,27 @@ export async function getUnitDelinquencySummary(
     };
   }
 
-  // 🔒 Derive from ledger (safe)
-  let rentCharges = 0;
-  let lateFeeCharges = 0;
+  let rentChargesCents = 0;
 
   for (const entry of unit.ledgerEntries) {
-    const amount = Number(entry.amount || 0);
-
-    if (entry.entryType === "CHARGE" && amount > 0) {
-      if (entry.chargeType === "RENT") {
-        rentCharges += amount;
-      }
-      if (entry.chargeType === "LATE_FEE") {
-        lateFeeCharges += amount;
-      }
+    if (entry.entryType === "CHARGE" && entry.chargeType === "RENT") {
+      rentChargesCents += entry.amountCents ?? 0;
     }
   }
 
-  const totalBalance = roundMoney(ledger.balance);
+  const totalBalanceCents = ledger.balanceCents;
 
-  // Conservative split (prevents overstating)
-  const unpaidRent = roundMoney(Math.min(totalBalance, rentCharges));
-  const lateFeesOwed = roundMoney(
-    Math.max(0, totalBalance - unpaidRent)
-  );
+  const unpaidRentCents = Math.min(totalBalanceCents, rentChargesCents);
+  const lateFeesOwedCents = Math.max(0, totalBalanceCents - unpaidRentCents);
 
-  const amountDueNow = roundMoney(Math.max(totalBalance, 0));
-  const isDelinquent = amountDueNow > 0 && today >= initialLateFeeDate;
+  const amountDueNowCents = Math.max(totalBalanceCents, 0);
+  const isDelinquent = amountDueNowCents > 0 && today >= initialLateFeeDate;
   const daysPastDue = isDelinquent ? diffDays(today, dueDate) : 0;
 
-  let projectedLateFees = 0;
+  let projectedLateFeesCents = 0;
 
   if (isDelinquent) {
-    let projectedInitial = lateFeeInitial || 0;
+    let projectedInitial = lateFeeInitial;
     let projectedDaily = 0;
 
     if (today >= dailyLateFeeStartDate && lateFeeDaily > 0) {
@@ -161,7 +147,7 @@ export async function getUnitDelinquencySummary(
       projectedDaily = lateFeeDaily * allowedDays;
     }
 
-    projectedLateFees = roundMoney(projectedInitial + projectedDaily);
+    projectedLateFeesCents = projectedInitial + projectedDaily;
   }
 
   return {
@@ -173,18 +159,15 @@ export async function getUnitDelinquencySummary(
     graceEndsOn,
     initialLateFeeDate,
     dailyLateFeeStartDate,
-    amountDueNow,
-    totalBalance,
-    totalCharges: roundMoney(ledger.totalCharges),
-    totalPaid: roundMoney(ledger.totalPaid),
+    amountDueNowCents,
+    totalBalanceCents,
+    totalChargesCents: ledger.totalChargesCents, // ✅ FIXED
+    totalPaidCents: ledger.totalPaidCents,       // ✅ FIXED
     lastPaymentDate: ledger.lastPaymentDate,
-    lastPaymentAmount:
-      ledger.lastPaymentAmount === null
-        ? null
-        : roundMoney(ledger.lastPaymentAmount),
-    unpaidRent,
-    lateFeesOwed,
-    projectedLateFees,
+    lastPaymentAmountCents: ledger.lastPaymentAmountCents,
+    unpaidRentCents,
+    lateFeesOwedCents,
+    projectedLateFeesCents,
     daysPastDue,
     isDelinquent,
     isPastGrace,
@@ -195,9 +178,9 @@ export async function getUnitDelinquencySummary(
           name: unit.tier.name,
           rentDueDay: unit.tier.rentDueDay,
           gracePeriodDays: unit.tier.gracePeriodDays,
-          lateFeeInitial: roundMoney(Number(unit.tier.lateFeeInitial || 0)),
-          lateFeeDaily: roundMoney(Number(unit.tier.lateFeeDaily || 0)),
-          lateFeeMaxDays: Number(unit.tier.lateFeeMaxDays || 0),
+          lateFeeInitial: unit.tier.lateFeeInitialCents,
+          lateFeeDaily: unit.tier.lateFeeDailyCents,
+          lateFeeMaxDays: unit.tier.maxLateFeeDays,
         }
       : null,
   };

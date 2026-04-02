@@ -25,7 +25,7 @@ type ParsedChargeBody = {
   unitId: string;
   tenantAssignmentId: string | null;
   type: AllowedChargeType;
-  amount: number;
+  amountCents: number;
   memo: string | null;
   effectiveDate: Date;
   referenceNumber: string | null;
@@ -43,7 +43,7 @@ const ALLOWED_TYPES: Set<AllowedChargeType> = new Set([
   "OTHER_FEE",
 ]);
 
-const MAX_CHARGE_AMOUNT = 1_000_000;
+const MAX_CHARGE_CENTS = 100_000_000;
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
@@ -51,17 +51,17 @@ function clean(value: unknown): string {
 
 function normalizeOptional(value: unknown): string | null {
   const trimmed = clean(value);
-  return trimmed ? trimmed : null;
+  return trimmed || null;
 }
 
-function toMoney(value: unknown): number | null {
+function toCents(value: unknown): number | null {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
 
-  const rounded = Math.round(n * 100) / 100;
-  if (rounded <= 0 || rounded > MAX_CHARGE_AMOUNT) return null;
+  const cents = Math.round(n * 100);
+  if (cents <= 0 || cents > MAX_CHARGE_CENTS) return null;
 
-  return rounded;
+  return cents;
 }
 
 function parseEffectiveDate(value: unknown): Date | null {
@@ -99,16 +99,18 @@ async function parseBody(req: Request): Promise<ParsedChargeBody | null> {
 
   const propertyId = clean(body.propertyId);
   const unitId = clean(body.unitId);
-  const tenantAssignmentIdRaw = clean(body.tenantAssignmentId ?? body.tenantId);
+  const tenantAssignmentIdRaw = clean(
+    body.tenantAssignmentId ?? body.tenantId
+  );
   const typeRaw = clean(body.type).toUpperCase();
-  const amount = toMoney(body.amount);
+  const amountCents = toCents(body.amount);
   const memo = normalizeOptional(body.memo);
   const effectiveDate = parseEffectiveDate(body.effectiveDate);
   const referenceNumber = normalizeOptional(body.referenceNumber);
 
   if (!propertyId || !unitId) return null;
   if (!isAllowedChargeType(typeRaw)) return null;
-  if (amount === null) return null;
+  if (amountCents === null) return null;
   if (!effectiveDate) return null;
 
   return {
@@ -116,7 +118,7 @@ async function parseBody(req: Request): Promise<ParsedChargeBody | null> {
     unitId,
     tenantAssignmentId: tenantAssignmentIdRaw || null,
     type: typeRaw,
-    amount,
+    amountCents,
     memo,
     effectiveDate,
     referenceNumber,
@@ -134,7 +136,11 @@ export async function POST(req: Request) {
   try {
     const session = (await getSession()) as SessionLike | null;
 
-    if (!session || !session.propertyId || !canManageFinancials(session.role ?? "")) {
+    if (
+      !session ||
+      !session.propertyId ||
+      !canManageFinancials(session.role ?? "")
+    ) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Only owner or manager can post charges." },
         { status: 401 }
@@ -158,7 +164,7 @@ export async function POST(req: Request) {
       unitId,
       tenantAssignmentId,
       type,
-      amount,
+      amountCents,
       memo,
       effectiveDate,
       referenceNumber,
@@ -190,13 +196,13 @@ export async function POST(req: Request) {
       );
     }
 
-    let activeAssignment:
-      | {
-          id: string;
-          unitId: string;
-          propertyId: string;
-        }
-      | null = null;
+    type Assignment = {
+      id: string;
+      unitId: string;
+      propertyId: string;
+    };
+
+    let activeAssignment: Assignment | null = null;
 
     if (tenantAssignmentId) {
       activeAssignment = await prisma.tenantAssignment.findFirst({
@@ -215,7 +221,10 @@ export async function POST(req: Request) {
 
       if (!activeAssignment) {
         return NextResponse.json<ApiError>(
-          { ok: false, error: "Tenant assignment is not active for this unit." },
+          {
+            ok: false,
+            error: "Tenant assignment is not active for this unit.",
+          },
           { status: 400 }
         );
       }
@@ -245,25 +254,11 @@ export async function POST(req: Request) {
             tenantAssignmentId: activeAssignment?.id ?? null,
             entryType: "CHARGE",
             chargeType,
-            amount,
+            amountCents,
             effectiveDate,
             memo,
             referenceNumber,
             createdByManagementUserId: session.managementUserId ?? null,
-          },
-          select: {
-            id: true,
-            propertyId: true,
-            unitId: true,
-            tenantAssignmentId: true,
-            entryType: true,
-            chargeType: true,
-            amount: true,
-            effectiveDate: true,
-            memo: true,
-            referenceNumber: true,
-            createdByManagementUserId: true,
-            createdAt: true,
           },
         });
 
@@ -275,14 +270,16 @@ export async function POST(req: Request) {
             action: "MANUAL_CHARGE_POSTED",
             targetType: "LEDGER_ENTRY",
             targetId: entry.id,
-            summary: `Manual ${chargeType} charge posted for unit ${unit.unitNumber}`,
+            summary: `Manual ${chargeType} charge posted for unit ${
+              unit.unitNumber ?? ""
+            }`,
             metadataJson: JSON.stringify({
               unitId: unit.id,
               unitNumber: unit.unitNumber,
               tenantAssignmentId: activeAssignment?.id ?? null,
               entryType: entry.entryType,
               chargeType: entry.chargeType,
-              amount: entry.amount,
+              amountCents: entry.amountCents,
               memo: entry.memo,
               effectiveDate: entry.effectiveDate.toISOString(),
               referenceNumber: entry.referenceNumber,
@@ -297,7 +294,7 @@ export async function POST(req: Request) {
     emitEvent("ledger:update", {
       propertyId,
       unitId,
-      tenantAssignmentId: result.tenantAssignmentId,
+      tenantAssignmentId: result.tenantAssignmentId ?? null,
       entryId: result.id,
       entryType: result.entryType,
       chargeType: result.chargeType,
@@ -313,7 +310,7 @@ export async function POST(req: Request) {
           tenantAssignmentId: string | null;
           entryType: string;
           chargeType: string | null;
-          amount: number;
+          amountCents: number;
           effectiveDate: Date;
           memo: string | null;
           referenceNumber: string | null;
@@ -327,7 +324,7 @@ export async function POST(req: Request) {
         entry: result,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("POST /api/ledger/charges error:", error);
 
     return NextResponse.json<ApiError>(

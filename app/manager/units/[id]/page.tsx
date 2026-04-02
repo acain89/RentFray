@@ -1,18 +1,23 @@
+
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
-import { getPropertySettings } from "@/lib/propertySettings";
-import { getLateFeePreview } from "@/lib/lateFees";
-import { getRentPreview } from "@/lib/rentPreview";
 import ManualPaymentForm from "./ManualPaymentForm";
 import ManualChargeForm from "./ManualChargeForm";
 import PostRentButton from "./PostRentButton";
 import PostLateFeeButton from "./PostLateFeeButton";
-import UnitNotes from "@/app/components/UnitNotes";
+
+function centsToDollars(cents: number | null | undefined): number {
+  return Number(cents || 0) / 100;
+}
 
 function money(value: number): string {
   return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function moneyFromCents(cents: number | null | undefined): string {
+  return money(centsToDollars(cents));
 }
 
 function fmtDate(value: Date | string | null | undefined): string {
@@ -26,16 +31,25 @@ function formatDayLabel(days: number): string {
   return `${days} days past due`;
 }
 
+function sectionCardClasses(emphasis = false): string {
+  return [
+    "rounded-3xl border shadow-sm",
+    emphasis
+      ? "border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)]"
+      : "border-slate-200/80 bg-white",
+  ].join(" ");
+}
+
 type UnitStatus = "PAID" | "PARTIAL" | "GRACE" | "DELINQUENT" | "VACANT";
 
 function resolveStatus(
-  balance: number,
+  balanceDollars: number,
   isDelinquent: boolean,
   hasTenant: boolean,
   daysPastDue: number
 ): UnitStatus {
   if (!hasTenant) return "VACANT";
-  if (balance <= 0) return "PAID";
+  if (balanceDollars <= 0) return "PAID";
   if (isDelinquent) return "DELINQUENT";
   if (daysPastDue > 0) return "GRACE";
   return "PARTIAL";
@@ -57,38 +71,82 @@ function statusPillClasses(status: UnitStatus): string {
   }
 }
 
-function balanceToneClasses(status: UnitStatus, balance: number): string {
+function balanceToneClasses(status: UnitStatus, balanceDollars: number): string {
   if (status === "DELINQUENT") return "text-red-600";
   if (status === "GRACE") return "text-amber-600";
-  if (status === "PAID" || balance <= 0) return "text-emerald-600";
+  if (status === "PAID" || balanceDollars <= 0) return "text-emerald-600";
   if (status === "VACANT") return "text-slate-500";
   return "text-slate-900";
 }
 
 function paymentStatusClasses(status: string | null): string {
   switch (status) {
-    case "PROCESSING":
-      return "bg-blue-50 border-blue-200 text-blue-700";
-    case "PENDING":
+    case "UNPAID":
       return "bg-slate-100 border-slate-200 text-slate-700";
-    case "FAILED":
-      return "bg-red-50 border-red-200 text-red-700";
-    case "REFUNDED":
-      return "bg-purple-50 border-purple-200 text-purple-700";
+    case "PENDING":
+      return "bg-amber-50 border-amber-200 text-amber-700";
     case "PAID":
       return "bg-emerald-50 border-emerald-200 text-emerald-700";
+    case "FAILED":
+      return "bg-red-50 border-red-200 text-red-700";
+    case "REVERSED":
+      return "bg-purple-50 border-purple-200 text-purple-700";
     default:
       return "bg-slate-100 border-slate-200 text-slate-600";
   }
 }
 
-function sectionCardClasses(emphasis = false): string {
-  return [
-    "rounded-3xl border shadow-sm",
-    emphasis
-      ? "border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)]"
-      : "border-slate-200/80 bg-white",
-  ].join(" ");
+function paymentStatusMessage(status: string | null): string {
+  switch (status) {
+    case "UNPAID":
+      return "Payment record exists but has not been completed yet.";
+    case "PENDING":
+      return "Payment is pending and awaiting completion or confirmation.";
+    case "PAID":
+      return "Payment successfully completed and recorded.";
+    case "FAILED":
+      return "Payment failed and may need to be retried.";
+    case "REVERSED":
+      return "Payment was reversed after being recorded.";
+    default:
+      return "No payment lifecycle details are available.";
+  }
+}
+
+function getCycleStart(now: Date, billingDay: number): Date {
+  const safeBillingDay = Math.min(Math.max(Number(billingDay || 1), 1), 28);
+  const currentMonthStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    safeBillingDay,
+    0,
+    0,
+    0,
+    0
+  );
+
+  if (now.getDate() >= safeBillingDay) {
+    return currentMonthStart;
+  }
+
+  return new Date(now.getFullYear(), now.getMonth() - 1, safeBillingDay, 0, 0, 0, 0);
+}
+
+function getNextBillingDate(cycleStart: Date): Date {
+  return new Date(
+    cycleStart.getFullYear(),
+    cycleStart.getMonth() + 1,
+    cycleStart.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+}
+
+function formatTenantName(firstName?: string | null, lastName?: string | null): string {
+  const full = [firstName, lastName].filter(Boolean).join(" ").trim();
+  return full || "Vacant";
 }
 
 type PageParams = Promise<{ id: string }> | { id: string };
@@ -107,13 +165,30 @@ export default async function UnitDetail({
   const unit = await prisma.unit.findUnique({
     where: { id },
     include: {
-      assignments: {
-        where: { moveOut: null },
-        orderBy: { moveIn: "desc" },
-        include: { tenant: true },
+      tier: true,
+      property: {
+        include: {
+          settings: true,
+        },
+      },
+      tenantAssignments: {
+        where: {
+          isCurrent: true,
+          moveOutDate: null,
+        },
+        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
       },
       ledgerEntries: {
+        where: {
+          voidedAt: null,
+        },
         orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
+      },
+      payments: {
+        orderBy: [{ createdAt: "desc" }],
+      },
+      notes: {
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       },
     },
   });
@@ -123,9 +198,7 @@ export default async function UnitDetail({
       <div className="min-h-[50vh] bg-slate-50 p-6">
         <div className="mx-auto max-w-7xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="text-lg font-semibold text-slate-900">
-              Unit not found
-            </div>
+            <div className="text-lg font-semibold text-slate-900">Unit not found</div>
             <div className="mt-2 text-sm text-slate-600">
               The requested unit could not be located.
             </div>
@@ -141,67 +214,106 @@ export default async function UnitDetail({
     );
   }
 
-  type ActiveAssignment = (typeof unit.assignments)[number];
+  type ActiveAssignment = (typeof unit.tenantAssignments)[number];
   type LedgerEntry = (typeof unit.ledgerEntries)[number];
+  type PaymentRow = (typeof unit.payments)[number];
+  type NoteRow = (typeof unit.notes)[number];
 
-  const activeAssignment: ActiveAssignment | null = unit.assignments[0] ?? null;
-  const tenant = activeAssignment?.tenant ?? null;
+  const activeAssignment: ActiveAssignment | null = unit.tenantAssignments[0] ?? null;
+  const tenantDisplayName = activeAssignment
+    ? formatTenantName(activeAssignment.firstName, activeAssignment.lastName)
+    : "Vacant";
 
   const summary = await getUnitLedgerSummary(unit.id);
-  const latestPayment = await prisma.payment.findFirst({
-  where: { unitId: unit.id },
-  orderBy: { createdAt: "desc" },
-});
-
   const delinquency = await getUnitDelinquencySummary(unit.id);
-  const settings = await getPropertySettings(unit.propertyId);
+
+  const latestPayment: PaymentRow | null = unit.payments[0] ?? null;
+  const propertySettings = unit.property.settings ?? null;
+
+  const balanceDollars = centsToDollars(summary.balanceCents);
+  const totalChargesDollars = centsToDollars(summary.totalChargesCents);
+  const totalPaidDollars = centsToDollars(summary.totalPaidCents);
+  const amountDueNow = centsToDollars(delinquency.amountDueNowCents);
+  const daysPastDue = Number(delinquency.daysPastDue || 0);
+  const hasBalance = Number(summary.balanceCents || 0) > 0;
 
   const status = resolveStatus(
-    summary.balance,
+    balanceDollars,
     delinquency.isDelinquent,
-    Boolean(tenant),
-    delinquency.daysPastDue || 0
+    Boolean(activeAssignment),
+    daysPastDue
   );
 
   const currentLedgerEntries: LedgerEntry[] = activeAssignment
     ? unit.ledgerEntries.filter((entry: LedgerEntry) => {
         const entryDate = new Date(entry.effectiveDate).getTime();
-        const moveInDate = new Date(activeAssignment.moveIn).getTime();
+        const moveInDate = activeAssignment.moveInDate
+          ? new Date(activeAssignment.moveInDate).getTime()
+          : Number.NEGATIVE_INFINITY;
+
         const sameTenantOrUnitLevel =
-          !entry.tenantId || entry.tenantId === activeAssignment.tenantId;
+          !entry.tenantAssignmentId || entry.tenantAssignmentId === activeAssignment.id;
 
         return entryDate >= moveInDate && sameTenantOrUnitLevel;
       })
     : [];
 
-  const lateFeePreview = getLateFeePreview({
-    balance: summary.balance,
-    isDelinquent: delinquency.isDelinquent,
-    settings,
-  });
-
-  const rentPreview = getRentPreview({
-    billingDay: settings.billingDay,
-    marketRent: Number(unit.marketRent || 0),
-    ledgerEntries: currentLedgerEntries.map((entry: LedgerEntry) => ({
-      type: entry.type,
-      effectiveDate: entry.effectiveDate,
-      amount: Number(entry.amount || 0),
-    })),
-  });
-
-  let runningBalance = 0;
+  let runningBalanceCents = 0;
   const ledgerRows = currentLedgerEntries.map((entry: LedgerEntry) => {
-    runningBalance += Number(entry.amount || 0);
+    runningBalanceCents += Number(entry.amountCents || 0);
     return {
       ...entry,
-      runningBalance,
+      runningBalanceCents,
     };
   });
 
-  const amountDueNow = Number(delinquency.amountDueNow || 0);
-  const daysPastDue = Number(delinquency.daysPastDue || 0);
-  const hasBalance = Number(summary.balance || 0) > 0;
+  const rentDueDay = Number(unit.tier?.rentDueDay ?? propertySettings?.rentDueDay ?? 1);
+  const gracePeriodDays = Number(
+    unit.tier?.gracePeriodDays ?? propertySettings?.gracePeriodDays ?? 0
+  );
+  const baseRentCents = Number(unit.baseRentCents ?? unit.tier?.baseRentCents ?? 0);
+  const lateFeeType = unit.tier?.lateFeeType ?? "FLAT";
+  const lateFeeInitialCents = Number(unit.tier?.lateFeeInitialCents ?? 0);
+  const lateFeeDailyCents = Number(unit.tier?.lateFeeDailyCents ?? 0);
+  const maxLateFeeDays = Number(unit.tier?.maxLateFeeDays ?? 0);
+  const processingFeeCents = Number(unit.tier?.processingFeeCents ?? 0);
+
+  const today = new Date();
+  const cycleStart = getCycleStart(today, rentDueDay);
+  const nextBillingDate = getNextBillingDate(cycleStart);
+
+  const hasRentChargeThisCycle = currentLedgerEntries.some((entry: LedgerEntry) => {
+    const effectiveDate = new Date(entry.effectiveDate);
+    return (
+      entry.entryType === "CHARGE" &&
+      entry.chargeType === "RENT" &&
+      effectiveDate >= cycleStart &&
+      effectiveDate < nextBillingDate
+    );
+  });
+
+  const upcomingCharge = hasRentChargeThisCycle
+    ? null
+    : {
+        amount: centsToDollars(baseRentCents),
+        effectiveDate: nextBillingDate,
+      };
+
+  const recommendedLateFeeCents = delinquency.isDelinquent
+    ? lateFeeInitialCents +
+      Math.max(0, Math.min(daysPastDue - 1, maxLateFeeDays)) * lateFeeDailyCents
+    : 0;
+
+  const lateFeeEligible =
+    Boolean(activeAssignment) && delinquency.isDelinquent && Number(summary.balanceCents || 0) > 0;
+
+  const lastPaymentAmount = latestPayment ? centsToDollars(latestPayment.amountCents) : null;
+  const lastPaymentDate =
+    latestPayment?.paidAt ??
+    latestPayment?.reversedAt ??
+    latestPayment?.failedAt ??
+    latestPayment?.createdAt ??
+    null;
 
   const attentionMessage =
     status === "DELINQUENT"
@@ -237,7 +349,7 @@ export default async function UnitDetail({
               >
                 {status}
               </span>
-              {tenant ? (
+              {activeAssignment ? (
                 <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
                   Active tenant
                 </span>
@@ -255,20 +367,18 @@ export default async function UnitDetail({
               <div className="mt-2 flex flex-col gap-1 text-sm text-slate-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                 <span>
                   Tenant:{" "}
-                  <span className="font-semibold text-slate-900">
-                    {tenant?.name || "Vacant"}
-                  </span>
+                  <span className="font-semibold text-slate-900">{tenantDisplayName}</span>
                 </span>
                 <span>
                   Market rent:{" "}
                   <span className="font-semibold text-slate-900">
-                    {money(Number(unit.marketRent || 0))}
+                    {moneyFromCents(baseRentCents)}
                   </span>
                 </span>
                 <span>
                   Move-in:{" "}
                   <span className="font-semibold text-slate-900">
-                    {fmtDate(activeAssignment?.moveIn)}
+                    {fmtDate(activeAssignment?.moveInDate)}
                   </span>
                 </span>
               </div>
@@ -283,7 +393,7 @@ export default async function UnitDetail({
               View history
             </Link>
 
-            {tenant && (
+            {activeAssignment && (
               <>
                 <Link
                   href={`/manager/units/${unit.id}/tenants`}
@@ -348,7 +458,7 @@ export default async function UnitDetail({
                     : "text-white"
                 }`}
               >
-                {money(summary.balance)}
+                {money(balanceDollars)}
               </div>
 
               <div className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
@@ -360,9 +470,7 @@ export default async function UnitDetail({
                   <div className="text-xs uppercase tracking-[0.14em] text-slate-400">
                     Amount due now
                   </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {money(amountDueNow)}
-                  </div>
+                  <div className="mt-2 text-xl font-semibold text-white">{money(amountDueNow)}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <div className="text-xs uppercase tracking-[0.14em] text-slate-400">
@@ -377,9 +485,7 @@ export default async function UnitDetail({
                     Last payment
                   </div>
                   <div className="mt-2 text-xl font-semibold text-white">
-                    {summary.lastPaymentAmount !== null
-                      ? money(summary.lastPaymentAmount)
-                      : "—"}
+                    {lastPaymentAmount !== null ? money(lastPaymentAmount) : "—"}
                   </div>
                 </div>
               </div>
@@ -390,11 +496,10 @@ export default async function UnitDetail({
                 Action center
               </div>
               <div className="mt-2 text-sm text-slate-600">
-                Prioritize the next move fast. High-value actions stay visible
-                first.
+                Prioritize the next move fast. High-value actions stay visible first.
               </div>
 
-              {tenant ? (
+              {activeAssignment ? (
                 <div className="mt-6 space-y-4">
                   <div>
                     <div className="mb-3 text-sm font-semibold text-slate-900">
@@ -412,13 +517,10 @@ export default async function UnitDetail({
                         Payment status
                       </div>
                       <div className="mt-2 text-sm font-medium text-slate-900">
-                        {hasBalance
-                          ? "Outstanding balance remains"
-                          : "No outstanding balance"}
+                        {hasBalance ? "Outstanding balance remains" : "No outstanding balance"}
                       </div>
                       <div className="mt-1 text-sm text-slate-600">
-                        Use manual payment or rent posting tools below to update
-                        the ledger.
+                        Use manual payment or rent posting tools below to update the ledger.
                       </div>
                     </div>
 
@@ -427,14 +529,12 @@ export default async function UnitDetail({
                         Late fee status
                       </div>
                       <div className="mt-2 text-sm font-medium text-slate-900">
-                        {lateFeePreview.eligible
-                          ? "Eligible to post late fee"
-                          : "Not currently eligible"}
+                        {lateFeeEligible ? "Eligible to post late fee" : "Not currently eligible"}
                       </div>
                       <div className="mt-1 text-sm text-slate-600">
                         Recommended amount:{" "}
                         <span className="font-semibold text-slate-900">
-                          {money(lateFeePreview.recommendedLateFee)}
+                          {moneyFromCents(recommendedLateFeeCents)}
                         </span>
                       </div>
                     </div>
@@ -462,12 +562,10 @@ export default async function UnitDetail({
                 </div>
               ) : (
                 <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Vacant unit
-                  </div>
+                  <div className="text-sm font-semibold text-slate-900">Vacant unit</div>
                   <div className="mt-2 text-sm leading-6 text-slate-600">
-                    Tenant-facing balance and current-occupancy ledger views are
-                    inactive until a new tenant is assigned.
+                    Tenant-facing balance and current-occupancy ledger views are inactive until a
+                    new tenant is assigned.
                   </div>
                 </div>
               )}
@@ -475,70 +573,109 @@ export default async function UnitDetail({
           </div>
         </section>
 
-<section className={sectionCardClasses(true)}>
-  <div className="border-b border-slate-200 px-6 py-5">
-    <div className="text-lg font-semibold text-slate-950">
-      Payment activity
-    </div>
-    <div className="mt-1 text-sm text-slate-600">
-      Latest payment lifecycle status and recent activity.
-    </div>
-  </div>
-
-  <div className="p-6">
-    {!latestPayment ? (
-      <div className="text-sm text-slate-500">
-        No recent payment activity.
-      </div>
-    ) : (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm text-slate-500">
-              Latest payment
-            </div>
-            <div className="text-lg font-semibold text-slate-950">
-              {money(latestPayment.amountCents / 100)}
+        <section className={sectionCardClasses(true)}>
+          <div className="border-b border-slate-200 px-6 py-5">
+            <div className="text-lg font-semibold text-slate-950">Payment activity</div>
+            <div className="mt-1 text-sm text-slate-600">
+              Latest payment lifecycle status and recent activity.
             </div>
           </div>
 
-          <div
-            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${paymentStatusClasses(
-              latestPayment.status
-            )}`}
-          >
-            {latestPayment.status}
+          <div className="p-6">
+            {!latestPayment ? (
+              <div className="text-sm text-slate-500">No recent payment activity.</div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="text-sm text-slate-500">Latest payment</div>
+                    <div className="text-lg font-semibold text-slate-950">
+                      {moneyFromCents(latestPayment.amountCents)}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${paymentStatusClasses(
+                      latestPayment.status
+                    )}`}
+                  >
+                    {latestPayment.status}
+                  </div>
+                </div>
+
+                <div className="text-sm text-slate-600">
+                  {paymentStatusMessage(latestPayment.status)}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Processing fee
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-950">
+                      {moneyFromCents(latestPayment.processingFeeCents)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Method
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-950">
+                      {latestPayment.paymentMethod || "—"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Paid at
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-950">
+                      {fmtDate(latestPayment.paidAt)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Created
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-950">
+                      {fmtDate(latestPayment.createdAt)}
+                    </div>
+                  </div>
+                </div>
+
+                {(latestPayment.failedAt || latestPayment.reversedAt) && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Failed at
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-slate-950">
+                        {fmtDate(latestPayment.failedAt)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Reversed at
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-slate-950">
+                        {fmtDate(latestPayment.reversedAt)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-
-        <div className="text-sm text-slate-600">
-          {latestPayment.status === "PROCESSING" &&
-            "Payment is currently processing through ACH."}
-          {latestPayment.status === "PENDING" &&
-            "Payment session created. Awaiting completion."}
-          {latestPayment.status === "FAILED" &&
-            "Payment failed. Retry may be required."}
-          {latestPayment.status === "REFUNDED" &&
-            "Payment was refunded and reversed."}
-          {latestPayment.status === "PAID" &&
-            "Payment successfully completed and recorded."}
-        </div>
-
-        <div className="text-xs text-slate-500">
-          Created: {fmtDate(latestPayment.createdAt)}
-        </div>
-      </div>
-    )}
-  </div>
-</section>
+        </section>
 
         <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-6">
             <section className={sectionCardClasses()}>
               <div className="border-b border-slate-200 px-6 py-5">
-                <div className="text-lg font-semibold text-slate-950">
-                  Financial snapshot
-                </div>
+                <div className="text-lg font-semibold text-slate-950">Financial snapshot</div>
                 <div className="mt-1 text-sm text-slate-600">
                   Core balance, charges, payments, and timeline at a glance.
                 </div>
@@ -552,10 +689,10 @@ export default async function UnitDetail({
                   <div
                     className={`mt-2 text-2xl font-bold ${balanceToneClasses(
                       status,
-                      summary.balance
+                      balanceDollars
                     )}`}
                   >
-                    {money(summary.balance)}
+                    {money(balanceDollars)}
                   </div>
                 </div>
 
@@ -564,7 +701,7 @@ export default async function UnitDetail({
                     Total charges
                   </div>
                   <div className="mt-2 text-2xl font-bold text-slate-950">
-                    {money(summary.totalCharges)}
+                    {money(totalChargesDollars)}
                   </div>
                 </div>
 
@@ -573,7 +710,7 @@ export default async function UnitDetail({
                     Total paid
                   </div>
                   <div className="mt-2 text-2xl font-bold text-slate-950">
-                    {money(summary.totalPaid)}
+                    {money(totalPaidDollars)}
                   </div>
                 </div>
 
@@ -582,9 +719,7 @@ export default async function UnitDetail({
                     Last payment date
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {summary.lastPaymentDate
-                      ? fmtDate(summary.lastPaymentDate)
-                      : "—"}
+                    {fmtDate(lastPaymentDate)}
                   </div>
                 </div>
 
@@ -593,9 +728,7 @@ export default async function UnitDetail({
                     Last payment amount
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {summary.lastPaymentAmount !== null
-                      ? money(summary.lastPaymentAmount)
-                      : "—"}
+                    {lastPaymentAmount !== null ? money(lastPaymentAmount) : "—"}
                   </div>
                 </div>
 
@@ -604,18 +737,16 @@ export default async function UnitDetail({
                     Occupancy status
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {tenant ? "Occupied" : "Vacant"}
+                    {activeAssignment ? "Occupied" : "Vacant"}
                   </div>
                 </div>
               </div>
             </section>
 
-            {tenant && (
+            {activeAssignment && (
               <section className={sectionCardClasses()}>
                 <div className="border-b border-slate-200 px-6 py-5">
-                  <div className="text-lg font-semibold text-slate-950">
-                    Ledger actions
-                  </div>
+                  <div className="text-lg font-semibold text-slate-950">Ledger actions</div>
                   <div className="mt-1 text-sm text-slate-600">
                     Post charges and record payments without leaving the unit.
                   </div>
@@ -623,14 +754,12 @@ export default async function UnitDetail({
 
                 <div className="grid gap-6 p-6 lg:grid-cols-2">
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="mb-4 text-sm font-semibold text-slate-900">
-                      Add charge
-                    </div>
+                    <div className="mb-4 text-sm font-semibold text-slate-900">Add charge</div>
                     <ManualChargeForm
                       propertyId={unit.propertyId}
                       unitId={unit.id}
-                      tenantId={tenant.id}
-                      defaultRent={Number(unit.marketRent || 0)}
+                      tenantId={activeAssignment.id}
+                      defaultRent={centsToDollars(baseRentCents)}
                     />
                   </div>
 
@@ -641,7 +770,7 @@ export default async function UnitDetail({
                     <ManualPaymentForm
                       propertyId={unit.propertyId}
                       unitId={unit.id}
-                      tenantId={tenant.id}
+                      tenantId={activeAssignment.id}
                     />
                   </div>
                 </div>
@@ -652,9 +781,7 @@ export default async function UnitDetail({
               <div className="border-b border-slate-200 px-6 py-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="text-lg font-semibold text-slate-950">
-                      Ledger
-                    </div>
+                    <div className="text-lg font-semibold text-slate-950">Ledger</div>
                     <div className="mt-1 text-sm text-slate-600">
                       Current-occupancy ledger entries with running balance.
                     </div>
@@ -679,8 +806,8 @@ export default async function UnitDetail({
                       .slice()
                       .reverse()
                       .map((entry) => {
-                        const entryAmount = Number(entry.amount || 0);
-                        const isCredit = entryAmount < 0;
+                        const entryAmountDollars = centsToDollars(entry.amountCents);
+                        const isCredit = entryAmountDollars < 0;
 
                         return (
                           <div
@@ -691,8 +818,13 @@ export default async function UnitDetail({
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-sm font-semibold text-slate-950">
-                                    {entry.type}
+                                    {entry.entryType}
                                   </span>
+                                  {entry.chargeType && (
+                                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                      {entry.chargeType}
+                                    </span>
+                                  )}
                                   <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
                                     {fmtDate(entry.effectiveDate)}
                                   </span>
@@ -700,20 +832,26 @@ export default async function UnitDetail({
                                 <div className="mt-2 text-sm text-slate-600">
                                   {entry.memo || "—"}
                                 </div>
+                                {(entry.paymentMethod || entry.referenceNumber) && (
+                                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                                    {entry.paymentMethod && <span>Method: {entry.paymentMethod}</span>}
+                                    {entry.referenceNumber && (
+                                      <span>Ref: {entry.referenceNumber}</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
 
                               <div className="sm:text-right">
                                 <div
                                   className={`text-lg font-bold ${
-                                    isCredit
-                                      ? "text-emerald-600"
-                                      : "text-slate-950"
+                                    isCredit ? "text-emerald-600" : "text-slate-950"
                                   }`}
                                 >
-                                  {money(entryAmount)}
+                                  {money(entryAmountDollars)}
                                 </div>
                                 <div className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                                  Running balance: {money(entry.runningBalance)}
+                                  Running balance: {moneyFromCents(entry.runningBalanceCents)}
                                 </div>
                               </div>
                             </div>
@@ -729,9 +867,7 @@ export default async function UnitDetail({
           <div className="space-y-6">
             <section className={sectionCardClasses()}>
               <div className="border-b border-slate-200 px-6 py-5">
-                <div className="text-lg font-semibold text-slate-950">
-                  Delinquency
-                </div>
+                <div className="text-lg font-semibold text-slate-950">Delinquency</div>
                 <div className="mt-1 text-sm text-slate-600">
                   Due dates, grace timing, and urgency signals.
                 </div>
@@ -761,7 +897,7 @@ export default async function UnitDetail({
                     Amount due now
                   </div>
                   <div className="mt-2 text-lg font-semibold text-red-600">
-                    {money(delinquency.amountDueNow)}
+                    {money(amountDueNow)}
                   </div>
                 </div>
 
@@ -772,18 +908,14 @@ export default async function UnitDetail({
                   <div className="mt-2 text-lg font-semibold text-slate-950">
                     {delinquency.isDelinquent ? "Delinquent" : "Current"}
                   </div>
-                  <div className="mt-1 text-sm text-slate-600">
-                    {formatDayLabel(daysPastDue)}
-                  </div>
+                  <div className="mt-1 text-sm text-slate-600">{formatDayLabel(daysPastDue)}</div>
                 </div>
               </div>
             </section>
 
             <section className={sectionCardClasses()}>
               <div className="border-b border-slate-200 px-6 py-5">
-                <div className="text-lg font-semibold text-slate-950">
-                  Rent cycle
-                </div>
+                <div className="text-lg font-semibold text-slate-950">Rent cycle</div>
                 <div className="mt-1 text-sm text-slate-600">
                   Current billing position and upcoming charge timing.
                 </div>
@@ -794,9 +926,7 @@ export default async function UnitDetail({
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Billing day
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {settings.billingDay}
-                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">{rentDueDay}</div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -804,7 +934,7 @@ export default async function UnitDetail({
                     Cycle start
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {fmtDate(rentPreview.cycleStart)}
+                    {fmtDate(cycleStart)}
                   </div>
                 </div>
 
@@ -813,7 +943,7 @@ export default async function UnitDetail({
                     Next rent date
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {fmtDate(rentPreview.nextBillingDate)}
+                    {fmtDate(nextBillingDate)}
                   </div>
                 </div>
 
@@ -822,9 +952,7 @@ export default async function UnitDetail({
                     Rent status
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {rentPreview.hasChargeThisCycle
-                      ? "Already posted"
-                      : "Ready to post"}
+                    {hasRentChargeThisCycle ? "Already posted" : "Ready to post"}
                   </div>
                 </div>
               </div>
@@ -835,11 +963,9 @@ export default async function UnitDetail({
                     Upcoming rent charge
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-700">
-                    {rentPreview.upcomingCharge
-                      ? `${money(
-                          rentPreview.upcomingCharge.amount
-                        )} scheduled for ${fmtDate(
-                          rentPreview.upcomingCharge.effectiveDate
+                    {upcomingCharge
+                      ? `${money(upcomingCharge.amount)} scheduled for ${fmtDate(
+                          upcomingCharge.effectiveDate
                         )}`
                       : "Already charged this cycle"}
                   </div>
@@ -849,9 +975,7 @@ export default async function UnitDetail({
 
             <section className={sectionCardClasses()}>
               <div className="border-b border-slate-200 px-6 py-5">
-                <div className="text-lg font-semibold text-slate-950">
-                  Late fee guidance
-                </div>
+                <div className="text-lg font-semibold text-slate-950">Late fee guidance</div>
                 <div className="mt-1 text-sm text-slate-600">
                   Current rule set and posting recommendation.
                 </div>
@@ -862,37 +986,51 @@ export default async function UnitDetail({
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Late fee type
                   </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">{lateFeeType}</div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Grace period days
+                  </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {settings.lateFeeType}
+                    {gracePeriodDays}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Late fee value
+                    Initial late fee
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {settings.lateFeeType === "PERCENT"
-                      ? `${Number(settings.lateFeeValue || 0)}%`
-                      : money(Number(settings.lateFeeValue || 0))}
+                    {moneyFromCents(lateFeeInitialCents)}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Eligibility
+                    Daily late fee
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {lateFeePreview.eligible ? "Eligible" : "Not eligible"}
+                    {moneyFromCents(lateFeeDailyCents)}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Recommended late fee
+                    Max late-fee days
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {money(lateFeePreview.recommendedLateFee)}
+                    {maxLateFeeDays}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Tier processing fee
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">
+                    {moneyFromCents(processingFeeCents)}
                   </div>
                 </div>
               </div>
@@ -900,10 +1038,14 @@ export default async function UnitDetail({
               <div className="px-6 pb-6">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Reason
+                    Posting recommendation
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-700">
-                    {lateFeePreview.reason}
+                    {lateFeeEligible
+                      ? `Eligible to post ${moneyFromCents(
+                          recommendedLateFeeCents
+                        )} based on current delinquency timing.`
+                      : "No late fee is currently recommended for this unit."}
                   </div>
                 </div>
               </div>
@@ -911,16 +1053,49 @@ export default async function UnitDetail({
 
             <section className={sectionCardClasses()}>
               <div className="border-b border-slate-200 px-6 py-5">
-                <div className="text-lg font-semibold text-slate-950">
-                  Notes
-                </div>
+                <div className="text-lg font-semibold text-slate-950">Notes</div>
                 <div className="mt-1 text-sm text-slate-600">
-                  Shared operational context for this unit.
+                  Unit-specific notes and pinned context.
                 </div>
               </div>
 
               <div className="p-6">
-                <UnitNotes unitId={unit.id} />
+                {unit.notes.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
+                    No notes have been added for this unit.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {unit.notes.map((note: NoteRow) => (
+                      <div
+                        key={note.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          {note.isPinned && (
+                            <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                              Pinned
+                            </span>
+                          )}
+                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                            {note.noteType}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {fmtDate(note.createdAt)}
+                          </span>
+                        </div>
+                        <div className="mt-3 text-sm leading-6 text-slate-700">
+                          {note.content}
+                        </div>
+                        {note.createdBy && (
+                          <div className="mt-2 text-xs text-slate-500">
+                            Created by: {note.createdBy}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
           </div>

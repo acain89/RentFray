@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { canMakePayments } from "@/lib/liveGating";
+import { getProcessingFeeCents } from "@/lib/billingConfig";
 
 export const runtime = "nodejs";
 
@@ -17,14 +18,14 @@ type ApiError = {
   error: string;
 };
 
-function toMoney(value: unknown): number {
+function toSafeInteger(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100) / 100;
+  return Math.trunc(n);
 }
 
-function toCents(value: unknown): number {
-  return Math.round(toMoney(value) * 100);
+function getBillingCycle(date: Date): string {
+  return date.toISOString().slice(0, 7); // YYYY-MM
 }
 
 export async function POST(req: Request) {
@@ -62,7 +63,6 @@ export async function POST(req: Request) {
         propertyId: session.propertyId,
       },
       include: {
-        tier: true,
         property: {
           include: {
             settings: true,
@@ -72,15 +72,14 @@ export async function POST(req: Request) {
         },
         tenantAssignments: {
           where: { isCurrent: true },
-          orderBy: [{ moveInDate: "desc" }],
           take: 1,
         },
       },
     });
 
-    if (!unit || !unit.tier) {
+    if (!unit) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Unit or tier not found." },
+        { ok: false, error: "Unit not found." },
         { status: 404 }
       );
     }
@@ -101,23 +100,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // --- LEDGER (SOURCE OF TRUTH) ---
     const ledger = await getUnitLedgerSummary(unit.id);
+    const balanceCents = Math.max(0, toSafeInteger(ledger.balanceCents));
 
-    const balanceDue = Math.max(0, toMoney(ledger.balance));
-
-    if (balanceDue <= 0) {
+    if (balanceCents <= 0) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "No balance due." },
         { status: 400 }
       );
     }
 
-    const processingFee = toMoney(unit.tier.processingFee ?? 0);
-    const total = toMoney(balanceDue + processingFee);
-
-    const baseCents = toCents(balanceDue);
-    const feeCents = toCents(processingFee);
-    const totalCents = toCents(total);
+    // --- NO PARTIAL PAYMENTS ---
+    const processingFeeCents = getProcessingFeeCents(balanceCents);
+    const totalCents = balanceCents + processingFeeCents;
 
     if (totalCents <= 0) {
       return NextResponse.json<ApiError>(
@@ -126,8 +122,25 @@ export async function POST(req: Request) {
       );
     }
 
+    // --- BLOCK DUPLICATE / OVERPAYMENT ---
+    const existingPayment = await prisma.payment.findFirst({
+      where: {
+        unitId: unit.id,
+        status: {
+          in: ["PENDING", "PAID"],
+        },
+      },
+    });
+
+    if (existingPayment) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "Payment already in progress or completed." },
+        { status: 400 }
+      );
+    }
+
     const assignment = unit.tenantAssignments[0] ?? null;
-    const tenantAssignmentId = assignment?.id ?? "";
+    const tenantAssignmentId = assignment?.id ?? null;
 
     const tenantName =
       assignment && (assignment.firstName || assignment.lastName)
@@ -138,6 +151,8 @@ export async function POST(req: Request) {
       req.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:10000";
+
+    const billingCycle = getBillingCycle(new Date());
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -152,11 +167,11 @@ export async function POST(req: Request) {
               name: `RentFray payment — Unit ${unit.unitNumber}`,
               description: `${property.name} balance payment for ${tenantName}`,
             },
-            unit_amount: baseCents,
+            unit_amount: balanceCents,
           },
           quantity: 1,
         },
-        ...(feeCents > 0
+        ...(processingFeeCents > 0
           ? [
               {
                 price_data: {
@@ -165,7 +180,7 @@ export async function POST(req: Request) {
                     name: "Processing fee",
                     description: `${property.name} ACH processing fee`,
                   },
-                  unit_amount: feeCents,
+                  unit_amount: processingFeeCents,
                 },
                 quantity: 1,
               },
@@ -179,10 +194,11 @@ export async function POST(req: Request) {
       metadata: {
         propertyId: property.id,
         unitId: unit.id,
-        tenantAssignmentId,
-        ledgerBalanceCents: String(baseCents),
-        processingFeeCents: String(feeCents),
+        tenantAssignmentId: tenantAssignmentId ?? "",
+        ledgerBalanceCents: String(balanceCents),
+        processingFeeCents: String(processingFeeCents),
         totalAmountCents: String(totalCents),
+        billingCycle,
       },
     });
 
@@ -193,15 +209,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔒 CREATE PAYMENT RECORD (SOURCE OF TRUTH)
     await prisma.payment.create({
       data: {
         propertyId: property.id,
         unitId: unit.id,
-        tenantAssignmentId: tenantAssignmentId || null,
+        tenantAssignmentId,
         stripePaymentIntentId: `pending:${checkoutSession.id}`,
         stripeSessionId: checkoutSession.id,
-        amountCents: baseCents,
-        processingFeeCents: feeCents,
+        billingCycle,
+        amountCents: balanceCents,
+        processingFeeCents: processingFeeCents,
         status: "PENDING",
         paymentMethod: "ACH",
       },

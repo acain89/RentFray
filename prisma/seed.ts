@@ -1,10 +1,11 @@
+
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clean slate for dev seed
+  // Clean slate
   await prisma.auditLog.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.maintenanceRequest.deleteMany();
@@ -45,21 +46,24 @@ async function main() {
       contactPhone: "555-111-2222",
       contactEmail: "owner@testproperty.com",
       isActive: true,
+
+      // ✅ FIXED SETTINGS (CENTS + BPS)
       settings: {
         create: {
           rentDueDay: 1,
           gracePeriodDays: 5,
-          lateFeeFlat: 50,
-          lateFeePercent: null,
+          lateFeeFlatCents: 5000, // $50
+          lateFeePercentBps: null,
           lateFeeEnabled: true,
           convenienceFeeEnabled: true,
           convenienceFeeType: "FLAT",
-          convenienceFeeAmount: 4.95,
+          convenienceFeeAmountCents: 495, // $4.95
           allowTestMode: true,
           tenantPortalEnabled: true,
           maintenancePortalEnabled: true,
         },
       },
+
       paymentStatus: {
         create: {
           processorConnected: false,
@@ -83,7 +87,6 @@ async function main() {
       passwordHash: ownerPasswordHash,
       displayName: "Owner User",
       isActive: true,
-      mustResetPassword: false,
     },
   });
 
@@ -95,7 +98,6 @@ async function main() {
       passwordHash: managerPasswordHash,
       displayName: "Manager User",
       isActive: true,
-      mustResetPassword: false,
       createdByUserId: owner.id,
     },
   });
@@ -108,19 +110,18 @@ async function main() {
       passwordHash: staffPasswordHash,
       displayName: "Staff User",
       isActive: true,
-      mustResetPassword: false,
       createdByUserId: owner.id,
     },
   });
 
+  // ✅ UNITS (CENTS)
   const unit101 = await prisma.unit.create({
     data: {
       propertyId: property.id,
       unitNumber: "101",
       unitType: "1BR",
-      baseRent: 1000,
+      baseRentCents: 100000, // $1000
       isActive: true,
-      portalActivated: false,
     },
   });
 
@@ -129,19 +130,19 @@ async function main() {
       propertyId: property.id,
       unitNumber: "102",
       unitType: "2BR",
-      baseRent: 1250,
+      baseRentCents: 125000, // $1250
       isActive: true,
-      portalActivated: false,
     },
   });
 
+  // ✅ RECURRING FEES (CENTS)
   await prisma.unitRecurringFee.createMany({
     data: [
       {
         propertyId: property.id,
         unitId: unit101.id,
         label: "Trash",
-        amount: 25,
+        amountCents: 2500,
         isActive: true,
         displayOrder: 1,
       },
@@ -149,7 +150,7 @@ async function main() {
         propertyId: property.id,
         unitId: unit101.id,
         label: "Water",
-        amount: 35,
+        amountCents: 3500,
         isActive: true,
         displayOrder: 2,
       },
@@ -157,7 +158,7 @@ async function main() {
         propertyId: property.id,
         unitId: unit102.id,
         label: "Trash",
-        amount: 25,
+        amountCents: 2500,
         isActive: true,
         displayOrder: 1,
       },
@@ -172,7 +173,7 @@ async function main() {
       lastName: "Doe",
       phone: "555-222-3333",
       email: "john@example.com",
-      moveInDate: new Date("2026-03-01T00:00:00.000Z"),
+      moveInDate: new Date("2026-03-01"),
       isCurrent: true,
       createdByManagementUserId: manager.id,
     },
@@ -201,6 +202,7 @@ async function main() {
     },
   });
 
+  // ✅ LEDGER (CENTS — CRITICAL)
   await prisma.ledgerEntry.createMany({
     data: [
       {
@@ -209,8 +211,8 @@ async function main() {
         tenantAssignmentId: assignment101.id,
         entryType: "CHARGE",
         chargeType: "RENT",
-        amount: 1000,
-        effectiveDate: new Date("2026-03-01T00:00:00.000Z"),
+        amountCents: 100000,
+        effectiveDate: new Date("2026-03-01"),
         memo: "March rent",
       },
       {
@@ -219,8 +221,8 @@ async function main() {
         tenantAssignmentId: assignment101.id,
         entryType: "CHARGE",
         chargeType: "RECURRING_FEE",
-        amount: 25,
-        effectiveDate: new Date("2026-03-01T00:00:00.000Z"),
+        amountCents: 2500,
+        effectiveDate: new Date("2026-03-01"),
         memo: "Trash fee",
       },
       {
@@ -229,8 +231,8 @@ async function main() {
         tenantAssignmentId: assignment101.id,
         entryType: "PAYMENT",
         paymentMethod: "ACH",
-        amount: -500,
-        effectiveDate: new Date("2026-03-05T00:00:00.000Z"),
+        amountCents: -50000,
+        effectiveDate: new Date("2026-03-05"),
         memo: "Partial ACH payment",
       },
     ],
@@ -248,19 +250,10 @@ async function main() {
   });
 
   console.log("✅ Seed complete");
-  console.log("Admin code: 123456");
-  console.log("Property code: 1234");
-  console.log("Owner login: owner / 1234");
-  console.log("Manager login: manager / 1234");
-  console.log("Staff login: staff / 1234");
-  console.log("Maintenance PIN: 2222");
-  console.log("Tenant First Time Use unit available: 102");
-  console.log("Existing assigned tenant unit: 101");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed failed");
     console.error(e);
     process.exit(1);
   })

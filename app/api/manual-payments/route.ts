@@ -1,7 +1,7 @@
 // app/api/manual-payments/route.ts
 
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, PaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
@@ -23,21 +23,23 @@ type ManualPaymentEntryResponse = {
   unitId: string;
   tenantAssignmentId: string | null;
   entryType: "PAYMENT";
-  amount: number;
+  amountCents: number;
   memo: string | null;
   effectiveDate: Date;
   createdAt: Date;
+  paymentId: string;
+  status: PaymentStatus;
 };
 
 type ParsedBody = {
   unitId: string;
   tenantId: string | null;
-  amount: number;
+  amountCents: number;
   memo: string | null;
   effectiveDate: Date;
 };
 
-const MAX_PAYMENT_AMOUNT = 1_000_000;
+const MAX_PAYMENT_CENTS = 100_000_000; // $1,000,000
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
@@ -48,14 +50,14 @@ function normalizeMemo(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function parseMoney(value: unknown): number | null {
+function parseMoneyToCents(value: unknown): number | null {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
 
-  const rounded = Math.round(n * 100) / 100;
-  if (rounded <= 0 || rounded > MAX_PAYMENT_AMOUNT) return null;
+  const cents = Math.round(n * 100);
+  if (cents <= 0 || cents > MAX_PAYMENT_CENTS) return null;
 
-  return rounded;
+  return cents;
 }
 
 function parseEffectiveDate(value: unknown): Date | null {
@@ -68,12 +70,6 @@ function parseEffectiveDate(value: unknown): Date | null {
   return date;
 }
 
-function toAmountNumber(value: Prisma.Decimal | number | null | undefined): number {
-  const n = Number(value ?? 0);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100) / 100;
-}
-
 function badRequest(error: string) {
   return NextResponse.json<ApiError>({ ok: false, error }, { status: 400 });
 }
@@ -83,18 +79,18 @@ async function parseBody(req: Request): Promise<ParsedBody | null> {
 
   const unitId = clean(body.unitId);
   const tenantIdRaw = clean(body.tenantId);
-  const amount = parseMoney(body.amount);
+  const amountCents = parseMoneyToCents(body.amount);
   const memo = normalizeMemo(body.memo ?? body.description);
   const effectiveDate = parseEffectiveDate(body.effectiveDate);
 
   if (!unitId) return null;
-  if (amount === null) return null;
+  if (amountCents === null) return null;
   if (!effectiveDate) return null;
 
   return {
     unitId,
     tenantId: tenantIdRaw || null,
-    amount,
+    amountCents,
     memo,
     effectiveDate,
   };
@@ -130,7 +126,7 @@ export async function POST(req: Request) {
       return badRequest("Missing or invalid required fields.");
     }
 
-    const { unitId, tenantId, amount, memo, effectiveDate } = parsed;
+    const { unitId, tenantId, amountCents, memo, effectiveDate } = parsed;
 
     const unit = await prisma.unit.findFirst({
       where: {
@@ -188,15 +184,37 @@ export async function POST(req: Request) {
 
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient): Promise<ManualPaymentEntryResponse> => {
+        // ✅ CREATE PAYMENT RECORD (SOURCE OF TRUTH FOR STATUS)
+                       const payment = await tx.payment.create({
+          data: {
+            propertyId: unit.propertyId,
+            unitId: unit.id,
+            tenantAssignmentId: assignment?.id ?? null,
+            amountCents,
+            status: PaymentStatus.PAID,
+            paidAt: effectiveDate,
+            paymentMethod: "MANUAL",
+            stripePaymentIntentId: `manual_${unit.id}_${effectiveDate.getTime()}`,
+            billingCycle: null,
+          },
+          select: {
+            id: true,
+            status: true,
+            paidAt: true,
+          },
+        });
+
+        // ✅ CREATE LINKED LEDGER ENTRY
         const entry = await tx.ledgerEntry.create({
           data: {
             propertyId: unit.propertyId,
             unitId: unit.id,
             tenantAssignmentId: assignment?.id ?? null,
             entryType: "PAYMENT",
-            amount: -amount,
+            amountCents: -amountCents,
             effectiveDate,
             memo,
+            paymentId: payment.id,
             createdByManagementUserId: session.managementUserId ?? null,
           },
           select: {
@@ -205,7 +223,7 @@ export async function POST(req: Request) {
             unitId: true,
             tenantAssignmentId: true,
             entryType: true,
-            amount: true,
+            amountCents: true,
             effectiveDate: true,
             memo: true,
             createdAt: true,
@@ -225,9 +243,9 @@ export async function POST(req: Request) {
               unitId: unit.id,
               unitNumber: unit.unitNumber,
               tenantAssignmentId: entry.tenantAssignmentId,
-              entryType: entry.entryType,
-              amount: toAmountNumber(entry.amount),
-              memo: entry.memo,
+              paymentId: payment.id,
+              amountCents,
+              memo,
               effectiveDate: entry.effectiveDate.toISOString(),
             }),
           },
@@ -239,10 +257,12 @@ export async function POST(req: Request) {
           unitId: entry.unitId,
           tenantAssignmentId: entry.tenantAssignmentId,
           entryType: "PAYMENT",
-          amount: toAmountNumber(entry.amount),
+          amountCents: Math.abs(entry.amountCents),
           memo: entry.memo,
           effectiveDate: entry.effectiveDate,
           createdAt: entry.createdAt,
+          paymentId: payment.id,
+          status: payment.status,
         };
       }
     );

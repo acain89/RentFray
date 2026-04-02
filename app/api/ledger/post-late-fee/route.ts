@@ -1,5 +1,3 @@
-// app/api/ledger/post-late-fee/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -36,12 +34,6 @@ function getMonthLabel(date: Date): string {
   });
 }
 
-function toMoney(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100) / 100;
-}
-
 function safeDate(d: Date): Date {
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
@@ -70,7 +62,7 @@ export async function POST() {
           where: { isActive: true },
           include: {
             tier: {
-              select: { lateFeeInitial: true },
+              select: { lateFeeInitialCents: true }, // ✅ FIX
             },
             tenantAssignments: {
               where: { isCurrent: true },
@@ -93,7 +85,7 @@ export async function POST() {
       );
     }
 
-    // --- PRE-FETCH EXISTING (FIRST DEFENSE) ---
+    // --- PRE-FETCH EXISTING ---
     const existingFees = await prisma.ledgerEntry.findMany({
       where: {
         propertyId: property.id,
@@ -103,6 +95,7 @@ export async function POST() {
           gte: monthStart,
           lt: nextMonth,
         },
+        voidedAt: null,
       },
       select: {
         unitId: true,
@@ -111,13 +104,12 @@ export async function POST() {
     });
 
     const existingKeys = new Set<string>(
-  existingFees.map(
-    (e: (typeof existingFees)[number]) =>
-      `${e.unitId}::${e.tenantAssignmentId ?? ""}`
-  )
-);
+      existingFees.map(
+     (e: (typeof existingFees)[number]) => `${e.unitId}::${e.tenantAssignmentId ?? ""}`
+     )
+    );
 
-    // --- PRE-CALCULATE DELINQUENCY (OUTSIDE TX) ---
+    // --- PRE-CALCULATE DELINQUENCY ---
     const delinquencyMap = new Map<string, boolean>();
 
     for (const unit of property.units) {
@@ -144,22 +136,21 @@ export async function POST() {
           continue;
         }
 
-        const feeAmount = toMoney(unit.tier?.lateFeeInitial ?? 0);
+        // ✅ FIX: already in cents — DO NOT convert
+        const feeCents = unit.tier?.lateFeeInitialCents ?? 0;
 
-        if (feeAmount <= 0) {
+        if (feeCents <= 0) {
           skipped++;
           continue;
         }
 
         const key = `${unit.id}::${assignment.id}`;
 
-        // --- FAST CHECK ---
         if (existingKeys.has(key)) {
           skipped++;
           continue;
         }
 
-        // --- RACE CONDITION PROTECTION ---
         const exists = await tx.ledgerEntry.findFirst({
           where: {
             propertyId: property.id,
@@ -171,6 +162,7 @@ export async function POST() {
               gte: monthStart,
               lt: nextMonth,
             },
+            voidedAt: null,
           },
           select: { id: true },
         });
@@ -187,9 +179,10 @@ export async function POST() {
             tenantAssignmentId: assignment.id,
             entryType: "CHARGE",
             chargeType: "LATE_FEE",
-            amount: feeAmount,
+            amountCents: feeCents,
             memo: `Late fee - ${monthLabel}`,
             effectiveDate,
+            billingCycle: monthStart.toISOString(),
             createdByManagementUserId:
               session.managementUserId ?? null,
           },
@@ -211,7 +204,7 @@ export async function POST() {
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            monthStart: monthStart.toISOString(),
+            billingCycle: monthStart.toISOString(),
             triggeredAt: effectiveDate.toISOString(),
           }),
         },

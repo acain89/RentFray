@@ -1,6 +1,4 @@
-// app/api/admin/properties/route.ts
-
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -43,9 +41,29 @@ type IncomingWizardPayload = {
   paymentSetupDeferred?: boolean;
 };
 
+type PropertyListRow = {
+  id: string;
+  name: string;
+  propertyCode: string;
+  propertyType: string | null;
+  isActive: boolean;
+  managementUsers: Array<{
+    displayName: string | null;
+    email: string | null;
+  }>;
+  _count: {
+    units: number;
+    tiers: number;
+  };
+};
+
 function toNumber(value: unknown, fallback = 0): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function toCents(value: unknown): number {
+  return Math.round(toNumber(value, 0) * 100);
 }
 
 function safeTrim(value: unknown): string {
@@ -190,12 +208,12 @@ async function generateUniquePropertyCode(
   throw new Error("Unable to generate a unique property code.");
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const propertyCode = safeTrim(searchParams.get("propertyCode"));
 
-    const properties = await prisma.property.findMany({
+    const properties: PropertyListRow[] = await prisma.property.findMany({
       where: propertyCode
         ? {
             propertyCode: {
@@ -233,20 +251,20 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      properties: properties.map((property) => {
+      properties: properties.map((property: PropertyListRow) => {
         const owner = property.managementUsers[0];
 
         return {
-  id: property.id,
-  name: property.name,
-  propertyCode: property.propertyCode,
-  propertyType: property.propertyType,
-  isActive: property.isActive,
-  contactName: owner?.displayName ?? "",
-  contactEmail: owner?.email ?? "",
-  unitCount: property._count.units,
-  tierCount: property._count.tiers,
-};
+          id: property.id,
+          name: property.name,
+          propertyCode: property.propertyCode,
+          propertyType: property.propertyType,
+          isActive: property.isActive,
+          contactName: owner?.displayName ?? "",
+          contactEmail: owner?.email ?? "",
+          unitCount: property._count.units,
+          tierCount: property._count.tiers,
+        };
       }),
     });
   } catch (err: unknown) {
@@ -258,7 +276,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as IncomingWizardPayload;
 
@@ -452,7 +470,7 @@ export async function POST(req: Request) {
         });
 
         const passwordHash = await bcrypt.hash(password, 10);
-        
+
         await tx.managementUser.create({
           data: {
             propertyId: createdProperty.id,
@@ -471,11 +489,11 @@ export async function POST(req: Request) {
             rentDueDay: toNumber(firstTier.dueDay, 1),
             gracePeriodDays: toNumber(firstTier.graceDays, 0),
             lateFeeEnabled: true,
-            lateFeeFlat: toNumber(firstTier.lateFeeInitial, 0),
+            lateFeeFlatCents: toCents(firstTier.lateFeeInitial),
             convenienceFeeEnabled: true,
             convenienceFeeType: "FLAT",
-            convenienceFeeAmount: getMinimumProcessingFee(
-              getMonthlySubtotal(firstTier)
+            convenienceFeeAmountCents: toCents(
+              getMinimumProcessingFee(getMonthlySubtotal(firstTier))
             ),
           },
         });
@@ -497,14 +515,14 @@ export async function POST(req: Request) {
           const tierData: Prisma.PropertyTierUncheckedCreateInput = {
             propertyId: createdProperty.id,
             name: safeTrim(tier.name),
-            baseRent: toNumber(tier.baseRent),
+            baseRentCents: toCents(tier.baseRent),
             unitCount: unitLabels.length,
             rentDueDay: toNumber(ruleSource.dueDay, 1),
             gracePeriodDays: toNumber(ruleSource.graceDays, 0),
-            lateFeeInitial: toNumber(ruleSource.lateFeeInitial, 0),
-            lateFeeDaily: toNumber(ruleSource.lateFeeDaily, 0),
+            lateFeeInitialCents: toCents(ruleSource.lateFeeInitial),
+            lateFeeDailyCents: toCents(ruleSource.lateFeeDaily),
             maxLateFeeDays: toNumber(ruleSource.lateFeeMaxDays, 0),
-            processingFee: calculatedProcessingFee,
+            processingFeeCents: toCents(calculatedProcessingFee),
             sortOrder: tierIndex,
             isActive: true,
           };
@@ -519,8 +537,7 @@ export async function POST(req: Request) {
               tierId: createdTier.id,
               unitNumber: unitLabel,
               unitType: safeTrim(tier.name),
-              baseRent: toNumber(tier.baseRent),
-              recurringFees: recurringTotal,
+              baseRentCents: toCents(tier.baseRent),
               isActive: true,
             };
 
@@ -542,7 +559,7 @@ export async function POST(req: Request) {
                     propertyId: createdProperty.id,
                     unitId: createdUnit.id,
                     label: safeTrim(charge.label),
-                    amount: toNumber(charge.amount),
+                    amountCents: toCents(charge.amount),
                     isActive: true,
                     displayOrder: index,
                   }));
@@ -552,6 +569,22 @@ export async function POST(req: Request) {
                   data: validCharges,
                 });
               }
+            }
+
+            const recurringTotalCents = toCents(recurringTotal);
+
+            if (recurringTotalCents > 0) {
+              await tx.ledgerEntry.create({
+                data: {
+                  propertyId: createdProperty.id,
+                  unitId: createdUnit.id,
+                  entryType: "CHARGE",
+                  chargeType: "RECURRING_FEE",
+                  amountCents: recurringTotalCents,
+                  effectiveDate: new Date(),
+                  memo: "Initial recurring fees setup",
+                },
+              });
             }
           }
         }

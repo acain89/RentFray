@@ -3,86 +3,132 @@
 import { prisma } from "@/lib/prisma";
 
 export type LedgerSummary = {
+  balanceCents: number;
+  totalChargesCents: number;
+  totalPaidCents: number;
   balance: number;
   totalCharges: number;
   totalPaid: number;
   lastPaymentDate: Date | null;
+  lastPaymentAmountCents: number | null;
   lastPaymentAmount: number | null;
 };
 
-// --- MONEY HELPERS (STRICT) ---
+type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
+type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
-function toSafeCents(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100);
-}
-
-function centsToDollars(cents: number): number {
-  return Math.round(cents) / 100;
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-// --- ENTRY TYPE HANDLING (STRICT) ---
-
-type EntryType = "PAYMENT" | "CHARGE" | "RENT" | "LATE_FEE" | "FEE";
-
-function normalizeEntryType(value: unknown): EntryType | null {
+function normalizeLedgerEntryType(value: unknown): LedgerEntryType | null {
   const type = String(value ?? "").trim().toUpperCase();
 
   switch (type) {
-    case "PAYMENT":
     case "CHARGE":
-    case "RENT":
-    case "LATE_FEE":
-    case "FEE":
+    case "PAYMENT":
+    case "CREDIT":
+    case "ADJUSTMENT":
       return type;
     default:
       return null;
   }
 }
 
-function isCharge(type: EntryType): boolean {
-  return (
-    type === "CHARGE" ||
-    type === "RENT" ||
-    type === "LATE_FEE" ||
-    type === "FEE"
-  );
+function normalizePaymentStatus(value: unknown): PaymentStatus | null {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "UNPAID":
+    case "PENDING":
+    case "PAID":
+    case "FAILED":
+    case "REVERSED":
+      return status;
+    default:
+      return null;
+  }
 }
 
-function isPayment(type: EntryType): boolean {
+function isChargeEntry(type: LedgerEntryType): boolean {
+  return type === "CHARGE";
+}
+
+function isPaymentEntry(type: LedgerEntryType): boolean {
   return type === "PAYMENT";
 }
 
-// --- DATE SAFETY ---
-
-function toSafeDate(value: unknown): Date | null {
-  const d = new Date(value as string | number | Date);
-  return isNaN(d.getTime()) ? null : d;
+function isCreditEntry(type: LedgerEntryType): boolean {
+  return type === "CREDIT";
 }
 
-// --- MAIN FUNCTION ---
+function isAdjustmentEntry(type: LedgerEntryType): boolean {
+  return type === "ADJUSTMENT";
+}
+
+function centsToDollars(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
+function toSafeDate(value: unknown): Date | null {
+  if (!value) return null;
+  const date =
+    value instanceof Date ? value : new Date(value as string | number | Date);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toSafeInteger(value: unknown): number {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.trunc(amount);
+}
+
+function shouldCountPaymentStatus(status: PaymentStatus | null): boolean {
+  return status === "PAID";
+}
+
+/*
+  Ledger rules:
+  - CHARGE increases balance owed
+  - PAYMENT reduces balance owed only when confirmed PAID
+  - CREDIT reduces balance owed
+  - ADJUSTMENT may be positive or negative
+  - voided entries do not count
+  - failed/reversed payments must not reduce balance
+*/
+function getSignedImpactCents(
+  entryType: LedgerEntryType,
+  amountCents: number,
+  paymentStatus?: PaymentStatus | null
+): number {
+  const absAmount = Math.abs(toSafeInteger(amountCents));
+
+  if (entryType === "CHARGE") return absAmount;
+  if (entryType === "PAYMENT") {
+    return paymentStatus === "PAID" ? -absAmount : 0;
+  }
+  if (entryType === "CREDIT") return -absAmount;
+  if (entryType === "ADJUSTMENT") return toSafeInteger(amountCents);
+
+  return 0;
+}
 
 export async function getUnitLedgerSummary(
   unitId: string
 ): Promise<LedgerSummary> {
   const entries = await prisma.ledgerEntry.findMany({
-    where: { unitId },
-    orderBy: [
-      { effectiveDate: "asc" },
-      { createdAt: "asc" },
-      { id: "asc" },
-    ],
+    where: {
+      unitId,
+      voidedAt: null,
+    },
+    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
-      amount: true,
+      amountCents: true,
       entryType: true,
       effectiveDate: true,
       createdAt: true,
+      payment: {
+        select: {
+          status: true,
+        },
+      },
     },
   });
 
@@ -91,58 +137,67 @@ export async function getUnitLedgerSummary(
   let totalPaidCents = 0;
 
   let lastPaymentDate: Date | null = null;
-  let lastPaymentAmountCents: number | null = null;
   let lastPaymentCreatedAt: Date | null = null;
+  let lastPaymentAmountCents: number | null = null;
 
   for (const entry of entries) {
-    const type = normalizeEntryType(entry.entryType);
-    if (!type) continue; // 🚫 ignore invalid rows (prevents corruption)
-
-    const amountCents = toSafeCents(entry.amount);
-    if (!Number.isFinite(amountCents)) continue;
-
-    // --- ENFORCE SIGN RULES ---
-    if (isCharge(type) && amountCents < 0) continue;
-    if (isPayment(type) && amountCents > 0) continue;
-
-    balanceCents += amountCents;
-
-    if (isCharge(type)) {
-      totalChargesCents += amountCents;
+    const entryType = normalizeLedgerEntryType(entry.entryType);
+    if (!entryType) {
+      continue;
     }
 
-    if (isPayment(type)) {
-      const paymentCents = Math.abs(amountCents);
-      totalPaidCents += paymentCents;
+    const rawAmountCents = toSafeInteger(entry.amountCents);
+    const paymentStatus = normalizePaymentStatus(entry.payment?.status);
+    const signedImpactCents = getSignedImpactCents(
+      entryType,
+      rawAmountCents,
+      paymentStatus
+    );
+
+    balanceCents += signedImpactCents;
+
+    if (isChargeEntry(entryType)) {
+      totalChargesCents += Math.abs(rawAmountCents);
+    }
+
+    if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {
+      const paymentAbsCents = Math.abs(rawAmountCents);
+      totalPaidCents += paymentAbsCents;
 
       const effectiveDate = toSafeDate(entry.effectiveDate);
       const createdAt = toSafeDate(entry.createdAt);
 
-      if (!effectiveDate || !createdAt) continue;
+      if (!effectiveDate || !createdAt) {
+        continue;
+      }
 
       const isLaterPayment =
-        !lastPaymentDate ||
+        lastPaymentDate === null ||
         effectiveDate.getTime() > lastPaymentDate.getTime() ||
         (effectiveDate.getTime() === lastPaymentDate.getTime() &&
-          (!lastPaymentCreatedAt ||
+          (lastPaymentCreatedAt === null ||
             createdAt.getTime() > lastPaymentCreatedAt.getTime()));
 
       if (isLaterPayment) {
         lastPaymentDate = effectiveDate;
         lastPaymentCreatedAt = createdAt;
-        lastPaymentAmountCents = paymentCents;
+        lastPaymentAmountCents = paymentAbsCents;
       }
     }
   }
 
   return {
-    balance: roundMoney(centsToDollars(balanceCents)),
-    totalCharges: roundMoney(centsToDollars(totalChargesCents)),
-    totalPaid: roundMoney(centsToDollars(totalPaidCents)),
+    balanceCents,
+    totalChargesCents,
+    totalPaidCents,
+    balance: centsToDollars(balanceCents),
+    totalCharges: centsToDollars(totalChargesCents),
+    totalPaid: centsToDollars(totalPaidCents),
     lastPaymentDate,
+    lastPaymentAmountCents,
     lastPaymentAmount:
       lastPaymentAmountCents === null
         ? null
-        : roundMoney(centsToDollars(lastPaymentAmountCents)),
+        : centsToDollars(lastPaymentAmountCents),
   };
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -46,11 +46,11 @@ function isPrismaKnownError(
    GET PROPERTY
 ========================= */
 export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
 
     if (!id) {
       return NextResponse.json(
@@ -60,19 +60,19 @@ export async function GET(
     }
 
     const property = await prisma.property.findUnique({
-  where: { id },
-  include: {
-    settings: true,
-    tiers: {
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      where: { id },
       include: {
-        units: {
-          orderBy: { unitNumber: "asc" },
+        settings: true,
+        tiers: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          include: {
+            units: {
+              orderBy: { unitNumber: "asc" },
+            },
+          },
         },
       },
-    },
-  },
-});
+    });
 
     if (!property) {
       return NextResponse.json(
@@ -95,7 +95,7 @@ export async function GET(
       tiers: property.tiers.map((t: (typeof property.tiers)[number]) => ({
         id: t.id,
         name: t.name,
-        baseRent: t.baseRent,
+        baseRent: t.baseRentCents / 100,
         unitCount: t.units.length,
       })),
     });
@@ -109,15 +109,14 @@ export async function GET(
 }
 
 /* =========================
-   UPDATE PROPERTY + SETTINGS
+   DELETE PROPERTY
 ========================= */
-
 export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
 
     if (!id) {
       return NextResponse.json({ error: "Missing id." }, { status: 400 });
@@ -137,12 +136,15 @@ export async function DELETE(
   }
 }
 
+/* =========================
+   UPDATE PROPERTY + SETTINGS
+========================= */
 export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
 
     if (!id) {
       return NextResponse.json(
@@ -161,9 +163,11 @@ export async function PATCH(
     const rentDueDay = toNumber(body.rentDueDay, 1);
     const gracePeriodDays = toNumber(body.gracePeriodDays, 0);
     const lateFeeEnabled = toBoolean(body.lateFeeEnabled, true);
-    const lateFeeFlat = toNumber(body.lateFeeFlat, 0);
+    const lateFeeFlatCents = Math.round(toNumber(body.lateFeeFlat, 0) * 100);
     const convenienceFeeEnabled = toBoolean(body.convenienceFeeEnabled, true);
-    const convenienceFeeAmount = toNumber(body.convenienceFeeAmount, 0);
+    const convenienceFeeAmountCents = Math.round(
+      toNumber(body.convenienceFeeAmount, 0) * 100
+    );
 
     if (!name) {
       return NextResponse.json(
@@ -228,9 +232,9 @@ export async function PATCH(
                 rentDueDay,
                 gracePeriodDays,
                 lateFeeEnabled,
-                lateFeeFlat,
+                lateFeeFlatCents,
                 convenienceFeeEnabled,
-                convenienceFeeAmount,
+                convenienceFeeAmountCents,
               },
             })
           : await tx.propertySettings.create({
@@ -239,9 +243,9 @@ export async function PATCH(
                 rentDueDay,
                 gracePeriodDays,
                 lateFeeEnabled,
-                lateFeeFlat,
+                lateFeeFlatCents,
                 convenienceFeeEnabled,
-                convenienceFeeAmount,
+                convenienceFeeAmountCents,
               },
             });
 

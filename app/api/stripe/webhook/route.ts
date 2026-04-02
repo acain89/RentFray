@@ -5,106 +5,54 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canMakePayments } from "@/lib/liveGating";
 import { emitEvent } from "@/lib/realtime";
+import { assertValidTransition } from "@/lib/paymentStatus";
 
 export const runtime = "nodejs";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-type PaymentLifecycleStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "PAID"
-  | "FAILED"
-  | "REFUNDED";
+type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
 function parseCents(value: string | undefined): number {
   const n = Number(value ?? 0);
-  return Number.isFinite(n) ? Math.round(n) : 0;
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
 function safeString(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-function centsToDollars(cents: number): number {
-  return Math.round(cents) / 100;
+function getBillingCycle(date: Date): string {
+  return date.toISOString().slice(0, 7); // YYYY-MM
 }
 
-async function updatePaymentStatusByIntent(
+async function updatePaymentStatus(
   intentId: string,
-  status: PaymentLifecycleStatus
+  nextStatus: PaymentStatus
 ): Promise<void> {
   if (!intentId) return;
 
-  await prisma.payment.updateMany({
-    where: { stripePaymentIntentId: intentId },
-    data: { status },
-  });
-}
-
-async function linkSessionPaymentToIntent(
-  sessionId: string,
-  intentId: string
-): Promise<void> {
-  if (!sessionId || !intentId) return;
-
-  await prisma.payment.updateMany({
-    where: {
-      stripeSessionId: sessionId,
-      OR: [
-        { stripePaymentIntentId: "" },
-        { stripePaymentIntentId: null as never },
-      ],
-    },
-    data: {
-      stripePaymentIntentId: intentId,
-    },
-  });
-}
-
-async function upsertPaymentLifecycleFromIntent(
-  intent: Stripe.PaymentIntent,
-  status: PaymentLifecycleStatus
-): Promise<void> {
-  const metadata = intent.metadata || {};
-
-  const propertyId = safeString(metadata.propertyId);
-  const unitId = safeString(metadata.unitId);
-  const tenantAssignmentId = safeString(metadata.tenantAssignmentId) || null;
-
-  if (!propertyId || !unitId || !intent.id) return;
-
-  const amountCents = parseCents(metadata.ledgerBalanceCents);
-  const processingFeeCents = parseCents(metadata.processingFeeCents);
-
   const existing = await prisma.payment.findUnique({
-    where: { stripePaymentIntentId: intent.id },
-    select: { id: true },
+    where: { stripePaymentIntentId: intentId },
+    select: { status: true },
   });
 
-  if (existing) {
-    await prisma.payment.update({
-      where: { stripePaymentIntentId: intent.id },
-      data: {
-        status,
-        paymentMethod: "ACH",
-      },
-    });
-    return;
-  }
+  if (!existing) return;
 
-  await prisma.payment.create({
+  const currentStatus = existing.status as PaymentStatus;
+
+  if (currentStatus === nextStatus) return;
+
+  assertValidTransition(currentStatus, nextStatus);
+
+  await prisma.payment.update({
+    where: { stripePaymentIntentId: intentId },
     data: {
-      propertyId,
-      unitId,
-      tenantAssignmentId,
-      stripePaymentIntentId: intent.id,
-      stripeSessionId: null,
-      amountCents,
-      processingFeeCents,
-      status,
-      paymentMethod: "ACH",
+      status: nextStatus,
+      ...(nextStatus === "PAID" && { paidAt: new Date() }),
+      ...(nextStatus === "FAILED" && { failedAt: new Date() }),
+      ...(nextStatus === "REVERSED" && { reversedAt: new Date() }),
     },
   });
 }
@@ -128,47 +76,43 @@ export async function POST(req: Request) {
     const sig = (await headers()).get("stripe-signature");
 
     if (!sig) {
-      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing signature" },
+        { status: 400 }
+      );
     }
 
     event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
   } catch {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid signature" },
+      { status: 400 }
+    );
   }
 
   try {
+    // Attach paymentIntent to existing payment record
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const sessionId = safeString(session.id);
-      const intentId =
-        typeof session.payment_intent === "string"
-          ? safeString(session.payment_intent)
-          : "";
 
-      if (sessionId && intentId) {
-        await linkSessionPaymentToIntent(sessionId, intentId);
+      if (typeof session.payment_intent === "string") {
+        await prisma.payment.updateMany({
+          where: { stripeSessionId: session.id },
+          data: { stripePaymentIntentId: session.payment_intent },
+        });
       }
-    }
-
-    if (event.type === "payment_intent.created") {
-      const intent = event.data.object as Stripe.PaymentIntent;
-      await upsertPaymentLifecycleFromIntent(intent, "PROCESSING");
     }
 
     if (event.type === "payment_intent.payment_failed") {
       const intent = event.data.object as Stripe.PaymentIntent;
-      await upsertPaymentLifecycleFromIntent(intent, "FAILED");
+      await updatePaymentStatus(intent.id, "FAILED");
     }
 
     if (event.type === "charge.refunded") {
       const charge = event.data.object as Stripe.Charge;
-      const paymentIntentId =
-        typeof charge.payment_intent === "string"
-          ? charge.payment_intent
-          : "";
 
-      if (paymentIntentId) {
-        await updatePaymentStatusByIntent(paymentIntentId, "REFUNDED");
+      if (typeof charge.payment_intent === "string") {
+        await updatePaymentStatus(charge.payment_intent, "REVERSED");
       }
     }
 
@@ -178,18 +122,15 @@ export async function POST(req: Request) {
 
       const propertyId = safeString(metadata.propertyId);
       const unitId = safeString(metadata.unitId);
-      const tenantAssignmentIdMeta =
+      const tenantAssignmentId =
         safeString(metadata.tenantAssignmentId) || null;
 
-      const ledgerCents = parseCents(metadata.ledgerBalanceCents);
+      const balanceCents = parseCents(metadata.ledgerBalanceCents);
       const feeCents = parseCents(metadata.processingFeeCents);
-      const totalMetaCents = parseCents(metadata.totalAmountCents);
 
       if (!propertyId || !unitId) {
         return NextResponse.json({ received: true });
       }
-
-      await upsertPaymentLifecycleFromIntent(intent, "PROCESSING");
 
       const property = await prisma.property.findUnique({
         where: { id: propertyId },
@@ -204,54 +145,43 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true });
       }
 
-      const unit = await prisma.unit.findFirst({
-        where: { id: unitId, propertyId },
-        select: {
-          id: true,
-          tenantAssignments: {
-            where: { isCurrent: true },
-            orderBy: { createdAt: "desc" },
-            select: { id: true },
-            take: 1,
-          },
-        },
-      });
-
-      if (!unit) {
-        return NextResponse.json({ received: true });
-      }
-
-      const tenantAssignmentId =
-        tenantAssignmentIdMeta || unit.tenantAssignments[0]?.id || null;
-
       const stripeCents =
-        intent.amount_received ??
-        intent.amount ??
-        totalMetaCents ??
-        ledgerCents + feeCents;
+        intent.amount_received ?? intent.amount ?? balanceCents + feeCents;
 
-      if (!stripeCents || stripeCents <= 0) {
+      if (stripeCents <= 0) {
         return NextResponse.json({ received: true });
       }
 
-      const expectedCents = ledgerCents + feeCents;
+      const expectedCents = balanceCents + feeCents;
 
-      if (expectedCents > 0 && stripeCents !== expectedCents) {
-        console.error("Stripe mismatch", {
+      // 🔒 STRICT: NO PARTIAL PAYMENTS
+      if (expectedCents !== stripeCents) {
+        console.error("PAYMENT MISMATCH — BLOCKED", {
           expectedCents,
           stripeCents,
           intentId: intent.id,
         });
+
+        return NextResponse.json({ received: true });
       }
 
-      const paymentAmount = centsToDollars(stripeCents);
-      const feeAmount = centsToDollars(feeCents);
-      const effectiveDate = new Date();
+      // 🔒 REQUIRE EXISTING PAYMENT RECORD
+      const existingPayment = await prisma.payment.findUnique({
+        where: { stripePaymentIntentId: intent.id },
+      });
 
-      let didCreatePayment = false;
+      if (!existingPayment) {
+        return NextResponse.json({ received: true });
+      }
+
+      const effectiveDate = new Date();
+      const billingCycle = getBillingCycle(effectiveDate);
+
+      let didWrite = false;
 
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const existingPayment = await tx.ledgerEntry.findFirst({
+        // 🔒 IDEMPOTENCY CHECK
+        const existing = await tx.ledgerEntry.findFirst({
           where: {
             referenceNumber: intent.id,
             entryType: "PAYMENT",
@@ -260,16 +190,13 @@ export async function POST(req: Request) {
           select: { id: true },
         });
 
-        if (existingPayment) {
-          return;
-        }
+        if (existing) return;
 
+        // 🔒 PROCESSING FEE ENTRY
         if (feeCents > 0) {
-          const feeRef = `${intent.id}:fee`;
-
           const existingFee = await tx.ledgerEntry.findFirst({
             where: {
-              referenceNumber: feeRef,
+              referenceNumber: `${intent.id}:fee`,
               entryType: "CHARGE",
               unitId,
             },
@@ -284,15 +211,18 @@ export async function POST(req: Request) {
                 tenantAssignmentId,
                 entryType: "CHARGE",
                 chargeType: "PROCESSING_FEE",
-                amount: feeAmount,
+                amountCents: feeCents,
                 effectiveDate,
-                referenceNumber: feeRef,
+                billingCycle,
+                paymentId: existingPayment.id,
+                referenceNumber: `${intent.id}:fee`,
                 memo: "Processing fee",
               },
             });
           }
         }
 
+        // 🔒 PAYMENT ENTRY
         await tx.ledgerEntry.create({
           data: {
             propertyId,
@@ -300,54 +230,40 @@ export async function POST(req: Request) {
             tenantAssignmentId,
             entryType: "PAYMENT",
             paymentMethod: "ACH",
-            amount: -paymentAmount,
+            amountCents: -stripeCents,
             effectiveDate,
+            billingCycle,
+            paymentId: existingPayment.id,
             referenceNumber: intent.id,
-            memo: "Tenant payment",
+            memo: "Stripe payment",
           },
         });
 
-        didCreatePayment = true;
+        didWrite = true;
 
+        // 🔒 AUDIT LOG
         await tx.auditLog.create({
           data: {
             propertyId,
             actorType: "SYSTEM",
-            action: "STRIPE_PAYMENT_RECEIVED",
-            targetType: "LEDGER_ENTRY",
+            action: "PAYMENT_RECORDED",
+            targetType: "PAYMENT",
             targetId: intent.id,
-            summary: "Stripe payment recorded",
             metadataJson: JSON.stringify({
-              intentId: intent.id,
               stripeCents,
               expectedCents,
               feeCents,
-              unitId,
+              billingCycle,
             }),
           },
         });
       });
 
-      await prisma.payment.updateMany({
-        where: { stripePaymentIntentId: intent.id },
-        data: {
-          status: "PAID",
-          paymentMethod: "ACH",
-        },
-      });
+      await updatePaymentStatus(intent.id, "PAID");
 
-      if (didCreatePayment) {
-        emitEvent("payment:update", {
-          propertyId,
-          unitId,
-          source: "STRIPE",
-        });
-
-        emitEvent("ledger:update", {
-          propertyId,
-          unitId,
-          source: "STRIPE",
-        });
+      if (didWrite) {
+        emitEvent("payment:update", { propertyId, unitId });
+        emitEvent("ledger:update", { propertyId, unitId });
       }
     }
   } catch (error) {

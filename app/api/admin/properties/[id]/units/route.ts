@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -34,15 +34,19 @@ function toNumber(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function toCents(value: unknown) {
+  return Math.round(toNumber(value, 0) * 100);
+}
+
 /* =========================
    POST (CREATE UNIT)
 ========================= */
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: propertyId } = await params;
+    const { id: propertyId } = await context.params;
 
     if (!propertyId) {
       return NextResponse.json<ApiError>(
@@ -55,7 +59,7 @@ export async function POST(
 
     const tierId = safeString(body.tierId);
     const unitNumber = safeString(body.unitNumber).toUpperCase();
-    const baseRent = toNumber(body.baseRent, 0);
+    const baseRentCents = toCents(body.baseRent);
 
     if (!tierId || !unitNumber) {
       return NextResponse.json<ApiError>(
@@ -64,7 +68,7 @@ export async function POST(
       );
     }
 
-    if (baseRent < 0) {
+    if (baseRentCents < 0) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Base rent must be 0 or greater." },
         { status: 400 }
@@ -97,8 +101,7 @@ export async function POST(
             tierId,
             unitNumber,
             unitType: tier.name,
-            baseRent,
-            recurringFees: 0,
+            baseRentCents,
             isActive: true,
           },
           select: {
@@ -107,8 +110,7 @@ export async function POST(
             tierId: true,
             unitNumber: true,
             unitType: true,
-            baseRent: true,
-            recurringFees: true,
+            baseRentCents: true,
             isActive: true,
           },
         });
@@ -128,7 +130,13 @@ export async function POST(
 
     return NextResponse.json<ApiSuccess<UnitPayload>>({
       ok: true,
-      data: created,
+      data: {
+        ...created,
+        baseRent: created.baseRentCents
+          ? created.baseRentCents / 100
+          : null,
+        recurringFees: 0,
+      },
     });
   } catch (error) {
     console.error("POST unit failed", error);
@@ -147,11 +155,11 @@ export async function POST(
    PATCH (UPDATE UNIT)
 ========================= */
 export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: propertyId } = await params;
+    const { id: propertyId } = await context.params;
 
     if (!propertyId) {
       return NextResponse.json<ApiError>(
@@ -164,7 +172,7 @@ export async function PATCH(
 
     const unitId = safeString(body.unitId);
     const unitNumber = safeString(body.unitNumber).toUpperCase();
-    const baseRent = toNumber(body.baseRent, 0);
+    const baseRentCents = toCents(body.baseRent);
 
     if (!unitId || !unitNumber) {
       return NextResponse.json<ApiError>(
@@ -173,7 +181,7 @@ export async function PATCH(
       );
     }
 
-    if (baseRent < 0) {
+    if (baseRentCents < 0) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Base rent must be 0 or greater." },
         { status: 400 }
@@ -206,15 +214,14 @@ export async function PATCH(
 
         return await tx.unit.update({
           where: { id: unitId },
-          data: { unitNumber, baseRent },
+          data: { unitNumber, baseRentCents },
           select: {
             id: true,
             propertyId: true,
             tierId: true,
             unitNumber: true,
             unitType: true,
-            baseRent: true,
-            recurringFees: true,
+            baseRentCents: true,
             isActive: true,
           },
         });
@@ -223,7 +230,13 @@ export async function PATCH(
 
     return NextResponse.json<ApiSuccess<UnitPayload>>({
       ok: true,
-      data: updated,
+      data: {
+        ...updated,
+        baseRent: updated.baseRentCents
+          ? updated.baseRentCents / 100
+          : null,
+        recurringFees: 0,
+      },
     });
   } catch (error) {
     console.error("PATCH unit failed", error);
@@ -242,11 +255,11 @@ export async function PATCH(
    DELETE (REMOVE UNIT)
 ========================= */
 export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: propertyId } = await params;
+    const { id: propertyId } = await context.params;
 
     if (!propertyId) {
       return NextResponse.json<ApiError>(

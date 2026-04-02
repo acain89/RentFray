@@ -1,5 +1,3 @@
-// app/api/ledger/post-rent/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -35,12 +33,6 @@ function getMonthLabel(date: Date): string {
   });
 }
 
-function toMoney(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100) / 100;
-}
-
 function safeDate(d: Date): Date {
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
@@ -69,7 +61,7 @@ export async function POST() {
           where: { isActive: true },
           include: {
             tier: {
-              select: { baseRent: true },
+              select: { baseRentCents: true },
             },
             tenantAssignments: {
               where: { isCurrent: true },
@@ -92,7 +84,7 @@ export async function POST() {
       );
     }
 
-    // --- PRE-FETCH EXISTING (FIRST DEFENSE) ---
+    // --- PRE-FETCH EXISTING ---
     const existingRents = await prisma.ledgerEntry.findMany({
       where: {
         propertyId: property.id,
@@ -102,6 +94,7 @@ export async function POST() {
           gte: monthStart,
           lt: nextMonth,
         },
+        voidedAt: null,
       },
       select: {
         unitId: true,
@@ -109,12 +102,12 @@ export async function POST() {
       },
     });
 
-   const existingKeys = new Set<string>(
-  existingRents.map(
-    (e: (typeof existingRents)[number]) =>
-      `${e.unitId}::${e.tenantAssignmentId ?? ""}`
-  )
-);
+    const existingKeys = new Set<string>(
+      existingRents.map(
+  (e: (typeof existingRents)[number]) =>
+    `${e.unitId}::${e.tenantAssignmentId ?? ""}`
+     )
+    );
 
     let posted = 0;
     let skipped = 0;
@@ -128,25 +121,21 @@ export async function POST() {
           continue;
         }
 
-        const rawAmount =
-          unit.tier?.baseRent ?? (unit as { baseRent?: number }).baseRent ?? 0;
+        // ✅ FIX: use cents directly from schema
+        const amountCents = unit.tier?.baseRentCents ?? 0;
 
-        const amount = toMoney(rawAmount);
-
-        if (amount <= 0) {
+        if (amountCents <= 0) {
           skipped++;
           continue;
         }
 
         const key = `${unit.id}::${assignment.id}`;
 
-        // --- PREVENT DUPLICATE (FAST PATH) ---
         if (existingKeys.has(key)) {
           skipped++;
           continue;
         }
 
-        // --- RACE CONDITION PROTECTION ---
         const exists = await tx.ledgerEntry.findFirst({
           where: {
             propertyId: property.id,
@@ -158,6 +147,7 @@ export async function POST() {
               gte: monthStart,
               lt: nextMonth,
             },
+            voidedAt: null,
           },
           select: { id: true },
         });
@@ -174,9 +164,10 @@ export async function POST() {
             tenantAssignmentId: assignment.id,
             entryType: "CHARGE",
             chargeType: "RENT",
-            amount,
+            amountCents,
             memo: `Monthly rent - ${monthLabel}`,
             effectiveDate,
+            billingCycle: monthStart.toISOString(),
             createdByManagementUserId:
               session.managementUserId ?? null,
           },
@@ -198,7 +189,7 @@ export async function POST() {
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            monthStart: monthStart.toISOString(),
+            billingCycle: monthStart.toISOString(),
             triggeredAt: effectiveDate.toISOString(),
           }),
         },

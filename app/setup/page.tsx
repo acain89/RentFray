@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { HTMLInputTypeAttribute } from "react";
+import type { ChangeEvent, HTMLInputTypeAttribute } from "react";
 
 type BillingFrequency = "MONTHLY" | "BIWEEKLY" | "WEEKLY";
 type LateFeeType = "FLAT" | "PERCENT";
@@ -65,6 +65,18 @@ type ManagerSessionError = {
 
 type ManagerSessionResponse = ManagerSessionSuccess | ManagerSessionError | null;
 
+type UnitPreviewItem = {
+  tierId: string;
+  start: number | null;
+  end: number | null;
+  count: number;
+};
+
+type SelectOption = {
+  label: string;
+  value: string;
+};
+
 const STORAGE_KEY = "rentfray_self_serve_setup_v1";
 
 function createTier(index: number): TierDraft {
@@ -114,10 +126,10 @@ function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function buildUnitPreview(tiers: TierDraft[]) {
+function buildUnitPreview(tiers: TierDraft[]): UnitPreviewItem[] {
   let nextUnit = 101;
 
-  return tiers.map((tier) => {
+  return tiers.map((tier: TierDraft) => {
     const count = Math.max(0, Number(tier.unitCount || 0));
     const start = count > 0 ? nextUnit : null;
     const end = count > 0 ? nextUnit + count - 1 : null;
@@ -161,7 +173,9 @@ function formatMoney(value: number, lateFeeType: LateFeeType): string {
   return `$${value.toFixed(2)}`;
 }
 
-function getScheduleWords(frequency: BillingFrequency) {
+function getScheduleWords(
+  frequency: BillingFrequency
+): { due: string; late: string; daily: string; end: string } {
   if (frequency === "WEEKLY") {
     return {
       due: "day",
@@ -251,7 +265,8 @@ function buildLateFeeSummary(tier: TierDraft): string {
 
 async function readJsonSafely<T>(res: Response): Promise<T | null> {
   try {
-    return (await res.json()) as T;
+    const data: unknown = await res.json();
+    return data as T;
   } catch {
     return null;
   }
@@ -260,7 +275,7 @@ async function readJsonSafely<T>(res: Response): Promise<T | null> {
 export default function SetupPage() {
   const router = useRouter();
 
-  const [form, setForm] = useState<FormState>(getInitialState);
+  const [form, setForm] = useState<FormState>(() => getInitialState());
   const [step, setStep] = useState<number>(1);
   const [touched, setTouched] = useState<TouchedState>({});
   const [hydrated, setHydrated] = useState<boolean>(false);
@@ -274,14 +289,16 @@ export default function SetupPage() {
       const raw = localStorage.getItem(STORAGE_KEY);
 
       if (raw) {
-        const parsed = JSON.parse(raw) as Partial<FormState> & { step?: number };
+        const parsed: Partial<FormState> & { step?: number } = JSON.parse(
+          raw ?? "{}"
+        );
 
         setForm({
           ...getInitialState(),
           ...parsed,
           tiers:
             parsed.tiers && parsed.tiers.length
-              ? parsed.tiers.map((tier, index) => ({
+              ? parsed.tiers.map((tier: TierDraft, index: number) => ({
                   ...createTier(index),
                   ...tier,
                   name: tier.name || `Tier ${index + 1}`,
@@ -325,7 +342,10 @@ export default function SetupPage() {
     }
   }, [form, step, hydrated]);
 
-  const unitPreview = useMemo(() => buildUnitPreview(form.tiers), [form.tiers]);
+  const unitPreview = useMemo<UnitPreviewItem[]>(
+    () => buildUnitPreview(form.tiers),
+    [form.tiers]
+  );
 
   const step1Errors = {
     email: touched.email && !isEmail(form.email) ? "Enter a valid email." : "",
@@ -402,33 +422,33 @@ export default function SetupPage() {
   }
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev: FormState) => ({ ...prev, [key]: value }));
   }
 
   function setTierField(id: string, key: keyof TierDraft, value: string) {
-    setForm((prev) => ({
+    setForm((prev: FormState) => ({
       ...prev,
-      tiers: prev.tiers.map((tier) =>
+      tiers: prev.tiers.map((tier: TierDraft) =>
         tier.id === id ? { ...tier, [key]: value } : tier
       ),
     }));
   }
 
   function addTier() {
-    setForm((prev) => ({
+    setForm((prev: FormState) => ({
       ...prev,
       tiers: [...prev.tiers, createTier(prev.tiers.length)],
     }));
   }
 
   function removeTier(id: string) {
-    setForm((prev) => {
-      const next = prev.tiers.filter((tier) => tier.id !== id);
+    setForm((prev: FormState) => {
+      const next = prev.tiers.filter((tier: TierDraft) => tier.id !== id);
 
       return {
         ...prev,
         tiers: next.length
-          ? next.map((tier, index) => ({
+          ? next.map((tier: TierDraft, index: number) => ({
               ...tier,
               name: `Tier ${index + 1}`,
             }))
@@ -444,9 +464,9 @@ export default function SetupPage() {
 
     const first = form.tiers[0];
 
-    setForm((prev) => ({
+    setForm((prev: FormState) => ({
       ...prev,
-      tiers: prev.tiers.map((tier, index) =>
+      tiers: prev.tiers.map((tier: TierDraft, index: number) =>
         index === 0
           ? tier
           : {
@@ -510,7 +530,7 @@ export default function SetupPage() {
   function validateStep3(): boolean {
     const nextTouched: TouchedState = { ...touched };
 
-    form.tiers.forEach((tier) => {
+    form.tiers.forEach((tier: TierDraft) => {
       nextTouched[`price-${tier.id}`] = true;
       nextTouched[`unitCount-${tier.id}`] = true;
     });
@@ -518,14 +538,14 @@ export default function SetupPage() {
     setTouched(nextTouched);
 
     return form.tiers.every(
-      (tier) => Number(tier.price) > 0 && Number(tier.unitCount) > 0
+      (tier: TierDraft) => Number(tier.price) > 0 && Number(tier.unitCount) > 0
     );
   }
 
   function validateStep4(): boolean {
     const nextTouched: TouchedState = { ...touched };
 
-    form.tiers.forEach((tier) => {
+    form.tiers.forEach((tier: TierDraft) => {
       nextTouched[`dueDay-${tier.id}`] = true;
       nextTouched[`grace-${tier.id}`] = true;
       nextTouched[`lateInitial-${tier.id}`] = true;
@@ -535,7 +555,7 @@ export default function SetupPage() {
 
     setTouched(nextTouched);
 
-    return form.tiers.every((tier) => {
+    return form.tiers.every((tier: TierDraft) => {
       const monthlyDueValid =
         tier.billingFrequency !== "MONTHLY" ||
         (Number(tier.dueDay) >= 1 && Number(tier.dueDay) <= 31);
@@ -562,13 +582,13 @@ export default function SetupPage() {
     if (step === 2 && !validateStep2()) return;
     if (step === 3 && !validateStep3()) return;
 
-    setStep((prev) => Math.min(4, prev + 1));
+    setStep((prev: number) => Math.min(4, prev + 1));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function prevStep() {
     setSubmitError("");
-    setStep((prev) => Math.max(1, prev - 1));
+    setStep((prev: number) => Math.max(1, prev - 1));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -591,7 +611,7 @@ export default function SetupPage() {
         zip: onlyDigits(form.zip),
         businessType: form.businessType.trim(),
       },
-      tiers: form.tiers.map((tier, index) => ({
+      tiers: form.tiers.map((tier: TierDraft, index: number) => ({
         name: `Tier ${index + 1}`,
         price: Number(tier.price),
         unitCount: Number(tier.unitCount),
@@ -654,7 +674,9 @@ export default function SetupPage() {
       localStorage.removeItem(STORAGE_KEY);
 
       const redirectTo =
-        sessionResult?.redirectTo || setupResult.redirectTo || "/manager/dashboard";
+  sessionResult && "redirectTo" in sessionResult && sessionResult.redirectTo
+    ? sessionResult.redirectTo
+    : setupResult.redirectTo || "/manager/dashboard";
 
       router.push(redirectTo);
     } catch {
@@ -711,25 +733,27 @@ export default function SetupPage() {
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {["Account", "Property", "Tiers", "Billing"].map((label, index) => {
-              const active = step === index + 1;
-              const done = step > index + 1;
+            {["Account", "Property", "Tiers", "Billing"].map(
+              (label: string, index: number) => {
+                const active = step === index + 1;
+                const done = step > index + 1;
 
-              return (
-                <div
-                  key={label}
-                  className={`rounded-2xl px-3 py-3 text-center text-sm font-semibold transition ${
-                    active
-                      ? "bg-white text-[#0f172a]"
-                      : done
-                        ? "bg-white/20 text-white"
-                        : "bg-white/10 text-white/75"
-                  }`}
-                >
-                  {label}
-                </div>
-              );
-            })}
+                return (
+                  <div
+                    key={label}
+                    className={`rounded-2xl px-3 py-3 text-center text-sm font-semibold transition ${
+                      active
+                        ? "bg-white text-[#0f172a]"
+                        : done
+                          ? "bg-white/20 text-white"
+                          : "bg-white/10 text-white/75"
+                    }`}
+                  >
+                    {label}
+                  </div>
+                );
+              }
+            )}
           </div>
         </div>
 
@@ -840,9 +864,7 @@ export default function SetupPage() {
                   label="City"
                   value={form.city}
                   error={step2Errors.city}
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, city: true }))
-                  }
+                  onBlur={() => setTouched((prev) => ({ ...prev, city: true }))}
                   onChange={(value) => setField("city", value)}
                   placeholder="Houston"
                 />
@@ -851,9 +873,7 @@ export default function SetupPage() {
                   label="State"
                   value={form.state}
                   error={step2Errors.state}
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, state: true }))
-                  }
+                  onBlur={() => setTouched((prev) => ({ ...prev, state: true }))}
                   onChange={(value) => setField("state", value.toUpperCase())}
                   placeholder="TX"
                   maxLength={2}
@@ -914,8 +934,10 @@ export default function SetupPage() {
               </div>
 
               <div className="space-y-4">
-                {form.tiers.map((tier, index) => {
-                  const preview = unitPreview.find((item) => item.tierId === tier.id);
+                {form.tiers.map((tier: TierDraft, index: number) => {
+                  const preview = unitPreview.find(
+                    (item: UnitPreviewItem) => item.tierId === tier.id
+                  );
                   const errors = getTierErrors(tier);
 
                   return (
@@ -1014,7 +1036,7 @@ export default function SetupPage() {
               </div>
 
               <div className="space-y-4">
-                {form.tiers.map((tier, index) => {
+                {form.tiers.map((tier: TierDraft, index: number) => {
                   const errors = getTierErrors(tier);
 
                   return (
@@ -1027,7 +1049,8 @@ export default function SetupPage() {
                           Tier {index + 1}
                         </div>
                         <div className="text-sm text-[#64748b]">
-                          ${Number(tier.price || 0).toFixed(2)} · {tier.unitCount || 0} units
+                          ${Number(tier.price || 0).toFixed(2)} ·{" "}
+                          {tier.unitCount || 0} units
                         </div>
                       </div>
 
@@ -1134,7 +1157,9 @@ export default function SetupPage() {
                               sanitizeMoney(value)
                             )
                           }
-                          placeholder={tier.lateFeeType === "PERCENT" ? "5.00" : "50.00"}
+                          placeholder={
+                            tier.lateFeeType === "PERCENT" ? "5.00" : "50.00"
+                          }
                           inputMode="decimal"
                         />
 
@@ -1159,7 +1184,9 @@ export default function SetupPage() {
                               sanitizeMoney(value)
                             )
                           }
-                          placeholder={tier.lateFeeType === "PERCENT" ? "1.00" : "10.00"}
+                          placeholder={
+                            tier.lateFeeType === "PERCENT" ? "1.00" : "10.00"
+                          }
                           inputMode="decimal"
                         />
 
@@ -1279,7 +1306,7 @@ function Field({
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         onBlur={onBlur}
         placeholder={placeholder}
         inputMode={inputMode}
@@ -1301,7 +1328,7 @@ type SelectFieldProps = {
   error: string;
   onChange: (value: string) => void;
   onBlur: () => void;
-  options: { label: string; value: string }[];
+  options: SelectOption[];
 };
 
 function SelectField({
@@ -1317,7 +1344,7 @@ function SelectField({
       <div className="mb-2 text-sm font-semibold text-[#334155]">{label}</div>
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
         onBlur={onBlur}
         className={`w-full rounded-2xl border bg-white px-4 py-4 text-base text-[#0f172a] outline-none transition ${
           error
@@ -1325,7 +1352,7 @@ function SelectField({
             : "border-[#cbd5e1] focus:border-[#0f172a]"
         }`}
       >
-        {options.map((option) => (
+        {options.map((option: SelectOption) => (
           <option key={`${label}-${option.value}`} value={option.value}>
             {option.label}
           </option>

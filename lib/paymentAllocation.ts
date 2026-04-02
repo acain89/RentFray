@@ -1,46 +1,40 @@
+// lib/paymentAllocation.ts
+
 type LedgerRow = {
   id: string;
-  amount: number;
-  type: string;
-  effectiveDate: Date;
-  appliedAmount?: number | null;
+  amountCents: number;
+  entryType: string;
+  effectiveDate: Date | string;
+  appliedAmountCents?: number | null;
 };
 
 type PaymentAllocation = {
   chargeId: string;
-  applied: number;
+  appliedAmountCents: number;
 };
 
 type PaymentAllocationResult = {
   allocations: PaymentAllocation[];
-  remaining: number;
+  remainingCents: number;
+  totalOpenChargeCents: number;
+  isExactPaymentMatch: boolean;
 };
 
-type NormalizedChargeType =
-  | "CHARGE"
-  | "RENT"
-  | "LATE_FEE"
-  | "FEE"
-  | "ADJUSTMENT";
+type CanonicalLedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
 
-function toCents(value: unknown): number {
+function toSafeInteger(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100);
+  return Math.trunc(n);
 }
 
-function fromCents(cents: number): number {
-  return Math.round(cents) / 100;
-}
-
-function normalizeChargeType(value: unknown): NormalizedChargeType | null {
+function normalizeLedgerEntryType(value: unknown): CanonicalLedgerEntryType | null {
   const normalized = String(value ?? "").trim().toUpperCase();
 
   switch (normalized) {
     case "CHARGE":
-    case "RENT":
-    case "LATE_FEE":
-    case "FEE":
+    case "PAYMENT":
+    case "CREDIT":
     case "ADJUSTMENT":
       return normalized;
     default:
@@ -48,8 +42,8 @@ function normalizeChargeType(value: unknown): NormalizedChargeType | null {
   }
 }
 
-function isChargeType(value: unknown): value is NormalizedChargeType {
-  return normalizeChargeType(value) !== null;
+function isChargeEntryType(type: CanonicalLedgerEntryType): boolean {
+  return type === "CHARGE";
 }
 
 function toDateMs(value: unknown): number {
@@ -58,47 +52,68 @@ function toDateMs(value: unknown): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+/*
+V1 RULES
+- No partial payments
+- Payment must exactly match total currently open charges
+- Allocation order remains oldest charge first for deterministic traceability
+*/
 export function allocatePayment(
-  amount: number,
+  paymentAmountCents: number,
   charges: LedgerRow[]
 ): PaymentAllocationResult {
-  let remainingCents = Math.max(0, toCents(amount));
+  const safePaymentAmountCents = Math.max(0, toSafeInteger(paymentAmountCents));
 
-  if (remainingCents <= 0 || !Array.isArray(charges) || charges.length === 0) {
+  if (safePaymentAmountCents <= 0 || !Array.isArray(charges) || charges.length === 0) {
     return {
       allocations: [],
-      remaining: fromCents(remainingCents),
+      remainingCents: safePaymentAmountCents,
+      totalOpenChargeCents: 0,
+      isExactPaymentMatch: false,
     };
   }
 
   const seenChargeIds = new Set<string>();
 
-  const sortedCharges = charges
-    .filter((charge) => {
+  const sortedOpenCharges = charges
+    .map((charge) => {
       const id = String(charge.id ?? "").trim();
-      if (!id || seenChargeIds.has(id)) return false;
+      if (!id || seenChargeIds.has(id)) {
+        return null;
+      }
       seenChargeIds.add(id);
 
-      const normalizedType = normalizeChargeType(charge.type);
-      if (!normalizedType) return false;
+      const entryType = normalizeLedgerEntryType(charge.entryType);
+      if (!entryType || !isChargeEntryType(entryType)) {
+        return null;
+      }
 
-      const amountCents = toCents(charge.amount);
-      if (amountCents <= 0) return false;
+      const amountCents = Math.max(0, toSafeInteger(charge.amountCents));
+      const appliedAmountCents = Math.max(
+        0,
+        toSafeInteger(charge.appliedAmountCents ?? 0)
+      );
+      const openAmountCents = Math.max(0, amountCents - appliedAmountCents);
 
-      return true;
-    })
-    .map((charge) => {
-      const amountCents = toCents(charge.amount);
-      const appliedCents = Math.max(0, toCents(charge.appliedAmount ?? 0));
-      const openCents = Math.max(0, amountCents - appliedCents);
+      if (openAmountCents <= 0) {
+        return null;
+      }
 
       return {
-        id: String(charge.id).trim(),
+        id,
         effectiveDateMs: toDateMs(charge.effectiveDate),
-        openCents,
+        openAmountCents,
       };
     })
-    .filter((charge) => charge.openCents > 0)
+    .filter(
+      (
+        charge
+      ): charge is {
+        id: string;
+        effectiveDateMs: number;
+        openAmountCents: number;
+      } => charge !== null
+    )
     .sort((a, b) => {
       if (a.effectiveDateMs !== b.effectiveDateMs) {
         return a.effectiveDateMs - b.effectiveDateMs;
@@ -107,24 +122,32 @@ export function allocatePayment(
       return a.id.localeCompare(b.id);
     });
 
-  const allocations: PaymentAllocation[] = [];
+  const totalOpenChargeCents = sortedOpenCharges.reduce(
+    (sum, charge) => sum + charge.openAmountCents,
+    0
+  );
 
-  for (const charge of sortedCharges) {
-    if (remainingCents <= 0) break;
+  const isExactPaymentMatch =
+    safePaymentAmountCents > 0 && safePaymentAmountCents === totalOpenChargeCents;
 
-    const appliedCents = Math.min(charge.openCents, remainingCents);
-    if (appliedCents <= 0) continue;
-
-    allocations.push({
-      chargeId: charge.id,
-      applied: fromCents(appliedCents),
-    });
-
-    remainingCents -= appliedCents;
+  if (!isExactPaymentMatch) {
+    return {
+      allocations: [],
+      remainingCents: safePaymentAmountCents,
+      totalOpenChargeCents,
+      isExactPaymentMatch: false,
+    };
   }
+
+  const allocations: PaymentAllocation[] = sortedOpenCharges.map((charge) => ({
+    chargeId: charge.id,
+    appliedAmountCents: charge.openAmountCents,
+  }));
 
   return {
     allocations,
-    remaining: fromCents(remainingCents),
+    remainingCents: 0,
+    totalOpenChargeCents,
+    isExactPaymentMatch: true,
   };
 }

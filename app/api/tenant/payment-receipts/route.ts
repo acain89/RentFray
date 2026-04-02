@@ -2,38 +2,70 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
+import { PaymentStatus } from "@prisma/client";
 
-function centsToDollars(cents: number): number {
-  return Math.round((cents || 0) / 100 * 100) / 100;
-}
+type TenantReceipt = {
+  id: string;
+  amountCents: number;
+  billingCycle: string | null;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  status: PaymentStatus;
+  paidAt: Date | null;
+  createdAt: Date;
+};
 
 export async function GET() {
   try {
-    const session = await getSession();
+    const session = await requireRole("TENANT");
 
-    if (!session || session.role !== "TENANT" || !session.unitId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session.unitId) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     const payments = await prisma.payment.findMany({
       where: {
         unitId: session.unitId,
-        status: "PAID",
+        propertyId: session.propertyId,
+        status: PaymentStatus.PAID,
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { paidAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        amountCents: true,
+        billingCycle: true,
+        paymentMethod: true,
+        referenceNumber: true,
+        memo: true,
+        status: true,
+        paidAt: true,
+        createdAt: true,
+      },
     });
 
-    const receipts = payments.map((p: (typeof payments)[number]) => ({
-      id: p.id,
-      amount: centsToDollars(p.amountCents),
-      date: p.updatedAt,
-      status: p.status,
-    }));
+    const receipts: TenantReceipt[] = payments.map(
+      (p: (typeof payments)[number]) => ({
+        id: p.id,
+        amountCents: p.amountCents,
+        billingCycle: p.billingCycle,
+        method: p.paymentMethod ?? null,
+        reference: p.referenceNumber ?? null,
+        note: p.memo ?? null,
+        status: p.status,
+        paidAt: p.paidAt ?? null,
+        createdAt: p.createdAt,
+      })
+    );
 
-    return NextResponse.json({ ok: true, receipts });
+    return NextResponse.json({
+      ok: true,
+      receipts,
+    });
   } catch (err) {
-    console.error("receipts error", err);
+    console.error("tenant payment-receipts GET error", err);
     return NextResponse.json(
       { error: "Failed to load receipts" },
       { status: 500 }
