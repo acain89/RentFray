@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   }
 
   const stripe = new Stripe(stripeSecretKey, {
-    apiVersion: "2026-03-25.dahlia"
+    apiVersion: "2026-02-25.clover",
   });
 
   let event: Stripe.Event;

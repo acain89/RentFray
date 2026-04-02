@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2026-03-25.dahlia"
+  apiVersion: "2026-02-25.clover",
 });
 
 export async function POST() {
