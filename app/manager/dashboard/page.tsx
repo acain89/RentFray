@@ -32,10 +32,13 @@ type DashboardTier = {
 
 type DashboardData = {
   property: {
-    id: string;
-    name: string;
-    code: string;
+  id: string;
+  name: string;
+  code: string;
+  paymentStatus?: {
+    bankConnected?: boolean;
   };
+};
   session: {
     role: "OWNER" | "MANAGER" | "STAFF";
   };
