@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     const stripe = new Stripe(secretKey, {
-      apiVersion: "2024-06-20",
+      apiVersion: "2026-02-25.clover",
     });
 
     const session = await getSession();
