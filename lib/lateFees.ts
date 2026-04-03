@@ -1,40 +1,56 @@
-export function getLateFeePreview({
-  balance,
-  isDelinquent,
-  settings,
-}: {
-  balance: number;
+type LateFeePreviewInput = {
+  balanceCents: number;
   isDelinquent: boolean;
   settings: {
-    lateFeeType: string;
-    lateFeeValue: number;
+    lateFeeType: "FLAT" | "PERCENT";
+    lateFeeFlatCents?: number | null;
+    lateFeePercentBps?: number | null; // basis points (100 = 1%)
   };
-}) {
-  if (!isDelinquent || balance <= 0) {
+};
+
+type LateFeePreviewResult = {
+  recommendedLateFeeCents: number;
+  eligible: boolean;
+  reason: string;
+  basedOnBalanceCents: number;
+  evaluatedAt: Date;
+};
+
+function toSafeCents(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.trunc(n));
+}
+
+export function getLateFeePreview(
+  input: LateFeePreviewInput
+): LateFeePreviewResult {
+  const balanceCents = toSafeCents(input.balanceCents);
+
+  if (!input.isDelinquent || balanceCents <= 0) {
     return {
-      recommendedLateFee: 0,
+      recommendedLateFeeCents: 0,
       eligible: false,
       reason: "Not delinquent",
-      basedOnBalance: balance,
+      basedOnBalanceCents: balanceCents,
       evaluatedAt: new Date(),
     };
   }
 
-  let fee = 0;
+  let feeCents = 0;
 
-  if (settings.lateFeeType === "PERCENT") {
-    fee = balance * (settings.lateFeeValue / 100);
+  if (input.settings.lateFeeType === "PERCENT") {
+    const bps = toSafeCents(input.settings.lateFeePercentBps ?? 0);
+    feeCents = Math.trunc((balanceCents * bps) / 10_000);
   } else {
-    fee = settings.lateFeeValue;
+    feeCents = toSafeCents(input.settings.lateFeeFlatCents ?? 0);
   }
 
-  const rounded = Math.round(fee * 100) / 100;
-
   return {
-    recommendedLateFee: rounded,
-    eligible: true,
+    recommendedLateFeeCents: feeCents,
+    eligible: feeCents > 0,
     reason: "Past grace period with outstanding balance",
-    basedOnBalance: balance,
+    basedOnBalanceCents: balanceCents,
     evaluatedAt: new Date(),
   };
 }

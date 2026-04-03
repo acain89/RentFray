@@ -1,102 +1,70 @@
-// jobs/lateFees.ts
-
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function addDays(date: Date, days: number) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
+function clampDay(year: number, month: number, day: number) {
+  const max = new Date(year, month + 1, 0).getDate();
+  return Math.max(1, Math.min(day, max));
 }
 
-function getClampedBillingDay(
-  year: number,
-  monthIndex: number,
-  billingDay: number
-) {
-  const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
-  return Math.max(1, Math.min(billingDay, lastDayOfMonth));
+function getBillingCycle(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export async function runLateFeesJob(asOf = new Date()) {
   const today = startOfDay(asOf);
+  const billingCycle = getBillingCycle(today);
 
   const units = await prisma.unit.findMany({
-    where: {
-      isActive: true,
-    },
+    where: { isActive: true },
     include: {
       property: true,
       tier: true,
       tenantAssignments: {
         where: { isCurrent: true },
-        orderBy: { createdAt: "desc" },
         take: 1,
       },
     },
   });
 
   for (const unit of units) {
-    const property = unit.property;
-    const tier = unit.tier;
+    const { property, tier } = unit;
     const assignment = unit.tenantAssignments[0];
 
     if (!property || !tier || !assignment) continue;
+    if (tier.lateFeeInitialCents <= 0) continue;
 
-    const billingDay = Number(tier.rentDueDay || 1);
-    const gracePeriodDays = Number(tier.gracePeriodDays || 0);
-    const lateFeeAmount = Number(tier.lateFeeInitial || 0);
-
-    if (lateFeeAmount <= 0) continue;
-
-    const dueDay = getClampedBillingDay(
+    const dueDay = clampDay(
       today.getFullYear(),
       today.getMonth(),
-      billingDay
+      tier.rentDueDay
     );
 
     const dueDate = startOfDay(
       new Date(today.getFullYear(), today.getMonth(), dueDay)
     );
 
-    // charge on day after grace expires
-    const lateFeeDate = startOfDay(addDays(dueDate, gracePeriodDays + 1));
+    const lateDate = startOfDay(
+      new Date(dueDate.getTime() + (tier.gracePeriodDays + 1) * 86400000)
+    );
 
-    if (today.getTime() !== lateFeeDate.getTime()) {
-      continue;
-    }
+    if (today.getTime() !== lateDate.getTime()) continue;
 
     const summary = await getUnitLedgerSummary(unit.id);
+    if (summary.balanceCents <= 0) continue;
 
-    if (Number(summary.balance || 0) <= 0) {
-      continue;
-    }
-
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-
-    const existingLateFee = await prisma.ledgerEntry.findFirst({
+    const existing = await prisma.ledgerEntry.findFirst({
       where: {
         unitId: unit.id,
-        entryType: "CHARGE",
+        billingCycle,
         chargeType: "LATE_FEE",
-        effectiveDate: {
-          gte: monthStart,
-          lt: nextMonth,
-        },
-      },
-      orderBy: {
-        effectiveDate: "desc",
       },
     });
 
-    if (existingLateFee) {
-      continue;
-    }
+    if (existing) continue;
 
     await prisma.ledgerEntry.create({
       data: {
@@ -105,7 +73,8 @@ export async function runLateFeesJob(asOf = new Date()) {
         tenantAssignmentId: assignment.id,
         entryType: "CHARGE",
         chargeType: "LATE_FEE",
-        amount: lateFeeAmount,
+        amountCents: tier.lateFeeInitialCents,
+        billingCycle,
         effectiveDate: today,
         memo: "Initial late fee",
       },

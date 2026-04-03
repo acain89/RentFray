@@ -21,7 +21,7 @@ export async function GET() {
   try {
     const session = await requireRole("TENANT");
 
-    if (!session.unitId) {
+    if (!session.propertyId || !session.unitId) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
@@ -44,8 +44,6 @@ export async function GET() {
             status: true,
             paidAt: true,
             paymentMethod: true,
-            referenceNumber: true,
-            memo: true,
             billingCycle: true,
             amountCents: true,
           },
@@ -65,8 +63,8 @@ export async function GET() {
           type: entry.entryType,
           amountCents: Math.abs(entry.amountCents),
           method: payment?.paymentMethod ?? entry.paymentMethod ?? null,
-          reference: payment?.referenceNumber ?? entry.referenceNumber ?? null,
-          note: payment?.memo ?? entry.memo ?? null,
+          reference: entry.referenceNumber ?? null,
+          note: entry.memo ?? null,
           billingCycle: payment?.billingCycle ?? entry.billingCycle ?? null,
           effectiveDate: entry.effectiveDate,
           createdAt: entry.createdAt,
@@ -79,7 +77,7 @@ export async function GET() {
       ok: true,
       payments,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("tenant payment-history GET error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

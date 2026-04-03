@@ -1,97 +1,63 @@
-// jobs/delinquency.ts
-
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function addDays(date: Date, days: number) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
-}
-
-function getClampedBillingDay(
-  year: number,
-  monthIndex: number,
-  billingDay: number
-) {
-  const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
-  return Math.max(1, Math.min(billingDay, lastDayOfMonth));
+function clampDay(year: number, month: number, day: number) {
+  const max = new Date(year, month + 1, 0).getDate();
+  return Math.max(1, Math.min(day, max));
 }
 
 export async function runDelinquencyJob(asOf = new Date()) {
   const today = startOfDay(asOf);
 
   const units = await prisma.unit.findMany({
-    where: {
-      isActive: true,
-    },
+    where: { isActive: true },
     include: {
       property: true,
       tier: true,
       tenantAssignments: {
         where: { isCurrent: true },
-        orderBy: { createdAt: "desc" },
         take: 1,
       },
     },
   });
 
   for (const unit of units) {
-    const property = unit.property;
-    const tier = unit.tier;
+    const { property, tier } = unit;
     const assignment = unit.tenantAssignments[0];
 
     if (!property || !tier || !assignment) continue;
 
-    const billingDay = Number(tier.rentDueDay || 1);
-    const gracePeriodDays = Number(tier.gracePeriodDays || 0);
-
-    const dueDay = getClampedBillingDay(
+    const dueDay = clampDay(
       today.getFullYear(),
       today.getMonth(),
-      billingDay
+      tier.rentDueDay
     );
 
     const dueDate = startOfDay(
       new Date(today.getFullYear(), today.getMonth(), dueDay)
     );
 
-    const delinquentDate = startOfDay(addDays(dueDate, gracePeriodDays + 1));
+    const delinquentDate = startOfDay(
+      new Date(dueDate.getTime() + (tier.gracePeriodDays + 1) * 86400000)
+    );
 
-    if (today < delinquentDate) {
-      continue;
-    }
+    if (today < delinquentDate) continue;
 
     const summary = await getUnitLedgerSummary(unit.id);
+    if (summary.balanceCents <= 0) continue;
 
-    if (Number(summary.balance || 0) <= 0) {
-      continue;
-    }
-
-    const existingLog = await prisma.auditLog.findFirst({
+    const existing = await prisma.auditLog.findFirst({
       where: {
-        actorType: "SYSTEM",
-        propertyId: property.id,
         action: "UNIT_DELINQUENT",
-        targetType: "UNIT",
         targetId: unit.id,
-      },
-      orderBy: {
-        createdAt: "desc",
       },
     });
 
-    const alreadyLoggedToday =
-      existingLog &&
-      startOfDay(new Date(existingLog.createdAt)).getTime() === today.getTime();
-
-    if (alreadyLoggedToday) {
-      continue;
-    }
+    if (existing) continue;
 
     await prisma.auditLog.create({
       data: {
@@ -100,16 +66,10 @@ export async function runDelinquencyJob(asOf = new Date()) {
         action: "UNIT_DELINQUENT",
         targetType: "UNIT",
         targetId: unit.id,
-        summary: `Unit ${unit.unitNumber} is delinquent.`,
+        summary: `Unit ${unit.unitNumber} is delinquent`,
         metadataJson: JSON.stringify({
-          balance: Number(summary.balance || 0),
-          totalCharges: Number(summary.totalCharges || 0),
-          totalPaid: Number(summary.totalPaid || 0),
-          unitNumber: unit.unitNumber,
-          tenantAssignmentId: assignment.id,
-          dueDate: dueDate.toISOString(),
-          delinquentDate: delinquentDate.toISOString(),
-          loggedAt: today.toISOString(),
+          balanceCents: summary.balanceCents,
+          unitId: unit.id,
         }),
       },
     });

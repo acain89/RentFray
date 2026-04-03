@@ -1,0 +1,192 @@
+
+// /lib/rentDates.ts
+
+type NullableDate = Date | null;
+
+export type RentDateConfig = {
+  dueDay: number;
+  gracePeriodDays: number;
+  lateFeeEnabled: boolean;
+  lateFeeInitialCents: number;
+  lateFeeDailyCents: number;
+  maxLateFeeDays: number;
+  now?: Date;
+};
+
+export type RentDateSummary = {
+  billingCycle: string;
+  dueDate: string;
+  graceEndsOn: string;
+  initialLateFeeDate: string | null;
+  dailyLateFeeStartDate: string | null;
+  dailyLateFeeLastDate: string | null;
+  isDelinquent: boolean;
+};
+
+export type EffectiveBillingSettings = {
+  dueDay: number;
+  gracePeriodDays: number;
+  lateFeeEnabled: boolean;
+  lateFeeInitialCents: number;
+  lateFeeDailyCents: number;
+  maxLateFeeDays: number;
+};
+
+/* -------------------- */
+/* TIMEZONE UTILITIES   */
+/* -------------------- */
+
+const CHICAGO_TZ = "America/Chicago";
+
+function getChicagoParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CHICAGO_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const map: Record<string, string> = {};
+  parts.forEach((p) => {
+    if (p.type !== "literal") map[p.type] = p.value;
+  });
+
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+  };
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+function clampDay(year: number, month: number, day: number): number {
+  const max = daysInMonth(year, month);
+  return Math.max(1, Math.min(day, max));
+}
+
+function toDateOnlyString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/* -------------------- */
+/* CONFIG RESOLUTION    */
+/* -------------------- */
+
+export function resolveEffectiveBillingSettings(input: {
+  tier?: {
+    rentDueDay: number;
+    gracePeriodDays: number;
+    lateFeeInitialCents: number;
+    lateFeeDailyCents: number;
+    maxLateFeeDays: number;
+  } | null;
+  propertySettings?: {
+    rentDueDay: number;
+    gracePeriodDays: number;
+    lateFeeEnabled: boolean;
+    lateFeeFlatCents?: number | null;
+  } | null;
+}): EffectiveBillingSettings {
+  const tier = input.tier;
+  const ps = input.propertySettings;
+
+  if (tier) {
+    return {
+      dueDay: sanitizeInt(tier.rentDueDay, 1),
+      gracePeriodDays: sanitizeInt(tier.gracePeriodDays, 0),
+      lateFeeEnabled:
+        tier.lateFeeInitialCents > 0 || tier.lateFeeDailyCents > 0,
+      lateFeeInitialCents: sanitizeInt(tier.lateFeeInitialCents, 0),
+      lateFeeDailyCents: sanitizeInt(tier.lateFeeDailyCents, 0),
+      maxLateFeeDays: sanitizeInt(tier.maxLateFeeDays, 0),
+    };
+  }
+
+  return {
+    dueDay: sanitizeInt(ps?.rentDueDay ?? 1, 1),
+    gracePeriodDays: sanitizeInt(ps?.gracePeriodDays ?? 0, 0),
+    lateFeeEnabled: Boolean(ps?.lateFeeEnabled),
+    lateFeeInitialCents: sanitizeInt(ps?.lateFeeFlatCents ?? 0, 0),
+    lateFeeDailyCents: 0,
+    maxLateFeeDays: 0,
+  };
+}
+
+function sanitizeInt(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.floor(n));
+}
+
+/* -------------------- */
+/* CORE AUTHORITY       */
+/* -------------------- */
+
+export function getRentDateSummary(
+  config: RentDateConfig
+): RentDateSummary {
+  const now = config.now ?? new Date();
+  const { year, month } = getChicagoParts(now);
+
+  const safeDueDay = clampDay(year, month, config.dueDay);
+
+  const dueDate = new Date(year, month - 1, safeDueDay);
+
+  const graceEnds = addDays(dueDate, config.gracePeriodDays);
+
+  let initialLateFeeDate: NullableDate = null;
+  let dailyLateFeeStartDate: NullableDate = null;
+  let dailyLateFeeLastDate: NullableDate = null;
+
+  if (config.lateFeeEnabled) {
+    if (config.lateFeeInitialCents > 0) {
+      initialLateFeeDate = addDays(graceEnds, 1);
+    }
+
+    if (
+      config.lateFeeDailyCents > 0 &&
+      config.maxLateFeeDays > 0
+    ) {
+      const start =
+        initialLateFeeDate ?? addDays(graceEnds, 1);
+
+      dailyLateFeeStartDate = addDays(start, 1);
+      dailyLateFeeLastDate = addDays(
+        dailyLateFeeStartDate,
+        config.maxLateFeeDays - 1
+      );
+    }
+  }
+
+  const today = new Date(year, month - 1, getChicagoParts(now).day);
+
+  const isDelinquent = today > graceEnds;
+
+  return {
+    billingCycle: `${year}-${String(month).padStart(2, "0")}`,
+    dueDate: toDateOnlyString(dueDate),
+    graceEndsOn: toDateOnlyString(graceEnds),
+    initialLateFeeDate: initialLateFeeDate
+      ? toDateOnlyString(initialLateFeeDate)
+      : null,
+    dailyLateFeeStartDate: dailyLateFeeStartDate
+      ? toDateOnlyString(dailyLateFeeStartDate)
+      : null,
+    dailyLateFeeLastDate: dailyLateFeeLastDate
+      ? toDateOnlyString(dailyLateFeeLastDate)
+      : null,
+    isDelinquent,
+  };
+}

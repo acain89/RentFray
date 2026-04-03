@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -7,6 +8,10 @@ import {
   formatCentsToDollars,
 } from "@/lib/billingConfig";
 import { canMakePayments } from "@/lib/liveGating";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
@@ -33,20 +38,6 @@ function normalizePaymentStatus(value: unknown): PaymentStatus | null {
     default:
       return null;
   }
-}
-
-function getCurrentBillingCycle(date: Date): string {
-  return date.toISOString().slice(0, 7);
-}
-
-function buildDueDate(now: Date, dueDay: number): Date {
-  const safeDueDay = Number.isFinite(dueDay)
-    ? Math.max(1, Math.min(28, Math.trunc(dueDay)))
-    : 1;
-
-  return now.getDate() > safeDueDay
-    ? new Date(now.getFullYear(), now.getMonth() + 1, safeDueDay)
-    : new Date(now.getFullYear(), now.getMonth(), safeDueDay);
 }
 
 function centsToDollars(cents: number): number {
@@ -101,6 +92,15 @@ export async function POST() {
         propertyId: session.propertyId,
       },
       include: {
+        tier: {
+          select: {
+            rentDueDay: true,
+            gracePeriodDays: true,
+            lateFeeInitialCents: true,
+            lateFeeDailyCents: true,
+            maxLateFeeDays: true,
+          },
+        },
         property: {
           include: {
             settings: true,
@@ -151,8 +151,13 @@ export async function POST() {
       paymentConnectionStatus: property.paymentStatus,
     });
 
-    const today = new Date();
-    const billingCycle = getCurrentBillingCycle(today);
+    const effectiveBillingSettings = resolveEffectiveBillingSettings({
+      tier: unit.tier,
+      propertySettings: property.settings,
+    });
+
+    const rentDates = getRentDateSummary(effectiveBillingSettings);
+    const billingCycle = rentDates.billingCycle;
 
     const cyclePayments = await prisma.payment.findMany({
       where: {
@@ -237,16 +242,7 @@ export async function POST() {
       }
     );
 
-    const dueDay = property.settings?.rentDueDay ?? 1;
-    const graceDays = property.settings?.gracePeriodDays ?? 0;
-
-    const dueDate = buildDueDate(today, dueDay);
-
-    const graceEndsOn = new Date(dueDate);
-    graceEndsOn.setDate(graceEndsOn.getDate() + Math.max(0, graceDays));
-
-    const isDelinquent =
-      balanceCents > 0 && today.getTime() > graceEndsOn.getTime();
+    const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
 
     const statementSourceEntries = filteredLedgerEntries.filter(
       (entry: (typeof filteredLedgerEntries)[number]) =>
@@ -372,8 +368,11 @@ export async function POST() {
         })
       ),
 
-      dueDate: dueDate.toISOString(),
-      graceEndsOn: graceEndsOn.toISOString(),
+      dueDate: rentDates.dueDate,
+      graceEndsOn: rentDates.graceEndsOn,
+      initialLateFeeDate: rentDates.initialLateFeeDate,
+      dailyLateFeeStartDate: rentDates.dailyLateFeeStartDate,
+      dailyLateFeeLastDate: rentDates.dailyLateFeeLastDate,
 
       ledger: filteredLedgerEntries.map(
         (entry: (typeof filteredLedgerEntries)[number]) => ({

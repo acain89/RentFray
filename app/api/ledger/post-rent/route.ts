@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
+import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
 
 type ApiSuccess<T> = {
   ok: true;
@@ -48,34 +49,28 @@ export async function POST() {
       );
     }
 
-    const now = new Date();
-    const effectiveDate = safeDate(startOfDay(now));
-    const monthStart = safeDate(startOfMonth(now));
-    const nextMonth = safeDate(getNextMonth(now));
-    const monthLabel = getMonthLabel(now);
+    
 
     const property = await prisma.property.findUnique({
-      where: { id: session.propertyId },
+  where: { id: session.propertyId },
+  include: {
+    settings: true,
+    units: {
+      where: { isActive: true },
       include: {
-        units: {
-          where: { isActive: true },
-          include: {
-            tier: {
-              select: { baseRentCents: true },
-            },
-            tenantAssignments: {
-              where: { isCurrent: true },
-              orderBy: [
-                { moveInDate: "desc" },
-                { createdAt: "desc" },
-              ],
-              take: 1,
-              select: { id: true },
-            },
-          },
+        tier: {
+          select: { baseRentCents: true },
+        },
+        tenantAssignments: {
+          where: { isCurrent: true },
+          orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+          take: 1,
+          select: { id: true },
         },
       },
-    });
+    },
+  },
+});
 
     if (!property) {
       return NextResponse.json<ApiError>(
@@ -84,16 +79,25 @@ export async function POST() {
       );
     }
 
+   const now = new Date();
+    const effectiveDate = safeDate(startOfDay(now));
+    const rentDates = getRentDateSummary({
+  ...resolveEffectiveBillingSettings({
+    tier: null,
+    propertySettings: property.settings,
+  }),
+  now,
+});
+
+const billingCycle = rentDates.billingCycle;
+const monthLabel = getMonthLabel(now);
     // --- PRE-FETCH EXISTING ---
     const existingRents = await prisma.ledgerEntry.findMany({
       where: {
         propertyId: property.id,
         entryType: "CHARGE",
         chargeType: "RENT",
-        effectiveDate: {
-          gte: monthStart,
-          lt: nextMonth,
-        },
+        billingCycle,
         voidedAt: null,
       },
       select: {
@@ -143,10 +147,7 @@ export async function POST() {
             tenantAssignmentId: assignment.id,
             entryType: "CHARGE",
             chargeType: "RENT",
-            effectiveDate: {
-              gte: monthStart,
-              lt: nextMonth,
-            },
+            billingCycle,
             voidedAt: null,
           },
           select: { id: true },
@@ -167,7 +168,7 @@ export async function POST() {
             amountCents,
             memo: `Monthly rent - ${monthLabel}`,
             effectiveDate,
-            billingCycle: monthStart.toISOString(),
+            billingCycle: billingCycle,
             createdByManagementUserId:
               session.managementUserId ?? null,
           },
@@ -189,7 +190,7 @@ export async function POST() {
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            billingCycle: monthStart.toISOString(),
+            billingCycle: billingCycle,
             triggeredAt: effectiveDate.toISOString(),
           }),
         },
