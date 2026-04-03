@@ -464,7 +464,7 @@ export default function Home() {
             </button>
 
             <p className="mt-4 text-center text-sm text-[#cbd5f5]">
-              No banking required. Done in minutes.
+              Simple. Clean. Fast.
             </p>
           </section>
 
@@ -563,7 +563,7 @@ export default function Home() {
 
             <div>
               <button
-                onClick={() => router.push("/admin")}
+                onClick={() => router.push("/login/admin")}
                 className="w-full rounded-2xl border border-[#cbd5e1] bg-[#edf2f7] px-5 py-4 text-sm font-semibold text-[#0f172a]"
               >
                 Admin access

@@ -121,7 +121,7 @@ export async function POST() {
       where: {
         propertyId: session.propertyId,
         unitId: unit.id,
-        isActive: true,
+        isCurrent: true,
       },
       orderBy: {
         createdAt: "desc",
