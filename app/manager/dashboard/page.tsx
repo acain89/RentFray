@@ -299,13 +299,16 @@ function OverlayShell({
   onClose,
   children,
   showFooter = true,
+  onSave, // 👈 ADD THIS
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
   children: ReactNode;
   showFooter?: boolean;
+  onSave?: () => void; // 👈 ADD THIS
 }) {
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-6">
       <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-slate-200 bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-[32px]">
@@ -333,15 +336,7 @@ function OverlayShell({
         </div>
 
         {showFooter ? (
-  <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">
-    <button
-      type="button"
-      disabled
-      className="w-full rounded-2xl bg-slate-300 px-4 py-3 text-sm font-semibold text-white sm:w-auto sm:min-w-[180px]"
-    >
-      Save Changes
-    </button>
-  </div>
+  <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-6" />
 ) : null}
       </div>
     </div>
@@ -354,6 +349,8 @@ function getMonthRange() {
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   return { start, next };
 }
+
+
 
 export default function Page() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -375,8 +372,33 @@ export default function Page() {
   const [savingCharges, setSavingCharges] = useState(false);
   const [chargesEffectiveMonth, setChargesEffectiveMonth] = useState("");
   const [viewMode, setViewMode] = useState<"simple" | "full">("simple");
+  const [routingNumber, setRoutingNumber] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+
+  const bankValid =
+  routingNumber.replace(/\D/g, "").length === 9 &&
+  accountNumber &&
+  accountNumber === confirmAccountNumber;
+
+  const [gpLfSettings, setGpLfSettings] = useState({
+  dueDay: "1",
+  graceDays: "5",
+  lateFeeEnabled: false,
+  lateFeeInitial: "",
+  lateFeeDaily: "",
+  lateFeeMaxDays: "",
+});
+
+function updateGpLf(
+  updates: Partial<typeof gpLfSettings>
+): void {
+  setGpLfSettings((prev) => ({
+    ...prev,
+    ...updates,
+  }));
+}
+  
 
   const [managers, setManagers] = useState<ManagerUser[]>([]);
   const [managersLoading, setManagersLoading] = useState(false);
@@ -414,6 +436,26 @@ export default function Page() {
   const propertyName = data?.property?.name ?? "Manager Dashboard";
   const propertyCode = data?.property?.code ?? "----";
   const bankConnected = data?.property?.paymentStatus?.bankConnected;
+
+  const [exportMonth, setExportMonth] = useState(() => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+});
+const [exportType, setExportType] = useState<"balances" | "ledger" | "payments">("balances");
+const [exportUnitSearch, setExportUnitSearch] = useState("");
+const [exporting, setExporting] = useState(false);
+
+async function logout(): Promise<void> {
+  try {
+    await fetch("/api/manager/session", {
+      method: "DELETE",
+      credentials: "include",
+    });
+    window.location.href = "/login/manager";
+  } catch {
+    alert("Logout failed");
+  }
+}
 
   async function loadDashboard(): Promise<void> {
     try {
@@ -927,6 +969,59 @@ async function saveTierCharges(): Promise<void> {
     }
   }
 
+   function getExportMonthOptions(count = 12): { value: string; label: string }[] {
+  const now = new Date();
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const label = date.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
+    return { value, label };
+  });
+}
+
+async function runExport(): Promise<void> {
+  try {
+    setExporting(true);
+
+    const params = new URLSearchParams({
+      month: exportMonth,
+    });
+
+    if (exportUnitSearch.trim()) {
+      params.set("unit", exportUnitSearch.trim());
+    }
+
+    const response = await fetch(`/api/exports/${exportType}?${params.toString()}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      alert("Export failed");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rentfray-${exportType}-${exportMonth}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch {
+    alert("Export failed");
+  } finally {
+    setExporting(false);
+  }
+}
+
+const exportMonthOptions = getExportMonthOptions();
+
+ 
   async function loadManagers(): Promise<void> {
     try {
       if (!data?.property?.id) {
@@ -1395,6 +1490,13 @@ async function saveLocalRentSettings(): Promise<void> {
                   >
                     Maint
                   </button>
+
+                  <button
+                    onClick={logout}
+                    className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                   Logout
+                  </button>
                 </div>
               </div>
             </section>
@@ -1555,6 +1657,64 @@ async function saveLocalRentSettings(): Promise<void> {
                 </div>
               )}
             </section>
+            <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+  <div className="text-lg font-semibold text-slate-950">Exports</div>
+  <div className="mt-1 text-sm text-slate-600">
+    Download balances, ledger, or payments by month.
+  </div>
+
+  <div className="mt-4 grid gap-3 sm:grid-cols-5">
+    <select
+      value={exportMonth}
+      onChange={(e) => setExportMonth(e.target.value)}
+      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+    >
+      {exportMonthOptions.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+
+    <select
+      value={exportType}
+      onChange={(e) =>
+        setExportType(e.target.value as "balances" | "ledger" | "payments")
+      }
+      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+    >
+      <option value="balances">Balances</option>
+      <option value="ledger">Ledger</option>
+      <option value="payments">Payments</option>
+    </select>
+
+    <input
+      type="text"
+      value={exportUnitSearch}
+      onChange={(e) => setExportUnitSearch(e.target.value)}
+      placeholder="Search unit (optional)"
+      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+    />
+
+    <button
+      type="button"
+      onClick={runExport}
+      disabled={exporting}
+      className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+    >
+      {exporting ? "Exporting..." : "Export"}
+    </button>
+
+    <button
+  type="button"
+  onClick={() => window.open("/tenant-instructions", "_blank")}
+  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+>
+  Tenant Instructions
+</button>
+</div>
+</section>
+           
           </>
         )}        </div>
       </main>
@@ -1784,18 +1944,20 @@ async function saveLocalRentSettings(): Promise<void> {
       ) : null}
 
      {activePanel === "bank" ? (
-  <OverlayShell title="Bank Account" onClose={closePanel}>
-    <div className="space-y-4">
+  <OverlayShell title="Bank Account" onClose={closePanel} showFooter={false}>
+    <div className="space-y-4 pb-24">
 
       <div className="text-sm font-semibold">
       Status: {data?.property?.paymentStatus?.bankConnected ? "Connected" : "Not connected"}
      </div>
 
       <input
-        placeholder="Routing Number"
-        className="w-full border p-3 rounded-xl"
-        disabled={!isOwner}
-      />
+         placeholder="Routing Number"
+         value={routingNumber}
+         onChange={(e) => setRoutingNumber(e.target.value)}
+         className="w-full border p-3 rounded-xl"
+         disabled={!isOwner}
+          />
 
       <input
         placeholder="Account Number"
@@ -1814,16 +1976,34 @@ async function saveLocalRentSettings(): Promise<void> {
       />
 
       <button
+  type="button"
+  disabled={!bankValid || !isOwner}
+  className="w-full rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
   onClick={async () => {
-    if (accountNumber !== confirmAccountNumber) {
-      alert("Account numbers do not match");
+    if (!bankValid) return;
+
+    const cleanRouting = routingNumber.replace(/\D/g, "");
+    const cleanAccount = accountNumber.trim();
+
+    const res = await fetch("/api/stripe/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        routingNumber: cleanRouting,
+        accountNumber: cleanAccount,
+      }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      alert(json?.error || "Failed to start bank connection");
       return;
     }
 
-    const res = await fetch("/api/stripe/connect", { method: "POST" });
-    const json = await res.json();
-
-    if (json?.url) window.location.href = json.url;
+    if (json?.url) {
+      window.location.href = json.url;
+    }
   }}
 >
   Save
@@ -2161,149 +2341,133 @@ async function saveLocalRentSettings(): Promise<void> {
 
       {activePanel === "gplf" ? (
   <OverlayShell
-    title="Grace Period & Late Fee"
-    subtitle="Per-tier due day, grace period, and late fee controls."
+    title="Grace Period & Late Fees"
+    subtitle="Match the setup wizard controls and keep this property-wide."
     onClose={closePanel}
-    showFooter={false}
   >
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Due Day
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="31"
+            value={gpLfSettings.dueDay}
+            onChange={(e) => updateGpLf({ dueDay: e.target.value })}
+            disabled={!canEditLateFeeSettings}
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Grace Days
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="31"
+            value={gpLfSettings.graceDays}
+            onChange={(e) => updateGpLf({ graceDays: e.target.value })}
+            disabled={!canEditLateFeeSettings}
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+          />
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">
+              Enable Late Fees
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              Turn on initial and daily late fee rules.
+            </div>
+          </div>
+
+          <input
+            type="checkbox"
+            checked={gpLfSettings.lateFeeEnabled}
+            onChange={(e) =>
+              updateGpLf({ lateFeeEnabled: e.target.checked })
+            }
+            disabled={!canEditLateFeeSettings}
+            className="h-5 w-5 rounded border-slate-300"
+          />
+        </label>
+      </div>
+
+      {gpLfSettings.lateFeeEnabled ? (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Initial Late Fee
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={gpLfSettings.lateFeeInitial}
+              onChange={(e) =>
+                updateGpLf({ lateFeeInitial: e.target.value })
+              }
+              disabled={!canEditLateFeeSettings}
+              placeholder="0.00"
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Daily Late Fee
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={gpLfSettings.lateFeeDaily}
+              onChange={(e) =>
+                updateGpLf({ lateFeeDaily: e.target.value })
+              }
+              disabled={!canEditLateFeeSettings}
+              placeholder="0.00"
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Max Daily Fee Days
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="365"
+              value={gpLfSettings.lateFeeMaxDays}
+              onChange={(e) =>
+                updateGpLf({ lateFeeMaxDays: e.target.value })
+              }
+              disabled={!canEditLateFeeSettings}
+              placeholder="0"
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {!canEditLateFeeSettings ? (
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          View only. Only owner and manager can change grace period and late fee settings.
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          View only. Only owner and manager can edit GP&amp;LF settings.
         </div>
       ) : null}
 
-      {localTiers.length === 0 ? (
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          No tiers found.
-        </div>
-      ) : null}
-
-      {localTiers.map((tier) => (
-        <div
-          key={tier.id}
-          className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
-        >
-          <div className="text-sm font-semibold text-slate-950">
-            {tier.tierName || "Untitled Tier"}
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Due Day
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={tier.dueDay}
-                onChange={(event) =>
-                  updateLocalTier(tier.id, {
-                    dueDay: event.target.value.replace(/\D/g, "").slice(0, 2),
-                  })
-                }
-                disabled={!canEditLateFeeSettings}
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
-                placeholder="1"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Grace Days
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={tier.graceDays}
-                onChange={(event) =>
-                  updateLocalTier(tier.id, {
-                    graceDays: event.target.value.replace(/\D/g, "").slice(0, 2),
-                  })
-                }
-                disabled={!canEditLateFeeSettings}
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
-                placeholder="5"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="flex items-center justify-between gap-3 rounded-2xl border border-slate-300 bg-white px-4 py-3">
-                <span className="text-sm font-medium text-slate-900">
-                  Enable Late Fee
-                </span>
-                <input
-                  type="checkbox"
-                  checked={tier.lateFeeEnabled}
-                  onChange={(event) =>
-                    updateLocalTier(tier.id, {
-                      lateFeeEnabled: event.target.checked,
-                      lateFeeAmount: event.target.checked
-                        ? tier.lateFeeAmount
-                        : "",
-                    })
-                  }
-                  disabled={!canEditLateFeeSettings}
-                  className="h-4 w-4"
-                />
-              </label>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Late Fee Amount
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={tier.lateFeeAmount}
-                onChange={(event) =>
-                  updateLocalTier(tier.id, {
-                    lateFeeAmount: event.target.value.replace(/[^0-9.]/g, ""),
-                  })
-                }
-                disabled={!canEditLateFeeSettings || !tier.lateFeeEnabled}
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            <div>
-              Due Day:{" "}
-              <span className="font-semibold text-slate-900">
-                {tier.dueDay || "—"}
-              </span>
-            </div>
-            <div className="mt-1">
-              Grace Days:{" "}
-              <span className="font-semibold text-slate-900">
-                {tier.graceDays || "—"}
-              </span>
-            </div>
-            <div className="mt-1">
-              Late Fee:{" "}
-              <span className="font-semibold text-slate-900">
-                {tier.lateFeeEnabled
-                  ? tier.lateFeeAmount
-                    ? `$${tier.lateFeeAmount}`
-                    : "Enabled"
-                  : "Off"}
-              </span>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={saveLocalRentSettings}
-        disabled={!canEditLateFeeSettings}
-        className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-      >
-        Save Changes
-      </button>
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+        These settings should match the setup wizard exactly and stay property-wide.
+      </div>
     </div>
   </OverlayShell>
 ) : null}

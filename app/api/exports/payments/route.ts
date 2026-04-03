@@ -96,8 +96,11 @@ export async function GET(req: Request) {
 
     const requestedPropertyId = searchParams.get("propertyId");
     const requestedStatus = searchParams.get("status");
-    const requestedCycle =
-      searchParams.get("billingCycle") ?? searchParams.get("cycle");
+const unitSearch = searchParams.get("unit");
+const requestedCycle =
+  searchParams.get("month") ??
+  searchParams.get("billingCycle") ??
+  searchParams.get("cycle");
 
     const propertyId = session.propertyId;
 
@@ -124,10 +127,20 @@ export async function GET(req: Request) {
 
     const payments = await prisma.payment.findMany({
       where: {
-        propertyId,
-        ...(normalizedStatus ? { status: normalizedStatus } : {}),
-        ...(billingCycle ? { billingCycle } : {}),
-      },
+  propertyId,
+  ...(normalizedStatus ? { status: normalizedStatus } : {}),
+  ...(billingCycle ? { billingCycle } : {}),
+  ...(unitSearch
+    ? {
+        unit: {
+          unitNumber: {
+            contains: unitSearch,
+            mode: "insensitive",
+          },
+        },
+      }
+    : {}),
+},
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
         unit: {
@@ -178,7 +191,9 @@ export async function GET(req: Request) {
     });
 
     const cycleLabel = billingCycle ?? "all-cycles";
-    const filename = `payments-export-${cycleLabel}.csv`;
+    const filename = unitSearch
+  ? `payments-export-${unitSearch}-${cycleLabel}.csv`
+  : `payments-export-${cycleLabel}.csv`;
     const csv = toCSV(rows);
 
     return new NextResponse(csv, {

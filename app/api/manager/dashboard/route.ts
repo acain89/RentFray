@@ -14,9 +14,10 @@ type PropertyUnit = {
   unitNumber: string;
   tier: { name: string } | null;
   tenantAssignments: {
-    firstName: string | null;
-    lastName: string | null;
-  }[];
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+}[];
 };
 
 function centsToNumber(cents: number): number {
@@ -53,20 +54,28 @@ export async function GET() {
     }
 
     const property = await prisma.property.findUnique({
-      where: { id: session.propertyId },
-      include: {
-        units: {
-          orderBy: { unitNumber: "asc" },
-          include: {
-            tier: true,
-            tenantAssignments: {
-              where: { isCurrent: true, moveOutDate: null },
-              take: 1,
-            },
+  where: { id: session.propertyId },
+  include: {
+    units: {
+      where: {
+        tenantAssignments: {
+          some: {
+            isCurrent: true,
+            moveOutDate: null,
           },
         },
       },
-    });
+      orderBy: { unitNumber: "asc" },
+      include: {
+        tier: true,
+        tenantAssignments: {
+          where: { isCurrent: true, moveOutDate: null },
+          take: 1,
+        },
+      },
+    },
+  },
+});
 
     if (!property) {
       return NextResponse.json(
@@ -133,7 +142,7 @@ export async function GET() {
         else vacantUnits++;
 
         const [ledger, delinquency] = await Promise.all([
-          getUnitLedgerSummary(unit.id),
+          getUnitLedgerSummary(unit.id, activeAssignment?.id),
           getUnitDelinquencySummary(unit.id),
         ]);
 
@@ -208,7 +217,7 @@ export async function GET() {
       },
 
       summary: {
-        totalUnits: property.units.length,
+        totalUnits: units.length,
         occupiedUnits,
         vacantUnits,
         delinquentUnits: delinquentCount,

@@ -115,6 +115,8 @@ export async function POST(req: Request) {
     const processingFeeCents = getProcessingFeeCents(balanceCents);
     const totalCents = balanceCents + processingFeeCents;
 
+    const billingCycle = getBillingCycle(new Date());
+
     if (totalCents <= 0) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Invalid payment amount." },
@@ -126,6 +128,7 @@ export async function POST(req: Request) {
     const existingPayment = await prisma.payment.findFirst({
       where: {
         unitId: unit.id,
+        billingCycle,
         status: {
           in: ["PENDING", "PAID"],
         },
@@ -151,8 +154,6 @@ export async function POST(req: Request) {
       req.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:10000";
-
-    const billingCycle = getBillingCycle(new Date());
 
     if (!property.stripeAccountId) {
   return NextResponse.json({ ok: false, error: "Bank not connected" }, { status: 400 });
@@ -225,7 +226,7 @@ export async function POST(req: Request) {
         propertyId: property.id,
         unitId: unit.id,
         tenantAssignmentId,
-        stripePaymentIntentId: checkoutSession.id,
+        stripePaymentIntentId: null,
         stripeSessionId: checkoutSession.id,
         billingCycle,
         amountCents: balanceCents,

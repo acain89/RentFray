@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     }
 
     const token = createSessionToken({
-      role: user.role,
+      role: user.role as "OWNER" | "MANAGER" | "STAFF",
       propertyId: user.propertyId,
       managementUserId: user.id,
     });
@@ -115,4 +115,16 @@ export async function POST(req: Request) {
     console.error("POST /api/manager/session failed", error);
     return NextResponse.json({ error: "Login failed." }, { status: 500 });
   }
+}
+
+export async function DELETE() {
+  return NextResponse.json(
+    { ok: true },
+    {
+      headers: {
+        "Set-Cookie":
+          "manager_session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax",
+      },
+    }
+  );
 }

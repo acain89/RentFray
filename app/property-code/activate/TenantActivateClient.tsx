@@ -7,6 +7,12 @@ type TenantActivateClientProps = {
   propertyCode: string;
 };
 
+type Tier = {
+  id: string;
+  name: string;
+  baseRentCents: number;
+};
+
 function inputClass(hasError: boolean) {
   return [
     "w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition",
@@ -15,10 +21,17 @@ function inputClass(hasError: boolean) {
   ].join(" ");
 }
 
+function formatMoney(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
 export default function TenantActivateClient({
   propertyCode,
 }: TenantActivateClientProps) {
   const router = useRouter();
+
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [selectedTierId, setSelectedTierId] = useState<string>("");
 
   const [firstName, setFirstName] = useState<string>("");
   const [lastName, setLastName] = useState<string>("");
@@ -37,13 +50,25 @@ export default function TenantActivateClient({
       return;
     }
 
-    // Persist property context
     localStorage.setItem("rf_property_code", propertyCode);
+
+    // 🔒 FETCH TIERS
+    fetch("/api/property/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ propertyCode }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.tiers && Array.isArray(data.tiers)) {
+          setTiers(data.tiers);
+        }
+      })
+      .catch(() => {});
   }, [propertyCode, router]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-
     if (loading) return;
 
     const cleanFirstName = firstName.trim();
@@ -53,8 +78,8 @@ export default function TenantActivateClient({
     const cleanPin = pin.trim();
     const cleanConfirmPin = confirmPin.trim();
 
-    if (!propertyCode) {
-      setError("Missing property code.");
+    if (!selectedTierId) {
+      setError("Select your rent tier.");
       return;
     }
 
@@ -100,6 +125,7 @@ export default function TenantActivateClient({
           lastName: cleanLastName,
           unitNumber: cleanUnitNumber,
           confirmUnitNumber: cleanConfirmUnitNumber,
+          tierId: selectedTierId,
           pin: cleanPin,
           confirmPin: cleanConfirmPin,
         }),
@@ -119,7 +145,6 @@ export default function TenantActivateClient({
         return;
       }
 
-      // Success → go straight to dashboard (session already created)
       router.replace("/tenant/dashboard");
     } catch {
       setError("Network error. Please try again.");
@@ -151,6 +176,32 @@ export default function TenantActivateClient({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* 🔒 TIER SELECTOR */}
+            <div>
+              <p className="mb-2 text-sm font-medium">Select your rent tier</p>
+
+              <div className="space-y-2">
+                {tiers.map((tier) => (
+                  <button
+                    type="button"
+                    key={tier.id}
+                    onClick={() => setSelectedTierId(tier.id)}
+                    className={`w-full rounded-xl border px-4 py-3 text-left ${
+                      selectedTierId === tier.id
+                        ? "border-slate-900 bg-slate-100"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    <div className="flex justify-between">
+                      <span>{tier.name}</span>
+                      <span>{formatMoney(tier.baseRentCents)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* name */}
             <div className="grid grid-cols-2 gap-3">
               <input

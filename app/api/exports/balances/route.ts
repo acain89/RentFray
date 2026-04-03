@@ -33,7 +33,9 @@ function toCSV(rows: CsvRow[]): string {
 function fmtDate(value: Date | string | null | undefined): string {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().split("T")[0] ?? "";
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toISOString().split("T")[0] ?? "";
 }
 
 function parseBillingCycleInput(value: string | null): string | null {
@@ -111,6 +113,7 @@ export async function GET(req: Request) {
           orderBy: { createdAt: "desc" },
           take: 1,
           select: {
+            id: true,
             firstName: true,
             lastName: true,
             moveInDate: true,
@@ -123,10 +126,15 @@ export async function GET(req: Request) {
 
     const rows: CsvRow[] = await Promise.all(
       units.map(async (unit: UnitWithRelations) => {
-        const summary = await getUnitLedgerSummary(unit.id);
+        const currentAssignment = unit.tenantAssignments?.[0] ?? null;
+
+        const summary = await getUnitLedgerSummary(
+          unit.id,
+          currentAssignment?.id
+        );
+
         const delinquency = await getUnitDelinquencySummary(unit.id);
 
-        const currentAssignment = unit.tenantAssignments?.[0] ?? null;
         const tenantName = `${currentAssignment?.firstName ?? ""} ${
           currentAssignment?.lastName ?? ""
         }`.trim();

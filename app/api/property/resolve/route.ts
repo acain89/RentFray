@@ -1,15 +1,16 @@
-// app/api/property/resolve/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+type ResolveRequestBody = {
+  code?: string;
+  propertyCode?: string;
+};
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as Partial<ResolveRequestBody>;
 
-    const propertyCode = String(
-      body.code ?? body.propertyCode ?? ""
-    ).trim();
+    const propertyCode = String(body.code ?? body.propertyCode ?? "").trim();
 
     if (!/^\d{4,5}$/.test(propertyCode)) {
       return NextResponse.json(
@@ -19,21 +20,36 @@ export async function POST(req: Request) {
     }
 
     const property = await prisma.property.findFirst({
-      where: { propertyCode },
+      where: {
+        propertyCode,
+        isActive: true,
+      },
       select: {
         id: true,
         name: true,
         propertyCode: true,
-        isActive: true,
+        tiers: {
+          where: {
+            isActive: true,
+          },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            baseRentCents: true,
+          },
+        },
       },
     });
 
-    if (!property || !property.isActive) {
+    if (!property) {
       return NextResponse.json(
         { error: "Invalid property code" },
         { status: 404 }
       );
     }
+
+    type PropertyTier = (typeof property.tiers)[number];
 
     return NextResponse.json({
       ok: true,
@@ -42,9 +58,15 @@ export async function POST(req: Request) {
         name: property.name,
         propertyCode: property.propertyCode,
       },
+      tiers: property.tiers.map((tier: PropertyTier) => ({
+        id: tier.id,
+        name: tier.name,
+        baseRentCents: tier.baseRentCents,
+      })),
     });
-  } catch (err) {
-    console.error("PROPERTY_RESOLVE_ERROR:", err);
+  } catch (error: unknown) {
+    console.error("PROPERTY_RESOLVE_ERROR:", error);
+
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

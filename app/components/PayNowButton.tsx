@@ -23,8 +23,8 @@ export default function PayNowButton({
 
     const data = await res.json();
 
-    if (data.url) {
-      window.location.href = data.url;
+    if (data?.ok && data?.data?.url) {
+      window.location.href = data.data.url;
     } else {
       alert(data.error || "Payment failed");
     }

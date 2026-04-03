@@ -106,7 +106,6 @@ export async function POST(req: Request) {
     if (event.type === "payment_intent.payment_failed") {
       const intent = event.data.object as Stripe.PaymentIntent;
       await updatePaymentStatus(intent.id, "FAILED");
-      emitEvent("payment:update", { propertyId: "", unitId: "" });
     }
 
     if (event.type === "charge.refunded") {

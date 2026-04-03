@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
 
+
 type Property = {
   id: string;
   name: string;
@@ -22,9 +23,12 @@ export default function AdminPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [adminChecked, setAdminChecked] = useState(false);
+  const [adminAllowed, setAdminAllowed] = useState(false);
 
   const [propertyCodeSearch, setPropertyCodeSearch] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+  
 
   const trimmedSearch = useMemo(
     () => propertyCodeSearch.replace(/\D/g, "").slice(0, 5),
@@ -35,8 +39,47 @@ export default function AdminPage() {
     setRefreshTick((p) => p + 1);
   }, []);
 
+useEffect(() => {
+  let active = true;
+
+  async function checkAdmin() {
+    try {
+      const res = await fetch("/api/admin/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      if (!active) return;
+
+      if (!res.ok) {
+        window.location.href = "/admin-login";
+        return;
+      }
+
+      setAdminAllowed(true);
+    } catch {
+      if (!active) return;
+      window.location.href = "/admin-login";
+      return;
+    } finally {
+      if (active) setAdminChecked(true);
+    }
+  }
+
+  void checkAdmin();
+
+  return () => {
+    active = false;
+  };
+}, []);
+
   useEffect(() => {
     let active = true;
+
+if (!adminChecked || !adminAllowed) {
+  setLoading(false);
+  return;
+}
 
     async function load() {
       try {
@@ -79,7 +122,33 @@ export default function AdminPage() {
     return () => {
       active = false;
     };
-  }, [trimmedSearch, refreshTick]);
+  }, [trimmedSearch, refreshTick, adminAllowed, adminChecked]);
+
+
+async function logout(): Promise<void> {
+  try {
+    await fetch("/api/admin/session", {
+      method: "DELETE",
+      credentials: "include",
+    });
+    window.location.href = "/admin";
+  } catch {
+    alert("Logout failed");
+  }
+}
+
+if (!adminChecked) {
+  return (
+    <main className={styles.page}>
+      <div className={styles.shell}>Checking admin access...</div>
+    </main>
+  );
+}
+
+if (!adminAllowed) {
+  return null;
+}
+
 
   return (
     <main className={styles.page}>
@@ -91,14 +160,21 @@ export default function AdminPage() {
           </div>
 
           <div className={styles.actions}>
-            <button type="button" onClick={refresh} className={styles.searchButton}>
-              Refresh
-            </button>
+  <button type="button" onClick={refresh} className={styles.searchButton}>
+    Refresh
+  </button>
 
-            <Link href="/setup" className={styles.primaryButton}>
-              + New Property
-            </Link>
-          </div>
+  <Link href="/setup" className={styles.primaryButton}>
+    + New Property
+  </Link>
+
+  <button
+    onClick={logout}
+    className={styles.searchButton}
+  >
+    Logout
+  </button>
+</div>
         </div>
 
         <div className={styles.searchCard}>

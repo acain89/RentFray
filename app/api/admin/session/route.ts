@@ -3,11 +3,31 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { createSessionToken, getSession, setSessionCookie } from "@/lib/session";
 
 type AdminSessionRequest = {
   code?: unknown;
 };
+
+export async function GET() {
+  try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, role: "ADMIN" });
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+}
 
 export async function POST(req: Request) {
   try {

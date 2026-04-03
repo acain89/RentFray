@@ -9,6 +9,7 @@ type ActivateBody = {
   lastName: string;
   unitNumber: string;
   confirmUnitNumber: string;
+  tierId: string;
   pin: string;
   confirmPin: string;
 };
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     const lastName = clean(body.lastName);
     const unitNumber = clean(body.unitNumber).toUpperCase();
     const confirmUnitNumber = clean(body.confirmUnitNumber).toUpperCase();
+    const tierId = clean(body.tierId);
     const pin = clean(body.pin);
     const confirmPin = clean(body.confirmPin);
 
@@ -64,6 +66,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!tierId) {
+      return NextResponse.json(
+        { error: "Tier selection required." },
+        { status: 400 }
+      );
+    }
+
     if (!/^\d{4}$/.test(pin)) {
       return NextResponse.json(
         { error: "PIN must be 4 digits." },
@@ -83,6 +92,16 @@ export async function POST(req: Request) {
       select: {
         id: true,
         isActive: true,
+        tiers: {
+          where: {
+            id: tierId,
+            isActive: true,
+          },
+          select: {
+          id: true,
+        baseRentCents: true,
+         },
+        },
       },
     });
 
@@ -93,7 +112,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const unit = await prisma.unit.findUnique({
+    const selectedTier = property.tiers[0] ?? null;
+
+    if (!selectedTier) {
+      return NextResponse.json(
+        { error: "Invalid tier selection." },
+        { status: 400 }
+      );
+    }
+
+    const existingUnit = await prisma.unit.findUnique({
       where: {
         propertyId_unitNumber: {
           propertyId: property.id,
@@ -107,14 +135,14 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!unit || !unit.isActive) {
+    if (existingUnit && !existingUnit.isActive) {
       return NextResponse.json(
-        { error: "Invalid unit number." },
-        { status: 404 }
+        { error: "This unit is inactive." },
+        { status: 400 }
       );
     }
 
-    if (unit.portalActivated) {
+    if (existingUnit?.portalActivated) {
       return NextResponse.json(
         {
           error:
@@ -125,29 +153,85 @@ export async function POST(req: Request) {
     }
 
     const pinHash = await hashPin(pin);
+    const activatedAt = new Date();
 
-    await prisma.unit.update({
-      where: { id: unit.id },
-      data: {
-        portalActivated: true,
-        portalFirstName: firstName,
-        portalLastName: lastName,
-        tenantPinHash: pinHash,
-        activatedAt: new Date(),
-        activationSource: "SELF_SERVICE",
-      },
-    });
+    const savedUnit = existingUnit
+      ? await prisma.unit.update({
+          where: { id: existingUnit.id },
+          data: {
+            tierId: selectedTier.id,
+            portalActivated: true,
+            portalFirstName: firstName,
+            portalLastName: lastName,
+            tenantPinHash: pinHash,
+            activatedAt,
+            activationSource: "SELF_SERVICE",
+          },
+          select: {
+            id: true,
+          },
+        })
+      : await prisma.unit.create({
+          data: {
+            propertyId: property.id,
+            unitNumber,
+            tierId: selectedTier.id,
+            isActive: true,
+            portalActivated: true,
+            portalFirstName: firstName,
+            portalLastName: lastName,
+            tenantPinHash: pinHash,
+            activatedAt,
+            activationSource: "SELF_SERVICE",
+          },
+          select: {
+            id: true,
+          },
+        });
 
+        const billingCycle = new Date().toISOString().slice(0, 7);
+
+    const tenantAssignment = await prisma.tenantAssignment.create({
+  data: {
+    propertyId: property.id,
+    unitId: savedUnit.id,
+    firstName,
+    lastName,
+    isCurrent: true,
+    moveInDate: new Date(),
+  },
+  select: {
+    id: true,
+  },
+});
+
+
+await prisma.ledgerEntry.create({
+  data: {
+    propertyId: property.id,
+    unitId: savedUnit.id,
+    tenantAssignmentId: tenantAssignment.id,
+    entryType: "CHARGE",
+    chargeType: "RENT",
+    amountCents: selectedTier.baseRentCents,
+    effectiveDate: new Date(),
+    billingCycle,
+    memo: "Initial rent charge (activation)",
+  },
+});
+
+  
     await prisma.auditLog.create({
       data: {
         propertyId: property.id,
         actorType: "TENANT",
         action: "TENANT_PORTAL_ACTIVATED",
         targetType: "Unit",
-        targetId: unit.id,
+        targetId: savedUnit.id,
         summary: `Tenant portal activated for unit ${unitNumber}.`,
         metadataJson: JSON.stringify({
           unitNumber,
+          tierId: selectedTier.id,
           firstName,
           lastName,
           activationSource: "SELF_SERVICE",
@@ -158,7 +242,7 @@ export async function POST(req: Request) {
     const token = createSessionToken({
       role: "TENANT",
       propertyId: property.id,
-      unitId: unit.id,
+      unitId: savedUnit.id,
     });
 
     await setSessionCookie(token);
@@ -167,7 +251,7 @@ export async function POST(req: Request) {
       ok: true,
       role: "TENANT",
       propertyId: property.id,
-      unitId: unit.id,
+      unitId: savedUnit.id,
     });
   } catch (error: unknown) {
     console.error("POST /api/tenant/activate failed", error);

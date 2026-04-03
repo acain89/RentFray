@@ -55,8 +55,14 @@ export async function POST() {
       ok: true,
       url: accountLink.url,
     });
-  } catch (error) {
-    console.error("Stripe connect error", error);
-    return NextResponse.json({ error: "Stripe error" }, { status: 500 });
+  } catch (err: any) {
+  console.error("STRIPE CONNECT ERROR:", err);
+
+  return NextResponse.json(
+    {
+      error: err?.message || "Stripe error",
+    },
+    { status: 500 }
+  );
   }
 }

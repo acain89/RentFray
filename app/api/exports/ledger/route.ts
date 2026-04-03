@@ -126,9 +126,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
     const requestedPropertyId = searchParams.get("propertyId");
-    const unitId = searchParams.get("unitId");
+    const unitSearch = searchParams.get("unit");
     const requestedCycle =
-      searchParams.get("billingCycle") ?? searchParams.get("cycle");
+  searchParams.get("month") ??
+  searchParams.get("billingCycle") ??
+  searchParams.get("cycle");
 
     if (requestedPropertyId && requestedPropertyId !== session.propertyId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -143,20 +145,26 @@ export async function GET(req: Request) {
       );
     }
 
-    if (!session.propertyId && !unitId) {
-      return NextResponse.json(
-        { error: "propertyId or unitId required" },
-        { status: 400 }
-      );
-    }
 
     const entries = await prisma.ledgerEntry.findMany({
       where: {
-        propertyId: session.propertyId,
-        ...(unitId ? { unitId } : {}),
-        ...(billingCycle ? { billingCycle } : {}),
-        voidedAt: null,
-      },
+  propertyId: session.propertyId,
+
+  ...(unitSearch
+    ? {
+        unit: {
+          unitNumber: {
+            contains: unitSearch,
+            mode: "insensitive",
+          },
+        },
+      }
+    : {}),
+
+  ...(billingCycle ? { billingCycle } : {}),
+
+  voidedAt: null,
+},
       orderBy: [
         { effectiveDate: "asc" },
         { createdAt: "asc" },
@@ -242,9 +250,9 @@ export async function GET(req: Request) {
     });
 
     const cycleLabel = billingCycle ?? "all-cycles";
-    const filename = unitId
-      ? `ledger-export-${unitId}-${cycleLabel}.csv`
-      : `ledger-export-${cycleLabel}.csv`;
+   const filename = unitSearch
+  ? `ledger-export-${unitSearch}-${cycleLabel}.csv`
+  : `ledger-export-${cycleLabel}.csv`;
 
     const csv = toCSV(rows);
 

@@ -194,7 +194,7 @@ export async function POST(req: Request) {
             status: PaymentStatus.PAID,
             paidAt: effectiveDate,
             paymentMethod: "MANUAL",
-            stripePaymentIntentId: `manual_${unit.id}_${effectiveDate.getTime()}`,
+           stripePaymentIntentId: `manual_${unit.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
             billingCycle: null,
           },
           select: {

@@ -110,12 +110,14 @@ function getSignedImpactCents(
 }
 
 export async function getUnitLedgerSummary(
-  unitId: string
+  unitId: string,
+  tenantAssignmentId?: string
 ): Promise<LedgerSummary> {
   const entries = await prisma.ledgerEntry.findMany({
     where: {
       unitId,
       voidedAt: null,
+      ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
     },
     orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     select: {

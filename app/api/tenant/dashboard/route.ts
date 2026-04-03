@@ -2,10 +2,18 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
-import { getProcessingFeeCents, formatCentsToDollars } from "@/lib/billingConfig";
+import {
+  getProcessingFeeCents,
+  formatCentsToDollars,
+} from "@/lib/billingConfig";
 import { canMakePayments } from "@/lib/liveGating";
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+
+type StatementItem = {
+  label: string;
+  amount: number;
+};
 
 function buildTenantName(firstName: string | null, lastName: string | null) {
   const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim();
@@ -39,6 +47,39 @@ function buildDueDate(now: Date, dueDay: number): Date {
   return now.getDate() > safeDueDay
     ? new Date(now.getFullYear(), now.getMonth() + 1, safeDueDay)
     : new Date(now.getFullYear(), now.getMonth(), safeDueDay);
+}
+
+function centsToDollars(cents: number): number {
+  return Number((cents / 100).toFixed(2));
+}
+
+function buildStatementLabel(entry: {
+  entryType: string;
+  chargeType: string | null;
+  memo: string | null;
+}) {
+  if (entry.memo && entry.memo.trim()) {
+    return entry.memo.trim();
+  }
+
+  if (entry.entryType === "PAYMENT") return "Payment";
+  if (entry.entryType === "CREDIT") return "Credit";
+  if (entry.entryType === "ADJUSTMENT") return "Adjustment";
+
+  switch (entry.chargeType) {
+    case "RENT":
+      return "Rent";
+    case "LATE_FEE":
+      return "Late Fee";
+    case "RECURRING_FEE":
+      return "Recurring Charge";
+    case "PROCESSING_FEE":
+      return "Processing Fee";
+    case "OTHER_FEE":
+      return "Other Charge";
+    default:
+      return "Charge";
+  }
 }
 
 export async function POST() {
@@ -76,11 +117,32 @@ export async function POST() {
 
     const property = unit.property;
 
-    const ledger = await getUnitLedgerSummary(unit.id);
+    const currentAssignment = await prisma.tenantAssignment.findFirst({
+      where: {
+        propertyId: session.propertyId,
+        unitId: unit.id,
+        isActive: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
 
-    const balanceCents = Math.max(0, ledger.balanceCents);
-    const processingFeeCents = getProcessingFeeCents(balanceCents);
-    const totalDueCents = balanceCents + processingFeeCents;
+    const currentAssignmentId = currentAssignment?.id ?? null;
+
+    const ledgerSummary = await getUnitLedgerSummary(
+      unit.id,
+      currentAssignmentId
+    );
+
+    const balanceCents = Math.max(0, ledgerSummary.balanceCents);
+    const processingFeeCents =
+      balanceCents > 0 ? getProcessingFeeCents(balanceCents) : 0;
+    const totalDueCents =
+      balanceCents > 0 ? balanceCents + processingFeeCents : 0;
 
     const paymentEnabled = canMakePayments({
       status: property.status,
@@ -118,7 +180,7 @@ export async function POST() {
     const latestPaymentStatus = normalizePaymentStatus(latestPayment?.status);
 
     const tenantPaymentStatus: PaymentStatus =
-      balanceCents <= 0
+      totalDueCents <= 0
         ? "PAID"
         : latestPaymentStatus === "PENDING"
         ? "PENDING"
@@ -139,12 +201,19 @@ export async function POST() {
       where: {
         propertyId: session.propertyId,
         unitId: session.unitId,
+        tenantAssignmentId: currentAssignmentId,
         voidedAt: null,
       },
-      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      orderBy: [
+        { effectiveDate: "desc" },
+        { createdAt: "desc" },
+        { id: "desc" },
+      ],
       select: {
         id: true,
         entryType: true,
+        chargeType: true,
+        billingCycle: true,
         amountCents: true,
         effectiveDate: true,
         memo: true,
@@ -176,6 +245,52 @@ export async function POST() {
     const graceEndsOn = new Date(dueDate);
     graceEndsOn.setDate(graceEndsOn.getDate() + Math.max(0, graceDays));
 
+    const isDelinquent =
+      balanceCents > 0 && today.getTime() > graceEndsOn.getTime();
+
+    const statementSourceEntries = filteredLedgerEntries.filter(
+      (entry: (typeof filteredLedgerEntries)[number]) =>
+        entry.billingCycle === billingCycle
+    );
+
+    let rentCents = 0;
+    let recurringChargesCents = 0;
+    let lateFeesCents = 0;
+    let creditsCents = 0;
+
+    const statementItems: StatementItem[] = statementSourceEntries.map(
+      (entry: (typeof statementSourceEntries)[number]) => {
+        const isCreditLike =
+          entry.entryType === "PAYMENT" ||
+          entry.entryType === "CREDIT" ||
+          entry.entryType === "ADJUSTMENT";
+
+        if (entry.entryType === "CHARGE") {
+          if (entry.chargeType === "RENT") {
+            rentCents += entry.amountCents;
+          } else if (entry.chargeType === "LATE_FEE") {
+            lateFeesCents += entry.amountCents;
+          } else if (
+            entry.chargeType === "RECURRING_FEE" ||
+            entry.chargeType === "OTHER_FEE"
+          ) {
+            recurringChargesCents += entry.amountCents;
+          }
+        } else if (isCreditLike) {
+          creditsCents += Math.abs(entry.amountCents);
+        }
+
+        return {
+          label: buildStatementLabel(entry),
+          amount: centsToDollars(
+            isCreditLike ? -Math.abs(entry.amountCents) : entry.amountCents
+          ),
+        };
+      }
+    );
+
+    const subtotalCents = rentCents + recurringChargesCents + lateFeesCents;
+
     return NextResponse.json({
       ok: true,
 
@@ -196,12 +311,24 @@ export async function POST() {
       processingFeeCents,
       totalDueCents,
 
-      balance: formatCentsToDollars(balanceCents),
+      balance: balanceCents / 100,
       processingFee: formatCentsToDollars(processingFeeCents),
       totalDue: formatCentsToDollars(totalDueCents),
 
-      totalPaidCents: ledger.totalPaidCents,
-      totalPaid: formatCentsToDollars(ledger.totalPaidCents),
+      totalPaidCents: ledgerSummary.totalPaidCents,
+      totalPaid: ledgerSummary.totalPaidCents / 100,
+      isDelinquent,
+
+      statement: {
+        rent: centsToDollars(rentCents),
+        recurringCharges: centsToDollars(recurringChargesCents),
+        lateFees: centsToDollars(lateFeesCents),
+        processingFee: centsToDollars(processingFeeCents),
+        credits: centsToDollars(creditsCents),
+        subtotal: centsToDollars(subtotalCents),
+        totalDue: centsToDollars(totalDueCents),
+        items: statementItems,
+      },
 
       paymentStatus: tenantPaymentStatus,
       paymentMessage,
@@ -219,6 +346,11 @@ export async function POST() {
           processingFeeCents: payment.processingFeeCents ?? 0,
           totalChargedCents:
             payment.amountCents + (payment.processingFeeCents ?? 0),
+          amount: centsToDollars(payment.amountCents),
+          processingFee: centsToDollars(payment.processingFeeCents ?? 0),
+          totalCharged: centsToDollars(
+            payment.amountCents + (payment.processingFeeCents ?? 0)
+          ),
           status: normalizePaymentStatus(payment.status) ?? "UNPAID",
           timestamp:
             payment.paidAt?.toISOString() ??
@@ -247,6 +379,8 @@ export async function POST() {
         (entry: (typeof filteredLedgerEntries)[number]) => ({
           id: entry.id,
           type: entry.entryType,
+          chargeType: entry.chargeType ?? null,
+          billingCycle: entry.billingCycle ?? null,
           amountCents: entry.amountCents,
           amount: formatCentsToDollars(entry.amountCents),
           effectiveDate: entry.effectiveDate.toISOString(),
