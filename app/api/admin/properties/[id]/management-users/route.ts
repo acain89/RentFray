@@ -127,9 +127,17 @@ export async function PATCH(
     where: { id: userId, propertyId },
   });
 
+ 
   if (!existing) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
+
+if (existing.role === "OWNER") {
+  return NextResponse.json(
+    { error: "Owner cannot be modified or disabled." },
+    { status: 403 }
+  );
+}
 
   const updated = await prisma.managementUser.update({
     where: { id: userId },

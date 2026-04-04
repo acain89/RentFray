@@ -6,56 +6,67 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type PropertyStatus = "SETUP" | "TEST" | "READY" | "LIVE" | "SUSPENDED";
+
 function clampInt(value: unknown, fallback: number, min: number, max: number) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 }
 
-function clampFloat(value: unknown, fallback: number, min: number, max: number) {
+function clampFloat(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number
+) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 }
 
+function parsePropertyStatus(value: unknown): PropertyStatus {
+  const raw = String(value ?? "SETUP").toUpperCase();
+
+  switch (raw) {
+    case "TEST":
+    case "READY":
+    case "LIVE":
+    case "SUSPENDED":
+      return raw;
+    case "SETUP":
+    default:
+      return "SETUP";
+  }
+}
+
 async function saveSettings(formData: FormData) {
   "use server";
 
-  const propertyId = String(formData.get("propertyId") || "").trim();
+  const propertyId = String(formData.get("propertyId") ?? "").trim();
   if (!propertyId) {
     throw new Error("Missing propertyId");
   }
 
-  const billingDay = clampInt(formData.get("billingDay"), 1, 1, 31);
+  const rentDueDay = clampInt(formData.get("billingDay"), 1, 1, 31);
   const gracePeriodDays = clampInt(formData.get("gracePeriodDays"), 5, 0, 31);
 
-  const rawLateFeeType = String(
-    formData.get("lateFeeType") || "FLAT"
-  ).toUpperCase();
-  const lateFeeType = rawLateFeeType === "PERCENT" ? "PERCENT" : "FLAT";
+  const lateFeeFlatCents = Math.round(
+    clampFloat(formData.get("lateFeeValue"), 50, 0, 100000) * 100
+  );
 
-  const lateFeeValue =
-    lateFeeType === "PERCENT"
-      ? clampFloat(formData.get("lateFeeValue"), 5, 0, 100)
-      : clampFloat(formData.get("lateFeeValue"), 50, 0, 100000);
-
-  const lifecycleStatus = String(
-    formData.get("lifecycleStatus") || "PREVIEW"
-  ).toUpperCase();
+  const status = parsePropertyStatus(formData.get("lifecycleStatus"));
 
   await upsertPropertySettings(propertyId, {
-    billingDay,
+    rentDueDay,
     gracePeriodDays,
-    lateFeeType,
-    lateFeeValue,
+    lateFeeFlatCents,
+    lateFeeEnabled: lateFeeFlatCents > 0,
   });
 
-  // --- NEW: lifecycle update ---
   await prisma.property.update({
     where: { id: propertyId },
-    data: {
-      lifecycleStatus,
-    },
+    data: { status },
   });
 }
 
@@ -68,6 +79,11 @@ export default async function PropertySettingsPage({
 
   const property = await prisma.property.findUnique({
     where: { id },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
   });
 
   if (!property) {
@@ -89,27 +105,24 @@ export default async function PropertySettingsPage({
       >
         <input type="hidden" name="propertyId" value={property.id} />
 
-        {/* --- LIFECYCLE STATUS (NEW CORE BLOCK) --- */}
         <div className="space-y-1">
           <label className="text-sm font-medium">Lifecycle Status</label>
           <select
             name="lifecycleStatus"
-            defaultValue={property.lifecycleStatus || "PREVIEW"}
+            defaultValue={property.status || "SETUP"}
             className="w-full rounded border px-3 py-2"
           >
-            <option value="PREVIEW">PREVIEW</option>
+            <option value="SETUP">SETUP</option>
+            <option value="TEST">TEST</option>
             <option value="READY">READY</option>
-            <option value="BANKING">BANKING</option>
             <option value="LIVE">LIVE</option>
             <option value="SUSPENDED">SUSPENDED</option>
           </select>
-
           <div className="text-xs text-gray-500">
             Controls payment availability and platform behavior.
           </div>
         </div>
 
-        {/* --- BILLING --- */}
         <div className="space-y-1">
           <label className="text-sm font-medium">Billing Day</label>
           <input
@@ -117,15 +130,13 @@ export default async function PropertySettingsPage({
             type="number"
             min={1}
             max={31}
-            defaultValue={settings.billingDay}
+            defaultValue={settings.rentDueDay}
             className="w-full rounded border px-3 py-2"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium">
-            Grace Period Days
-          </label>
+          <label className="text-sm font-medium">Grace Period Days</label>
           <input
             name="gracePeriodDays"
             type="number"
@@ -136,19 +147,6 @@ export default async function PropertySettingsPage({
           />
         </div>
 
-        {/* --- LATE FEES --- */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Late Fee Type</label>
-          <select
-            name="lateFeeType"
-            defaultValue={settings.lateFeeType}
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="FLAT">FLAT</option>
-            <option value="PERCENT">PERCENT</option>
-          </select>
-        </div>
-
         <div className="space-y-1">
           <label className="text-sm font-medium">Late Fee Value</label>
           <input
@@ -156,11 +154,11 @@ export default async function PropertySettingsPage({
             type="number"
             step="0.01"
             min={0}
-            defaultValue={settings.lateFeeValue}
+            defaultValue={(settings.lateFeeFlatCents ?? 0) / 100}
             className="w-full rounded border px-3 py-2"
           />
           <div className="text-xs text-gray-500">
-            Use dollars for FLAT. Use whole percent for PERCENT.
+            Enter a flat dollar amount. Leave at 0 to disable late fees.
           </div>
         </div>
 

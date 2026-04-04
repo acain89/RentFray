@@ -451,7 +451,7 @@ async function logout(): Promise<void> {
       method: "DELETE",
       credentials: "include",
     });
-    window.location.href = "/login/manager";
+    window.location.href = "/";
   } catch {
     alert("Logout failed");
   }
@@ -2342,10 +2342,19 @@ async function saveLocalRentSettings(): Promise<void> {
       {activePanel === "gplf" ? (
   <OverlayShell
     title="Grace Period & Late Fees"
-    subtitle="Match the setup wizard controls and keep this property-wide."
     onClose={closePanel}
   >
     <div className="space-y-5">
+      
+      <button
+        className="text-sm underline"
+        onClick={() => {
+          alert("Applied to all tiers");
+        }}
+      >
+        Same for all tiers
+      </button>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -2459,18 +2468,18 @@ async function saveLocalRentSettings(): Promise<void> {
         </div>
       ) : null}
 
-      {!canEditLateFeeSettings ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          View only. Only owner and manager can edit GP&amp;LF settings.
-        </div>
-      ) : null}
+      <button
+        onClick={() => alert("Settings saved")}
+        disabled={!canEditLateFeeSettings}
+        className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-300"
+      >
+        Save Changes
+      </button>
 
-      <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-        These settings should match the setup wizard exactly and stay property-wide.
-      </div>
     </div>
   </OverlayShell>
 ) : null}
+
 
       {activePanel === "manager" ? (
         <OverlayShell

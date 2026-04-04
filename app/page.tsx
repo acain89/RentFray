@@ -551,18 +551,6 @@ export default function Home() {
 
             <div>
               <button
-                onClick={() => router.push("/request-illustration")}
-                className="w-full rounded-2xl border border-[#94a3b8] bg-white px-5 py-4 text-sm font-semibold text-[#0f172a]"
-              >
-                Request account setup
-              </button>
-              <p className="mt-2 text-center text-xs text-[#475569]">
-                Want us to do it for you?
-              </p>
-            </div>
-
-            <div>
-              <button
                 onClick={() => router.push("/login/admin")}
                 className="w-full rounded-2xl border border-[#cbd5e1] bg-[#edf2f7] px-5 py-4 text-sm font-semibold text-[#0f172a]"
               >

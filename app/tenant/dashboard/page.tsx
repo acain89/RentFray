@@ -212,7 +212,7 @@ async function logout(): Promise<void> {
       method: "DELETE",
       credentials: "include",
     });
-    window.location.href = "/login/tenant";
+    window.location.href = "/";
   } catch {
     alert("Logout failed");
   }

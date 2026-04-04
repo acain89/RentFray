@@ -155,6 +155,16 @@ export default function ManagerLoginClient({
               />
             </div>
 
+             <div className="text-right">
+  <button
+    type="button"
+    className="text-xs text-neutral-600 hover:underline"
+    onClick={() => alert("Contact property admin to reset password.")}
+  >
+    Forgot password?
+  </button>
+</div>
+
             {error ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
