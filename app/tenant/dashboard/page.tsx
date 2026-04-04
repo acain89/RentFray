@@ -287,6 +287,11 @@ async function logout(): Promise<void> {
     );
   }
 
+if (error === "Unauthorized") {
+  router.replace("/property-code");
+  return null;
+}
+
   if (error || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">

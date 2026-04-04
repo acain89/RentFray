@@ -1430,6 +1430,11 @@ async function saveLocalRentSettings(): Promise<void> {
     );
   }
 
+if (error === "Unauthorized") {
+  window.location.href = "/login/manager";
+  return null;
+}
+
   if (error || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
