@@ -375,6 +375,8 @@ export default function Page() {
   const [routingNumber, setRoutingNumber] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [exportSelectedUnit, setExportSelectedUnit] = useState("");
+  const [exportUnitError, setExportUnitError] = useState("");
 
   const bankValid =
   routingNumber.replace(/\D/g, "").length === 9 &&
@@ -390,6 +392,11 @@ export default function Page() {
   lateFeeMaxDays: "",
 });
 
+ const [gpLfTierMode, setGpLfTierMode] = useState<"all" | "selected">("all");
+  const [gpLfSelectedTierIds, setGpLfSelectedTierIds] = useState<string[]>([]);
+  const [savingGpLf, setSavingGpLf] = useState(false);
+  const [gpLfSaveMessage, setGpLfSaveMessage] = useState("");
+
 function updateGpLf(
   updates: Partial<typeof gpLfSettings>
 ): void {
@@ -397,6 +404,24 @@ function updateGpLf(
     ...prev,
     ...updates,
   }));
+}
+
+function toggleGpLfTierSelection(tierId: string): void {
+  setGpLfSelectedTierIds((current) =>
+    current.includes(tierId)
+      ? current.filter((id) => id !== tierId)
+      : [...current, tierId]
+  );
+}
+
+function applyGpLfToTierDraft(tier: RentTierDraft): RentTierDraft {
+  return {
+    ...tier,
+    dueDay: gpLfSettings.dueDay,
+    graceDays: gpLfSettings.graceDays,
+    lateFeeEnabled: gpLfSettings.lateFeeEnabled,
+    lateFeeAmount: gpLfSettings.lateFeeInitial,
+  };
 }
   
 
@@ -990,9 +1015,9 @@ async function runExport(): Promise<void> {
       month: exportMonth,
     });
 
-    if (exportUnitSearch.trim()) {
-      params.set("unit", exportUnitSearch.trim());
-    }
+    if (exportSelectedUnit.trim()) {
+  params.set("unit", exportSelectedUnit.trim());
+}
 
     const response = await fetch(`/api/exports/${exportType}?${params.toString()}`, {
       credentials: "include",
@@ -1296,6 +1321,50 @@ function addLocalTier(): void {
     const newTier = createTierDraft(`Tier ${nextIndex + 1}`, nextIndex);
     return [...current, newTier];
   });
+}
+
+async function saveGpLfSettings(): Promise<void> {
+  if (!data?.property?.id) return;
+
+  const targetTierIds =
+    gpLfTierMode === "all"
+      ? localTiers.map((tier) => tier.id)
+      : gpLfSelectedTierIds;
+
+  if (targetTierIds.length === 0) {
+    setGpLfSaveMessage("Select at least one tier.");
+    return;
+  }
+
+  const nextTiers = localTiers.map((tier) =>
+    targetTierIds.includes(tier.id) ? applyGpLfToTierDraft(tier) : tier
+  );
+
+  try {
+    setSavingGpLf(true);
+    setGpLfSaveMessage("");
+
+    const res = await fetch(`/api/admin/properties/${data.property.id}/tiers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ tiers: nextTiers }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.ok) {
+      setGpLfSaveMessage(json?.error || "Failed to save GP/LF settings.");
+      return;
+    }
+
+    setLocalTiers(nextTiers);
+    setGpLfSaveMessage("Grace period and late fee settings saved.");
+  } catch {
+    setGpLfSaveMessage("Failed to save GP/LF settings.");
+  } finally {
+    setSavingGpLf(false);
+  }
 }
 
 async function saveLocalRentSettings(): Promise<void> {
@@ -1695,6 +1764,35 @@ async function saveLocalRentSettings(): Promise<void> {
       placeholder="Search unit (optional)"
       className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
     />
+
+     <button
+  type="button"
+  onClick={() => {
+  const value = exportUnitSearch.trim();
+
+  const exists = data?.units?.some(
+    (u) => u.unitNumber === value
+  );
+
+  if (!exists) {
+    setExportUnitError("Unit not found");
+    setExportSelectedUnit("");
+    return;
+  }
+
+  setExportUnitError("");
+  setExportSelectedUnit(value);
+}}
+  className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+>
+  Search
+</button>
+
+{exportSelectedUnit ? (
+  <div className="text-sm font-semibold text-slate-800">
+    Selected unit: {exportSelectedUnit}
+  </div>
+) : null}
 
     <button
       type="button"
@@ -2346,14 +2444,44 @@ async function saveLocalRentSettings(): Promise<void> {
   >
     <div className="space-y-5">
       
-      <button
-        className="text-sm underline"
-        onClick={() => {
-          alert("Applied to all tiers");
-        }}
-      >
-        Same for all tiers
-      </button>
+     <div className="flex justify-end">
+
+  <select
+    value={gpLfTierMode}
+    onChange={(e) =>
+      setGpLfTierMode(e.target.value as "all" | "selected")
+    }
+    disabled={!canEditLateFeeSettings}
+    className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 disabled:bg-slate-100"
+  >
+    <option value="all">Apply to all tiers</option>
+    <option value="selected">Apply to selected tiers</option>
+  </select>
+</div>
+
+{gpLfTierMode === "selected" ? (
+  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+    <div className="mb-3 text-sm font-semibold text-slate-900">
+      Select the tiers this applies to:
+    </div>
+    <div className="flex flex-wrap gap-2">
+      {localTiers.map((tier) => (
+        <label
+          key={tier.id}
+          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+        >
+          <input
+            type="checkbox"
+            checked={gpLfSelectedTierIds.includes(tier.id)}
+            onChange={() => toggleGpLfTierSelection(tier.id)}
+            disabled={!canEditLateFeeSettings}
+          />
+          <span>{tier.tierName}</span>
+        </label>
+      ))}
+    </div>
+  </div>
+) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -2469,12 +2597,17 @@ async function saveLocalRentSettings(): Promise<void> {
       ) : null}
 
       <button
-        onClick={() => alert("Settings saved")}
-        disabled={!canEditLateFeeSettings}
-        className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-300"
-      >
-        Save Changes
-      </button>
+  type="button"
+  onClick={saveGpLfSettings}
+  disabled={!canEditLateFeeSettings || savingGpLf}
+  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition active:translate-y-px active:bg-blue-700 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+>
+  {savingGpLf ? "Saving..." : "Save Changes"}
+</button>
+
+{gpLfSaveMessage ? (
+  <div className="text-sm text-slate-600">{gpLfSaveMessage}</div>
+) : null}
 
     </div>
   </OverlayShell>
