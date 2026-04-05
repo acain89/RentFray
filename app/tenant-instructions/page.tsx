@@ -22,7 +22,7 @@ export default function TenantInstructionsPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-            <div className="font-semibold">2) Click on "Existing Properties."</div>
+            <div className="font-semibold">2) Click on "Enter your property."</div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
@@ -38,9 +38,14 @@ export default function TenantInstructionsPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-            <div className="font-semibold">5) Create your profile.</div>
-          </div>
-
+            <div className="font-semibold">
+  5) Select Tier{" "}
+  <span className="inline-block w-12 border-b border-slate-400 mx-1" />{" "}
+  ${" "}
+  <span className="inline-block w-16 border-b border-slate-400 mx-1" />{" "}
+  and create your account.
+</div>
+</div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
               6) Use your login to view and pay balances, and submit maintenance requests.

@@ -14,32 +14,32 @@ type Slide = {
 
 const slides: Slide[] = [
   {
-    id: "sv",
-    eyebrow: "Simple View",
-    title: "See payments roll in without the clutter.",
+    id: "panel1",
+    eyebrow: "No contracts. No trial periods. Rentfray is completely free for businesses.",
+    title: "Set up your entire business in under 5 minutes.",
     subtitle:
-      "A clean summary for owners who want fast visibility into what RentFray handled this cycle.",
+      "Complete the 4-step setup, connect your account, and print the Tenant Instruction Sheet. That's it.",
   },
   {
-    id: "fv",
-    eyebrow: "Full View",
-    title: "Manage units, balances, and actions from one screen.",
+    id: "panel2",
+    eyebrow: "Activate the Property",
+    title: "Your system starts running the moment tenants pay.",
     subtitle:
-      "The richer management view shows status, balances, and quick actions for day-to-day operations.",
+      "Write the Tier number and Property Code, hand it to the tenant, and your dashboard builds itself. Tenants enter code + unit + PIN — no manager input needed.",
   },
   {
-    id: "tenant",
-    eyebrow: "Tenant Portal",
-    title: "Tenants see exactly what they owe and can pay in seconds.",
+    id: "panel3",
+    eyebrow: "Set Your Controls",
+    title: "Run everything from your phone.",
     subtitle:
-      "Balance, charges, late fees, and payment flow are all in one clean mobile-first screen.",
+      "Add managers or leasing staff anytime, set a maintenance PIN, and control operations without office work, paperwork, or back-and-forth.",
   },
   {
-    id: "maintenance",
-    eyebrow: "Maintenance Portal",
-    title: "Requests stay organized without back-and-forth confusion.",
+    id: "panel4",
+    eyebrow: "Run the Business",
+    title: "Know exactly what’s happening at all times.",
     subtitle:
-      "Maintenance can log in, review requests, and keep updates moving from one simple portal.",
+      "No spreadsheets. No chasing. No guesswork.",
   },
 ];
 
@@ -76,87 +76,375 @@ function Bubble({
 }) {
   return (
     <div
-      className={`absolute max-w-[220px] rounded-2xl border border-sky-200 bg-white/95 px-4 py-3 text-left text-sm font-medium leading-6 text-[#0f172a] shadow-lg ${className}`}
+      className={`absolute max-w-[240px] rounded-2xl border border-sky-200 bg-white/95 px-4 py-3 text-left text-sm font-medium leading-6 text-[#0f172a] shadow-lg ${className}`}
     >
       {children}
     </div>
   );
 }
 
-function MockSimpleView() {
+function MockGetStartedPanel() {
   return (
-    <div className="relative mx-auto w-full max-w-[880px] rounded-[28px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-4">
-        <div className="flex items-center justify-between">
+    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#1e293b] bg-[#0f172a] p-3 shadow-[0_30px_90px_rgba(15,23,42,0.32)]">
+      <div className="rounded-[24px] border border-[#1f3b62] bg-gradient-to-br from-[#0f172a] via-[#13233a] to-[#1d4ed8] p-5 text-white">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">
+              RentFray Setup
+            </div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight">
+              No phone calls. No emails. You can create your account right here, right now.
+            </div>
+            <div className="mt-2 max-w-xl text-sm text-sky-100/90">
+              Create your property, tiers, and billing rules. Connect your bank.
+              Print the instruction sheet. Done.
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/20">
+            Under 5 minutes
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          {[
+            {
+              step: "1",
+              title: "Complete the 4-step setup",
+              text: "Create your property, tiers, and billing rules.",
+            },
+            {
+              step: "2",
+              title: "Tap “ACCT” and connect your bank",
+              text: "Secure payouts through Stripe.",
+            },
+            {
+              step: "3",
+              title: "Print your Tenant Instruction Sheet",
+              text: "This is all your tenants need to get started. Takes less than 30 seconds to hand off.",
+            },
+          ].map((item) => (
+            <div
+              key={item.step}
+              className="rounded-[24px] border border-white/10 bg-white/10 p-4 backdrop-blur-sm"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-400 text-sm font-bold text-[#0f172a]">
+                {item.step}
+              </div>
+              <div className="mt-3 text-base font-semibold">{item.title}</div>
+              <div className="mt-2 text-sm text-sky-100/85">{item.text}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[22px] border border-white/10 bg-white p-4 text-[#0f172a]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              4-step setup
+            </div>
+            <div className="mt-3 space-y-2">
+              {[
+                "Create login",
+                "Add property",
+                "Set tiers",
+                "Save billing rules",
+              ].map((row) => (
+                <div
+                  key={row}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium"
+                >
+                  {row}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-white/10 bg-white p-4 text-[#0f172a]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              ACCT
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-semibold">Bank account</div>
+              <div className="mt-3 grid gap-2">
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                  Routing Number
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                  Account Number
+                </div>
+                <div className="rounded-xl bg-[#0f172a] px-3 py-2 text-center text-sm font-semibold text-white">
+                  Connect Account
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-white/10 bg-white p-4 text-[#0f172a]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Tenant Instruction Sheet
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-semibold">Tenant Instructions</div>
+              <div className="mt-2 text-xs text-slate-500">Property Code: 4821</div>
+              <div className="mt-1 text-xs text-slate-500">Tier Number: 2</div>
+              <div className="mt-3 space-y-2">
+                {[
+                  "Enter property code",
+                  "Select your unit",
+                  "Create PIN",
+                  "Pay from your phone",
+                ].map((row) => (
+                  <div key={row} className="text-sm text-slate-700">
+                    • {row}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+  );
+    </div>
+  );
+}
+
+function MockActivatePanel() {
+  return (
+    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
+      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              RentFray manager
+              Activate the Property
             </div>
-            <div className="mt-1 text-xl font-semibold text-[#0f172a]">
-              Oak Grove Apartments
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
+              Your dashboard builds itself as tenants pay.
             </div>
-            <div className="mt-1 text-sm text-[#64748b]">Property Code: 4821</div>
+            <div className="mt-2 max-w-2xl text-sm text-[#475569]">
+              Write the Tier number and Property Code on the sheet, hand it to the
+              tenant, and that’s it. Their first payment onboards them automatically.
+            </div>
           </div>
 
           <div className="rounded-2xl bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white">
-            Simple View
+            No manager input needed
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {[
-            ["Total Units", "48"],
-            ["Payments Logged", "31"],
-            ["Total Collected", "$18,640"],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-2xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-4"
-            >
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-                {label}
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-[#0f172a]">{value}</div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              Sheet with Code + Tier
             </div>
-          ))}
-        </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-[#0f172a]">
+                Tenant Instruction Sheet
+              </div>
+              <div className="mt-2 text-sm text-[#475569]">Property Code: 4821</div>
+              <div className="text-sm text-[#475569]">Tier Number: 2</div>
+              <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+                Hand to tenant
+              </div>
+            </div>
+          </div>
 
-        <div className="mt-5 space-y-3">
-          {[
-            ["Tier 1", "$7,200 collected", "12 portal payments this cycle"],
-            ["Tier 2", "$6,840 collected", "11 portal payments this cycle"],
-            ["Tier 3", "$4,600 collected", "8 portal payments this cycle"],
-          ].map(([tier, total, meta]) => (
-            <div
-              key={tier}
-              className="rounded-2xl border border-[#dbe4ee] bg-white px-4 py-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-base font-semibold text-[#0f172a]">{tier}</div>
-                  <div className="mt-1 text-sm text-[#64748b]">{meta}</div>
-                </div>
-                <div className="rounded-2xl bg-[#e8f7ee] px-3 py-2 text-sm font-semibold text-[#166534]">
-                  {total}
-                </div>
+          <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              First Payment / Activation
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-[10px] font-semibold tracking-[0.22em] text-[#64748b]">
+                RENTFRAY
+              </div>
+              <div className="mt-3 text-lg font-semibold text-[#0f172a]">
+                Activate Unit
+              </div>
+              <div className="mt-3 space-y-2">
+                {[
+                  "Property Code",
+                  "Unit Number",
+                  "Create 4-digit PIN",
+                  "Pay Now",
+                ].map((row) => (
+                  <div
+                    key={row}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    {row}
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              Live Dashboard Begins Filling
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-[#0f172a]">
+                Oak Grove Apartments
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[
+                  ["Units", "48"],
+                  ["Payments", "3"],
+                  ["Collected", "$2,285"],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      {label}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 space-y-2">
+                {[
+                  "Unit 102 — Payment posted",
+                  "Unit 205 — Payment posted",
+                  "Unit 301 — Pending",
+                ].map((row) => (
+                  <div
+                    key={row}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  >
+                    {row}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Bubble className="left-1/2 top-[-12px] -translate-x-1/2">
-        Clean monthly totals show exactly what RentFray processed.
-      </Bubble>
-
-      <Bubble className="right-[-8px] top-[255px]">
-        Tier cards make incoming payments easy to scan in seconds.
+      <Bubble className="right-[345px] top-[120px]">
+        The system starts becoming useful immediately instead of “after setup someday.”
       </Bubble>
     </div>
   );
 }
 
-function MockFullView() {
+function MockControlsPanel() {
+  return (
+    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#dbe4ee] bg-[#f3f7fb] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
+      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
+              Set Your Controls
+            </div>
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
+              Run the day-to-day operation from your phone.
+            </div>
+            <div className="mt-2 max-w-2xl text-sm text-[#475569]">
+              All incoming information can be exported with a click. Set a maintenance PIN so
+              requests go straight from the tenant to your team. Don't play phone-tag.
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {["+", "Rent", "GP&LF", "Mngr", "Accnt", "Info", "Maint"].map(
+              (label) => (
+                <div
+                  key={label}
+                  className="rounded-2xl bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  {label}
+                </div>
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              Top Controls
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {["Rent", "GP&LF", "Mngr", "Maint"].map((label) => (
+                <div
+                  key={label}
+                  className="rounded-xl bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-sm text-slate-600">
+              Fast access to the handful of things owners actually need.
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              Add Manager / Staff
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-[#0f172a]">
+                Management Users
+              </div>
+              <div className="mt-3 space-y-2">
+                {[
+                  "Email Address",
+                  "Password",
+                  "Role: STAFF",
+                  "Create User",
+                ].map((row) => (
+                  <div
+                    key={row}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    {row}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              Maintenance PIN / Requests
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-[#0f172a]">
+                Maintenance
+              </div>
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                Set PIN: ****
+              </div>
+              <div className="mt-3 space-y-2">
+                {[
+                  "Unit 102 — Leak under sink",
+                  "Unit 201 — AC not cooling",
+                ].map((row) => (
+                  <div
+                    key={row}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  >
+                    {row}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Bubble className="left-[510px] top-[120px]">
+        Key controls stay one tap away instead of buried in menus.
+      </Bubble>
+    </div>
+  );
+}
+
+function MockRunBusinessPanel() {
   const units = [
     ["101", "Smith", "$0.00", "Current", "bg-emerald-500"],
     ["102", "Johnson", "$245.00", "Grace", "bg-amber-400"],
@@ -167,37 +455,33 @@ function MockFullView() {
   ] as const;
 
   return (
-    <div className="relative mx-auto w-full max-w-[880px] rounded-[28px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-4">
+    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
+      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              RentFray manager
+              Run the Business
             </div>
-            <div className="mt-1 text-xl font-semibold text-[#0f172a]">
-              Oak Grove Apartments
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
+              See who paid, who has not paid, and which units are vacant.
             </div>
-            <div className="mt-1 text-sm text-[#64748b]">Property Code: 4821</div>
+            <div className="mt-2 max-w-2xl text-sm text-[#475569]">
+              Everything after setup is basic, routine, and fast. Payments,
+              balances, and late fees take care of themselves.
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {["+", "Rent", "GP&LF", "Mngr", "Accnt", "Info", "Maint"].map((label) => (
-              <div
-                key={label}
-                className="rounded-2xl bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white"
-              >
-                {label}
-              </div>
-            ))}
+          <div className="rounded-2xl bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white">
+            No spreadsheets needed
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
           {[
             ["Total Units", "48"],
             ["Occupied", "42"],
             ["Vacant", "6"],
-            ["Tiers", "3"],
+            ["Collected", "$18,640"],
           ].map(([label, value]) => (
             <div
               key={label}
@@ -206,192 +490,95 @@ function MockFullView() {
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
                 {label}
               </div>
-              <div className="mt-2 text-2xl font-semibold text-[#0f172a]">{value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 rounded-[24px] border border-[#dbe4ee] bg-white p-3">
-          <div className="mb-3 px-1 text-sm font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-            Tier 1
-          </div>
-
-          <div className="space-y-2">
-            {units.map(([unit, last, balance, status, dot]) => (
-              <div
-                key={unit}
-                className="rounded-[20px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className={`h-3.5 w-3.5 rounded-full ${dot}`} />
-                    <span className="font-bold text-[#00b8e6]">{unit}</span>
-                    <span className="min-w-[70px] truncate text-sm text-[#334155]">
-                      {last}
-                    </span>
-                    <span className="min-w-[90px] text-sm font-semibold text-[#0f172a]">
-                      {balance}
-                    </span>
-                    <span className="text-xs text-[#64748b]">{status}</span>
-                  </div>
-
-                  <div className="rounded-xl border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-semibold text-[#334155]">
-                    MP
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <Bubble className="left-[500px] top-[74px]">
-        Top action buttons keep key manager tasks one tap away.
-      </Bubble>
-
-      <Bubble className="left-[-34px] top-[365px]">
-        Color-coded dots make paid, grace, delinquent, and vacant units easy to spot.
-      </Bubble>
-
-      <Bubble className="left-[255px] top-[445px]">
-        Click into a unit to post a manual payment, review details, or vacate it fast.
-      </Bubble>
-    </div>
-  );
-}
-
-function MockTenantPortal() {
-  return (
-    <div className="relative mx-auto w-full max-w-[430px] rounded-[32px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[28px] border border-sky-100 bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 p-4">
-        <div className="text-[10px] font-semibold tracking-[0.22em] text-[#64748b]">
-          RENTFRAY
-        </div>
-
-        <div className="mt-3 text-2xl font-semibold text-[#0f172a]">John Smith</div>
-        <div className="mt-1 text-sm text-[#64748b]">Oak Grove Apartments · Unit 102</div>
-
-        <div className="mt-5 rounded-[28px] border border-sky-200 bg-white p-5 text-center shadow-sm">
-          <div className="text-xs text-[#64748b]">Current Balance</div>
-          <div className="mt-2 text-4xl font-semibold text-[#0f172a]">$1,229.95</div>
-          <div className="mt-2 text-sm font-medium text-red-600">Past Due</div>
-        </div>
-
-        <div className="mt-4 rounded-[28px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
-          <div className="text-sm font-semibold text-[#0f172a]">Current Statement</div>
-
-          <div className="mt-4 space-y-3 text-sm text-[#334155]">
-            {[
-              ["Rent", "$1,100.00"],
-              ["Charges", "$65.00"],
-              ["Late Fees", "$55.00"],
-              ["Processing Fee", "$9.95"],
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between">
-                <span>{label}</span>
-                <span className="font-medium text-[#0f172a]">{value}</span>
-              </div>
-            ))}
-
-            <div className="border-t border-[#e2e8f0] pt-3" />
-
-            <div className="flex justify-between text-base font-semibold text-[#0f172a]">
-              <span>Total due on 4/1/2026</span>
-              <span>$1,229.95</span>
-            </div>
-
-            <div className="text-sm text-[#64748b]">Grace period ends 4/6/2026.</div>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-[28px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
-          <div className="text-sm font-semibold text-[#0f172a]">Make a Payment</div>
-
-          <div className="mt-3 rounded-xl border border-[#cbd5e1] bg-white px-4 py-3 text-left text-lg text-[#0f172a]">
-            1229.95
-          </div>
-
-          <div className="mt-3 rounded-2xl bg-[#0f172a] px-4 py-3 text-center text-sm font-semibold text-white">
-            Pay Now
-          </div>
-        </div>
-      </div>
-
-      <Bubble className="left-[-110px] top-[112px]">
-        Tenants immediately see balance, statement details, and whether they are current or late.
-      </Bubble>
-
-      <Bubble className="right-[-120px] top-[360px]">
-        Payment flow is mobile-friendly for simplicity and convenience.
-      </Bubble>
-    </div>
-  );
-}
-
-function MockMaintenancePortal() {
-  return (
-    <div className="relative mx-auto w-full max-w-[520px] rounded-[32px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[28px] border border-[#dbe4ee] bg-white p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              Maintenance Portal
-            </div>
-            <div className="mt-1 text-xl font-semibold text-[#0f172a]">
-              Active Requests
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] px-3 py-2 text-xs font-semibold text-[#334155]">
-            Property 4821
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          {[
-            ["Unit 102", "Leak under sink", "HIGH", "OPEN"],
-            ["Unit 201", "AC not cooling", "URGENT", "IN_PROGRESS"],
-            ["Unit 305", "Broken outlet", "NORMAL", "COMPLETE"],
-          ].map(([unit, issue, urgency, status]) => (
-            <div
-              key={`${unit}-${issue}`}
-              className="rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-[#0f172a]">{unit}</div>
-                  <div className="mt-1 text-sm text-[#334155]">{issue}</div>
-                </div>
-
-                <div className="flex flex-col gap-2 text-right">
-                  <span className="rounded-xl bg-[#fef3c7] px-2 py-1 text-[11px] font-semibold text-[#92400e]">
-                    {urgency}
-                  </span>
-                  <span className="rounded-xl bg-[#e2e8f0] px-2 py-1 text-[11px] font-semibold text-[#334155]">
-                    {status}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <div className="rounded-xl bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white">
-                  Update
-                </div>
-                <div className="rounded-xl border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-semibold text-[#334155]">
-                  Complete
-                </div>
+              <div className="mt-2 text-2xl font-semibold text-[#0f172a]">
+                {value}
               </div>
             </div>
           ))}
         </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
+          <div className="rounded-[24px] border border-[#dbe4ee] bg-white p-3">
+            <div className="mb-3 px-1 text-sm font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+              Unit Status
+            </div>
+
+            <div className="space-y-2">
+              {units.map(([unit, last, balance, status, dot]) => (
+                <div
+                  key={unit}
+                  className="rounded-[20px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={`h-3.5 w-3.5 rounded-full ${dot}`} />
+                      <span className="font-bold text-[#00b8e6]">{unit}</span>
+                      <span className="min-w-[70px] truncate text-sm text-[#334155]">
+                        {last}
+                      </span>
+                      <span className="min-w-[90px] text-sm font-semibold text-[#0f172a]">
+                        {balance}
+                      </span>
+                      <span className="text-xs text-[#64748b]">{status}</span>
+                    </div>
+
+                    <div className="rounded-xl border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-semibold text-[#334155]">
+                      MP
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-[24px] border border-[#dbe4ee] bg-white p-4">
+              <div className="text-sm font-semibold text-[#0f172a]">
+                Revenue Snapshot
+              </div>
+              <div className="mt-3 space-y-2">
+                {[
+                  ["Expected", "$24,300"],
+                  ["Collected", "$18,640"],
+                  ["Outstanding", "$5,660"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between text-sm">
+                    <span className="text-slate-600">{label}</span>
+                    <span className="font-semibold text-slate-900">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-[#dbe4ee] bg-white p-4">
+              <div className="text-sm font-semibold text-[#0f172a]">
+                Mobile-Friendly
+              </div>
+              <div className="mt-3 rounded-[24px] border border-slate-200 bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 p-4">
+                <div className="text-[10px] font-semibold tracking-[0.22em] text-[#64748b]">
+                  RENTFRAY
+                </div>
+                <div className="mt-3 text-lg font-semibold text-[#0f172a]">
+                  Current Balance
+                </div>
+                <div className="mt-1 text-3xl font-semibold text-[#0f172a]">
+                  $1,229.95
+                </div>
+                <div className="mt-3 rounded-2xl bg-[#0f172a] px-4 py-3 text-center text-sm font-semibold text-white">
+                  Pay Now
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <Bubble className="left-[-95px] top-[110px]">
-        Maintenance sees a clean queue of what needs attention now.
+      <Bubble className="left-[18px] top-[320px]">
+        Color-coded status gives instant clarity without digging through reports.
       </Bubble>
 
-      <Bubble className="right-[-118px] top-[250px]">
-        Status updates keep management instantly informed without extra calls or texts.
+      <Bubble className="right-[32px] top-[340px]">
+        Owners can run the business from a phone instead of from a desk.
       </Bubble>
     </div>
   );
@@ -399,14 +586,14 @@ function MockMaintenancePortal() {
 
 function SlidePreview({ slideId }: { slideId: string }) {
   switch (slideId) {
-    case "sv":
-      return <MockSimpleView />;
-    case "fv":
-      return <MockFullView />;
-    case "tenant":
-      return <MockTenantPortal />;
-    case "maintenance":
-      return <MockMaintenancePortal />;
+    case "panel1":
+      return <MockGetStartedPanel />;
+    case "panel2":
+      return <MockActivatePanel />;
+    case "panel3":
+      return <MockControlsPanel />;
+    case "panel4":
+      return <MockRunBusinessPanel />;
     default:
       return null;
   }
@@ -417,7 +604,10 @@ export default function Home() {
   const [openDemo, setOpenDemo] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
 
-  const currentSlide = useMemo(() => slides[activeSlide] ?? slides[0], [activeSlide]);
+  const currentSlide = useMemo(
+    () => slides[activeSlide] ?? slides[0],
+    [activeSlide]
+  );
 
   function nextSlide(): void {
     setActiveSlide((prev) => (prev + 1) % slides.length);
@@ -451,7 +641,8 @@ export default function Home() {
             </p>
 
             <p className="text-base font-semibold text-[#1e3a5f] sm:text-lg">
-              Always free. Full instant access. No hidden fees, contracts, or trials.
+              Always free. Full instant access. No hidden fees, contracts, or
+              trials.
             </p>
           </section>
 
@@ -464,7 +655,7 @@ export default function Home() {
             </button>
 
             <p className="mt-4 text-center text-sm text-[#cbd5f5]">
-              Simple. Clean. Fast.
+              Free for owners. Built for phones. Ready fast.
             </p>
           </section>
 
@@ -474,8 +665,7 @@ export default function Home() {
                 See how it works
               </h2>
               <p className="mt-2 max-w-xl text-sm text-[#475569] sm:text-base">
-                Preview the manager, tenant, and maintenance experience with a
-                quick visual walkthrough.
+                This is exactly how owners start — step by step.
               </p>
             </div>
 
@@ -486,13 +676,13 @@ export default function Home() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {slides.map((slide, index) => {
                 const bgClass =
-                  slide.id === "sv"
-                    ? "bg-[#f3f7fb]"
-                    : slide.id === "fv"
-                    ? "bg-[#f7f4fb]"
-                    : slide.id === "tenant"
-                    ? "bg-[#f5faf5]"
-                    : "bg-[#fbf7f2]";
+                  slide.id === "panel1"
+                    ? "bg-[#eff6ff]"
+                    : slide.id === "panel2"
+                    ? "bg-[#f8fafc]"
+                    : slide.id === "panel3"
+                    ? "bg-[#f5f3ff]"
+                    : "bg-[#f0fdf4]";
 
                 return (
                   <button
@@ -507,7 +697,9 @@ export default function Home() {
                     <div className="mt-2 text-lg font-semibold text-[#0f172a]">
                       {slide.title}
                     </div>
-                    <div className="mt-2 text-sm text-[#475569]">{slide.subtitle}</div>
+                    <div className="mt-2 text-sm text-[#475569]">
+                      {slide.subtitle}
+                    </div>
                   </button>
                 );
               })}
@@ -534,6 +726,24 @@ export default function Home() {
                 </div>
               </div>
             ))}
+          </section>
+
+          <section className="mt-10 rounded-[32px] border border-[#0f172a] bg-[#0f172a] p-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
+            <div className="space-y-3 text-center">
+              <div className="text-lg font-semibold">
+                Run your entire property from your phone.
+              </div>
+              <div className="text-sm text-[#cbd5f5]">
+                Completely free for owners.
+              </div>
+              <div className="text-sm text-[#cbd5f5]">
+                If you are currently paying debit or processing fees, RentFray
+                saves that money instead of adding another bill.
+              </div>
+              <div className="text-base font-semibold text-white">
+                If your tenants can pay, your system runs.
+              </div>
+            </div>
           </section>
 
           <section className="mt-10 space-y-4">

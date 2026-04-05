@@ -127,6 +127,25 @@ const monthLabel = getMonthLabel(now);
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const unit of property.units) {
         const assignment = unit.tenantAssignments[0] ?? null;
+        // 🔒 PROTECT: skip late fee if payment was started before late fee date
+const existingPayment = await prisma.payment.findFirst({
+  where: {
+    unitId: unit.id,
+    billingCycle,
+    status: {
+      in: ["PENDING", "PAID"],
+    },
+  },
+  orderBy: { createdAt: "desc" },
+  select: {
+    createdAt: true,
+  },
+});
+
+if (existingPayment && existingPayment.createdAt <= effectiveDate) {
+  skipped++;
+  continue;
+}
 
         if (!assignment) {
           skipped++;

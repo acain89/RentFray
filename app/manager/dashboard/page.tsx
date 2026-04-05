@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import SimpleDashboard from "@/app/components/manager/SimpleDashboard";
 
 type Unit = {
   unitId: string;
@@ -11,6 +10,8 @@ type Unit = {
   isDelinquent: boolean;
   daysPastDue: number;
   tierName?: string | null;
+  paymentStatus: "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+  isActive: boolean;
 };
 
 type DashboardPayment = {
@@ -48,7 +49,7 @@ type DashboardData = {
     vacantUnits: number;
     delinquentUnits: number;
   };
-  financials?: {
+    financials?: {
     expected: number;
     collected: number;
     collectionRate: number;
@@ -58,12 +59,24 @@ type DashboardData = {
     failedTotal?: number;
     refundedTotal?: number;
   };
+  cycleSnapshot?: {
+    billingCycleLabel: string;
+    occupiedUnitsLabel: string;
+    portalPaidCount: number;
+    manualPaidCount: number;
+    totalPaidCount: number;
+    unpaidUnitsCount: number;
+    totalCollected: number;
+    totalExpected: number;
+    collectionRate: number;
+    difference: number;
+  };
   units: Unit[];
   payments: DashboardPayment[];
   tiers: DashboardTier[];
 };
 
-type UnitStatus = "PAID" | "PARTIAL" | "GRACE" | "DELINQUENT" | "VACANT";
+type UnitStatus = "PAID" | "GRACE" | "PENDING" | "FAILED" | "DELINQUENT";
 
 type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | "bank" | null;
 
@@ -171,42 +184,49 @@ type ManagerUpdatePayload = {
 };
 
 function getStatus(unit: Unit): UnitStatus {
-  if (!unit.tenantName) return "VACANT";
+  // PRIORITY ORDER (matches backend)
+
+  if (unit.paymentStatus === "FAILED") return "FAILED";
+  if (unit.paymentStatus === "PENDING") return "PENDING";
+
   if (unit.balance <= 0) return "PAID";
+
   if (unit.isDelinquent) return "DELINQUENT";
-  if (unit.daysPastDue > 0) return "GRACE";
-  return "PARTIAL";
+
+  return "GRACE";
 }
 
 function getStatusDotClass(status: UnitStatus): string {
   switch (status) {
     case "PAID":
-      return "bg-emerald-500";
+      return "bg-emerald-500"; // green
     case "GRACE":
-      return "bg-amber-400";
+      return "bg-blue-500"; // blue
+    case "PENDING":
+      return "bg-yellow-400"; // yellow
+    case "FAILED":
+      return "bg-orange-500"; // orange
     case "DELINQUENT":
-      return "bg-red-500";
-    case "VACANT":
-      return "bg-slate-400";
-    case "PARTIAL":
+      return "bg-red-500"; // red
     default:
-      return "bg-emerald-500";
+      return "bg-slate-400";
   }
 }
 
 function getStatusText(status: UnitStatus, daysPastDue: number): string {
   switch (status) {
     case "PAID":
-      return "Current";
+      return "Paid";
     case "GRACE":
-      return "Grace period";
+      return "In grace period";
+    case "PENDING":
+      return "Payment pending";
+    case "FAILED":
+      return "Payment failed";
     case "DELINQUENT":
       return `${daysPastDue} day${daysPastDue === 1 ? "" : "s"} past due`;
-    case "VACANT":
-      return "Vacant";
-    case "PARTIAL":
     default:
-      return "Balance due";
+      return "—";
   }
 }
 
@@ -371,7 +391,7 @@ export default function Page() {
   const [chargesError, setChargesError] = useState("");
   const [savingCharges, setSavingCharges] = useState(false);
   const [chargesEffectiveMonth, setChargesEffectiveMonth] = useState("");
-  const [viewMode, setViewMode] = useState<"simple" | "full">("simple");
+  const viewMode: "full" = "full";
   const [routingNumber, setRoutingNumber] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
@@ -1197,28 +1217,7 @@ useEffect(() => {
       .sort(sortUnitsByUnitNumber);
   }, [data]);
 
-  const paymentsByTier = useMemo(() => {
-    if (!data?.payments?.length || !data?.tiers?.length) return [];
-
-    const { start, next } = getMonthRange();
-
-    const filtered = data.payments.filter((payment) => {
-      const createdAt = new Date(payment.createdAt);
-      return !Number.isNaN(createdAt.getTime()) && createdAt >= start && createdAt < next;
-    });
-
-    return data.tiers.map((tier) => ({
-      id: tier.id,
-      name: tier.name,
-      payments: filtered
-        .filter((payment) => payment.tierId === tier.id)
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ),
-    }));
-  }, [data]);
-
+  
   const tierGroups = useMemo<TierGroup[]>(() => {
     const groups = new Map<string, UnitWithStatus[]>();
 
@@ -1252,12 +1251,9 @@ useEffect(() => {
 
   const stats = useMemo(() => {
     const totalUnits = unitsWithStatus.length;
-    const occupiedUnits = unitsWithStatus.filter(
-      (unit) => unit.status !== "VACANT"
-    ).length;
-    const vacantUnits = unitsWithStatus.filter(
-      (unit) => unit.status === "VACANT"
-    ).length;
+    const occupiedUnits = unitsWithStatus.length;
+
+const vacantUnits = 0;
     const tiers = tierGroups.length;
 
     return {
@@ -1272,9 +1268,7 @@ useEffect(() => {
     setShowVacateConfirm(false);
     setVacateError("");
     setSelectedUnit(unit);
-    setManualPaymentAmount(
-      unit.status === "VACANT" ? "" : Number(unit.balance || 0).toFixed(2)
-    );
+    setManualPaymentAmount(Number(unit.balance || 0).toFixed(2));
     setShowManualPaymentConfirm(false);
   }
 
@@ -1450,43 +1444,7 @@ if (error === "Unauthorized") {
       <main className="min-h-screen bg-slate-100 px-3 py-4 text-slate-900 sm:px-5 sm:py-6">
         <div className="mx-auto max-w-6xl space-y-4">
 
-  {/* 🔹 VIEW TOGGLE — INSERT RIGHT HERE */}
-  <div className="flex gap-2 mb-2">
-    <button
-      className={`px-3 py-2 rounded-xl ${
-        viewMode === "simple"
-          ? "bg-blue-500 text-white"
-          : "bg-slate-200"
-      }`}
-      onClick={() => setViewMode("simple")}
-    >
-      Simple View
-    </button>
-
-    <button
-      className={`px-3 py-2 rounded-xl ${
-        viewMode === "full"
-          ? "bg-blue-500 text-white"
-          : "bg-slate-200"
-      }`}
-      onClick={() => setViewMode("full")}
-    >
-      Full View
-    </button>
-  </div>
-           
-          {viewMode === "simple" ? (
-          <SimpleDashboard
-            data={{
-              payments: data.payments ?? [],
-              tiers: data.tiers ?? [],
-              totalUnits: data.summary?.totalUnits ?? stats.totalUnits,
-              property: data.property,
-            }}
-          />
-        ) : (
-          <>
-            <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+             <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -1587,7 +1545,7 @@ if (error === "Unauthorized") {
 
               <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Occupied
+                  Has used portal
                 </div>
                 <div className="mt-2 text-2xl font-semibold text-slate-950">
                   {data.summary?.occupiedUnits ?? stats.occupiedUnits}
@@ -1596,7 +1554,7 @@ if (error === "Unauthorized") {
 
               <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Vacant
+                  Has not used portal
                 </div>
                 <div className="mt-2 text-2xl font-semibold text-slate-950">
                   {data.summary?.vacantUnits ?? stats.vacantUnits}
@@ -1613,51 +1571,89 @@ if (error === "Unauthorized") {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-              <div className="text-lg font-semibold text-slate-950">
-                Portal Payments (This Cycle)
-              </div>
+           
+              <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+  <div className="text-lg font-semibold text-slate-950">Current Cycle Snapshot</div>
 
-              <div className="mt-4 space-y-4">
-                {paymentsByTier.map((tier) => (
-                  <div key={tier.id}>
-                    <div className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      {tier.name}
-                    </div>
+  <div className="mt-4 space-y-3 text-sm">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Billing cycle</span>
+      <span className="font-semibold text-slate-950">
+        {data.cycleSnapshot?.billingCycleLabel ?? "—"}
+      </span>
+    </div>
 
-                    {tier.payments.length === 0 ? (
-                      <div className="mt-2 text-sm text-slate-500">
-                        No payments this month.
-                      </div>
-                    ) : (
-                      <div className="mt-2 space-y-2">
-                        {tier.payments.map((payment) => (
-                          <div
-                            key={payment.id}
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm"
-                          >
-                            <span className="font-semibold text-slate-900">
-                              Unit {payment.unitNumber}
-                            </span>{" "}
-                            — Payment of{" "}
-                            <span className="font-semibold text-slate-900">
-                              {toMoney(payment.amount)}
-                            </span>{" "}
-                            —{" "}
-                            <span className="font-semibold text-slate-900">
-                              {payment.lastName || "—"}
-                            </span>
-                            <span className="ml-2 text-slate-500">
-                              {formatDate(payment.createdAt)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Occupied units</span>
+      <span className="font-semibold text-slate-950">
+        {data.cycleSnapshot?.occupiedUnitsLabel ?? "—"}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Paid through portal</span>
+      <span className="font-semibold text-slate-950">
+        {data.cycleSnapshot?.portalPaidCount ?? 0}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Manual payments</span>
+      <span className="font-semibold text-slate-950">
+        {data.cycleSnapshot?.manualPaidCount ?? 0}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Total paid</span>
+      <span className="font-semibold text-slate-950">
+        {data.cycleSnapshot?.totalPaidCount ?? 0}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Unpaid units</span>
+      <span className="font-semibold text-slate-950">
+        {data.cycleSnapshot?.unpaidUnitsCount ?? 0}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Total collected</span>
+      <span className="font-semibold text-slate-950">
+        {toMoney(data.cycleSnapshot?.totalCollected ?? 0)}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Total expected</span>
+      <span className="font-semibold text-slate-950">
+        {toMoney(data.cycleSnapshot?.totalExpected ?? 0)}
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Collection %</span>
+      <span className="font-semibold text-slate-950">
+        {(data.cycleSnapshot?.collectionRate ?? 0).toFixed(1)}%
+      </span>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <span className="text-slate-600">Difference</span>
+      <span
+        className={`font-semibold ${
+          (data.cycleSnapshot?.difference ?? 0) < 0
+            ? "text-red-600"
+            : "text-emerald-600"
+        }`}
+      >
+        {(data.cycleSnapshot?.difference ?? 0) < 0 ? "-" : "+"}
+        {toMoney(Math.abs(data.cycleSnapshot?.difference ?? 0))}
+      </span>
+    </div>
+  </div>
+</section>
 
             <section className="rounded-[28px] border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4">
               {tierGroups.length === 0 ? (
@@ -1674,8 +1670,7 @@ if (error === "Unauthorized") {
 
                       <div className="space-y-2">
                         {group.units.map((unit) => {
-                          const vacant = unit.status === "VACANT";
-
+                         const vacant = false;
                           return (
                             <div
                               key={unit.unitId}
@@ -1818,21 +1813,16 @@ if (error === "Unauthorized") {
 </div>
 </section>
            
-          </>
-        )}        </div>
+     </div>
       </main>
 
       {selectedUnit ? (
         <OverlayShell
           title={`Unit ${selectedUnit.unitNumber}`}
-          subtitle={
-            selectedUnit.status === "VACANT"
-              ? "Vacant unit"
-              : `${selectedUnit.tenantName || "Tenant"} • ${getStatusText(
-                  selectedUnit.status,
-                  selectedUnit.daysPastDue
-                )}`
-          }
+          subtitle={`${selectedUnit.tenantName || "Tenant"} • ${getStatusText(
+  selectedUnit.status,
+  selectedUnit.daysPastDue
+)}`}
           onClose={closeUnitPanel}
         >
           <div className="space-y-5">
@@ -1851,9 +1841,7 @@ if (error === "Unauthorized") {
                   Balance
                 </div>
                 <div className="mt-2 text-lg font-semibold text-slate-950">
-                  {selectedUnit.status === "VACANT"
-                    ? "-"
-                    : toMoney(selectedUnit.balance)}
+                  {toMoney(selectedUnit.balance)}
                 </div>
               </div>
 
@@ -1876,14 +1864,59 @@ if (error === "Unauthorized") {
               </div>
             </div>
 
+             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+    Active
+  </div>
+
+  <button
+    type="button"
+    onClick={async () => {
+      await fetch("/api/manager/units/toggle-active", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          unitId: selectedUnit.unitId,
+          isActive: !selectedUnit.isActive,
+        }),
+      });
+
+      await loadDashboard();
+      closeUnitPanel();
+    }}
+    className="mt-2 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white"
+  >
+    {selectedUnit.isActive ? "Set Inactive" : "Reactivate"}
+  </button>
+
+    <button
+  type="button"
+  onClick={async () => {
+    await fetch("/api/manager/units/toggle-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        unitId: selectedUnit.unitId,
+        isActive: !selectedUnit.isActive,
+      }),
+    });
+
+    await loadDashboard();
+    closeUnitPanel();
+  }}
+  className="mt-2 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white"
+>
+  {selectedUnit.isActive ? "Set Inactive" : "Reactivate"}
+</button>
+</div>
+
             <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-sm font-semibold text-slate-950">
                 Manual Payment
               </div>
-              <div className="mt-1 text-sm text-slate-600">
-                Half-screen payment flow is staged here inside the unit panel.
-              </div>
-
+            
               {!canManageMoney ? (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                   View only. Only owner and manager can post manual payments.
@@ -1903,7 +1936,7 @@ if (error === "Unauthorized") {
                       setManualPaymentAmount(event.target.value);
                       setShowManualPaymentConfirm(false);
                     }}
-                    disabled={selectedUnit.status === "VACANT" || !canManageMoney}
+                    disabled={!canManageMoney}
                     className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
                     placeholder="0.00"
                   />
@@ -1912,10 +1945,9 @@ if (error === "Unauthorized") {
                 <button
                   type="button"
                   disabled={
-                    selectedUnit.status === "VACANT" ||
-                    !canManageMoney ||
-                    !manualPaymentAmount.trim()
-                  }
+  !canManageMoney ||
+  !manualPaymentAmount.trim()
+}
                   onClick={() => setShowManualPaymentConfirm(true)}
                   className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
@@ -1990,7 +2022,7 @@ if (error === "Unauthorized") {
                 <button
                   type="button"
                   onClick={() => setShowVacateConfirm(true)}
-                  disabled={selectedUnit.status === "VACANT" || !canVacateUnit}
+                  disabled={!canVacateUnit}
                   className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   Vacate Unit

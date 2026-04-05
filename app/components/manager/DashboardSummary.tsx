@@ -33,8 +33,8 @@ export default function DashboardSummary({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryCard label="Total Units" value={totalUnits} />
-      <SummaryCard label="Occupied" value={occupiedUnits} />
-      <SummaryCard label="Vacant" value={vacantUnits} />
+      <SummaryCard label="Has used portal" value={occupiedUnits} />
+      <SummaryCard label="Has not used portal" value={vacantUnits} />
       <SummaryCard label="Delinquent" value={delinquentUnits} />
     </div>
   );

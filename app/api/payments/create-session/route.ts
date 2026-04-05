@@ -210,6 +210,7 @@ export async function POST(req: Request) {
         processingFeeCents: String(processingFeeCents),
         totalAmountCents: String(totalCents),
         billingCycle,
+        paymentStartedAt: new Date().toISOString(),
       },
     });
 
