@@ -94,10 +94,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const property = await prisma.property.findFirst({
-      where: { id: session.propertyId },
-      include: {
-        units: {
+   const property = await prisma.property.findFirst({
+  where: { id: session.propertyId },
+  include: {
+    managementUsers: {
+      where: { isActive: true },
+      select: {
+        id: true,
+        role: true,
+        email: true,
+        username: true,
+        displayName: true,
+      },
+    },
+    units: {
           where: includeInactive ? {} : { isActive: true },
           orderBy: { unitNumber: "asc" },
           include: {
@@ -118,9 +128,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const activePropertyUnits = property.units.filter(
-      (unit: PropertyUnit) => unit.isActive
-    );
+   
     const activeUnitIds = getActiveUnitIds(property.units);
 
     const now = new Date();
@@ -257,8 +265,8 @@ export async function GET(req: Request) {
     );
 
     const units = allUnits.filter(
-      (unit) => unit.tenantName && (unit.isActive || includeInactive)
-    );
+  (unit) => unit.isActive || includeInactive
+);
 
     const totalExpected = centsToNumber(totalExpectedCents);
     const totalCollected = centsToNumber(totalCollectedCents);
@@ -286,7 +294,7 @@ export async function GET(req: Request) {
 
     const cycleSnapshot: CycleSnapshot = {
       billingCycleLabel: cycleWindow.label,
-      occupiedUnitsLabel: `${occupiedUnits}/${activePropertyUnits.length}`,
+      occupiedUnitsLabel: `${occupiedUnits}/${property.unitCount}`,
       portalPaidCount,
       manualPaidCount,
       totalPaidCount,
@@ -300,25 +308,21 @@ export async function GET(req: Request) {
       difference: Number((totalCollected - totalExpected).toFixed(2)),
     };
 
-    const totalUnitsCount = await prisma.unit.count({
-      where: {
-        propertyId: property.id,
-        isActive: true,
-      },
-    });
 
     return NextResponse.json({
       ok: true,
       property: {
-        id: property.id,
-        name: property.name,
-        code: property.propertyCode,
-      },
+  id: property.id,
+  name: property.name,
+  code: property.propertyCode,
+  unitCount: property.unitCount,
+  managementUsers: property.managementUsers,
+},
       session: {
         role: session.role,
       },
       summary: {
-        totalUnits: totalUnitsCount,
+        totalUnits: property.unitCount,
         occupiedUnits,
         vacantUnits,
         delinquentUnits: delinquentCount,

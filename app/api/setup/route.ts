@@ -1,5 +1,3 @@
-// app/api/setup/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -102,10 +100,6 @@ async function generateUniquePropertyCode(
   throw new Error("Could not generate a unique property code.");
 }
 
-function buildUnitNumbers(unitCount: number, startAt: number): string[] {
-  return Array.from({ length: unitCount }, (_, index) => String(startAt + index));
-}
-
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as SetupPayload;
@@ -120,9 +114,16 @@ export async function POST(req: Request) {
     const city = clean(body?.property?.city);
     const state = clean(body?.property?.state).toUpperCase().slice(0, 2);
     const zip = onlyDigits(body?.property?.zip).slice(0, 5);
-    const propertyType = normalizePropertyType(body?.property?.businessType ?? "");
+    const propertyType = normalizePropertyType(
+      body?.property?.businessType ?? ""
+    );
 
     const tiers = Array.isArray(body?.tiers) ? body.tiers : [];
+
+    const totalUnitCount = tiers.reduce(
+      (sum: number, tier: SetupTierInput) => sum + toInt(tier.unitCount),
+      0
+    );
 
     if (!isEmail(email)) {
       return NextResponse.json(
@@ -154,6 +155,13 @@ export async function POST(req: Request) {
     if (!tiers.length) {
       return NextResponse.json(
         { ok: false, error: "At least one tier is required." },
+        { status: 400 }
+      );
+    }
+
+    if (totalUnitCount <= 0) {
+      return NextResponse.json(
+        { ok: false, error: "Total unit count must be greater than 0." },
         { status: 400 }
       );
     }
@@ -224,6 +232,7 @@ export async function POST(req: Request) {
             propertyCode,
             propertyType,
             status: "SETUP",
+            unitCount: totalUnitCount,
             isActive: true,
             ownerDisplayName: email,
             contactEmail: email,
@@ -246,8 +255,6 @@ export async function POST(req: Request) {
           },
         });
 
-        let nextUnitNumber = 101;
-
         for (let index = 0; index < tiers.length; index += 1) {
           const tier = tiers[index];
           const tierName = clean(tier.name) || `Tier ${index + 1}`;
@@ -259,7 +266,7 @@ export async function POST(req: Request) {
           const maxLateFeeDays = toInt(tier.maxLateFeeDays, 0);
           const dueDay = toInt(tier.dueDay, 1);
 
-          const createdTier = await tx.propertyTier.create({
+          await tx.propertyTier.create({
             data: {
               propertyId: createdProperty.id,
               name: tierName,
@@ -276,21 +283,6 @@ export async function POST(req: Request) {
               isActive: true,
             },
           });
-
-          const unitNumbers = buildUnitNumbers(unitCount, nextUnitNumber);
-          nextUnitNumber += unitCount;
-
-          if (unitNumbers.length > 0) {
-            await tx.unit.createMany({
-              data: unitNumbers.map((unitNumber) => ({
-                propertyId: createdProperty.id,
-                tierId: createdTier.id,
-                unitNumber,
-                baseRentCents,
-                isActive: true,
-              })),
-            });
-          }
         }
 
         await tx.propertySettings.upsert({

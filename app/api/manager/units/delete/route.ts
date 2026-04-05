@@ -4,7 +4,6 @@ import { getSession } from "@/lib/session";
 
 type Body = {
   unitId?: unknown;
-  isActive?: unknown;
 };
 
 function clean(value: unknown): string {
@@ -20,28 +19,21 @@ export async function POST(req: Request) {
       !session.propertyId ||
       (session.role !== "OWNER" && session.role !== "MANAGER")
     ) {
-      return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = (await req.json()) as Body;
-
     const unitId = clean(body.unitId);
-    const isActive = Boolean(body.isActive);
 
     if (!unitId) {
-      return NextResponse.json(
-        { ok: false, error: "Missing unitId" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing unitId." }, { status: 400 });
     }
 
     const existing = await prisma.unit.findFirst({
       where: {
         id: unitId,
         propertyId: session.propertyId,
+        isActive: false,
       },
       select: {
         id: true,
@@ -50,22 +42,20 @@ export async function POST(req: Request) {
 
     if (!existing) {
       return NextResponse.json(
-        { ok: false, error: "Unit not found" },
+        { error: "Inactive unit not found." },
         { status: 404 }
       );
     }
 
-    await prisma.unit.update({
+    await prisma.unit.delete({
       where: { id: unitId },
-      data: { isActive },
     });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("POST /api/manager/units/toggle-active failed", error);
-
+    console.error("POST /api/manager/units/delete failed", error);
     return NextResponse.json(
-      { ok: false, error: "Failed to update unit" },
+      { error: "Failed to delete inactive unit." },
       { status: 500 }
     );
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { canActivateUnit } from "@/lib/propertyCapacity";
 
 type ActivateBody = {
   propertyCode: string;
@@ -32,93 +33,61 @@ export async function POST(req: Request) {
     const confirmPin = clean(body.confirmPin);
 
     if (!/^\d{4,5}$/.test(propertyCode)) {
-      return NextResponse.json(
-        { error: "Invalid property code." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid property code." }, { status: 400 });
     }
 
     if (!firstName) {
-      return NextResponse.json(
-        { error: "First name required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "First name required." }, { status: 400 });
     }
 
     if (!lastName) {
-      return NextResponse.json(
-        { error: "Last name required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Last name required." }, { status: 400 });
     }
 
     if (!unitNumber) {
-      return NextResponse.json(
-        { error: "Unit number required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Unit number required." }, { status: 400 });
     }
 
     if (unitNumber !== confirmUnitNumber) {
-      return NextResponse.json(
-        { error: "Unit numbers do not match." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Unit numbers do not match." }, { status: 400 });
     }
 
     if (!tierId) {
-      return NextResponse.json(
-        { error: "Tier selection required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Tier selection required." }, { status: 400 });
     }
 
     if (!/^\d{4}$/.test(pin)) {
-      return NextResponse.json(
-        { error: "PIN must be 4 digits." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "PIN must be 4 digits." }, { status: 400 });
     }
 
     if (pin !== confirmPin) {
-      return NextResponse.json(
-        { error: "PINs do not match." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "PINs do not match." }, { status: 400 });
     }
 
     const property = await prisma.property.findUnique({
-      where: { propertyCode },
+  where: { propertyCode },
+  select: {
+    id: true,
+    isActive: true,
+    unitCount: true,
+    tiers: {
+      where: { id: tierId, isActive: true },
       select: {
         id: true,
-        isActive: true,
-        tiers: {
-          where: {
-            id: tierId,
-            isActive: true,
-          },
-          select: {
-          id: true,
         baseRentCents: true,
-         },
-        },
       },
-    });
+    },
+  },
+});
 
     if (!property || !property.isActive) {
-      return NextResponse.json(
-        { error: "Property not available." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Property not available." }, { status: 403 });
     }
 
     const selectedTier = property.tiers[0] ?? null;
 
     if (!selectedTier) {
-      return NextResponse.json(
-        { error: "Invalid tier selection." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid tier selection." }, { status: 400 });
     }
 
     const existingUnit = await prisma.unit.findUnique({
@@ -136,10 +105,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUnit && !existingUnit.isActive) {
-      return NextResponse.json(
-        { error: "This unit is inactive." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "This unit is inactive." }, { status: 400 });
     }
 
     if (existingUnit?.portalActivated) {
@@ -151,6 +117,26 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    /**
+     * 🔒 HARD CAPACITY GUARD
+     * Only block if creating NEW active unit
+     */
+    if (!existingUnit) {
+  const activeUnits = await prisma.unit.count({
+    where: {
+      propertyId: property.id,
+      isActive: true,
+    },
+  });
+
+  if (activeUnits >= property.unitCount) {
+    return NextResponse.json(
+      { error: "Property is at full capacity. Contact management." },
+      { status: 409 }
+    );
+  }
+}
 
     const pinHash = await hashPin(pin);
     const activatedAt = new Date();
@@ -167,9 +153,7 @@ export async function POST(req: Request) {
             activatedAt,
             activationSource: "SELF_SERVICE",
           },
-          select: {
-            id: true,
-          },
+          select: { id: true },
         })
       : await prisma.unit.create({
           data: {
@@ -184,58 +168,34 @@ export async function POST(req: Request) {
             activatedAt,
             activationSource: "SELF_SERVICE",
           },
-          select: {
-            id: true,
-          },
+          select: { id: true },
         });
 
-        const billingCycle = new Date().toISOString().slice(0, 7);
+    const billingCycle = new Date().toISOString().slice(0, 7);
 
     const tenantAssignment = await prisma.tenantAssignment.create({
-  data: {
-    propertyId: property.id,
-    unitId: savedUnit.id,
-    firstName,
-    lastName,
-    isCurrent: true,
-    moveInDate: new Date(),
-  },
-  select: {
-    id: true,
-  },
-});
-
-
-await prisma.ledgerEntry.create({
-  data: {
-    propertyId: property.id,
-    unitId: savedUnit.id,
-    tenantAssignmentId: tenantAssignment.id,
-    entryType: "CHARGE",
-    chargeType: "RENT",
-    amountCents: selectedTier.baseRentCents,
-    effectiveDate: new Date(),
-    billingCycle,
-    memo: "Initial rent charge (activation)",
-  },
-});
-
-  
-    await prisma.auditLog.create({
       data: {
         propertyId: property.id,
-        actorType: "TENANT",
-        action: "TENANT_PORTAL_ACTIVATED",
-        targetType: "Unit",
-        targetId: savedUnit.id,
-        summary: `Tenant portal activated for unit ${unitNumber}.`,
-        metadataJson: JSON.stringify({
-          unitNumber,
-          tierId: selectedTier.id,
-          firstName,
-          lastName,
-          activationSource: "SELF_SERVICE",
-        }),
+        unitId: savedUnit.id,
+        firstName,
+        lastName,
+        isCurrent: true,
+        moveInDate: new Date(),
+      },
+      select: { id: true },
+    });
+
+    await prisma.ledgerEntry.create({
+      data: {
+        propertyId: property.id,
+        unitId: savedUnit.id,
+        tenantAssignmentId: tenantAssignment.id,
+        entryType: "CHARGE",
+        chargeType: "RENT",
+        amountCents: selectedTier.baseRentCents,
+        effectiveDate: new Date(),
+        billingCycle,
+        memo: "Initial rent charge (activation)",
       },
     });
 
@@ -256,9 +216,6 @@ await prisma.ledgerEntry.create({
   } catch (error: unknown) {
     console.error("POST /api/tenant/activate failed", error);
 
-    return NextResponse.json(
-      { error: "Activation failed." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Activation failed." }, { status: 500 });
   }
 }

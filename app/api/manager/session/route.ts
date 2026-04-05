@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { canManagerOperate } from "@/lib/liveGating";
+import { verifyManagementPassword } from "@/lib/managementAuth";
 
 const ALLOWED_MANAGEMENT_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
 
@@ -82,13 +83,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid login." }, { status: 401 });
     }
 
-    let passwordOk = false;
-
-    if (user.passwordHash.startsWith("plain:")) {
-      passwordOk = user.passwordHash === `plain:${password}`;
-    } else {
-      passwordOk = await bcrypt.compare(password, user.passwordHash);
-    }
+    const passwordOk = await verifyManagementPassword(
+  password,
+  user.passwordHash
+);
 
     if (!passwordOk) {
       return NextResponse.json({ error: "Invalid login." }, { status: 401 });

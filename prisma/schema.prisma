@@ -38,6 +38,7 @@ model Property {
   ownerDisplayName String?
   contactPhone     String?
   contactEmail     String?
+  unitCount        Int      @default(0)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -63,23 +64,23 @@ model Property {
 }
 
 model PropertySettings {
-  id                       String   @id @default(cuid())
-  propertyId               String   @unique
-  rentDueDay               Int      @default(1)
-  gracePeriodDays          Int      @default(0)
-  lateFeeFlatCents         Int?
-  lateFeePercentBps        Int? // basis points: 100 = 1.00%
-  lateFeeEnabled           Boolean  @default(false)
-  convenienceFeeEnabled    Boolean  @default(false)
-  convenienceFeeType       String? // FLAT | PERCENT
+  id                        String   @id @default(cuid())
+  propertyId                String   @unique
+  rentDueDay                Int      @default(1)
+  gracePeriodDays           Int      @default(0)
+  lateFeeFlatCents          Int?
+  lateFeePercentBps         Int? // basis points: 100 = 1.00%
+  lateFeeEnabled            Boolean  @default(false)
+  convenienceFeeEnabled     Boolean  @default(false)
+  convenienceFeeType        String? // FLAT | PERCENT
   convenienceFeeAmountCents Int?
-  allowTestMode            Boolean  @default(true)
-  tenantPortalEnabled      Boolean  @default(true)
-  maintenancePortalEnabled Boolean  @default(true)
-  onboardingComplete       Boolean  @default(false)
-  setupComplete            Boolean  @default(false)
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  allowTestMode             Boolean  @default(true)
+  tenantPortalEnabled       Boolean  @default(true)
+  maintenancePortalEnabled  Boolean  @default(true)
+  onboardingComplete        Boolean  @default(false)
+  setupComplete             Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
@@ -327,10 +328,10 @@ model LedgerEntry {
   chargeType    String? // RENT | LATE_FEE | RECURRING_FEE | PROCESSING_FEE | OTHER_FEE
   paymentMethod String? // ACH | CASH | CHECK | MONEY_ORDER | CARD | OTHER
 
-  amountCents      Int
-  effectiveDate    DateTime
-  memo             String?
-  referenceNumber  String?
+  amountCents     Int
+  effectiveDate   DateTime
+  memo            String?
+  referenceNumber String?
 
   createdByManagementUserId String?
   createdByAdminId          String?
