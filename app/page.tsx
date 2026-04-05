@@ -655,7 +655,7 @@ export default function Home() {
             </button>
 
             <p className="mt-4 text-center text-sm text-[#cbd5f5]">
-              Free for owners. Built for phones. Ready fast.
+              Getting paid shouldn't be complicated.
             </p>
           </section>
 
