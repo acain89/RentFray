@@ -37,9 +37,7 @@ export function filterUnitsByStatus(
   return units.filter((u) => u.status === status);
 }
 
-export function sortUnitsProblemFirst(
-  units: UnitFilterInput[]
-) {
+export function sortUnitsProblemFirst(units: UnitFilterInput[]) {
   const order: Record<UnitStatus, number> = {
     DELINQUENT: 1,
     PARTIAL: 2,
@@ -58,12 +56,17 @@ export function sortUnitsProblemFirst(
   });
 }
 
-export function getActiveUnitIds(units: { id: string; isActive: boolean }[]): Set {
-return new Set(
-units.filter((u) => u.isActive).map((u) => u.id)
-);
+export function getActiveUnitIds(
+  units: { id: string; isActive: boolean }[]
+): Set<string> {
+  return new Set(
+    units.filter((u) => u.isActive).map((u) => u.id)
+  );
 }
 
-export function isActiveUnit(unitId: string, activeUnitIds: Set): boolean {
-return activeUnitIds.has(unitId);
+export function isActiveUnit(
+  unitId: string,
+  activeUnitIds: Set<string>
+): boolean {
+  return activeUnitIds.has(unitId);
 }
