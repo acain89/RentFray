@@ -4,84 +4,12 @@ import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import { formatCentsToDollars } from "@/lib/billingConfig";
-import { getActiveUnitIds } from "@/lib/unitFilters";
+import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
-type PropertyUnit = {
-  id: string;
-  unitNumber: string;
-  isActive: boolean;
-  tier: { name: string } | null;
-  tenantAssignments: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-  }[];
-};
-
-type CycleSnapshot = {
-  billingCycleLabel: string;
-  occupiedUnitsLabel: string;
-  portalPaidCount: number;
-  manualPaidCount: number;
-  totalPaidCount: number;
-  unpaidUnitsCount: number;
-  totalCollected: number;
-  totalExpected: number;
-  collectionRate: number;
-  difference: number;
-};
-
-function centsToNumber(cents: number): number {
-  return Math.round(cents) / 100;
-}
-
-function normalizePaymentStatus(value: unknown): PaymentStatus {
-  const status = String(value ?? "").toUpperCase();
-
-  if (
-    status === "PENDING" ||
-    status === "PAID" ||
-    status === "FAILED" ||
-    status === "REVERSED"
-  ) {
-    return status;
-  }
-
-  return "UNPAID";
-}
-
-function getMonthWindow(date: Date): {
-  start: Date;
-  next: Date;
-  billingCycle: string;
-  label: string;
-} {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-  const billingCycle = `${date.getFullYear()}-${String(
-    date.getMonth() + 1
-  ).padStart(2, "0")}`;
-  const label = start.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  });
-
-  return { start, next, billingCycle, label };
-}
-
-function isPortalPaymentMethod(method: string | null | undefined): boolean {
-  const normalized = String(method ?? "").toUpperCase();
-  return normalized === "ACH" || normalized === "CARD";
-}
-
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const includeInactive = searchParams.get("includeInactive") === "true";
-
     const session = await getSession();
 
     if (
@@ -94,28 +22,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-   const property = await prisma.property.findFirst({
-  where: { id: session.propertyId },
-  include: {
-    managementUsers: {
-      where: { isActive: true },
+    const property = await prisma.property.findUnique({
+      where: { id: session.propertyId },
       select: {
         id: true,
-        role: true,
-        email: true,
-        username: true,
-        displayName: true,
-      },
-    },
-    units: {
-          where: includeInactive ? {} : { isActive: true },
-          orderBy: { unitNumber: "asc" },
-          include: {
-            tier: true,
-            tenantAssignments: {
-              where: { isCurrent: true, moveOutDate: null },
-              take: 1,
-            },
+        name: true,
+        propertyCode: true,
+        unitCount: true,
+        managementUsers: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            role: true,
+            email: true,
+            username: true,
+            displayName: true,
           },
         },
       },
@@ -128,206 +49,122 @@ export async function GET(req: Request) {
       );
     }
 
-   
-    const activeUnitIds = getActiveUnitIds(property.units);
+    const capacity = await getCapacitySnapshot(property.id);
 
-    const now = new Date();
-    const todayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-    const cycleWindow = getMonthWindow(now);
-
-    const payments = await prisma.payment.findMany({
-      where: { propertyId: property.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        unitId: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    const cycleLedgerPayments = await prisma.ledgerEntry.findMany({
+    /**
+     * 🔑 CRITICAL FIX:
+     * ONLY pull units that ACTUALLY HAVE TENANTS
+     */
+    const units = await prisma.unit.findMany({
       where: {
         propertyId: property.id,
-        entryType: "PAYMENT",
-        voidedAt: null,
-        effectiveDate: {
-          gte: cycleWindow.start,
-          lt: cycleWindow.next,
+        isActive: true,
+        tenantAssignments: {
+          some: {
+            isCurrent: true,
+            moveOutDate: null,
+          },
         },
       },
-      orderBy: [
-        { unitId: "asc" },
-        { effectiveDate: "desc" },
-        { createdAt: "desc" },
-      ],
+      orderBy: { unitNumber: "asc" },
       select: {
-        unitId: true,
-        paymentMethod: true,
-        effectiveDate: true,
-        createdAt: true,
+        id: true,
+        unitNumber: true,
+        tier: {
+          select: {
+            name: true,
+          },
+        },
+        tenantAssignments: {
+          where: { isCurrent: true, moveOutDate: null },
+          take: 1,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
-    const paymentSummary = {
-      pending: 0,
-      failed: 0,
-      reversed: 0,
-      paidToday: 0,
-    };
-
-    for (const payment of payments) {
-      const status = normalizePaymentStatus(payment.status);
-
-      if (status === "PENDING") paymentSummary.pending++;
-      if (status === "FAILED") paymentSummary.failed++;
-      if (status === "REVERSED") paymentSummary.reversed++;
-      if (status === "PAID" && payment.updatedAt >= todayStart) {
-        paymentSummary.paidToday++;
-      }
-    }
-
     let occupiedUnits = 0;
-    let vacantUnits = 0;
     let totalExpectedCents = 0;
     let totalCollectedCents = 0;
     let delinquentCount = 0;
 
-    const allUnits = await Promise.all(
-      property.units.map(async (unit: PropertyUnit) => {
-        const activeAssignment = unit.tenantAssignments[0] ?? null;
-        const shouldCountInActiveMath = unit.isActive;
+    const resolvedUnits = await Promise.all(
+      units.map(async (unit: (typeof units)[number]) => {
+        const assignment = unit.tenantAssignments[0] ?? null;
 
-        if (shouldCountInActiveMath) {
-          if (activeAssignment) {
-            occupiedUnits++;
-          } else {
-            vacantUnits++;
-          }
-        }
+        if (!assignment) return null;
+
+        occupiedUnits++;
 
         const [ledger, delinquency] = await Promise.all([
-          getUnitLedgerSummary(unit.id, activeAssignment?.id),
+          getUnitLedgerSummary(unit.id, assignment.id),
           getUnitDelinquencySummary(unit.id),
         ]);
 
-        if (shouldCountInActiveMath) {
-          totalExpectedCents += Math.max(0, ledger.totalChargesCents);
-          totalCollectedCents += Math.max(0, ledger.totalPaidCents);
+        totalExpectedCents += Math.max(0, ledger.totalChargesCents);
+        totalCollectedCents += Math.max(0, ledger.totalPaidCents);
 
-          if (delinquency.isDelinquent) {
-            delinquentCount++;
-          }
+        if (delinquency.isDelinquent) {
+          delinquentCount++;
         }
 
-        const latestPayment = payments.find(
-          (p: (typeof payments)[number]) => p.unitId === unit.id
-        );
-        const paymentStatus = normalizePaymentStatus(latestPayment?.status);
+        let paymentStatus: PaymentStatus = "UNPAID";
 
-        let resolvedStatus: PaymentStatus = "UNPAID";
-
-        if (paymentStatus === "FAILED") {
-          resolvedStatus = "FAILED";
-        } else if (paymentStatus === "PENDING") {
-          resolvedStatus = "PENDING";
-        } else if (activeAssignment && ledger.balanceCents <= 0) {
-          resolvedStatus = "PAID";
+        if (ledger.balanceCents <= 0) {
+          paymentStatus = "PAID";
         } else if (delinquency.isDelinquent) {
-          resolvedStatus = "REVERSED";
+          paymentStatus = "REVERSED";
         } else if (ledger.balanceCents > 0) {
-          resolvedStatus = "UNPAID";
+          paymentStatus = "UNPAID";
         }
 
         return {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
-          isActive: unit.isActive,
-          tenantName: activeAssignment
-            ? `${activeAssignment.firstName ?? ""} ${
-                activeAssignment.lastName ?? ""
-              }`.trim()
-            : null,
+          tenantName: `${assignment.firstName ?? ""} ${
+            assignment.lastName ?? ""
+          }`.trim(),
           balanceCents: ledger.balanceCents,
           balance: formatCentsToDollars(ledger.balanceCents),
-          totalPaidCents: ledger.totalPaidCents,
           totalPaid: formatCentsToDollars(ledger.totalPaidCents),
           isDelinquent: Boolean(delinquency.isDelinquent),
           daysPastDue: Number(delinquency.daysPastDue || 0),
-          paymentStatus: resolvedStatus,
-          tierName: unit.tier?.name || "Units",
+          paymentStatus,
+          tierName: unit.tier?.name ?? "Units",
         };
       })
     );
 
-    const units = allUnits.filter(
-  (unit) => unit.isActive || includeInactive
-);
+    const finalUnits = resolvedUnits.filter(
+      (u): u is NonNullable<typeof u> => u !== null
+    );
 
-    const totalExpected = centsToNumber(totalExpectedCents);
-    const totalCollected = centsToNumber(totalCollectedCents);
-
-    let portalPaidCount = 0;
-    let manualPaidCount = 0;
-
-    const countedUnits = new Set<string>();
-
-    for (const payment of cycleLedgerPayments) {
-      if (countedUnits.has(payment.unitId)) continue;
-      if (!activeUnitIds.has(payment.unitId)) continue;
-
-      if (isPortalPaymentMethod(payment.paymentMethod)) {
-        portalPaidCount++;
-      } else {
-        manualPaidCount++;
-      }
-
-      countedUnits.add(payment.unitId);
-    }
-
-    const totalPaidCount = portalPaidCount + manualPaidCount;
-    const unpaidUnitsCount = Math.max(0, occupiedUnits - totalPaidCount);
-
-    const cycleSnapshot: CycleSnapshot = {
-      billingCycleLabel: cycleWindow.label,
-      occupiedUnitsLabel: `${occupiedUnits}/${property.unitCount}`,
-      portalPaidCount,
-      manualPaidCount,
-      totalPaidCount,
-      unpaidUnitsCount,
-      totalCollected,
-      totalExpected,
-      collectionRate:
-        totalExpected > 0
-          ? Number(((totalCollected / totalExpected) * 100).toFixed(1))
-          : 0,
-      difference: Number((totalCollected - totalExpected).toFixed(2)),
-    };
-
+    const totalExpected = Math.round(totalExpectedCents) / 100;
+    const totalCollected = Math.round(totalCollectedCents) / 100;
 
     return NextResponse.json({
       ok: true,
       property: {
-  id: property.id,
-  name: property.name,
-  code: property.propertyCode,
-  unitCount: property.unitCount,
-  managementUsers: property.managementUsers,
-},
+        id: property.id,
+        name: property.name,
+        code: property.propertyCode,
+        unitCount: capacity.effectiveUnitCount,
+        managementUsers: property.managementUsers,
+      },
       session: {
         role: session.role,
       },
       summary: {
-        totalUnits: property.unitCount,
+        totalUnits: capacity.effectiveUnitCount,
         occupiedUnits,
-        vacantUnits,
+        vacantUnits: Math.max(0, capacity.effectiveUnitCount - occupiedUnits),
         delinquentUnits: delinquentCount,
       },
-      financials: {
+            financials: {
         expected: totalExpected,
         collected: totalCollected,
         collectionRate:
@@ -335,13 +172,28 @@ export async function GET(req: Request) {
             ? Math.round((totalCollected / totalExpected) * 100)
             : 0,
       },
-      paymentSummary,
-      cycleSnapshot,
-      units,
+      cycleSnapshot: {
+        billingCycleLabel: new Date().toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        }),
+        occupiedUnitsLabel: `${occupiedUnits} / ${capacity.effectiveUnitCount}`,
+        portalPaidCount: 0,
+        manualPaidCount: 0,
+        totalPaidCount: 0,
+        unpaidUnitsCount: Math.max(0, capacity.effectiveUnitCount - occupiedUnits),
+        totalCollected,
+        totalExpected,
+        collectionRate:
+          totalExpected > 0
+            ? Number(((totalCollected / totalExpected) * 100).toFixed(1))
+            : 0,
+        difference: totalCollected - totalExpected,
+      },
+      units: finalUnits,
     });
   } catch (error) {
     console.error("dashboard error", error);
-
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

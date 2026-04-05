@@ -481,7 +481,7 @@ function applyGpLfToTierDraft(tier: RentTierDraft): RentTierDraft {
 }
   
 
-  const [managers, setManagers] = useState<ManagerUser[]>([]);
+  const managers = data?.property?.managementUsers ?? [];
   const [managersLoading, setManagersLoading] = useState(false);
   const [managersError, setManagersError] = useState("");
 
@@ -520,6 +520,12 @@ function applyGpLfToTierDraft(tier: RentTierDraft): RentTierDraft {
   const propertyCode = data?.property?.code ?? "----";
   const bankConnected = data?.property?.paymentStatus?.bankConnected;
 
+  const activeUnitCount = useMemo(() => {
+  return Array.isArray(data?.units)
+    ? data.units.filter((unit) => unit.isActive).length
+    : 0;
+}, [data?.units]);
+
   const [exportMonth, setExportMonth] = useState(() => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -529,7 +535,7 @@ const [exportUnitSearch, setExportUnitSearch] = useState("");
 const [exporting, setExporting] = useState(false);
 
 async function updateUnitCount(next: number): Promise<void> {
-  if (!data?.property?.unitCount) return;
+  if (data?.property?.unitCount == null) return;
   if (updatingUnitCount) return;
 
   const confirmed = window.confirm(
@@ -582,7 +588,7 @@ async function logout(): Promise<void> {
       setLoading(true);
       setError("");
 
-      const response = await fetch("/api/manager/dashboard?includeInactive=true", {
+      const response = await fetch("/api/manager/dashboard", {
         credentials: "include",
         cache: "no-store",
       });
@@ -1176,40 +1182,6 @@ async function runExport(): Promise<void> {
 
 const exportMonthOptions = getExportMonthOptions();
 
- 
-  async function loadManagers(): Promise<void> {
-    try {
-      if (!data?.property?.id) {
-        setManagers([]);
-        return;
-      }
-
-      setManagersLoading(true);
-      setManagersError("");
-
-      const res = await fetch(
-        `/api/admin/properties/${data.property.id}/management-users`,
-        {
-          credentials: "include",
-        }
-      );
-
-      const json = (await res.json().catch(() => null)) as
-        | ManagersListResponse
-        | null;
-
-      if (!res.ok || !json?.ok) {
-        setManagersError(json?.error || "Failed to load managers.");
-        return;
-      }
-
-      setManagers(Array.isArray(json.users) ? json.users : []);
-    } catch {
-      setManagersError("Failed to load managers.");
-    } finally {
-      setManagersLoading(false);
-    }
-  }
 
   async function createManager(): Promise<void> {
     if (!newEmail || !newPassword || !data?.property?.id) return;
@@ -1244,7 +1216,7 @@ const exportMonthOptions = getExportMonthOptions();
       setNewPassword("");
       setNewRole("STAFF");
 
-      await loadManagers();
+      await loadDashboard();
     } finally {
       setCreatingUser(false);
     }
@@ -1409,18 +1381,13 @@ async function deleteInactiveUnit(unitId: string): Promise<void> {
         return;
       }
 
-      await loadManagers();
+      await loadDashboard();
     } catch {
       alert("Update failed");
     }
   }
 
-  useEffect(() => {
-    if (activePanel === "manager" && canManageManagers) {
-      void loadManagers();
-    }
-  }, [activePanel, canManageManagers]);
-
+ 
 useEffect(() => {
   if (
     activePanel === "manager" &&
@@ -1431,17 +1398,19 @@ useEffect(() => {
   }
 }, [activePanel, showInactiveUnits, sessionRole]);
 
-  useEffect(() => {
+useEffect(() => {
   (async () => {
     await loadDashboard();
   })();
 }, []);
 
 useEffect(() => {
-  if (data?.property?.unitCount != null) {
-    setPendingUnitCount(data.property.unitCount);
-  }
-}, [data?.property?.unitCount]);
+  if (!data) return;
+
+  const configuredUnitCount = Number(data.property?.unitCount ?? 0);
+
+  setPendingUnitCount(configuredUnitCount);
+}, [data]);
 
 useEffect(() => {
   if (data?.property?.id) {
@@ -1449,53 +1418,52 @@ useEffect(() => {
   }
 }, [data?.property?.id]);
 
-  useEffect(() => {
-    if (activePanel === "maint") {
-      void loadMaintenanceRequests();
-    }
-  }, [activePanel]);
+useEffect(() => {
+  if (activePanel === "maint") {
+    void loadMaintenanceRequests();
+  }
+}, [activePanel]);
 
-  useEffect(() => {
+useEffect(() => {
   if (activePanel === "charges") {
     void loadTierCharges();
   }
 }, [activePanel, data?.property?.id]);
 
-  const unitsWithStatus = useMemo<UnitWithStatus[]>(() => {
-    if (!data?.units?.length) return [];
+const unitsWithStatus = useMemo<UnitWithStatus[]>(() => {
+  if (!data?.units?.length) return [];
 
-    return data.units
-      .map((unit) => ({
-        ...unit,
-        status: getStatus(unit),
-        displayLastName: getLastName(unit.tenantName),
-      }))
-      .sort(sortUnitsByUnitNumber);
-  }, [data]);
+  return data.units
+    .map((unit) => ({
+      ...unit,
+      status: getStatus(unit),
+      displayLastName: getLastName(unit.tenantName),
+    }))
+    .sort(sortUnitsByUnitNumber);
+}, [data]);
 
-  
-  const tierGroups = useMemo<TierGroup[]>(() => {
-    const groups = new Map<string, UnitWithStatus[]>();
+const tierGroups = useMemo<TierGroup[]>(() => {
+  const groups = new Map<string, UnitWithStatus[]>();
 
-    for (const unit of unitsWithStatus) {
-      const tierName = String(unit.tierName ?? "").trim() || "Units";
-      const existing = groups.get(tierName) ?? [];
-      existing.push(unit);
-      groups.set(tierName, existing);
-    }
+  for (const unit of unitsWithStatus) {
+    const tierName = String(unit.tierName ?? "").trim() || "Units";
+    const existing = groups.get(tierName) ?? [];
+    existing.push(unit);
+    groups.set(tierName, existing);
+  }
 
-    return Array.from(groups.entries())
-      .map(([tierName, units]) => ({
-        tierName,
-        units: [...units].sort(sortUnitsByUnitNumber),
-      }))
-      .sort((a, b) =>
-        a.tierName.localeCompare(b.tierName, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        })
-      );
-  }, [unitsWithStatus]);
+  return Array.from(groups.entries())
+    .map(([tierName, units]) => ({
+      tierName,
+      units: [...units].sort(sortUnitsByUnitNumber),
+    }))
+    .sort((a, b) =>
+      a.tierName.localeCompare(b.tierName, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      })
+    );
+}, [unitsWithStatus]);
 
 
 
@@ -1717,27 +1685,77 @@ if (error === "Unauthorized") {
       <main className="min-h-screen bg-slate-100 px-3 py-4 text-slate-900 sm:px-5 sm:py-6">
         <div className="mx-auto max-w-6xl space-y-4">
 
-             <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+                         <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
               <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    RentFray manager
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                      RentFray manager
+                    </div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+                      {propertyName}
+                    </h1>
+                    <div className="text-sm text-slate-600">
+                      Property Code:{" "}
+                      <span className="font-mono font-semibold text-slate-900">
+                        {propertyCode}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Role:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {sessionRole}
+                      </span>
+                    </div>
                   </div>
-                  <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                    {propertyName}
-                  </h1>
-                  <div className="text-sm text-slate-600">
-                    Property Code:{" "}
-                    <span className="font-mono font-semibold text-slate-900">
-                      {propertyCode}
-                    </span>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Role:{" "}
-                    <span className="font-semibold text-slate-900">
-                      {sessionRole}
-                    </span>
-                  </div>
+
+                  {(sessionRole === "OWNER" || sessionRole === "MANAGER") && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (pendingUnitCount == null) return;
+                          const next = pendingUnitCount - 1;
+                          if (next < activeUnitCount) return;
+                          setPendingUnitCount(next);
+                        }}
+                        className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                      >
+                        -
+                      </button>
+
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-900">
+                        Total Units: {pendingUnitCount ?? activeUnitCount}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (pendingUnitCount == null) return;
+                          setPendingUnitCount(pendingUnitCount + 1);
+                        }}
+                        className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                      >
+                        +
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (pendingUnitCount == null) return;
+                          void updateUnitCount(pendingUnitCount);
+                        }}
+                        disabled={
+                          updatingUnitCount ||
+                          pendingUnitCount == null ||
+                          pendingUnitCount === (data.property?.unitCount ?? activeUnitCount)
+                        }
+                        className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-60"
+                      >
+                        {updatingUnitCount ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -1774,14 +1792,14 @@ if (error === "Unauthorized") {
                   </button>
 
                   {sessionRole !== "STAFF" ? (
-  <button
-    type="button"
-    onClick={() => openPanel("bank")}
-    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
-  >
-    Accnt
-  </button>
-) : null}
+                    <button
+                      type="button"
+                      onClick={() => openPanel("bank")}
+                      className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
+                    >
+                      Accnt
+                    </button>
+                  ) : null}
 
                   <button
                     type="button"
@@ -1800,97 +1818,51 @@ if (error === "Unauthorized") {
                   </button>
 
                   <button
+                    type="button"
                     onClick={logout}
                     className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                   Logout
+                  >
+                    Logout
                   </button>
                 </div>
               </div>
             </section>
 
-            <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-    Total Units
-  </div>
-  <div className="mt-2 flex items-center gap-3 text-2xl font-semibold text-slate-950">
-    <span>{pendingUnitCount ?? data.summary?.totalUnits ?? 0}</span>
-
-    {(sessionRole === "OWNER" || sessionRole === "MANAGER") && (
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            if (pendingUnitCount == null) return;
-            const next = pendingUnitCount - 1;
-            if (next < (data.summary?.occupiedUnits ?? 0)) return;
-            setPendingUnitCount(next);
-          }}
-          className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
-        >
-          -
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (pendingUnitCount == null) return;
-            setPendingUnitCount(pendingUnitCount + 1);
-          }}
-          className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
-        >
-          +
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (pendingUnitCount == null) return;
-            void updateUnitCount(pendingUnitCount);
-          }}
-          disabled={updatingUnitCount}
-          className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-60"
-        >
-          Save
-        </button>
-      </div>
-    )}
-  </div>
-</div>
-
+            
       
-              <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-    Has used portal
+              <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      Has used portal
+    </div>
+    <div className="mt-2 text-2xl font-semibold text-slate-950">
+      {data.summary?.occupiedUnits ?? stats.occupiedUnits}
+    </div>
   </div>
-  <div className="mt-2 text-2xl font-semibold text-slate-950">
-    {data.summary?.occupiedUnits ?? stats.occupiedUnits}
+
+  <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      Has not used portal
+    </div>
+    <div className="mt-2 text-2xl font-semibold text-slate-950">
+      {data.summary?.vacantUnits ?? stats.vacantUnits}
+    </div>
   </div>
-</div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Has not used portal
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950">
-                  {data.summary?.vacantUnits ?? stats.vacantUnits}
-                </div>
-              </div>
+  <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      Tiers
+    </div>
+    <div className="mt-2 text-2xl font-semibold text-slate-950">
+      {data.tiers?.length ?? stats.tiers}
+    </div>
+  </div>
+</section>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Tiers
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950">
-                  {data.tiers?.length ?? stats.tiers}
-                </div>
-              </div>
-            </section>
-
-           
-              <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-  <div className="text-lg font-semibold text-slate-950">Current Cycle Snapshot</div>
+<section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+  <div className="text-lg font-semibold text-slate-950">
+    Current Cycle Snapshot
+  </div>
 
   <div className="mt-4 space-y-3 text-sm">
     <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
@@ -2973,606 +2945,655 @@ if (error === "Unauthorized") {
 
 
       {activePanel === "manager" ? (
-        <OverlayShell
-          title="Managers"
-          subtitle="Owner-controlled account management."
-          onClose={closePanel}
-        >
+  <OverlayShell
+    title="Managers"
+    subtitle="Owner-controlled account management."
+    onClose={closePanel}
+  >
+    
+      {!canManageManagers ? (
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          View only. Only the owner can manage manager accounts and roles.
+        </div>
+      ) : null}
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="text-sm font-semibold text-slate-800">
+          Total Units: {pendingUnitCount ?? activeUnitCount}
+        </div>
+
+        {(sessionRole === "OWNER" || sessionRole === "MANAGER") && (
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (pendingUnitCount == null) return;
+                const next = pendingUnitCount - 1;
+                if (next < activeUnitCount) return;
+                setPendingUnitCount(next);
+              }}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+            >
+              -
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (pendingUnitCount == null) return;
+                setPendingUnitCount(pendingUnitCount + 1);
+              }}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+            >
+              +
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (pendingUnitCount == null) return;
+                void updateUnitCount(pendingUnitCount);
+              }}
+              disabled={
+                updatingUnitCount ||
+                pendingUnitCount == null ||
+                pendingUnitCount === activeUnitCount
+              }
+              className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-60"
+            >
+              {updatingUnitCount ? "Saving..." : "Save"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {canManageManagers ? (
+        <div className="space-y-3 rounded-[24px] border border-slate-200 bg-white p-4">
+          <div className="text-sm font-semibold text-slate-950">
+            Add Manager / Staff
+          </div>
+
+          <input
+            type="email"
+            placeholder="Email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm"
+          />
+
+          <input
+            placeholder="Password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm"
+          />
+
+          <select
+            value={newRole}
+            onChange={(e) => setNewRole(e.target.value as ManagerRole)}
+            className="rounded-xl border px-3 py-2 text-sm"
+          >
+            <option value="MANAGER">Manager</option>
+            <option value="STAFF">Staff</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={createManager}
+            disabled={creatingUser}
+            className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+          >
+            {creatingUser ? "Creating..." : "Create"}
+          </button>
+        </div>
+      ) : null}
+
+      {managersLoading ? (
+        <div className="text-sm text-slate-600">Loading...</div>
+      ) : managersError ? (
+        <div className="text-sm text-red-600">{managersError}</div>
+      ) : (
+        <div className="space-y-2">
+          {managers.map((user) => (
+            <div
+              key={user.id}
+              className="flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50 p-3"
+            >
+              <div>
+                <div className="text-sm font-semibold">{user.username}</div>
+                <div className="text-xs text-slate-600">{user.role}</div>
+              </div>
+
+              {canManageManagers ? (
+                <div className="flex gap-2">
+                  <select
+                    value={user.role}
+                    onChange={(e) =>
+                      void updateManager(user.id, {
+                        role: e.target.value as ManagerRole,
+                      })
+                    }
+                    className="rounded border px-2 py-1 text-xs"
+                  >
+                    <option value="MANAGER">Manager</option>
+                    <option value="STAFF">Staff</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void updateManager(user.id, {
+                        role:
+                          user.role === "MANAGER"
+                            ? "STAFF"
+                            : "MANAGER",
+                      })
+                    }
+                    className="rounded border px-2 py-1 text-xs"
+                  >
+                    {user.role === "MANAGER"
+                      ? "Make Staff"
+                      : "Make Manager"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-6 border-t pt-6">
+        {(sessionRole === "OWNER" || sessionRole === "MANAGER") ? (
           <div className="space-y-4">
-            {!canManageManagers ? (
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                View only. Only the owner can manage manager accounts and roles.
+            <button
+              type="button"
+              onClick={() => setShowInactiveUnits((prev) => !prev)}
+              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+            >
+              {showInactiveUnits ? "Hide Inactive Units" : "Inactive Units"}
+            </button>
+
+            {showInactiveUnits ? (
+              <div className="mt-4 space-y-3">
+                {inactiveUnitsLoading ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Loading inactive units...
+                  </div>
+                ) : inactiveUnitsError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {inactiveUnitsError}
+                  </div>
+                ) : inactiveUnits.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    No inactive units found.
+                  </div>
+                ) : (
+                  inactiveUnits.map((unit) => {
+                    const confirmingReactivate = confirmReactivateUnitId === unit.id;
+                    const confirmingDelete = confirmDeleteUnitId === unit.id;
+                    const isBusy = inactiveActionUnitId === unit.id;
+
+                    return (
+                      <div
+                        key={unit.id}
+                        className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="text-sm text-slate-700">
+                            <span className="font-semibold text-slate-950">
+                              Unit {unit.unitNumber}
+                            </span>{" "}
+                            • {unit.tierName} • Last active{" "}
+                            {formatDate(unit.lastActiveAt)}
+                          </div>
+
+                          {!confirmingReactivate && !confirmingDelete ? (
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteUnitId("");
+                                  setConfirmReactivateUnitId(unit.id);
+                                }}
+                                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"
+                              >
+                                Reactivate
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmReactivateUnitId("");
+                                  setConfirmDeleteUnitId(unit.id);
+                                }}
+                                className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {confirmingReactivate ? (
+                          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="text-sm font-semibold text-slate-950">
+                              Reactivate Unit {unit.unitNumber}?
+                            </div>
+                            <div className="mt-2 text-sm text-slate-600">
+                              This unit will become available for use again.
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void reactivateInactiveUnit(unit.id)}
+                                disabled={isBusy}
+                                className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                              >
+                                {isBusy ? "Updating..." : "Confirm"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setConfirmReactivateUnitId("")}
+                                disabled={isBusy}
+                                className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {confirmingDelete ? (
+                          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="text-sm font-semibold text-slate-950">
+                              Delete Unit {unit.unitNumber}?
+                            </div>
+                            <div className="mt-2 text-sm text-slate-600">
+                              This permanently removes the inactive unit from this
+                              property account.
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void deleteInactiveUnit(unit.id)}
+                                disabled={isBusy}
+                                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                              >
+                                {isBusy ? "Deleting..." : "Confirm"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteUnitId("")}
+                                disabled={isBusy}
+                                className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             ) : null}
+          </div>
+        ) : null}
 
-            {canManageManagers ? (
-  <div className="space-y-3 rounded-[24px] border border-slate-200 bg-white p-4">
-    <div className="text-sm font-semibold text-slate-950">
-      Add Manager / Staff
-    </div>
+        <button
+          type="button"
+          onClick={() => setShowChangeLogin((prev) => !prev)}
+          className="mt-4 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+        >
+          {showChangeLogin ? "Cancel Change Login" : "Change Login"}
+        </button>
 
-    <input
-      type="email"
-      placeholder="Email"
-      value={newEmail}
-      onChange={(e) => setNewEmail(e.target.value)}
-      className="rounded-xl border px-3 py-2 text-sm"
-    />
+                {showChangeLogin ? (
+          <div className="mt-4 space-y-3">
+            <input
+              placeholder="Current Login"
+              value={changeCurrentLogin}
+              onChange={(e) => setChangeCurrentLogin(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            />
 
-    <input
-      placeholder="Password"
-      type="password"
-      value={newPassword}
-      onChange={(e) => setNewPassword(e.target.value)}
-      className="rounded-xl border px-3 py-2 text-sm"
-    />
+            <input
+              type="password"
+              placeholder="Current Password"
+              value={changeCurrentPassword}
+              onChange={(e) => setChangeCurrentPassword(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            />
 
-    <select
-      value={newRole}
-      onChange={(e) => setNewRole(e.target.value as ManagerRole)}
-      className="rounded-xl border px-3 py-2 text-sm"
-    >
-      <option value="MANAGER">Manager</option>
-      <option value="STAFF">Staff</option>
-    </select>
+            <input
+              placeholder="New Email"
+              value={changeNewEmail}
+              onChange={(e) => setChangeNewEmail(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            />
 
-    <button
-      type="button"
-      onClick={createManager}
-      disabled={creatingUser}
-      className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
-    >
-      {creatingUser ? "Creating..." : "Create"}
-    </button>
-  </div>
+            <input
+              type="password"
+              placeholder="New Password"
+              value={changeNewPassword}
+              onChange={(e) => setChangeNewPassword(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            />
+
+            <input
+              type="password"
+              placeholder="Confirm New Password"
+              value={changeConfirmPassword}
+              onChange={(e) => setChangeConfirmPassword(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            />
+
+            <button
+              type="button"
+              onClick={submitChangeLogin}
+              className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Update Login
+            </button>
+          </div>
+        ) : null}
+      </div>
+  </OverlayShell>
 ) : null}
 
-            {managersLoading ? (
-              <div className="text-sm text-slate-600">Loading...</div>
-            ) : managersError ? (
-              <div className="text-sm text-red-600">{managersError}</div>
-            ) : (
-              <div className="space-y-2">
-                {managers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold">{user.username}</div>
-                      <div className="text-xs text-slate-600">
-                        {user.role} • {user.isActive ? "Active" : "Disabled"}
-                      </div>
-                    </div>
 
-                    {canManageManagers ? (
-                      <div className="flex gap-2">
-                        <select
-                          value={user.role}
-                          onChange={(e) =>
-                            void updateManager(user.id, {
-                              role: e.target.value as ManagerRole,
-                            })
-                          }
-                          className="rounded border px-2 py-1 text-xs"
-                        >
-                          <option value="MANAGER">Manager</option>
-                          <option value="STAFF">Staff</option>
-                        </select>
+{activePanel === "info" ? (
+  <OverlayShell
+    title="Property Info"
+    subtitle="Read-only property info, legends, and fee ranges."
+    onClose={closePanel}
+  >
+    <div className="space-y-5">
+      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Property Name
+        </div>
+        <div className="mt-2 text-lg font-semibold text-slate-950">
+          {propertyName}
+        </div>
+      </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void updateManager(user.id, {
-                              isActive: !user.isActive,
-                            })
-                          }
-                          className="rounded border px-2 py-1 text-xs"
-                        >
-                          {user.isActive ? "Disable" : "Enable"}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="mt-6 border-t pt-6">
-  
-{sessionRole === "OWNER" || sessionRole === "MANAGER" ? (
-  <div className="mt-6 border-t pt-6">
-    <button
-      type="button"
-      onClick={() => setShowInactiveUnits((prev) => !prev)}
-      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
-    >
-      {showInactiveUnits ? "Hide Inactive Units" : "Inactive Units"}
-    </button>
+      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Property Code
+        </div>
+        <div className="mt-2 font-mono text-lg font-semibold text-slate-950">
+          {propertyCode}
+        </div>
+      </div>
 
-    {showInactiveUnits ? (
-      <div className="mt-4 space-y-3">
-        {inactiveUnitsLoading ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Loading inactive units...
+      <div className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-sm font-semibold text-slate-900">
+          Status Legend
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-600">
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-emerald-500" />
+            Paid
           </div>
-        ) : inactiveUnitsError ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {inactiveUnitsError}
+
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-blue-500" />
+            In grace period
           </div>
-        ) : inactiveUnits.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            No inactive units found.
+
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-yellow-400" />
+            Payment pending
           </div>
-        ) : (
-          inactiveUnits.map((unit) => {
-            const confirmingReactivate = confirmReactivateUnitId === unit.id;
-            const confirmingDelete = confirmDeleteUnitId === unit.id;
-            const isBusy = inactiveActionUnitId === unit.id;
+
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-orange-500" />
+            Payment failed
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-red-500" />
+            Past due
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <div className="text-sm font-semibold text-slate-950">
+          Processing Fee Legend
+        </div>
+        <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+          <div>&lt; $100 → $2.95</div>
+          <div>$100–199 → $3.95</div>
+          <div>$200–299 → $4.95</div>
+          <div>$300–399 → $5.95</div>
+          <div>$400–499 → $6.95</div>
+          <div>$500–799 → $7.95</div>
+          <div>$800–899 → $8.95</div>
+          <div>$900+ → $9.95</div>
+        </div>
+      </div>
+    </div>
+  </OverlayShell>
+) : null}
+
+{activePanel === "maint" ? (
+  <OverlayShell
+    title="Maintenance"
+    subtitle="Set maintenance PIN and review work orders."
+    onClose={closePanel}
+  >
+    <div className="space-y-5">
+      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <div className="text-sm font-semibold text-slate-950">
+          Set PIN
+        </div>
+
+        {!canManageMaintenance ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            View only. Only owner and manager can set PIN or update
+            maintenance requests.
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={maintenancePin}
+            onChange={(event) => {
+              setMaintenancePin(
+                event.target.value.replace(/\D/g, "").slice(0, 4)
+              );
+              setMaintenancePinError("");
+              setMaintenancePinSuccess("");
+            }}
+            disabled={!canManageMaintenance}
+            placeholder="PIN"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
+          />
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={maintenancePinConfirm}
+            onChange={(event) => {
+              setMaintenancePinConfirm(
+                event.target.value.replace(/\D/g, "").slice(0, 4)
+              );
+              setMaintenancePinError("");
+              setMaintenancePinSuccess("");
+            }}
+            disabled={!canManageMaintenance}
+            placeholder="Confirm PIN"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
+          />
+        </div>
+
+        {maintenancePinError ? (
+          <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {maintenancePinError}
+          </div>
+        ) : null}
+
+        {maintenancePinSuccess ? (
+          <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {maintenancePinSuccess}
+          </div>
+        ) : null}
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={saveMaintenancePin}
+            disabled={
+              !canManageMaintenance ||
+              savingMaintenancePin ||
+              maintenancePin.length !== 4 ||
+              maintenancePinConfirm.length !== 4
+            }
+            className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {savingMaintenancePin ? "Saving..." : "Save PIN"}
+          </button>
+        </div>
+      </div>
+
+      {maintenanceError ? (
+        <div className="rounded-[24px] border border-red-200 bg-white px-4 py-4 text-sm text-red-700 shadow-sm">
+          {maintenanceError}
+        </div>
+      ) : null}
+
+      {maintenanceActionError ? (
+        <div className="rounded-[24px] border border-red-200 bg-white px-4 py-4 text-sm text-red-700 shadow-sm">
+          {maintenanceActionError}
+        </div>
+      ) : null}
+
+      {maintenanceLoading ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-5 text-sm text-slate-600 shadow-sm">
+          Loading maintenance requests...
+        </div>
+      ) : sortedMaintenanceRequests.length === 0 ? (
+        <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+          No maintenance requests.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sortedMaintenanceRequests.map((request) => {
+            const isBusy = maintenanceActionId === request.id;
+            const isComplete = request.status.toUpperCase() === "COMPLETE";
+            const isInProgress =
+              request.status.toUpperCase() === "IN_PROGRESS";
 
             return (
               <div
-                key={unit.id}
-                className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                key={request.id}
+                className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-slate-700">
-                    <span className="font-semibold text-slate-950">
-                      Unit {unit.unitNumber}
-                    </span>{" "}
-                    • {unit.tierName} • Last active{" "}
-                    {formatDate(unit.lastActiveAt)}
-                  </div>
-
-                  {!confirmingReactivate && !confirmingDelete ? (
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmDeleteUnitId("");
-                          setConfirmReactivateUnitId(unit.id);
-                        }}
-                        className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"
-                      >
-                        Reactivate
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmReactivateUnitId("");
-                          setConfirmDeleteUnitId(unit.id);
-                        }}
-                        className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-
-                {confirmingReactivate ? (
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="text-sm font-semibold text-slate-950">
-                      Reactivate Unit {unit.unitNumber}?
-                    </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      This unit will become available for use again.
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void reactivateInactiveUnit(unit.id)}
-                        disabled={isBusy}
-                        className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                      >
-                        {isBusy ? "Updating..." : "Confirm"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setConfirmReactivateUnitId("")}
-                        disabled={isBusy}
-                        className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {confirmingDelete ? (
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="text-sm font-semibold text-slate-950">
-                      Delete Unit {unit.unitNumber}?
-                    </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      This permanently removes the inactive unit from this
-                      property account.
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void deleteInactiveUnit(unit.id)}
-                        disabled={isBusy}
-                        className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                      >
-                        {isBusy ? "Deleting..." : "Confirm"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteUnitId("")}
-                        disabled={isBusy}
-                        className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })
-        )}
-      </div>
-    ) : null}
-  </div>
-) : null}
-
-  <button
-    type="button"
-    onClick={() => setShowChangeLogin((prev) => !prev)}
-    className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
-  >
-    {showChangeLogin ? "Cancel Change Login" : "Change Login"}
-  </button>
-
-  {showChangeLogin ? (
-    <div className="mt-4 space-y-3">
-      <input
-        placeholder="Current Login"
-        value={changeCurrentLogin}
-        onChange={(e) => setChangeCurrentLogin(e.target.value)}
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-      />
-
-      <input
-        type="password"
-        placeholder="Current Password"
-        value={changeCurrentPassword}
-        onChange={(e) => setChangeCurrentPassword(e.target.value)}
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-      />
-
-      <input
-        placeholder="New Email"
-        value={changeNewEmail}
-        onChange={(e) => setChangeNewEmail(e.target.value)}
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-      />
-
-      <input
-        type="password"
-        placeholder="New Password"
-        value={changeNewPassword}
-        onChange={(e) => setChangeNewPassword(e.target.value)}
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-      />
-
-      <input
-        type="password"
-        placeholder="Confirm New Password"
-        value={changeConfirmPassword}
-        onChange={(e) => setChangeConfirmPassword(e.target.value)}
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-      />
-
-      <button
-        onClick={submitChangeLogin}
-        className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-      >
-        Update Login
-      </button>
-    </div>
-  ) : null}
-</div>
-        </OverlayShell>
-      ) : null}
-
-      {activePanel === "info" ? (
-        <OverlayShell
-          title="Property Info"
-          subtitle="Read-only property info, legends, and fee ranges."
-          onClose={closePanel}
-        >
-          <div className="space-y-5">
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Property Name
-              </div>
-              <div className="mt-2 text-lg font-semibold text-slate-950">
-                {propertyName}
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Property Code
-              </div>
-              <div className="mt-2 font-mono text-lg font-semibold text-slate-950">
-                {propertyCode}
-              </div>
-            </div>
-
-            <div className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-  <div className="text-sm font-semibold text-slate-900">Status Legend</div>
-
-  <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-600">
-    <div className="flex items-center gap-2">
-      <span className="h-3 w-3 rounded-full bg-emerald-500" />
-      Paid
-    </div>
-
-    <div className="flex items-center gap-2">
-      <span className="h-3 w-3 rounded-full bg-blue-500" />
-      In grace period
-    </div>
-
-    <div className="flex items-center gap-2">
-      <span className="h-3 w-3 rounded-full bg-yellow-400" />
-      Payment pending
-    </div>
-
-    <div className="flex items-center gap-2">
-      <span className="h-3 w-3 rounded-full bg-orange-500" />
-      Payment failed
-    </div>
-
-    <div className="flex items-center gap-2">
-      <span className="h-3 w-3 rounded-full bg-red-500" />
-      Past due
-    </div>
-  </div>
-</div>
-
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-slate-950">
-                Processing Fee Legend
-              </div>
-              <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                <div>&lt; $100 → $2.95</div>
-                <div>$100–199 → $3.95</div>
-                <div>$200–299 → $4.95</div>
-                <div>$300–399 → $5.95</div>
-                <div>$400–499 → $6.95</div>
-                <div>$500–799 → $7.95</div>
-                <div>$800–899 → $8.95</div>
-                <div>$900+ → $9.95</div>
-              </div>
-            </div>
-          </div>
-        </OverlayShell>
-      ) : null}
-
-      {activePanel === "maint" ? (
-        <OverlayShell
-          title="Maintenance"
-          subtitle="Set maintenance PIN and review work orders."
-          onClose={closePanel}
-        >
-          <div className="space-y-5">
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-slate-950">
-                Set PIN
-              </div>
-
-              {!canManageMaintenance ? (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                  View only. Only owner and manager can set PIN or update
-                  maintenance requests.
-                </div>
-              ) : null}
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={maintenancePin}
-                  onChange={(event) => {
-                    setMaintenancePin(
-                      event.target.value.replace(/\D/g, "").slice(0, 4)
-                    );
-                    setMaintenancePinError("");
-                    setMaintenancePinSuccess("");
-                  }}
-                  disabled={!canManageMaintenance}
-                  placeholder="PIN"
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={maintenancePinConfirm}
-                  onChange={(event) => {
-                    setMaintenancePinConfirm(
-                      event.target.value.replace(/\D/g, "").slice(0, 4)
-                    );
-                    setMaintenancePinError("");
-                    setMaintenancePinSuccess("");
-                  }}
-                  disabled={!canManageMaintenance}
-                  placeholder="Confirm PIN"
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
-              </div>
-
-              {maintenancePinError ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {maintenancePinError}
-                </div>
-              ) : null}
-
-              {maintenancePinSuccess ? (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {maintenancePinSuccess}
-                </div>
-              ) : null}
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={saveMaintenancePin}
-                  disabled={
-                    !canManageMaintenance ||
-                    savingMaintenancePin ||
-                    maintenancePin.length !== 4 ||
-                    maintenancePinConfirm.length !== 4
-                  }
-                  className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {savingMaintenancePin ? "Saving..." : "Save PIN"}
-                </button>
-              </div>
-            </div>
-
-            {maintenanceError ? (
-              <div className="rounded-[24px] border border-red-200 bg-white px-4 py-4 text-sm text-red-700 shadow-sm">
-                {maintenanceError}
-              </div>
-            ) : null}
-
-            {maintenanceActionError ? (
-              <div className="rounded-[24px] border border-red-200 bg-white px-4 py-4 text-sm text-red-700 shadow-sm">
-                {maintenanceActionError}
-              </div>
-            ) : null}
-
-            {maintenanceLoading ? (
-              <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-5 text-sm text-slate-600 shadow-sm">
-                Loading maintenance requests...
-              </div>
-            ) : sortedMaintenanceRequests.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-                No maintenance requests.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sortedMaintenanceRequests.map((request) => {
-                  const isBusy = maintenanceActionId === request.id;
-                  const isComplete =
-                    request.status.toUpperCase() === "COMPLETE";
-                  const isInProgress =
-                    request.status.toUpperCase() === "IN_PROGRESS";
-
-                  return (
-                    <div
-                      key={request.id}
-                      className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex flex-col gap-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-base font-semibold text-slate-950">
-                                Unit {request.unitNumber}
-                              </div>
-
-                              <span
-                                className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${statusBadgeClass(
-                                  request.status
-                                )}`}
-                              >
-                                {request.status.replace("_", " ")}
-                              </span>
-
-                              <span
-                                className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${urgencyBadgeClass(
-                                  request.urgency
-                                )}`}
-                              >
-                                {request.urgency}
-                              </span>
-                            </div>
-
-                            <div className="mt-2 text-sm font-medium text-slate-800">
-                              {request.category}
-                            </div>
-
-                            <div className="mt-1 text-sm text-slate-600">
-                              {request.tenantName || "No tenant name available"}
-                            </div>
-                          </div>
-
-                          <div className="text-xs text-slate-500 sm:text-right">
-                            <div>Created {formatDate(request.createdAt)}</div>
-                            <div className="mt-1">
-                              Updated {formatDate(request.updatedAt)}
-                            </div>
-                          </div>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-base font-semibold text-slate-950">
+                          Unit {request.unitNumber}
                         </div>
 
-                        <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                          {request.description}
-                        </div>
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${statusBadgeClass(
+                            request.status
+                          )}`}
+                        >
+                          {request.status.replace("_", " ")}
+                        </span>
 
-                        <div className="flex flex-wrap gap-2">
-                          {!isInProgress && !isComplete ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void runMaintenanceAction(
-                                  request.id,
-                                  "IN_PROGRESS"
-                                )
-                              }
-                              disabled={isBusy || !canManageMaintenance}
-                              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {isBusy ? "Updating..." : "3rd Party / In Progress"}
-                            </button>
-                          ) : null}
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${urgencyBadgeClass(
+                            request.urgency
+                          )}`}
+                        >
+                          {request.urgency}
+                        </span>
+                      </div>
 
-                          {!isComplete ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void runMaintenanceAction(
-                                  request.id,
-                                  "COMPLETE"
-                                )
-                              }
-                              disabled={isBusy || !canManageMaintenance}
-                              className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                            >
-                              {isBusy ? "Updating..." : "Completed"}
-                            </button>
-                          ) : null}
+                      <div className="mt-2 text-sm font-medium text-slate-800">
+                        {request.category}
+                      </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void runMaintenanceAction(request.id, "DELETE")
-                            }
-                            disabled={isBusy || !canManageMaintenance}
-                            className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                          >
-                            {isBusy ? "Updating..." : "Delete"}
-                          </button>
-                        </div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        {request.tenantName || "No tenant name available"}
                       </div>
                     </div>
-                  );
-                })}
+
+                    <div className="text-xs text-slate-500 sm:text-right">
+                      <div>Created {formatDate(request.createdAt)}</div>
+                      <div className="mt-1">
+                        Updated {formatDate(request.updatedAt)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
+                    {request.description}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {!isInProgress && !isComplete ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void runMaintenanceAction(request.id, "IN_PROGRESS")
+                        }
+                        disabled={isBusy || !canManageMaintenance}
+                        className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isBusy ? "Updating..." : "3rd Party / In Progress"}
+                      </button>
+                    ) : null}
+
+                    {!isComplete ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void runMaintenanceAction(request.id, "COMPLETE")
+                        }
+                        disabled={isBusy || !canManageMaintenance}
+                        className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        {isBusy ? "Updating..." : "Completed"}
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void runMaintenanceAction(request.id, "DELETE")
+                      }
+                      disabled={isBusy || !canManageMaintenance}
+                      className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      {isBusy ? "Updating..." : "Delete"}
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        </OverlayShell>
-      ) : null}
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </OverlayShell>
+) : null}
     </>
   );
 }

@@ -1,57 +1,98 @@
 import { prisma } from "@/lib/prisma";
 
-/**
- * Active unit = isActive = true
- * This is the ONLY authority for capacity usage
- */
-export async function getActiveUnitCount(propertyId: string): Promise<number> {
+export async function getInactiveUnitCount(propertyId: string): Promise<number> {
   return prisma.unit.count({
     where: {
       propertyId,
-      isActive: true,
+      isActive: false,
     },
   });
 }
 
-/**
- * Determines if a new activation is allowed
- */
-export async function canActivateUnit(propertyId: string): Promise<boolean> {
- const property = await prisma.property.findUnique({
-  where: { id: propertyId },
-  select: {
-    unitCount: true,
-  },
-});
+export async function getConfiguredUnitCount(propertyId: string): Promise<number> {
+  const property = await prisma.property.findUnique({
+    where: { id: propertyId },
+    select: {
+      unitCount: true,
+    },
+  });
 
-if (!property) return false;
-
-const maxUnits = property.unitCount;
-
-  const activeUnits = await getActiveUnitCount(propertyId);
-
-  return activeUnits < maxUnits;
+  return property?.unitCount ?? 0;
 }
 
-/**
- * Validate manager update to capacity
- */
+export async function getEffectiveUnitCount(propertyId: string): Promise<number> {
+  const [configuredUnitCount, inactiveUnitCount] = await Promise.all([
+    getConfiguredUnitCount(propertyId),
+    getInactiveUnitCount(propertyId),
+  ]);
+
+  return Math.max(0, configuredUnitCount - inactiveUnitCount);
+}
+
+export async function getOccupiedUnitCount(propertyId: string): Promise<number> {
+  return prisma.tenantAssignment.count({
+    where: {
+      propertyId,
+      isCurrent: true,
+      moveOutDate: null,
+    },
+  });
+}
+
+export async function getStoredUnitCountForEffectiveTarget(
+  propertyId: string,
+  desiredEffectiveUnitCount: number
+): Promise<number> {
+  const inactiveUnitCount = await getInactiveUnitCount(propertyId);
+  return desiredEffectiveUnitCount + inactiveUnitCount;
+}
+
+export async function canActivateUnit(propertyId: string): Promise<boolean> {
+  const [effectiveUnitCount, occupiedUnitCount] = await Promise.all([
+    getEffectiveUnitCount(propertyId),
+    getOccupiedUnitCount(propertyId),
+  ]);
+
+  return occupiedUnitCount < effectiveUnitCount;
+}
+
 export async function validateUnitCapacityUpdate(
   propertyId: string,
-  nextUnitCount: number
+  nextEffectiveUnitCount: number
 ): Promise<{ valid: boolean; error?: string }> {
-  if (!Number.isInteger(nextUnitCount) || nextUnitCount < 1) {
+  if (!Number.isInteger(nextEffectiveUnitCount) || nextEffectiveUnitCount < 1) {
     return { valid: false, error: "Unit count must be a positive integer." };
   }
 
-  const activeUnits = await getActiveUnitCount(propertyId);
+  const occupiedUnitCount = await getOccupiedUnitCount(propertyId);
 
-  if (nextUnitCount < activeUnits) {
+  if (nextEffectiveUnitCount < occupiedUnitCount) {
     return {
       valid: false,
-      error: "Total units cannot be lower than active unit count.",
+      error: "Total units cannot be lower than occupied unit count.",
     };
   }
 
   return { valid: true };
+}
+
+export async function getCapacitySnapshot(propertyId: string): Promise<{
+  configuredUnitCount: number;
+  inactiveUnitCount: number;
+  effectiveUnitCount: number;
+  occupiedUnitCount: number;
+}> {
+  const [configuredUnitCount, inactiveUnitCount, occupiedUnitCount] =
+    await Promise.all([
+      getConfiguredUnitCount(propertyId),
+      getInactiveUnitCount(propertyId),
+      getOccupiedUnitCount(propertyId),
+    ]);
+
+  return {
+    configuredUnitCount,
+    inactiveUnitCount,
+    effectiveUnitCount: Math.max(0, configuredUnitCount - inactiveUnitCount),
+    occupiedUnitCount,
+  };
 }

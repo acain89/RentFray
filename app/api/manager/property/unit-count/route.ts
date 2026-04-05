@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { validateUnitCapacityUpdate } from "@/lib/propertyCapacity";
+import {
+  getStoredUnitCountForEffectiveTarget,
+  validateUnitCapacityUpdate,
+} from "@/lib/propertyCapacity";
 
 type UpdateUnitCountBody = {
   unitCount?: unknown;
@@ -46,10 +49,15 @@ export async function PATCH(req: Request) {
       );
     }
 
+const storedUnitCount = await getStoredUnitCountForEffectiveTarget(
+  session.propertyId,
+  unitCount
+);
+
     const updatedProperty = await prisma.property.update({
       where: { id: session.propertyId },
       data: {
-        unitCount,
+        unitCount: storedUnitCount,
       },
       select: {
         id: true,

@@ -123,14 +123,9 @@ export async function POST(req: Request) {
      * Only block if creating NEW active unit
      */
     if (!existingUnit) {
-  const activeUnits = await prisma.unit.count({
-    where: {
-      propertyId: property.id,
-      isActive: true,
-    },
-  });
+  const canActivate = await canActivateUnit(property.id);
 
-  if (activeUnits >= property.unitCount) {
+  if (!canActivate) {
     return NextResponse.json(
       { error: "Property is at full capacity. Contact management." },
       { status: 409 }
