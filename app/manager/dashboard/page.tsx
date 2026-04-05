@@ -2785,29 +2785,36 @@ if (error === "Unauthorized") {
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-slate-950">
-                Status Legend
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <div className="flex items-center gap-3 text-sm text-slate-700">
-                  <span className="h-3.5 w-3.5 rounded-full bg-emerald-500" />
-                  Occupied / current
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-700">
-                  <span className="h-3.5 w-3.5 rounded-full bg-amber-400" />
-                  Grace period
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-700">
-                  <span className="h-3.5 w-3.5 rounded-full bg-red-500" />
-                  Past due
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-700">
-                  <span className="h-3.5 w-3.5 rounded-full bg-slate-400" />
-                  Vacant
-                </div>
-              </div>
-            </div>
+            <div className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+  <div className="text-sm font-semibold text-slate-900">Status Legend</div>
+
+  <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-600">
+    <div className="flex items-center gap-2">
+      <span className="h-3 w-3 rounded-full bg-emerald-500" />
+      Paid
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="h-3 w-3 rounded-full bg-blue-500" />
+      In grace period
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="h-3 w-3 rounded-full bg-yellow-400" />
+      Payment pending
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="h-3 w-3 rounded-full bg-orange-500" />
+      Payment failed
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="h-3 w-3 rounded-full bg-red-500" />
+      Past due
+    </div>
+  </div>
+</div>
 
             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
               <div className="text-sm font-semibold text-slate-950">

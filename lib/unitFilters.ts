@@ -57,3 +57,13 @@ export function sortUnitsProblemFirst(
     return a.unitNumber.localeCompare(b.unitNumber);
   });
 }
+
+export function getActiveUnitIds(units: { id: string; isActive: boolean }[]): Set {
+return new Set(
+units.filter((u) => u.isActive).map((u) => u.id)
+);
+}
+
+export function isActiveUnit(unitId: string, activeUnitIds: Set): boolean {
+return activeUnitIds.has(unitId);
+}

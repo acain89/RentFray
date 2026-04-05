@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import { formatCentsToDollars } from "@/lib/billingConfig";
+import { getActiveUnitIds } from "@/lib/unitFilters";
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
@@ -118,8 +119,9 @@ export async function GET(req: Request) {
     }
 
     const activePropertyUnits = property.units.filter(
-  (unit: PropertyUnit) => unit.isActive
-);
+      (unit: PropertyUnit) => unit.isActive
+    );
+    const activeUnitIds = getActiveUnitIds(property.units);
 
     const now = new Date();
     const todayStart = new Date(
@@ -187,8 +189,6 @@ export async function GET(req: Request) {
     let totalCollectedCents = 0;
     let delinquentCount = 0;
 
-    const paidUnitIds = new Set<string>();
-
     const allUnits = await Promise.all(
       property.units.map(async (unit: PropertyUnit) => {
         const activeAssignment = unit.tenantAssignments[0] ?? null;
@@ -229,9 +229,6 @@ export async function GET(req: Request) {
           resolvedStatus = "PENDING";
         } else if (activeAssignment && ledger.balanceCents <= 0) {
           resolvedStatus = "PAID";
-          if (shouldCountInActiveMath) {
-            paidUnitIds.add(unit.id);
-          }
         } else if (delinquency.isDelinquent) {
           resolvedStatus = "REVERSED";
         } else if (ledger.balanceCents > 0) {
@@ -266,53 +263,22 @@ export async function GET(req: Request) {
     const totalExpected = centsToNumber(totalExpectedCents);
     const totalCollected = centsToNumber(totalCollectedCents);
 
-    const latestCyclePaymentByUnit = new Map<
-      string,
-      {
-        paymentMethod: string | null;
-        effectiveDate: Date;
-        createdAt: Date;
-      }
-    >();
-
-    for (const payment of cycleLedgerPayments) {
-      const existing = latestCyclePaymentByUnit.get(payment.unitId);
-
-      if (!existing) {
-        latestCyclePaymentByUnit.set(payment.unitId, {
-          paymentMethod: payment.paymentMethod,
-          effectiveDate: payment.effectiveDate,
-          createdAt: payment.createdAt,
-        });
-        continue;
-      }
-
-      if (
-        payment.effectiveDate.getTime() > existing.effectiveDate.getTime() ||
-        (payment.effectiveDate.getTime() === existing.effectiveDate.getTime() &&
-          payment.createdAt.getTime() > existing.createdAt.getTime())
-      ) {
-        latestCyclePaymentByUnit.set(payment.unitId, {
-          paymentMethod: payment.paymentMethod,
-          effectiveDate: payment.effectiveDate,
-          createdAt: payment.createdAt,
-        });
-      }
-    }
-
     let portalPaidCount = 0;
     let manualPaidCount = 0;
 
-    for (const unitId of paidUnitIds) {
-      const latestPayment = latestCyclePaymentByUnit.get(unitId);
+    const countedUnits = new Set<string>();
 
-      if (!latestPayment) continue;
+    for (const payment of cycleLedgerPayments) {
+      if (countedUnits.has(payment.unitId)) continue;
+      if (!activeUnitIds.has(payment.unitId)) continue;
 
-      if (isPortalPaymentMethod(latestPayment.paymentMethod)) {
+      if (isPortalPaymentMethod(payment.paymentMethod)) {
         portalPaidCount++;
       } else {
         manualPaidCount++;
       }
+
+      countedUnits.add(payment.unitId);
     }
 
     const totalPaidCount = portalPaidCount + manualPaidCount;
@@ -372,9 +338,6 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("dashboard error", error);
 
-    return NextResponse.json(
-      { error: "Server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
