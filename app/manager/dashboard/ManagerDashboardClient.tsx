@@ -1708,56 +1708,8 @@ if (error === "Unauthorized") {
                       </span>
                     </div>
                   </div>
-
-                  {(sessionRole === "OWNER" || sessionRole === "MANAGER") && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (pendingUnitCount == null) return;
-                          const next = pendingUnitCount - 1;
-                          if (next < activeUnitCount) return;
-                          setPendingUnitCount(next);
-                        }}
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
-                      >
-                        -
-                      </button>
-
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-900">
-                        Total Units: {pendingUnitCount ?? activeUnitCount}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (pendingUnitCount == null) return;
-                          setPendingUnitCount(pendingUnitCount + 1);
-                        }}
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
-                      >
-                        +
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (pendingUnitCount == null) return;
-                          void updateUnitCount(pendingUnitCount);
-                        }}
-                        disabled={
-                          updatingUnitCount ||
-                          pendingUnitCount == null ||
-                          pendingUnitCount === (data.property?.unitCount ?? activeUnitCount)
-                        }
-                        className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-60"
-                      >
-                        {updatingUnitCount ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-                  )}
                 </div>
-
+                 
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
