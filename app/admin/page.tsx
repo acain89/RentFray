@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
 
-
 type Property = {
   id: string;
   name: string;
@@ -17,6 +16,7 @@ type Property = {
   contactEmail: string;
   unitCount: number;
   tierCount: number;
+  occupiedUnits: number;
 };
 
 export default function AdminPage() {
@@ -28,58 +28,67 @@ export default function AdminPage() {
 
   const [propertyCodeSearch, setPropertyCodeSearch] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
-  
 
   const trimmedSearch = useMemo(
     () => propertyCodeSearch.replace(/\D/g, "").slice(0, 5),
     [propertyCodeSearch]
   );
 
+  const totalOccupiedUnits = useMemo(
+    () => properties.reduce((sum, property) => sum + property.occupiedUnits, 0),
+    [properties]
+  );
+
+  const totalEffectiveUnits = useMemo(
+    () => properties.reduce((sum, property) => sum + property.unitCount, 0),
+    [properties]
+  );
+
   const refresh = useCallback(() => {
     setRefreshTick((p) => p + 1);
   }, []);
 
-useEffect(() => {
-  let active = true;
+  useEffect(() => {
+    let active = true;
 
-  async function checkAdmin() {
-    try {
-      const res = await fetch("/api/admin/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
+    async function checkAdmin() {
+      try {
+        const res = await fetch("/api/admin/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
 
-      if (!active) return;
+        if (!active) return;
 
-      if (!res.ok) {
+        if (!res.ok) {
+          window.location.href = "/admin-login";
+          return;
+        }
+
+        setAdminAllowed(true);
+      } catch {
+        if (!active) return;
         window.location.href = "/admin-login";
         return;
+      } finally {
+        if (active) setAdminChecked(true);
       }
-
-      setAdminAllowed(true);
-    } catch {
-      if (!active) return;
-      window.location.href = "/admin-login";
-      return;
-    } finally {
-      if (active) setAdminChecked(true);
     }
-  }
 
-  void checkAdmin();
+    void checkAdmin();
 
-  return () => {
-    active = false;
-  };
-}, []);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
 
-if (!adminChecked || !adminAllowed) {
-  setLoading(false);
-  return;
-}
+    if (!adminChecked || !adminAllowed) {
+      setLoading(false);
+      return;
+    }
 
     async function load() {
       try {
@@ -92,6 +101,7 @@ if (!adminChecked || !adminAllowed) {
 
         const res = await fetch(`/api/admin/properties${query}`, {
           cache: "no-store",
+          credentials: "include",
         });
 
         const data = (await res.json()) as {
@@ -124,31 +134,29 @@ if (!adminChecked || !adminAllowed) {
     };
   }, [trimmedSearch, refreshTick, adminAllowed, adminChecked]);
 
-
-async function logout(): Promise<void> {
-  try {
-    await fetch("/api/admin/session", {
-      method: "DELETE",
-      credentials: "include",
-    });
-    window.location.href = "/admin";
-  } catch {
-    alert("Logout failed");
+  async function logout(): Promise<void> {
+    try {
+      await fetch("/api/admin/session", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      window.location.href = "/";
+    } catch {
+      alert("Logout failed");
+    }
   }
-}
 
-if (!adminChecked) {
-  return (
-    <main className={styles.page}>
-      <div className={styles.shell}>Checking admin access...</div>
-    </main>
-  );
-}
+  if (!adminChecked) {
+    return (
+      <main className={styles.page}>
+        <div className={styles.shell}>Checking admin access...</div>
+      </main>
+    );
+  }
 
-if (!adminAllowed) {
-  return null;
-}
-
+  if (!adminAllowed) {
+    return null;
+  }
 
   return (
     <main className={styles.page}>
@@ -160,21 +168,26 @@ if (!adminAllowed) {
           </div>
 
           <div className={styles.actions}>
-  <button type="button" onClick={refresh} className={styles.searchButton}>
-    Refresh
-  </button>
+            <button
+              type="button"
+              onClick={refresh}
+              className={styles.searchButton}
+            >
+              Refresh
+            </button>
 
-  <Link href="/setup" className={styles.primaryButton}>
-    + New Property
-  </Link>
+            <Link href="/setup" className={styles.primaryButton}>
+              + New Property
+            </Link>
 
-  <button
-    onClick={logout}
-    className={styles.searchButton}
-  >
-    Logout
-  </button>
-</div>
+            <button
+              type="button"
+              onClick={logout}
+              className={styles.searchButton}
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className={styles.searchCard}>
@@ -191,6 +204,19 @@ if (!adminAllowed) {
         <div className={styles.searchCard}>
           <div className={styles.cardTitle}>Your properties</div>
 
+          {!loading && properties.length > 0 && (
+            <div
+              style={{
+                marginBottom: 16,
+                fontSize: 14,
+                fontWeight: 700,
+                color: "#0f172a",
+              }}
+            >
+              Total Occupied: {totalOccupiedUnits}/{totalEffectiveUnits}
+            </div>
+          )}
+
           {loading && <div>Loading...</div>}
           {error && <div>{error}</div>}
 
@@ -205,6 +231,9 @@ if (!adminAllowed) {
                     <div className={styles.propertyMeta}>
                       Code: {p.propertyCode}
                     </div>
+                    <div className={styles.propertyMeta}>
+                      Occupied: {p.occupiedUnits}/{p.unitCount}
+                    </div>
                   </Link>
 
                   <button
@@ -214,6 +243,7 @@ if (!adminAllowed) {
 
                       const res = await fetch(`/api/admin/properties/${p.id}`, {
                         method: "DELETE",
+                        credentials: "include",
                       });
 
                       if (!res.ok) {

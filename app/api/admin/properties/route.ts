@@ -55,6 +55,12 @@ type PropertyListRow = {
     units: number;
     tiers: number;
   };
+  units: Array<{
+    isActive: boolean;
+    tenantAssignments: Array<{
+      id: string;
+    }>;
+  }>;
 };
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -246,6 +252,20 @@ export async function GET(req: NextRequest) {
             tiers: true,
           },
         },
+        units: {
+          select: {
+            isActive: true,
+            tenantAssignments: {
+              where: {
+                isCurrent: true,
+                moveOutDate: null,
+              },
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -253,6 +273,17 @@ export async function GET(req: NextRequest) {
       ok: true,
       properties: properties.map((property: PropertyListRow) => {
         const owner = property.managementUsers[0];
+
+        const inactiveUnits = property.units.filter((u) => !u.isActive).length;
+
+        const occupiedUnits = property.units.filter(
+          (u) => u.isActive && u.tenantAssignments.length > 0
+        ).length;
+
+        const effectiveUnitCount = Math.max(
+          0,
+          property._count.units - inactiveUnits
+        );
 
         return {
           id: property.id,
@@ -262,7 +293,8 @@ export async function GET(req: NextRequest) {
           isActive: property.isActive,
           contactName: owner?.displayName ?? "",
           contactEmail: owner?.email ?? "",
-          unitCount: property._count.units,
+          unitCount: effectiveUnitCount,
+          occupiedUnits,
           tierCount: property._count.tiers,
         };
       }),
