@@ -64,17 +64,61 @@ export async function POST() {
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:10000";
 
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${baseUrl}/manager/dashboard`,
-      return_url: `${baseUrl}/manager/dashboard`,
-      type: "account_onboarding",
-    });
+    const stripeAccount = await stripe.accounts.retrieve(accountId);
 
-    return NextResponse.json({
-      ok: true,
-      url: accountLink.url,
-    });
+await prisma.property.update({
+  where: { id: property.id },
+  data: {
+    paymentStatus: {
+      upsert: {
+        create: {
+          processorConnected: true,
+          bankConnected: true,
+          chargesEnabled: Boolean(stripeAccount.charges_enabled),
+          payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
+          onboardingComplete: Boolean(stripeAccount.details_submitted),
+          requirementsDue: Boolean(
+            stripeAccount.requirements?.currently_due?.length
+          ),
+          requirementsSummary:
+            stripeAccount.requirements?.disabled_reason ?? null,
+          lastSyncedAt: new Date(),
+          readyForLive:
+            Boolean(stripeAccount.charges_enabled) &&
+            Boolean(stripeAccount.payouts_enabled),
+        },
+        update: {
+          processorConnected: true,
+          bankConnected: true,
+          chargesEnabled: Boolean(stripeAccount.charges_enabled),
+          payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
+          onboardingComplete: Boolean(stripeAccount.details_submitted),
+          requirementsDue: Boolean(
+            stripeAccount.requirements?.currently_due?.length
+          ),
+          requirementsSummary:
+            stripeAccount.requirements?.disabled_reason ?? null,
+          lastSyncedAt: new Date(),
+          readyForLive:
+            Boolean(stripeAccount.charges_enabled) &&
+            Boolean(stripeAccount.payouts_enabled),
+        },
+      },
+    },
+  },
+});
+
+const accountLink = await stripe.accountLinks.create({
+  account: accountId,
+  refresh_url: `${baseUrl}/manager/dashboard`,
+  return_url: `${baseUrl}/manager/dashboard`,
+  type: "account_onboarding",
+});
+
+return NextResponse.json({
+  ok: true,
+  url: accountLink.url,
+});
   } catch (err: unknown) {
     console.error("STRIPE CONNECT ERROR:", err);
 
