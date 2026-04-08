@@ -2,13 +2,24 @@
 // [path: lib/liveGating.ts]
 
 type PaymentLike = {
-  stripeConnected?: boolean | null;
-  achEnabled?: boolean | null;
+  processorConnected?: boolean | null;
+  bankConnected?: boolean | null;
+  chargesEnabled?: boolean | null;
+  payoutsEnabled?: boolean | null;
   onboardingComplete?: boolean | null;
-  adminApproved?: boolean | null;
+  requirementsDue?: boolean | null;
+  requirementsSummary?: string | null;
+  readyForLive?: boolean | null;
+  lastSyncedAt?: Date | null;
 } | null | undefined;
 
-type PropertyStatus = "TEST" | "READY" | "LIVE" | "PAUSED" | "INACTIVE" | string;
+type PropertyStatus =
+  | "TEST"
+  | "READY"
+  | "LIVE"
+  | "PAUSED"
+  | "INACTIVE"
+  | string;
 
 type PropertyLike = {
   settings?: unknown;
@@ -24,7 +35,6 @@ type LiveReadiness = {
   stripeConnected: boolean;
   achEnabled: boolean;
   onboardingComplete: boolean;
-  adminApproved: boolean;
   paymentReady: boolean;
   readyForLive: boolean;
 };
@@ -53,13 +63,15 @@ export function getLiveReadiness(property: PropertyLike): LiveReadiness {
 
   const payment = property?.paymentConnectionStatus;
 
-  const stripeConnected = Boolean(payment?.stripeConnected);
-  const achEnabled = Boolean(payment?.achEnabled);
+  const stripeConnected = Boolean(payment?.processorConnected);
+  const achEnabled = Boolean(payment?.chargesEnabled);
+  const payoutsEnabled = Boolean(payment?.payoutsEnabled);
   const onboardingComplete = Boolean(payment?.onboardingComplete);
-  const adminApproved = Boolean(payment?.adminApproved);
 
   const paymentReady =
-    stripeConnected && achEnabled && onboardingComplete && adminApproved;
+    Boolean(payment?.processorConnected) &&
+    Boolean(payment?.chargesEnabled) &&
+    Boolean(payment?.payoutsEnabled);
 
   const readyForLive = hasUnits && hasSettings && paymentReady;
 
@@ -69,7 +81,6 @@ export function getLiveReadiness(property: PropertyLike): LiveReadiness {
     stripeConnected,
     achEnabled,
     onboardingComplete,
-    adminApproved,
     paymentReady,
     readyForLive,
   };

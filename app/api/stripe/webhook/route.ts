@@ -124,6 +124,70 @@ export async function POST(req: Request) {
       }
     }
 
+     if (event.type === "account.updated") {
+  const account = event.data.object as Stripe.Account;
+
+  if (!account.id) {
+    return NextResponse.json({ received: true });
+  }
+
+  const property = await prisma.property.findFirst({
+    where: { stripeAccountId: account.id },
+    include: { paymentStatus: true },
+  });
+
+  if (!property) {
+    return NextResponse.json({ received: true });
+  }
+
+  await prisma.property.update({
+    where: { id: property.id },
+    data: {
+      paymentStatus: {
+        upsert: {
+          create: {
+            processorConnected: true,
+            bankConnected: true,
+            chargesEnabled: Boolean(account.charges_enabled),
+            payoutsEnabled: Boolean(account.payouts_enabled),
+            onboardingComplete: Boolean(account.details_submitted),
+            requirementsDue: Boolean(
+              account.requirements?.currently_due?.length
+            ),
+            requirementsSummary:
+              account.requirements?.disabled_reason ?? null,
+            lastSyncedAt: new Date(),
+            readyForLive:
+              Boolean(account.charges_enabled) &&
+              Boolean(account.payouts_enabled),
+          },
+          update: {
+            processorConnected: true,
+            bankConnected: true,
+            chargesEnabled: Boolean(account.charges_enabled),
+            payoutsEnabled: Boolean(account.payouts_enabled),
+            onboardingComplete: Boolean(account.details_submitted),
+            requirementsDue: Boolean(
+              account.requirements?.currently_due?.length
+            ),
+            requirementsSummary:
+              account.requirements?.disabled_reason ?? null,
+            lastSyncedAt: new Date(),
+            readyForLive:
+              Boolean(account.charges_enabled) &&
+              Boolean(account.payouts_enabled),
+          },
+        },
+      },
+    },
+  });
+
+  emitEvent("payment:update", { propertyId: property.id });
+
+  return NextResponse.json({ received: true });
+}
+
+
 if (event.type === "payment_intent.succeeded") {
   const intent = event.data.object as Stripe.PaymentIntent;
 
