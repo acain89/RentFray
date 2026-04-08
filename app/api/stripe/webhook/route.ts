@@ -93,6 +93,12 @@ export async function POST(req: Request) {
   try {
     // Attach paymentIntent to existing payment record
     if (event.type === "checkout.session.completed") {
+
+     // ACH NOTE:
+// checkout.session.completed does NOT mean funds cleared.
+// We ONLY mark PAID on payment_intent.succeeded.
+// This block is ONLY for linking session → paymentIntent.
+
       const session = event.data.object as Stripe.Checkout.Session;
 
       if (typeof session.payment_intent === "string") {
@@ -102,9 +108,11 @@ export async function POST(req: Request) {
         });
       }
     }
+  
+     const intent = event.data.object as Stripe.PaymentIntent;
+
 
     if (event.type === "payment_intent.payment_failed") {
-      const intent = event.data.object as Stripe.PaymentIntent;
       await updatePaymentStatus(intent.id, "FAILED");
     }
 
@@ -116,9 +124,15 @@ export async function POST(req: Request) {
       }
     }
 
-    if (event.type === "payment_intent.succeeded") {
-      const intent = event.data.object as Stripe.PaymentIntent;
+if (event.type === "payment_intent.succeeded") {
+  const intent = event.data.object as Stripe.PaymentIntent;
+
+  if (intent.payment_method_types?.[0] !== "us_bank_account") {
+    return NextResponse.json({ received: true });
+  }
       const metadata = intent.metadata || {};
+
+      const stripeAccountId = safeString(metadata.stripeAccountId);
 
       const propertyId = safeString(metadata.propertyId);
       const unitId = safeString(metadata.unitId);
@@ -144,6 +158,15 @@ export async function POST(req: Request) {
       if (!property || !property.isActive || !canMakePayments(property)) {
         return NextResponse.json({ received: true });
       }
+
+      if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
+  console.error("STRIPE ACCOUNT MISMATCH", {
+    metadataAccount: stripeAccountId,
+    propertyAccount: property.stripeAccountId,
+  });
+
+  return NextResponse.json({ received: true });
+}
 
       const stripeCents =
         intent.amount_received ?? intent.amount ?? balanceCents + feeCents;

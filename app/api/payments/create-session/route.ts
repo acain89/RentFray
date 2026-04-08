@@ -167,8 +167,18 @@ export async function POST(req: Request) {
   },
 },
       mode: "payment",
-      payment_method_types: ["us_bank_account"],
-      customer_creation: "if_required",
+payment_method_types: ["us_bank_account"],
+
+payment_method_options: {
+  us_bank_account: {
+    verification_method: "automatic",
+    financial_connections: {
+      permissions: ["payment_method", "balances"],
+    },
+  },
+},
+
+customer_creation: "if_required",
 
       line_items: [
         {

@@ -88,9 +88,13 @@ export async function GET() {
     });
 
     let occupiedUnits = 0;
-    let totalExpectedCents = 0;
-    let totalCollectedCents = 0;
-    let delinquentCount = 0;
+let totalExpectedCents = 0;
+let totalCollectedCents = 0;
+let delinquentCount = 0;
+let unpaidUnitsCount = 0;
+let portalPaidCount = 0;
+let manualPaidCount = 0;
+let totalPaidCount = 0;
 
     const resolvedUnits = await Promise.all(
       units.map(async (unit: (typeof units)[number]) => {
@@ -100,10 +104,20 @@ export async function GET() {
 
         occupiedUnits++;
 
-        const [ledger, delinquency] = await Promise.all([
-          getUnitLedgerSummary(unit.id, assignment.id),
-          getUnitDelinquencySummary(unit.id),
-        ]);
+        const [ledger, delinquency, payments] = await Promise.all([
+  getUnitLedgerSummary(unit.id, assignment.id),
+  getUnitDelinquencySummary(unit.id),
+  prisma.payment.findMany({
+    where: {
+      unitId: unit.id,
+      tenantAssignmentId: assignment.id,
+      status: "PAID",
+    },
+    select: {
+      paymentMethod: true,
+    },
+  }),
+]);
 
         totalExpectedCents += Math.max(0, ledger.totalChargesCents);
         totalCollectedCents += Math.max(0, ledger.totalPaidCents);
@@ -111,16 +125,55 @@ export async function GET() {
         if (delinquency.isDelinquent) {
           delinquentCount++;
         }
+         
+        if (ledger.balanceCents > 0) {
+  unpaidUnitsCount++;
+} else {
+  totalPaidCount++;
 
+  const hasManual = payments.some(
+  (p: { paymentMethod: string | null }) => p.paymentMethod === "MANUAL"
+);
+const hasPortal = payments.some(
+  (p: { paymentMethod: string | null }) => p.paymentMethod === "ACH"
+);
+
+  if (hasManual) manualPaidCount++;
+  else if (hasPortal) portalPaidCount++;
+}
+    
         let paymentStatus: PaymentStatus = "UNPAID";
 
-        if (ledger.balanceCents <= 0) {
-          paymentStatus = "PAID";
-        } else if (delinquency.isDelinquent) {
-          paymentStatus = "REVERSED";
-        } else if (ledger.balanceCents > 0) {
-          paymentStatus = "UNPAID";
-        }
+/**
+ * STEP 1: Detect most recent payment status (operational state)
+ */
+const lastPayment = await prisma.payment.findFirst({
+  where: {
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+  },
+  orderBy: { createdAt: "desc" },
+  select: { status: true },
+});
+
+const latestStatus = lastPayment?.status ?? null;
+
+/**
+ * PRIORITY ORDER:
+ * FAILED > PENDING > PAID > DELINQUENT > UNPAID
+ */
+
+if (latestStatus === "FAILED") {
+  paymentStatus = "FAILED";
+} else if (latestStatus === "PENDING") {
+  paymentStatus = "PENDING";
+} else if (ledger.balanceCents <= 0) {
+  paymentStatus = "PAID";
+} else if (delinquency.isDelinquent) {
+  paymentStatus = "UNPAID"; // still unpaid, frontend handles red
+} else {
+  paymentStatus = "UNPAID";
+}
 
         return {
           unitId: unit.id,
@@ -178,10 +231,10 @@ export async function GET() {
           year: "numeric",
         }),
         occupiedUnitsLabel: `${occupiedUnits} / ${capacity.effectiveUnitCount}`,
-        portalPaidCount: 0,
-        manualPaidCount: 0,
-        totalPaidCount: 0,
-        unpaidUnitsCount: Math.max(0, capacity.effectiveUnitCount - occupiedUnits),
+        portalPaidCount,
+        manualPaidCount,
+        totalPaidCount,
+        unpaidUnitsCount,
         totalCollected,
         totalExpected,
         collectionRate:

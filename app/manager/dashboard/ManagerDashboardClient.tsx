@@ -108,6 +108,8 @@ type RentTierDraft = {
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeAmount: string;
+  lateFeeDaily: string;
+  lateFeeMaxDays: string;
 };
 
 type AdditionalChargeDraft = {
@@ -305,9 +307,10 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
     graceDays: "5",
     lateFeeEnabled: false,
     lateFeeAmount: "",
+    lateFeeDaily: "",
+    lateFeeMaxDays: "",
   };
 }
-
 function urgencyBadgeClass(urgency: string): string {
   switch (urgency.toUpperCase()) {
     case "URGENT":
@@ -415,9 +418,6 @@ export default function Page() {
   const [savingCharges, setSavingCharges] = useState(false);
   const [chargesEffectiveMonth, setChargesEffectiveMonth] = useState("");
   const viewMode: "full" = "full";
-  const [routingNumber, setRoutingNumber] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
   const [exportSelectedUnit, setExportSelectedUnit] = useState("");
   const [exportUnitError, setExportUnitError] = useState("");
   const [showChangeLogin, setShowChangeLogin] = useState(false);
@@ -434,10 +434,6 @@ export default function Page() {
   const [confirmReactivateUnitId, setConfirmReactivateUnitId] = useState("");
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState("");
 
-  const bankValid =
-  routingNumber.replace(/\D/g, "").length === 9 &&
-  accountNumber &&
-  accountNumber === confirmAccountNumber;
 
   const [gpLfSettings, setGpLfSettings] = useState({
   dueDay: "1",
@@ -477,9 +473,83 @@ function applyGpLfToTierDraft(tier: RentTierDraft): RentTierDraft {
     graceDays: gpLfSettings.graceDays,
     lateFeeEnabled: gpLfSettings.lateFeeEnabled,
     lateFeeAmount: gpLfSettings.lateFeeInitial,
+    lateFeeDaily: gpLfSettings.lateFeeDaily,
+    lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
+  };
+}  
+
+function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
+  const source =
+    tiers.find(
+      (t) =>
+        t.lateFeeEnabled ||
+        Number(t.lateFeeAmount || 0) > 0 ||
+        Number(t.lateFeeDaily || 0) > 0 ||
+        Number(t.lateFeeMaxDays || 0) > 0
+    ) ?? tiers[0];
+
+  if (!source) {
+    return {
+      dueDay: "1",
+      graceDays: "5",
+      lateFeeEnabled: false,
+      lateFeeInitial: "",
+      lateFeeDaily: "",
+      lateFeeMaxDays: "",
+    };
+  }
+
+  return {
+    dueDay: source.dueDay || "1",
+    graceDays: source.graceDays || "5",
+    lateFeeEnabled:
+      source.lateFeeEnabled ||
+      Number(source.lateFeeAmount || 0) > 0 ||
+      Number(source.lateFeeDaily || 0) > 0,
+    lateFeeInitial: source.lateFeeAmount || "",
+    lateFeeDaily: source.lateFeeDaily || "",
+    lateFeeMaxDays: source.lateFeeMaxDays || "",
   };
 }
-  
+
+  type GpLfTierSnapshot = {
+  id: string;
+  tierName: string;
+  dueDay: string;
+  graceDays: string;
+  lateFeeEnabled: boolean;
+  lateFeeInitial: string;
+  lateFeeDaily: string;
+  lateFeeMaxDays: string;
+};
+
+function formatGpLfMoney(value: string): string {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? `$${amount.toFixed(2)}` : "$0.00";
+}
+
+function getGpLfTierSnapshot(tier: RentTierDraft): GpLfTierSnapshot {
+  return {
+    id: tier.id,
+    tierName: tier.tierName,
+    dueDay: tier.dueDay || "1",
+    graceDays: tier.graceDays || "0",
+    lateFeeEnabled: Boolean(tier.lateFeeEnabled),
+    lateFeeInitial: tier.lateFeeAmount || "0",
+    lateFeeDaily: tier.lateFeeDaily || "0",
+    lateFeeMaxDays: tier.lateFeeMaxDays || "0",
+  };
+}
+
+function getMixedText(values: string[]): string {
+  const unique = Array.from(new Set(values.map((value) => String(value).trim())));
+  return unique.length <= 1 ? (unique[0] || "—") : "Mixed";
+}
+
+function getMixedBooleanText(values: boolean[]): string {
+  const unique = Array.from(new Set(values));
+  return unique.length <= 1 ? (unique[0] ? "Enabled" : "Disabled") : "Mixed";
+}
 
   const managers = data?.property?.managementUsers ?? [];
   const [managersLoading, setManagersLoading] = useState(false);
@@ -568,6 +638,26 @@ async function updateUnitCount(next: number): Promise<void> {
     alert("Failed to update unit count.");
   } finally {
     setUpdatingUnitCount(false);
+  }
+}
+
+async function connectBank(): Promise<void> {
+  try {
+    const res = await fetch("/api/stripe/connect", {
+      method: "POST",
+      credentials: "include",
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.ok || !json?.url) {
+      alert(json?.error || "Failed to start bank connection.");
+      return;
+    }
+
+    window.location.href = json.url;
+  } catch {
+    alert("Failed to start bank connection.");
   }
 }
 
@@ -669,7 +759,7 @@ async function loadPropertyTiers(): Promise<void> {
 
    
     setLocalTiers(
-      tiers.map(
+            tiers.map(
         (
           tier: {
             id?: string;
@@ -678,30 +768,54 @@ async function loadPropertyTiers(): Promise<void> {
             rentDueDay?: number;
             gracePeriodDays?: number;
             lateFeeInitial?: number;
+            lateFeeInitialCents?: number;
+            lateFeeDaily?: number;
+            lateFeeDailyCents?: number;
+            lateFeeMaxDays?: number;
+            maxLateFeeDays?: number;
           },
           index: number
-        ) => ({
-          id: String(tier.id || `tier-${index}`),
-          tierName: String(tier.name || `Tier ${index + 1}`),
-          baseRent:
-            typeof tier.baseRent === "number" ? String(tier.baseRent) : "",
-          dueDay:
-            typeof tier.rentDueDay === "number"
-              ? String(tier.rentDueDay)
-              : "1",
-          graceDays:
-            typeof tier.gracePeriodDays === "number"
-              ? String(tier.gracePeriodDays)
-              : "5",
-          lateFeeEnabled:
-            typeof tier.lateFeeInitial === "number" &&
-            tier.lateFeeInitial > 0,
-          lateFeeAmount:
-            typeof tier.lateFeeInitial === "number" &&
-            tier.lateFeeInitial > 0
-              ? String(tier.lateFeeInitial)
-              : "",
-        })
+        ) => {
+          const initialCents =
+            typeof tier.lateFeeInitialCents === "number"
+              ? tier.lateFeeInitialCents
+              : typeof tier.lateFeeInitial === "number"
+                ? Math.round(tier.lateFeeInitial * 100)
+                : 0;
+
+          const dailyCents =
+            typeof tier.lateFeeDailyCents === "number"
+              ? tier.lateFeeDailyCents
+              : typeof tier.lateFeeDaily === "number"
+                ? Math.round(tier.lateFeeDaily * 100)
+                : 0;
+
+          const maxDays =
+            typeof tier.maxLateFeeDays === "number"
+              ? tier.maxLateFeeDays
+              : typeof tier.lateFeeMaxDays === "number"
+                ? tier.lateFeeMaxDays
+                : 0;
+
+          return {
+            id: String(tier.id || `tier-${index}`),
+            tierName: String(tier.name || `Tier ${index + 1}`),
+            baseRent:
+              typeof tier.baseRent === "number" ? String(tier.baseRent) : "",
+            dueDay:
+              typeof tier.rentDueDay === "number"
+                ? String(tier.rentDueDay)
+                : "1",
+            graceDays:
+              typeof tier.gracePeriodDays === "number"
+                ? String(tier.gracePeriodDays)
+                : "5",
+            lateFeeEnabled: initialCents > 0 || dailyCents > 0,
+            lateFeeAmount: initialCents > 0 ? String(initialCents / 100) : "",
+            lateFeeDaily: dailyCents > 0 ? String(dailyCents / 100) : "",
+            lateFeeMaxDays: maxDays > 0 ? String(maxDays) : "",
+          };
+        }
       )
     );
   } catch {
@@ -1418,6 +1532,7 @@ useEffect(() => {
   }
 }, [data?.property?.id]);
 
+
 useEffect(() => {
   if (activePanel === "maint") {
     void loadMaintenanceRequests();
@@ -1488,6 +1603,41 @@ const vacantUnits = 0;
     };
   }, [tierGroups.length, unitsWithStatus]);
 
+   const gpLfVisibleTierIds = useMemo<string[]>(() => {
+  return gpLfTierMode === "all"
+    ? localTiers.map((tier) => tier.id)
+    : gpLfSelectedTierIds;
+}, [gpLfTierMode, gpLfSelectedTierIds, localTiers]);
+
+const gpLfVisibleTiers = useMemo<GpLfTierSnapshot[]>(() => {
+  return localTiers
+    .filter((tier) => gpLfVisibleTierIds.includes(tier.id))
+    .map(getGpLfTierSnapshot);
+}, [gpLfVisibleTierIds, localTiers]);
+
+const gpLfComparisonSummary = useMemo(() => {
+  if (gpLfVisibleTiers.length === 0) {
+    return null;
+  }
+
+  return {
+    dueDay: getMixedText(gpLfVisibleTiers.map((tier) => tier.dueDay)),
+    graceDays: getMixedText(gpLfVisibleTiers.map((tier) => tier.graceDays)),
+    lateFeeStatus: getMixedBooleanText(
+      gpLfVisibleTiers.map((tier) => tier.lateFeeEnabled)
+    ),
+    lateFeeInitial: getMixedText(
+      gpLfVisibleTiers.map((tier) => tier.lateFeeInitial)
+    ),
+    lateFeeDaily: getMixedText(
+      gpLfVisibleTiers.map((tier) => tier.lateFeeDaily)
+    ),
+    lateFeeMaxDays: getMixedText(
+      gpLfVisibleTiers.map((tier) => tier.lateFeeMaxDays)
+    ),
+  };
+}, [gpLfVisibleTiers]);
+
   function openUnitPanel(unit: UnitWithStatus): void {
     setShowVacateConfirm(false);
     setShowInactiveConfirm(false);
@@ -1555,20 +1705,35 @@ async function saveGpLfSettings(): Promise<void> {
     return;
   }
 
-  const nextTiers = localTiers.map((tier) =>
-    targetTierIds.includes(tier.id) ? applyGpLfToTierDraft(tier) : tier
+  // ONLY modify selected tiers
+  const updatedTiers = localTiers.map((tier) =>
+    targetTierIds.includes(tier.id)
+      ? applyGpLfToTierDraft(tier)
+      : tier
   );
 
   try {
     setSavingGpLf(true);
     setGpLfSaveMessage("");
 
-    const res = await fetch(`/api/admin/properties/${data.property.id}/tiers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ tiers: nextTiers }),
-    });
+    const res = await fetch(`/api/admin/properties/${data.property.id}/gplf`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({
+    tiers: updatedTiers
+      .filter((tier) => targetTierIds.includes(tier.id))
+      .map((tier) => ({
+        id: tier.id,
+        dueDay: tier.dueDay,
+        graceDays: tier.graceDays,
+        lateFeeEnabled: tier.lateFeeEnabled,
+        lateFeeAmount: tier.lateFeeAmount,
+        lateFeeDaily: tier.lateFeeDaily,
+        lateFeeMaxDays: tier.lateFeeMaxDays,
+      })),
+  }),
+});
 
     const json = await res.json().catch(() => null);
 
@@ -1577,7 +1742,8 @@ async function saveGpLfSettings(): Promise<void> {
       return;
     }
 
-    setLocalTiers(nextTiers);
+    // merge back into local state safely
+    setLocalTiers(updatedTiers);
     setGpLfSaveMessage("Grace period and late fee settings saved.");
   } catch {
     setGpLfSaveMessage("Failed to save GP/LF settings.");
@@ -1627,8 +1793,15 @@ async function saveLocalRentSettings(): Promise<void> {
   }
 
   function openPanel(panel: Exclude<PanelKey, null>): void {
-    setActivePanel(panel);
+  setActivePanel(panel);
+
+  if (panel === "gplf") {
+    setGpLfTierMode("selected");
+    setGpLfSelectedTierIds([]);
+    setGpLfSettings(getGpLfSettingsFromTiers(localTiers));
+    setGpLfSaveMessage("");
   }
+}
 
   function closePanel(): void {
   setActivePanel(null);
@@ -1743,15 +1916,15 @@ if (error === "Unauthorized") {
                     Mngr
                   </button>
 
-                  {sessionRole !== "STAFF" ? (
-                    <button
-                      type="button"
-                      onClick={() => openPanel("bank")}
-                      className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
-                    >
-                      Accnt
-                    </button>
-                  ) : null}
+                  {isOwner ? (
+  <button
+    type="button"
+    onClick={() => openPanel("bank")}
+    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
+  >
+    Accnt
+  </button>
+) : null}
 
                   <button
                     type="button"
@@ -2323,189 +2496,106 @@ if (error === "Unauthorized") {
         </OverlayShell>
       ) : null}
 
-     {activePanel === "bank" && sessionRole !== "STAFF" ? (
-  <OverlayShell title="Bank Account" onClose={closePanel} showFooter={false}>
-    <div className="space-y-4 pb-24">
 
-      <div className="text-sm font-semibold">
-      Status: {data?.property?.paymentStatus?.bankConnected ? "Connected" : "Not connected"}
-     </div>
-
-      <input
-         placeholder="Routing Number"
-         value={routingNumber}
-         onChange={(e) => setRoutingNumber(e.target.value)}
-         className="w-full border p-3 rounded-xl"
-         disabled={!isOwner}
-          />
-
-      <input
-        placeholder="Account Number"
-        value={accountNumber}
-        onChange={(e) => setAccountNumber(e.target.value)}
-        className="w-full border p-3 rounded-xl"
-        disabled={!isOwner}
-      />
-
-      <input
-        placeholder="Confirm Account Number"
-        value={confirmAccountNumber}
-        onChange={(e) => setConfirmAccountNumber(e.target.value)}
-        className="w-full border p-3 rounded-xl"
-        disabled={!isOwner}
-      />
-
-      <button
-  type="button"
-  disabled={!bankValid || !isOwner}
-  className="w-full rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
-  onClick={async () => {
-    if (!bankValid) return;
-
-    const cleanRouting = routingNumber.replace(/\D/g, "");
-    const cleanAccount = accountNumber.trim();
-
-    const res = await fetch("/api/stripe/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        routingNumber: cleanRouting,
-        accountNumber: cleanAccount,
-      }),
-    });
-
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      alert(json?.error || "Failed to start bank connection");
-      return;
-    }
-
-    if (json?.url) {
-      window.location.href = json.url;
-    }
-  }}
->
-  Save
-</button>
-
-    </div>
-  </OverlayShell>
-) : null}
-
-{activePanel === "charges" ? (
+{activePanel === "bank" ? (
   <OverlayShell
-    title="Additional Charges"
-    subtitle={`Tier-based recurring charges that begin on ${formatMonthLabel(
-      chargesEffectiveMonth
-    )}`}
+    title="Payout Account"
+    subtitle="Secure Stripe onboarding for owner payouts and ACH settlement."
     onClose={closePanel}
     showFooter={false}
   >
-    <div className="space-y-4">
-      {chargesLoading ? (
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Loading charges...
-        </div>
-      ) : null}
-
-      {chargesError ? (
-        <div className="rounded-[24px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {chargesError}
-        </div>
-      ) : null}
-
-      {!chargesLoading && tierCharges.length === 0 ? (
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          No tiers found.
-        </div>
-      ) : null}
-
-      {tierCharges.map((tier) => (
-        <div
-          key={tier.tierId}
-          className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
-        >
-          <div className="flex items-center justify-between gap-3">
+    <div className="space-y-6 pb-4">
+      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 px-6 py-5 text-white">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-sm font-semibold text-slate-950">
-                {tier.tierName}
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
+                Stripe Connect
               </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Changes apply on the 1st of the following month.
+              <div className="mt-2 text-2xl font-semibold tracking-tight">
+                {bankConnected ? "Bank account connected" : "Connect your payout account"}
+              </div>
+              <div className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                Rent payments are routed securely through Stripe. Owners complete onboarding once, and Stripe handles the bank verification and payout setup.
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => addTierCharge(tier.tierId)}
-              className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+            <div
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                bankConnected
+                  ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30"
+                  : "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/30"
+              }`}
             >
-              Add Charge
-            </button>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {tier.charges.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
-                No additional charges for this tier.
-              </div>
-            ) : (
-              tier.charges.map((charge) => (
-                <div
-                  key={charge.id}
-                  className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_140px_auto]"
-                >
-                  <input
-                    type="text"
-                    value={charge.label}
-                    onChange={(event) =>
-                      updateTierCharge(tier.tierId, charge.id, {
-                        label: event.target.value,
-                      })
-                    }
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-950"
-                    placeholder="Charge label"
-                  />
-
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={charge.amount}
-                    onChange={(event) =>
-                      updateTierCharge(tier.tierId, charge.id, {
-                        amount: event.target.value.replace(/[^0-9.]/g, ""),
-                      })
-                    }
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-950"
-                    placeholder="0.00"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => removeTierCharge(tier.tierId, charge.id)}
-                    className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))
-            )}
+              {bankConnected ? "Connected" : "Not connected"}
+            </div>
           </div>
         </div>
-      ))}
 
-      <button
-        type="button"
-        onClick={saveTierCharges}
-        disabled={savingCharges}
-        className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-      >
-        {savingCharges ? "Saving..." : "Save Changes"}
-      </button>
+        <div className="grid gap-4 px-6 py-6 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Security
+            </div>
+            <div className="mt-2 text-sm font-semibold text-slate-950">
+              Bank details stay with Stripe
+            </div>
+            <div className="mt-2 text-sm leading-6 text-slate-600">
+              RentFray does not manually store routing or account numbers in this flow.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Payouts
+            </div>
+            <div className="mt-2 text-sm font-semibold text-slate-950">
+              Direct owner settlement
+            </div>
+            <div className="mt-2 text-sm leading-6 text-slate-600">
+              Stripe Connect routes incoming tenant payments to the property’s connected payout account.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Setup
+            </div>
+            <div className="mt-2 text-sm font-semibold text-slate-950">
+              One guided onboarding flow
+            </div>
+            <div className="mt-2 text-sm leading-6 text-slate-600">
+              Complete verification, banking, and payout details in Stripe’s secure hosted flow.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {!isOwner ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Only the property owner can connect or update the payout account.
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-slate-500">
+          {bankConnected
+            ? "Need to change banks or refresh verification? Launch Stripe onboarding again."
+            : "Connect the payout account to begin receiving tenant ACH settlements through Stripe."}
+        </div>
+
+        <button
+          type="button"
+          onClick={connectBank}
+          disabled={!isOwner}
+          className="inline-flex min-w-[220px] items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          {bankConnected ? "Manage Payout Account" : "Connect Payout Account"}
+        </button>
+      </div>
     </div>
   </OverlayShell>
-) : null}      
+) : null}
 
 {activePanel === "rent" ? (
   <OverlayShell
@@ -2725,51 +2815,151 @@ if (error === "Unauthorized") {
     onClose={closePanel}
   >
     <div className="space-y-5">
-      
-     <div className="flex justify-end">
-
-  <select
-    value={gpLfTierMode}
-    onChange={(e) =>
-      setGpLfTierMode(e.target.value as "all" | "selected")
-    }
-    disabled={!canEditLateFeeSettings}
-    className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 disabled:bg-slate-100"
-  >
-    <option value="all">Apply to all tiers</option>
-    <option value="selected">Apply to selected tiers</option>
-  </select>
-</div>
-
-{gpLfTierMode === "selected" ? (
-  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-    <div className="mb-3 text-sm font-semibold text-slate-900">
-      Select the tiers this applies to:
-    </div>
-    <div className="flex flex-wrap gap-2">
-      {localTiers.map((tier) => (
-        <label
-          key={tier.id}
-          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+      <div className="flex justify-end">
+        <select
+          value={gpLfTierMode}
+          onChange={(e) =>
+            setGpLfTierMode(e.target.value as "all" | "selected")
+          }
+          disabled={!canEditLateFeeSettings}
+          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 disabled:bg-slate-100"
         >
-          <input
-            type="checkbox"
-            checked={gpLfSelectedTierIds.includes(tier.id)}
-            onChange={() => toggleGpLfTierSelection(tier.id)}
-            disabled={!canEditLateFeeSettings}
-          />
-          <span>{tier.tierName}</span>
-        </label>
-      ))}
-    </div>
-  </div>
-) : null}
+          <option value="all">Apply to all tiers</option>
+          <option value="selected">Apply to selected tiers</option>
+        </select>
+      </div>
+
+      {gpLfTierMode === "selected" ? (
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 text-sm font-semibold text-slate-900">
+            Select the tiers this applies to:
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {localTiers.map((tier) => (
+              <label
+                key={tier.id}
+                className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+              >
+                <input
+                  type="checkbox"
+                  checked={gpLfSelectedTierIds.includes(tier.id)}
+                  onChange={() => toggleGpLfTierSelection(tier.id)}
+                  disabled={!canEditLateFeeSettings}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                <span>{tier.tierName}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">
+              Current Tier Rules
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              Review differences before applying new GP&amp;LF settings.
+            </div>
+          </div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            {gpLfVisibleTiers.length} tier{gpLfVisibleTiers.length === 1 ? "" : "s"} shown
+          </div>
+        </div>
+
+        {gpLfVisibleTiers.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+            No tiers selected yet.
+          </div>
+        ) : (
+          <>
+            {gpLfComparisonSummary ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Due Day</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{gpLfComparisonSummary.dueDay}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Grace Days</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{gpLfComparisonSummary.graceDays}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Late Fees</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{gpLfComparisonSummary.lateFeeStatus}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Initial Late Fee</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {gpLfComparisonSummary.lateFeeInitial === "Mixed"
+                      ? "Mixed"
+                      : formatGpLfMoney(gpLfComparisonSummary.lateFeeInitial)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Daily Late Fee</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {gpLfComparisonSummary.lateFeeDaily === "Mixed"
+                      ? "Mixed"
+                      : formatGpLfMoney(gpLfComparisonSummary.lateFeeDaily)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Max Late Fee Days</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{gpLfComparisonSummary.lateFeeMaxDays}</div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {gpLfVisibleTiers.map((tier) => (
+                <div
+                  key={tier.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4"
+                >
+                  <div className="text-sm font-semibold text-slate-900">
+                    {tier.tierName}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Due Day</div>
+                      <div className="mt-1 font-semibold text-slate-900">{tier.dueDay}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Grace Days</div>
+                      <div className="mt-1 font-semibold text-slate-900">{tier.graceDays}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Initial Fee</div>
+                      <div className="mt-1 font-semibold text-slate-900">{formatGpLfMoney(tier.lateFeeInitial)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Daily Fee</div>
+                      <div className="mt-1 font-semibold text-slate-900">{formatGpLfMoney(tier.lateFeeDaily)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Max Days</div>
+                      <div className="mt-1 font-semibold text-slate-900">{tier.lateFeeMaxDays}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Late Fees</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {tier.lateFeeEnabled ? "Enabled" : "Disabled"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Due Day
-          </label>
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-sm font-semibold text-slate-900">Due Day</div>
           <input
             type="number"
             min="1"
@@ -2777,22 +2967,19 @@ if (error === "Unauthorized") {
             value={gpLfSettings.dueDay}
             onChange={(e) => updateGpLf({ dueDay: e.target.value })}
             disabled={!canEditLateFeeSettings}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+            className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
           />
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Grace Days
-          </label>
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-sm font-semibold text-slate-900">Grace Days</div>
           <input
             type="number"
             min="0"
-            max="31"
             value={gpLfSettings.graceDays}
             onChange={(e) => updateGpLf({ graceDays: e.target.value })}
             disabled={!canEditLateFeeSettings}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+            className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
           />
         </div>
       </div>
@@ -2801,18 +2988,18 @@ if (error === "Unauthorized") {
         <label className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">
-              Enable Late Fees
+              Disable Late Fee Rules
             </div>
             <div className="mt-1 text-xs text-slate-500">
-              Turn on initial and daily late fee rules.
+              Late fees stay active unless you explicitly turn them off.
             </div>
           </div>
 
           <input
             type="checkbox"
-            checked={gpLfSettings.lateFeeEnabled}
+            checked={!gpLfSettings.lateFeeEnabled}
             onChange={(e) =>
-              updateGpLf({ lateFeeEnabled: e.target.checked })
+              updateGpLf({ lateFeeEnabled: !e.target.checked })
             }
             disabled={!canEditLateFeeSettings}
             className="h-5 w-5 rounded border-slate-300"
@@ -2822,10 +3009,10 @@ if (error === "Unauthorized") {
 
       {gpLfSettings.lateFeeEnabled ? (
         <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">
               Initial Late Fee
-            </label>
+            </div>
             <input
               type="number"
               min="0"
@@ -2835,15 +3022,15 @@ if (error === "Unauthorized") {
                 updateGpLf({ lateFeeInitial: e.target.value })
               }
               disabled={!canEditLateFeeSettings}
-              placeholder="0.00"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+              placeholder="0"
+              className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">
               Daily Late Fee
-            </label>
+            </div>
             <input
               type="number"
               min="0"
@@ -2853,50 +3040,49 @@ if (error === "Unauthorized") {
                 updateGpLf({ lateFeeDaily: e.target.value })
               }
               disabled={!canEditLateFeeSettings}
-              placeholder="0.00"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+              placeholder="0"
+              className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Max Daily Fee Days
-            </label>
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">
+              Max Late Fee Days
+            </div>
             <input
               type="number"
               min="0"
-              max="365"
               value={gpLfSettings.lateFeeMaxDays}
               onChange={(e) =>
                 updateGpLf({ lateFeeMaxDays: e.target.value })
               }
               disabled={!canEditLateFeeSettings}
               placeholder="0"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
+              className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-950 disabled:bg-slate-100"
             />
           </div>
         </div>
       ) : null}
 
       <button
-  type="button"
-  onClick={saveGpLfSettings}
-  disabled={!canEditLateFeeSettings || savingGpLf}
-  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition active:translate-y-px active:bg-blue-700 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
->
-  {savingGpLf ? "Saving..." : "Save Changes"}
-</button>
+        type="button"
+        onClick={saveGpLfSettings}
+        disabled={!canEditLateFeeSettings || savingGpLf}
+        className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 active:translate-y-px active:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
+        {savingGpLf ? "Saving..." : "Save Changes"}
+      </button>
 
-{gpLfSaveMessage ? (
-  <div className="text-sm text-slate-600">{gpLfSaveMessage}</div>
-) : null}
-
+      {gpLfSaveMessage ? (
+        <div className="text-sm text-slate-600">
+          {gpLfSaveMessage}
+        </div>
+      ) : null}
     </div>
   </OverlayShell>
 ) : null}
 
-
-      {activePanel === "manager" ? (
+            {activePanel === "manager" ? (
   <OverlayShell
     title="Managers"
     subtitle="Owner-controlled account management."
@@ -2915,7 +3101,7 @@ if (error === "Unauthorized") {
         </div>
 
         {(sessionRole === "OWNER" || sessionRole === "MANAGER") && (
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {

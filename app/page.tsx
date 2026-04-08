@@ -773,7 +773,7 @@ export default function Home() {
 
       {openDemo ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/70 px-3 py-4 backdrop-blur-sm sm:px-6">
-          <div className="relative flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-[#cbd5e1] bg-white shadow-[0_35px_120px_rgba(2,6,23,0.45)]">
+          <div className="relative flex max-h-[94vh] w-full max-w-6xl flex-col overflow-visible rounded-[32px] border border-[#cbd5e1] bg-white shadow-[0_35px_120px_rgba(2,6,23,0.45)]">
             <div className="flex items-start justify-between gap-4 border-b border-[#e2e8f0] px-5 py-4 sm:px-6">
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
@@ -796,7 +796,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fbfd] px-3 py-4 sm:px-6 sm:py-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible bg-[#f8fbfd] px-3 py-6 sm:px-6 sm:py-8">
               <SlidePreview slideId={currentSlide.id} />
             </div>
 

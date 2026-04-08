@@ -3,9 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
-type TierInput = {
-  tierName: string;
-  baseRent: string;
+type GPLFTierInput = {
+  id: string;
   dueDay: string;
   graceDays: string;
   lateFeeEnabled: boolean;
@@ -15,7 +14,7 @@ type TierInput = {
 };
 
 type PostBody = {
-  tiers?: TierInput[];
+  tiers?: GPLFTierInput[];
 };
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -44,60 +43,37 @@ export async function POST(
 
     const { id } = await context.params;
     const body = (await req.json()) as PostBody;
-
-    const tiers: TierInput[] = Array.isArray(body.tiers) ? body.tiers : [];
+    const tiers = Array.isArray(body.tiers) ? body.tiers : [];
 
     if (!id || tiers.length === 0) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.propertyTier.updateMany({
-        where: { propertyId: id },
-        data: { isActive: false },
-      });
+      for (const tier of tiers) {
+        const tierId = String(tier.id || "").trim();
 
-      for (let i = 0; i < tiers.length; i += 1) {
-        const t = tiers[i];
+        if (!tierId) {
+          continue;
+        }
 
-                const name = String(t.tierName || "").trim() || `Tier ${i + 1}`;
-        const baseRentCents = toCents(t.baseRent);
-        const rentDueDay = toInt(t.dueDay, 1);
-        const gracePeriodDays = toInt(t.graceDays, 0);
-        const lateFeeInitialCents = t.lateFeeEnabled ? toCents(t.lateFeeAmount) : 0;
-        const lateFeeDailyCents = t.lateFeeEnabled ? toCents(t.lateFeeDaily) : 0;
-        const maxLateFeeDays = t.lateFeeEnabled ? toInt(t.lateFeeMaxDays, 0) : 0;
+        const rentDueDay = toInt(tier.dueDay, 1);
+        const gracePeriodDays = toInt(tier.graceDays, 0);
+        const lateFeeInitialCents = tier.lateFeeEnabled ? toCents(tier.lateFeeAmount) : 0;
+        const lateFeeDailyCents = tier.lateFeeEnabled ? toCents(tier.lateFeeDaily) : 0;
+        const maxLateFeeDays = tier.lateFeeEnabled ? toInt(tier.lateFeeMaxDays, 0) : 0;
 
-        await tx.propertyTier.upsert({
+        await tx.propertyTier.update({
           where: {
-            propertyId_name: {
-              propertyId: id,
-              name,
-            },
+            id: tierId,
           },
-                    update: {
-            baseRentCents,
+          data: {
             rentDueDay,
             gracePeriodDays,
             lateFeeInitialCents,
             lateFeeDailyCents,
             maxLateFeeDays,
-            lateFeeType: lateFeeDailyCents > 0 ? "FLAT" : "FLAT",
-            sortOrder: i,
-            isActive: true,
-          },
-          create: {
-            propertyId: id,
-            name,
-            baseRentCents,
-            rentDueDay,
-            gracePeriodDays,
-            lateFeeInitialCents,
-            lateFeeDailyCents,
-            maxLateFeeDays,
-            lateFeeType: lateFeeDailyCents > 0 ? "FLAT" : "FLAT",
-            sortOrder: i,
-            isActive: true,
+            lateFeeType: "FLAT",
           },
         });
       }
@@ -105,9 +81,9 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    console.error("SAVE TIERS FAILED", err);
+    console.error("SAVE GP&LF FAILED", err);
     return NextResponse.json(
-      { error: "Failed to save tiers" },
+      { error: "Failed to save GP&LF settings" },
       { status: 500 }
     );
   }

@@ -93,11 +93,16 @@ export async function GET(
       },
       settings: property.settings,
       tiers: property.tiers.map((t: (typeof property.tiers)[number]) => ({
-        id: t.id,
-        name: t.name,
-        baseRent: t.baseRentCents / 100,
-        unitCount: t.units.length,
-      })),
+  id: t.id,
+  name: t.name,
+  baseRent: t.baseRentCents / 100,
+  unitCount: t.units.length,
+  rentDueDay: t.rentDueDay,
+  gracePeriodDays: t.gracePeriodDays,
+  lateFeeInitialCents: t.lateFeeInitialCents,
+  lateFeeDailyCents: t.lateFeeDailyCents,
+  maxLateFeeDays: t.maxLateFeeDays,
+})),
     });
   } catch (error) {
     console.error("GET property failed", error);
