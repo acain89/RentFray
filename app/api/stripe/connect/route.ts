@@ -17,63 +17,75 @@ export async function POST() {
 
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
-      select: { id: true, stripeAccountId: true },
+      select: {
+        id: true,
+        name: true,
+        stripeAccountId: true,
+      },
     });
 
     if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
     }
 
     let accountId = property.stripeAccountId;
 
-if (accountId) {
-  await stripe.accounts.update(accountId, {
-    business_type: "company",
-    business_profile: {
-      name: property.name,
-      product_description: `Property management and rent collection for ${property.name}`,
-    },
-  });
-} else {
-  const account = await stripe.accounts.create({
-    type: "express",
-    business_type: "company",
-    business_profile: {
-      name: property.name,
-      product_description: `Property management and rent collection for ${property.name}`,
-    },
-    capabilities: {
-      transfers: { requested: true },
-    },
-  });
+    if (accountId) {
+      await stripe.accounts.update(accountId, {
+        business_profile: {
+          name: property.name,
+          product_description: `Property management and rent collection for ${property.name}`,
+        },
+      });
+    } else {
+      const account = await stripe.accounts.create({
+        type: "express",
+        business_type: "company",
+        business_profile: {
+          name: property.name,
+          product_description: `Property management and rent collection for ${property.name}`,
+        },
+        capabilities: {
+          transfers: { requested: true },
+        },
+      });
 
-  accountId = account.id;
+      accountId = account.id;
 
-  await prisma.property.update({
-    where: { id: property.id },
-    data: { stripeAccountId: accountId },
-  });
-}
+      await prisma.property.update({
+        where: { id: property.id },
+        data: { stripeAccountId: accountId },
+      });
+    }
 
-const accountLink = await stripe.accountLinks.create({
-  account: accountId,
-  refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/dashboard`,
-  return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/dashboard`,
-  type: "account_onboarding",
-});
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:10000";
 
-return NextResponse.json({
-  ok: true,
-  url: accountLink.url,
-});
-  } catch (err: any) {
-  console.error("STRIPE CONNECT ERROR:", err);
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${baseUrl}/manager/dashboard`,
+      return_url: `${baseUrl}/manager/dashboard`,
+      type: "account_onboarding",
+    });
 
-  return NextResponse.json(
-    {
-      error: err?.message || "Stripe error",
-    },
-    { status: 500 }
-  );
+    return NextResponse.json({
+      ok: true,
+      url: accountLink.url,
+    });
+  } catch (err: unknown) {
+    console.error("STRIPE CONNECT ERROR:", err);
+
+    const message =
+      err instanceof Error && err.message ? err.message : "Stripe error";
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      { status: 500 }
+    );
   }
 }
