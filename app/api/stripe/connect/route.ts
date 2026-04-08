@@ -29,11 +29,16 @@ export async function POST() {
     // Create account if not exists
     if (!accountId) {
       const account = await stripe.accounts.create({
-        type: "express",
-        capabilities: {
-          transfers: { requested: true },
-        },
-      });
+  type: "express",
+  business_type: "company",
+  business_profile: {
+    name: property.name,
+    product_description: `Property management and rent collection for ${property.name}`,
+  },
+  capabilities: {
+    transfers: { requested: true },
+  },
+});
 
       accountId = account.id;
 
