@@ -5,6 +5,11 @@ import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import { formatCentsToDollars } from "@/lib/billingConfig";
 import { getCapacitySnapshot } from "@/lib/propertyCapacity";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: "2026-02-25.clover",
+});
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
@@ -25,10 +30,11 @@ export async function GET() {
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
       select: {
-        id: true,
-        name: true,
-        propertyCode: true,
-        unitCount: true,
+  id: true,
+  name: true,
+  propertyCode: true,
+  unitCount: true,
+  stripeAccountId: true,
         managementUsers: {
           where: { isActive: true },
           select: {
@@ -43,6 +49,32 @@ export async function GET() {
     });
 
     if (!property) {
+      let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" = "NOT_CONNECTED";
+let bankMessage = "";
+
+if (property.stripeAccountId) {
+  try {
+    const account = await stripe.accounts.retrieve(property.stripeAccountId);
+
+    if (account.charges_enabled && account.payouts_enabled) {
+      bankStatus = "CONNECTED";
+      bankMessage =
+        "Your account has been successfully connected. Payments received will be deposited into the connected account.";
+    } else if (account.requirements?.disabled_reason) {
+      bankStatus = "RESTRICTED";
+      bankMessage =
+        "Sorry, your account could not be fully verified. Please complete all required Stripe onboarding steps.";
+    } else {
+      bankStatus = "PENDING";
+      bankMessage =
+        "Your account is pending verification. This can take anywhere from a couple of minutes to a few hours. Please check back later.";
+    }
+  } catch (err) {
+    console.error("Stripe account fetch error:", err);
+    bankStatus = "RESTRICTED";
+    bankMessage = "Unable to verify Stripe account status. Please try again.";
+  }
+}
       return NextResponse.json(
         { error: "Property not found" },
         { status: 404 }
@@ -202,12 +234,17 @@ if (latestStatus === "FAILED") {
     return NextResponse.json({
       ok: true,
       property: {
-        id: property.id,
-        name: property.name,
-        code: property.propertyCode,
-        unitCount: capacity.effectiveUnitCount,
-        managementUsers: property.managementUsers,
-      },
+  id: property.id,
+  name: property.name,
+  code: property.propertyCode,
+  unitCount: capacity.effectiveUnitCount,
+  managementUsers: property.managementUsers,
+  paymentStatus: {
+    bankConnected: bankStatus === "CONNECTED",
+    bankStatus,
+    bankMessage,
+  },
+},
       session: {
         role: session.role,
       },

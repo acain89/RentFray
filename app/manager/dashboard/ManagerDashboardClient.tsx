@@ -589,6 +589,8 @@ function getMixedBooleanText(values: boolean[]): string {
   const [updatingUnitCount, setUpdatingUnitCount] = useState(false);
   const propertyCode = data?.property?.code ?? "----";
   const bankConnected = data?.property?.paymentStatus?.bankConnected;
+  const bankStatus = data?.property?.paymentStatus?.bankStatus;
+  const bankMessage = data?.property?.paymentStatus?.bankMessage;
 
   const activeUnitCount = useMemo(() => {
   return Array.isArray(data?.units)
@@ -2513,10 +2515,17 @@ if (error === "Unauthorized") {
                 Stripe Connect
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-tight">
-                {bankConnected ? "Bank account connected" : "Connect your payout account"}
+                {bankStatus === "CONNECTED"
+  ? "Account connected"
+  : bankStatus === "PENDING"
+  ? "Verification in progress"
+  : bankStatus === "RESTRICTED"
+  ? "Action required"
+  : "Connect your payout account"}
               </div>
               <div className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                Rent payments are routed securely through Stripe. Owners complete onboarding once, and Stripe handles the bank verification and payout setup.
+                {bankMessage ||
+  "Connect your payout account to begin receiving tenant ACH settlements through Stripe."}
               </div>
             </div>
 
