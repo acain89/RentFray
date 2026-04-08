@@ -26,19 +26,34 @@ export async function POST() {
 
     let accountId = property.stripeAccountId;
 
-    // Create account if not exists
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-  type: "express",
-  business_type: "company",
-  business_profile: {
-    name: property.name,
-    product_description: `Property management and rent collection for ${property.name}`,
-  },
-  capabilities: {
-    transfers: { requested: true },
-  },
-});
+if (accountId) {
+  await stripe.accounts.update(accountId, {
+    business_type: "company",
+    business_profile: {
+      name: property.name,
+      product_description: `Property management and rent collection for ${property.name}`,
+    },
+  });
+} else {
+  const account = await stripe.accounts.create({
+    type: "express",
+    business_type: "company",
+    business_profile: {
+      name: property.name,
+      product_description: `Property management and rent collection for ${property.name}`,
+    },
+    capabilities: {
+      transfers: { requested: true },
+    },
+  });
+
+  accountId = account.id;
+
+  await prisma.property.update({
+    where: { id: property.id },
+    data: { stripeAccountId: accountId },
+  });
+}
 
       accountId = account.id;
 
