@@ -55,26 +55,17 @@ if (accountId) {
   });
 }
 
-      accountId = account.id;
+const accountLink = await stripe.accountLinks.create({
+  account: accountId,
+  refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/dashboard`,
+  return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/dashboard`,
+  type: "account_onboarding",
+});
 
-      await prisma.property.update({
-        where: { id: property.id },
-        data: { stripeAccountId: accountId },
-      });
-    }
-
-    // Create onboarding link
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/dashboard`,
-      return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/dashboard`,
-      type: "account_onboarding",
-    });
-
-    return NextResponse.json({
-      ok: true,
-      url: accountLink.url,
-    });
+return NextResponse.json({
+  ok: true,
+  url: accountLink.url,
+});
   } catch (err: any) {
   console.error("STRIPE CONNECT ERROR:", err);
 
