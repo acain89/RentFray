@@ -2599,7 +2599,15 @@ if (error === "Unauthorized") {
           disabled={!isOwner}
           className="inline-flex min-w-[220px] items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {bankConnected ? "Manage Payout Account" : "Connect Payout Account"}
+         {
+  bankStatus === "CONNECTED"
+    ? "Manage Payout Account"
+    : bankStatus === "PENDING"
+    ? "Continue Verification"
+    : bankStatus === "RESTRICTED"
+    ? "Fix Account Issues"
+    : "Connect Payout Account"
+}
         </button>
       </div>
     </div>
