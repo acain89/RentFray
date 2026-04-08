@@ -46,9 +46,11 @@ type DashboardData = {
     username: string;
     displayName: string | null;
   }[];
-  paymentStatus?: {
-    bankConnected?: boolean;
-  };
+ paymentStatus?: {
+  bankConnected?: boolean;
+  bankStatus?: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED";
+  bankMessage?: string;
+};
 };
   session: {
     role: "OWNER" | "MANAGER" | "STAFF";

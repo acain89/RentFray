@@ -48,9 +48,17 @@ export async function GET() {
       },
     });
 
-    if (!property) {
-      let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" = "NOT_CONNECTED";
-let bankMessage = "";
+   if (!property) {
+  return NextResponse.json(
+    { error: "Property not found" },
+    { status: 404 }
+  );
+}
+
+let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" =
+  "NOT_CONNECTED";
+let bankMessage =
+  "Connect your payout account to begin receiving payments.";
 
 if (property.stripeAccountId) {
   try {
@@ -72,14 +80,10 @@ if (property.stripeAccountId) {
   } catch (err) {
     console.error("Stripe account fetch error:", err);
     bankStatus = "RESTRICTED";
-    bankMessage = "Unable to verify Stripe account status. Please try again.";
+    bankMessage =
+      "Unable to verify Stripe account status. Please try again.";
   }
 }
-      return NextResponse.json(
-        { error: "Property not found" },
-        { status: 404 }
-      );
-    }
 
     const capacity = await getCapacitySnapshot(property.id);
 
