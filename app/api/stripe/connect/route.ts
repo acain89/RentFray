@@ -42,16 +42,18 @@ export async function POST() {
       });
     } else {
       const account = await stripe.accounts.create({
-        type: "express",
-        business_type: "company",
-        business_profile: {
-          name: property.name,
-          product_description: `Property management and rent collection for ${property.name}`,
-        },
-        capabilities: {
-          transfers: { requested: true },
-        },
-      });
+  type: "express",
+  business_type: "company",
+  business_profile: {
+    name: property.name,
+    product_description: `Property management and rent collection for ${property.name}`,
+  },
+  capabilities: {
+    transfers: { requested: true },
+    card_payments: { requested: true }, // required for charges_enabled
+    us_bank_account_ach_payments: { requested: true }, // ACH support
+  },
+});
 
       accountId = account.id;
 

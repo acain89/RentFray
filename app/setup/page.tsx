@@ -571,12 +571,10 @@ export default function SetupPage() {
 
       localStorage.removeItem(STORAGE_KEY);
 
-      const redirectTo =
-        "redirectTo" in setupResult && typeof setupResult.redirectTo === "string"
-          ? setupResult.redirectTo
-          : "/manager/dashboard";
+     const propertyCode =
+  "propertyCode" in setupResult ? setupResult.propertyCode : "";
 
-      router.push(redirectTo);
+router.push(`/setup/next-steps?code=${propertyCode}`);
     } catch {
       setSubmitError("Network error. Please try again.");
     } finally {

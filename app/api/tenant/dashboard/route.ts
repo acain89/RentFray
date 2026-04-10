@@ -244,10 +244,7 @@ export async function POST() {
 
     const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
 
-    const statementSourceEntries = filteredLedgerEntries.filter(
-      (entry: (typeof filteredLedgerEntries)[number]) =>
-        entry.billingCycle === billingCycle
-    );
+    const statementSourceEntries = filteredLedgerEntries;
 
     let rentCents = 0;
     let recurringChargesCents = 0;

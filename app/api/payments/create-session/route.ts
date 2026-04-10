@@ -86,6 +86,48 @@ export async function POST(req: Request) {
 
     const property = unit.property;
 
+// 🔥 LIVE STRIPE SYNC (SOURCE OF TRUTH)
+if (property?.stripeAccountId) {
+  const stripeAccount = await stripe.accounts.retrieve(
+    property.stripeAccountId
+  );
+
+  const updatedStatus = {
+    processorConnected: true,
+    bankConnected: true,
+    chargesEnabled: Boolean(stripeAccount.charges_enabled),
+    payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
+    onboardingComplete: Boolean(stripeAccount.details_submitted),
+    requirementsDue: Boolean(
+      stripeAccount.requirements?.currently_due?.length
+    ),
+    requirementsSummary:
+      stripeAccount.requirements?.disabled_reason ?? null,
+    lastSyncedAt: new Date(),
+    readyForLive:
+      Boolean(stripeAccount.charges_enabled) &&
+      Boolean(stripeAccount.payouts_enabled),
+  };
+
+  await prisma.property.update({
+    where: { id: property.id },
+    data: {
+      paymentStatus: {
+        upsert: {
+          create: updatedStatus,
+          update: updatedStatus,
+        },
+      },
+    },
+  });
+
+  // overwrite local object so gating uses fresh data
+  property.paymentStatus = {
+    ...property.paymentStatus,
+    ...updatedStatus,
+  };
+}
+
     if (
       !canMakePayments({
         status: property.status,

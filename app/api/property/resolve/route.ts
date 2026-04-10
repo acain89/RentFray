@@ -20,27 +20,26 @@ export async function POST(req: Request) {
     }
 
     const property = await prisma.property.findFirst({
+  where: {
+    propertyCode,
+  },
+  select: {
+    id: true,
+    name: true,
+    propertyCode: true,
+    tiers: {
       where: {
-        propertyCode,
         isActive: true,
       },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
         name: true,
-        propertyCode: true,
-        tiers: {
-          where: {
-            isActive: true,
-          },
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          select: {
-            id: true,
-            name: true,
-            baseRentCents: true,
-          },
-        },
+        baseRentCents: true,
       },
-    });
+    },
+  },
+});
 
     if (!property) {
       return NextResponse.json(

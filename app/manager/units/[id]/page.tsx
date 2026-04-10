@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
@@ -129,7 +128,15 @@ function getCycleStart(now: Date, billingDay: number): Date {
     return currentMonthStart;
   }
 
-  return new Date(now.getFullYear(), now.getMonth() - 1, safeBillingDay, 0, 0, 0, 0);
+  return new Date(
+    now.getFullYear(),
+    now.getMonth() - 1,
+    safeBillingDay,
+    0,
+    0,
+    0,
+    0
+  );
 }
 
 function getNextBillingDate(cycleStart: Date): Date {
@@ -149,14 +156,12 @@ function formatTenantName(firstName?: string | null, lastName?: string | null): 
   return full || "Vacant";
 }
 
-type PageParams = Promise<{ id: string }> | { id: string };
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
-export default async function UnitDetail({
-  params,
-}: {
-  params: PageParams;
-}) {
-  const { id } = await Promise.resolve(params);
+export default async function UnitDetail({ params }: Props) {
+  const { id } = await params;
 
   if (!id) {
     throw new Error("Missing unit id");

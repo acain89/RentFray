@@ -5,9 +5,11 @@ import { prisma } from "@/lib/prisma";
 export type LedgerSummary = {
   balanceCents: number;
   totalChargesCents: number;
+  totalCreditsCents: number;
   totalPaidCents: number;
   balance: number;
   totalCharges: number;
+  totalCredits: number;
   totalPaid: number;
   lastPaymentDate: Date | null;
   lastPaymentAmountCents: number | null;
@@ -136,7 +138,8 @@ export async function getUnitLedgerSummary(
 
   let balanceCents = 0;
   let totalChargesCents = 0;
-  let totalPaidCents = 0;
+let totalCreditsCents = 0;
+let totalPaidCents = 0;
 
   let lastPaymentDate: Date | null = null;
   let lastPaymentCreatedAt: Date | null = null;
@@ -161,6 +164,10 @@ export async function getUnitLedgerSummary(
     if (isChargeEntry(entryType)) {
       totalChargesCents += Math.abs(rawAmountCents);
     }
+
+    if (isCreditEntry(entryType)) {
+  totalCreditsCents += Math.abs(rawAmountCents);
+}
 
     if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {
       const paymentAbsCents = Math.abs(rawAmountCents);
@@ -188,12 +195,14 @@ export async function getUnitLedgerSummary(
     }
   }
 
-  return {
-    balanceCents,
-    totalChargesCents,
-    totalPaidCents,
+ return {
+  balanceCents,
+  totalChargesCents,
+  totalCreditsCents,
+  totalPaidCents,
     balance: centsToDollars(balanceCents),
     totalCharges: centsToDollars(totalChargesCents),
+    totalCredits: centsToDollars(totalCreditsCents),
     totalPaid: centsToDollars(totalPaidCents),
     lastPaymentDate,
     lastPaymentAmountCents,

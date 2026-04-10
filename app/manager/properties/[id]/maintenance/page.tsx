@@ -24,30 +24,29 @@ type QueueData = {
   requests: MaintenanceRow[];
 };
 
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
 function fmtDateTime(value: string) {
   return new Date(value).toLocaleString("en-US");
 }
 
-export default function PropertyMaintenancePage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const propertyId = params.id;
-
+export default function PropertyMaintenancePage({ params }: Props) {
+  const [propertyId, setPropertyId] = useState("");
   const [data, setData] = useState<QueueData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [notesDrafts, setNotesDrafts] = useState<Record<string, string>>({});
 
-  async function load() {
+  async function load(nextPropertyId: string) {
     try {
       setLoading(true);
       setError("");
 
       const res = await fetch(
-        `/api/manager/maintenance?propertyId=${encodeURIComponent(propertyId)}`,
+        `/api/manager/maintenance?propertyId=${encodeURIComponent(nextPropertyId)}`,
         {
           method: "GET",
         }
@@ -75,8 +74,28 @@ export default function PropertyMaintenancePage({
   }
 
   useEffect(() => {
-    load();
-  }, [propertyId]);
+    let cancelled = false;
+
+    async function init() {
+      try {
+        const resolved = await params;
+        if (cancelled) return;
+
+        setPropertyId(resolved.id);
+        await load(resolved.id);
+      } catch {
+        if (cancelled) return;
+        setError("Failed to load property.");
+        setLoading(false);
+      }
+    }
+
+    void init();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params]);
 
   async function updateStatus(requestId: string, status: string) {
     try {
@@ -101,7 +120,8 @@ export default function PropertyMaintenancePage({
         return;
       }
 
-      await load();
+      if (!propertyId) return;
+      await load(propertyId);
     } catch {
       setError("Failed to update request.");
     } finally {
@@ -132,7 +152,8 @@ export default function PropertyMaintenancePage({
         return;
       }
 
-      await load();
+      if (!propertyId) return;
+      await load(propertyId);
     } catch {
       setError("Failed to save notes.");
     } finally {
@@ -145,7 +166,7 @@ export default function PropertyMaintenancePage({
   const propertyName = data?.requests?.[0]?.propertyName || "Property Maintenance";
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-bold">Property Maintenance Queue</h1>
@@ -253,9 +274,9 @@ export default function PropertyMaintenancePage({
               <div className="flex items-end">
                 <button
                   type="button"
-                  onClick={() =>
-                    (window.location.href = `/manager/units/${row.unitId}`)
-                  }
+                  onClick={() => {
+                    window.location.href = `/manager/units/${row.unitId}`;
+                  }}
                   className="rounded border px-3 py-2 text-sm"
                 >
                   Open Unit

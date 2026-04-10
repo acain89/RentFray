@@ -391,23 +391,6 @@ if (error === "Unauthorized") {
               <div className="my-2 border-t border-slate-200" />
 
               <div className="flex justify-between">
-                <span>Rent</span>
-                <span className="font-medium">{money(statement.rent)}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>Charges</span>
-                <span className="font-medium">
-                  {money(statement.recurringCharges)}
-                </span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>Late Fees</span>
-                <span className="font-medium">{money(statement.lateFees)}</span>
-              </div>
-
-              <div className="flex justify-between">
   <span>Processing Fee</span>
   <span className="font-medium">{money(statement.processingFee ?? 0)}</span>
 </div>

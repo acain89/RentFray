@@ -44,7 +44,7 @@ export default function PropertyCodePage() {
         body: JSON.stringify({ code: cleanCode }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       const hasValidProperty =
         Boolean(data?.ok) &&

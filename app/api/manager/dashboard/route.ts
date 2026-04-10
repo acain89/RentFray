@@ -155,8 +155,11 @@ let totalPaidCount = 0;
   }),
 ]);
 
-        totalExpectedCents += Math.max(0, ledger.totalChargesCents);
-        totalCollectedCents += Math.max(0, ledger.totalPaidCents);
+        const netExpected =
+  ledger.totalChargesCents - ledger.totalCreditsCents;
+
+totalExpectedCents += Math.max(0, netExpected);
+totalCollectedCents += Math.max(0, ledger.totalPaidCents);
 
         if (delinquency.isDelinquent) {
           delinquentCount++;
