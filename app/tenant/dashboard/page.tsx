@@ -1,10 +1,15 @@
-// app/tenant/dashboard/page.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PayNowButton from "@/app/components/PayNowButton";
+
+type PaymentViewStatus =
+  | "UNPAID"
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REVERSED";
 
 type LedgerEntry = {
   id: string;
@@ -45,6 +50,9 @@ type DashboardData = {
   isDelinquent: boolean;
   ledger: LedgerEntry[];
   statement?: StatementData;
+  paymentStatus?: PaymentViewStatus;
+  paymentMessage?: string;
+  latestPaymentTimestamp?: string | null;
 };
 
 type DashboardError = {
@@ -64,6 +72,22 @@ function fmtDate(value: string): string {
   }
 
   return date.toLocaleDateString("en-US");
+}
+
+function normalizePaymentStatus(value: unknown): PaymentViewStatus | undefined {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  if (
+    status === "UNPAID" ||
+    status === "PENDING" ||
+    status === "PAID" ||
+    status === "FAILED" ||
+    status === "REVERSED"
+  ) {
+    return status;
+  }
+
+  return undefined;
 }
 
 function normalizeDashboardData(value: unknown): DashboardData | null {
@@ -195,6 +219,14 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
     isDelinquent: data.isDelinquent,
     ledger,
     statement,
+    paymentStatus: normalizePaymentStatus(data.paymentStatus),
+    paymentMessage:
+      typeof data.paymentMessage === "string" ? data.paymentMessage : undefined,
+    latestPaymentTimestamp:
+      typeof data.latestPaymentTimestamp === "string" ||
+      data.latestPaymentTimestamp === null
+        ? data.latestPaymentTimestamp
+        : undefined,
   };
 }
 
@@ -313,6 +345,7 @@ export default function TenantDashboard() {
   const ledger = Array.isArray(data.ledger) ? data.ledger : [];
   const statement = data.statement;
   const paymentBlocked = !data.paymentEnabled;
+  const isPending = data.paymentStatus === "PENDING";
   const totalDue = statement?.totalDue ?? data.balance;
 
   const parsedAmount = Number(amount);
@@ -349,17 +382,35 @@ export default function TenantDashboard() {
         <div className="rounded-[28px] border border-sky-200 bg-white p-6 text-center shadow-sm">
           <p className="text-xs text-slate-500">Current Balance</p>
 
-          <p className="mt-2 text-4xl font-semibold tracking-tight">
-            {money(totalDue)}
-          </p>
+          {isPending ? (
+            <>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-600">
+                Payment Pending
+              </p>
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                {data.paymentMessage || "Payment pending."}
+              </p>
+              {data.latestPaymentTimestamp ? (
+                <p className="mt-2 text-sm text-slate-500">
+                  Submitted on {fmtDate(data.latestPaymentTimestamp)}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-4xl font-semibold tracking-tight">
+                {money(totalDue)}
+              </p>
 
-          <p className="mt-2 text-sm font-medium">
-            {data.isDelinquent ? (
-              <span className="text-red-600">Past Due</span>
-            ) : (
-              <span className="text-green-600">Current</span>
-            )}
-          </p>
+              <p className="mt-2 text-sm font-medium">
+                {data.isDelinquent ? (
+                  <span className="text-red-600">Past Due</span>
+                ) : (
+                  <span className="text-green-600">Current</span>
+                )}
+              </p>
+            </>
+          )}
         </div>
 
         {statement ? (
@@ -408,24 +459,39 @@ export default function TenantDashboard() {
 
               <div className="border-t border-slate-200 pt-3" />
 
-              <div className="flex justify-between text-base font-semibold text-slate-950">
-                <span>
-                  Total due
-                  {data.dueDate ? ` on ${fmtDate(data.dueDate)}` : ""}
-                </span>
-                <span>{money(totalDue)}</span>
-              </div>
-
-              {data.graceEndsOn ? (
-                <div className="text-sm text-slate-500">
-                  Grace period ends {fmtDate(data.graceEndsOn)}.
+              {isPending ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="text-base font-semibold text-amber-800">
+                    Payment pending.
+                  </div>
+                  {data.latestPaymentTimestamp ? (
+                    <div className="mt-1 text-sm text-amber-700">
+                      Submitted on {fmtDate(data.latestPaymentTimestamp)}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              ) : (
+                <>
+                  <div className="flex justify-between text-base font-semibold text-slate-950">
+                    <span>
+                      Total due
+                      {data.dueDate ? ` on ${fmtDate(data.dueDate)}` : ""}
+                    </span>
+                    <span>{money(totalDue)}</span>
+                  </div>
+
+                  {data.graceEndsOn ? (
+                    <div className="text-sm text-slate-500">
+                      Grace period ends {fmtDate(data.graceEndsOn)}.
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
         ) : null}
 
-        {!paymentBlocked && totalDue > 0 ? (
+        {!paymentBlocked && !isPending && totalDue > 0 ? (
           <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold">Make a Payment</p>
 
@@ -449,7 +515,16 @@ export default function TenantDashboard() {
           </div>
         ) : null}
 
-        {paymentBlocked ? (
+        {isPending ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Payment pending.
+            {data.latestPaymentTimestamp
+              ? ` Submitted on ${fmtDate(data.latestPaymentTimestamp)}.`
+              : ""}
+          </div>
+        ) : null}
+
+        {paymentBlocked && !isPending ? (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
             Payments are currently disabled.
           </div>
