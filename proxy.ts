@@ -39,7 +39,7 @@ export function proxy(req: NextRequest) {
 
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon.ico") ||
+    pathname === "/favicon.ico" ||
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/images") ||
     pathname.startsWith("/icons")
