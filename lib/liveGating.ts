@@ -24,7 +24,7 @@ type PropertyStatus =
 type PropertyLike = {
   settings?: unknown;
   units?: unknown[] | null;
-  paymentConnectionStatus?: PaymentLike;
+  paymentStatus?: PaymentLike;
   isActive?: boolean | null;
   status?: PropertyStatus | null;
 } | null | undefined;
@@ -61,7 +61,7 @@ export function getLiveReadiness(property: PropertyLike): LiveReadiness {
   const hasUnits = Array.isArray(property?.units) && property.units.length > 0;
   const hasSettings = Boolean(property?.settings);
 
-  const payment = property?.paymentConnectionStatus;
+  const payment = property?.paymentStatus;
 
   const stripeConnected = Boolean(payment?.processorConnected);
   const achEnabled = Boolean(payment?.chargesEnabled);
