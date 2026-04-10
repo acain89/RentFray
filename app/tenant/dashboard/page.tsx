@@ -165,15 +165,15 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
       typeof candidate.processingFee === "number"
     ) {
       statement = {
-  rent: candidate.rent,
-  recurringCharges: candidate.recurringCharges,
-  lateFees: candidate.lateFees,
-  processingFee: candidate.processingFee,
-  credits: candidate.credits,
-  subtotal: candidate.subtotal,
-  totalDue: candidate.totalDue,
-  items,
-};
+        rent: candidate.rent,
+        recurringCharges: candidate.recurringCharges,
+        lateFees: candidate.lateFees,
+        processingFee: candidate.processingFee,
+        credits: candidate.credits,
+        subtotal: candidate.subtotal,
+        totalDue: candidate.totalDue,
+        items,
+      };
     }
   }
 
@@ -206,23 +206,22 @@ export default function TenantDashboard() {
   const [loading, setLoading] = useState<boolean>(true);
   const [amount, setAmount] = useState<string>("");
 
-async function logout(): Promise<void> {
-  try {
-    await fetch("/api/tenant/session", {
-      method: "DELETE",
-      credentials: "include",
-    });
-    window.location.href = "/";
-  } catch {
-    alert("Logout failed");
+  async function logout(): Promise<void> {
+    try {
+      await fetch("/api/tenant/session", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      window.location.href = "/";
+    } catch {
+      alert("Logout failed");
+    }
   }
-}
 
   useEffect(() => {
     let active = true;
 
-
-    async function load() {
+    async function load(): Promise<void> {
       try {
         const res = await fetch("/api/tenant/dashboard", {
           method: "POST",
@@ -261,7 +260,7 @@ async function logout(): Promise<void> {
         const dueAmount =
           normalized.statement?.totalDue ?? normalized.balance ?? 0;
 
-        setAmount(String(Number(dueAmount || 0).toFixed(2)));
+        setAmount(Number(dueAmount || 0).toFixed(2));
       } catch {
         if (!active) return;
         setError("Failed to load dashboard.");
@@ -287,16 +286,18 @@ async function logout(): Promise<void> {
     );
   }
 
-if (error === "Unauthorized") {
-  router.replace("/property-code");
-  return null;
-}
+  if (error === "Unauthorized") {
+    router.replace("/property-code");
+    return null;
+  }
 
   if (error || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="space-y-3 text-center">
-          <div className="text-sm text-red-600">{error || "Error loading."}</div>
+          <div className="text-sm text-red-600">
+            {error || "Error loading."}
+          </div>
           <button
             type="button"
             onClick={() => router.replace("/property-code")}
@@ -313,7 +314,14 @@ if (error === "Unauthorized") {
   const statement = data.statement;
   const paymentBlocked = !data.paymentEnabled;
   const totalDue = statement?.totalDue ?? data.balance;
-  const numericAmount = Number(amount || 0);
+
+  const parsedAmount = Number(amount);
+  const numericAmount =
+    amount.trim() !== "" &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0
+      ? parsedAmount
+      : null;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 px-4 py-6 text-slate-900">
@@ -325,12 +333,13 @@ if (error === "Unauthorized") {
 
           <h1 className="mt-3 text-2xl font-semibold">{data.tenantName}</h1>
 
-         <button
-  onClick={logout}
-  className="mt-2 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
->
-  Logout
-</button>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-2 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Logout
+          </button>
 
           <p className="mt-1 text-sm text-slate-600">
             {data.propertyName || "Property"} · Unit {data.unitNumber || "—"}
@@ -391,9 +400,11 @@ if (error === "Unauthorized") {
               <div className="my-2 border-t border-slate-200" />
 
               <div className="flex justify-between">
-  <span>Processing Fee</span>
-  <span className="font-medium">{money(statement.processingFee ?? 0)}</span>
-</div>
+                <span>Processing Fee</span>
+                <span className="font-medium">
+                  {money(statement.processingFee ?? 0)}
+                </span>
+              </div>
 
               <div className="border-t border-slate-200 pt-3" />
 
@@ -423,11 +434,18 @@ if (error === "Unauthorized") {
               step="0.01"
               min="1"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "" || Number(val) >= 0) {
+                  setAmount(val);
+                }
+              }}
               className="w-full rounded-xl border px-4 py-3 text-lg"
             />
 
-            <PayNowButton unitId={data.unitId} amount={numericAmount} />
+            {numericAmount !== null ? (
+              <PayNowButton unitId={data.unitId} amount={numericAmount} />
+            ) : null}
           </div>
         ) : null}
 
