@@ -133,7 +133,8 @@ if (property?.stripeAccountId) {
         status: property.status,
         settings: property.settings,
         units: property.units,
-        paymentConnectionStatus: property.paymentStatus,
+        paymentStatus: property.paymentStatus,
+        isActive: property.isActive,
       })
     ) {
       return NextResponse.json<ApiError>(

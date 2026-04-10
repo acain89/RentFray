@@ -148,7 +148,7 @@ export async function POST() {
       status: property.status,
       settings: property.settings,
       units: property.units,
-      paymentConnectionStatus: property.paymentStatus,
+      paymentStatus: property.paymentStatus,
     });
 
     const effectiveBillingSettings = resolveEffectiveBillingSettings({
