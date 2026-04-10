@@ -380,7 +380,7 @@ model Payment {
   propertyId            String
   unitId                String
   tenantAssignmentId    String?
-  stripePaymentIntentId String            @unique
+  stripePaymentIntentId String?            @unique
   stripeSessionId       String?           @unique
   billingCycle          String?
   amountCents           Int
