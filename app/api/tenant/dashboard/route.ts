@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import Stripe from "stripe";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
   getProcessingFeeCents,
@@ -116,6 +117,49 @@ export async function POST() {
     }
 
     const property = unit.property;
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+
+if (secretKey && property.stripeAccountId) {
+  const stripe = new Stripe(secretKey, {
+    apiVersion: "2026-02-25.clover",
+  });
+
+  const stripeAccount = await stripe.accounts.retrieve(property.stripeAccountId);
+
+  const updatedStatus = {
+    processorConnected: true,
+    bankConnected: true,
+    chargesEnabled: Boolean(stripeAccount.charges_enabled),
+    payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
+    onboardingComplete: Boolean(stripeAccount.details_submitted),
+    requirementsDue: Boolean(
+      stripeAccount.requirements?.currently_due?.length
+    ),
+    requirementsSummary:
+      stripeAccount.requirements?.disabled_reason ?? null,
+    lastSyncedAt: new Date(),
+    readyForLive:
+      Boolean(stripeAccount.charges_enabled) &&
+      Boolean(stripeAccount.payouts_enabled),
+  };
+
+  await prisma.property.update({
+    where: { id: property.id },
+    data: {
+      paymentStatus: {
+        upsert: {
+          create: updatedStatus,
+          update: updatedStatus,
+        },
+      },
+    },
+  });
+
+  property.paymentStatus = {
+    ...property.paymentStatus,
+    ...updatedStatus,
+  };
+}
 
     const currentAssignment = await prisma.tenantAssignment.findFirst({
       where: {
@@ -144,12 +188,13 @@ export async function POST() {
     const totalDueCents =
       balanceCents > 0 ? balanceCents + processingFeeCents : 0;
 
-    const paymentEnabled = canMakePayments({
-      status: property.status,
-      settings: property.settings,
-      units: property.units,
-      paymentStatus: property.paymentStatus,
-    });
+   const paymentEnabled = canMakePayments({
+  status: property.status,
+  settings: property.settings,
+  units: property.units,
+  paymentStatus: property.paymentStatus,
+  isActive: property.isActive,
+});
 
     const effectiveBillingSettings = resolveEffectiveBillingSettings({
       tier: unit.tier,
