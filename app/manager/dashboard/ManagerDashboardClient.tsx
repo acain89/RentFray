@@ -2129,13 +2129,13 @@ if (error === "Unauthorized") {
                         )}`}
                       />
 
-                      <button
-                        type="button"
-                        onClick={() => openUnitPanel(unit)}
-                        className="shrink-0 rounded-xl px-2 py-1 text-left text-base font-bold text-[var(--rf-text)] transition hover:bg-white/50"
+                     <button
+                      type="button"
+                      onClick={() => openUnitPanel(unit)}
+                      className="text-emerald-400 underline font-semibold hover:text-emerald-300 transition"
                       >
-                        {unit.unitNumber}
-                      </button>
+                      Unit {unit.unitNumber}
+                     </button>
 
                       <div className="min-w-[84px] truncate text-sm font-medium text-[var(--rf-text-soft)]">
                         {unit.displayLastName}
@@ -2331,7 +2331,7 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
           <span className="font-semibold text-emerald-600">
             Unit {selectedUnit.unitNumber} is active.
           </span>{" "}
-          This unit is available for occupancy and included in the active unit count.
+          Units must be vacated before setting as inactive.
         </>
       ) : (
         <>

@@ -769,6 +769,29 @@ export default function Home() {
             </div>
           </section>
         </div>
+        {/* Footer */}
+<footer className="mt-16 border-t border-[#cbd5e1] px-6 py-8 text-center">
+  <div className="space-y-2 text-sm text-[#475569]">
+    <div>
+      Questions?{" "}
+      <a
+        href="mailto:helpdesk@rentfray.com"
+        className="font-semibold text-[#0f172a] hover:underline"
+      >
+        helpdesk@rentfray.com
+      </a>
+    </div>
+
+    <div>
+      <button
+        onClick={() => router.push("/faq")}
+        className="font-semibold text-[#0f172a] hover:underline"
+      >
+        View FAQ
+      </button>
+    </div>
+  </div>
+</footer>
       </main>
 
       {openDemo ? (

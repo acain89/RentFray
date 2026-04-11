@@ -258,6 +258,7 @@ customer_creation: "if_required",
       metadata: {
         propertyId: property.id,
         unitId: unit.id,
+        stripeAccountId: property.stripeAccountId,
         tenantAssignmentId: tenantAssignmentId ?? "",
         ledgerBalanceCents: String(balanceCents),
         processingFeeCents: String(processingFeeCents),

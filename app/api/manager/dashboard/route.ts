@@ -104,9 +104,10 @@ if (property.stripeAccountId) {
       },
       orderBy: { unitNumber: "asc" },
       select: {
-        id: true,
-        unitNumber: true,
-        tier: {
+      id: true,
+      unitNumber: true,
+      isActive: true,
+      tier: {
           select: {
             name: true,
           },
@@ -217,6 +218,7 @@ if (latestStatus === "FAILED") {
         return {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
+          isActive: unit.isActive === true,
           tenantName: `${assignment.firstName ?? ""} ${
             assignment.lastName ?? ""
           }`.trim(),

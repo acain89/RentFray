@@ -2,26 +2,25 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 const siteUrl = "https://rentfray.com";
-const pagePath = "/online-rent-payment-system";
+const pagePath = "/free-rent-collection-software";
 const pageUrl = `${siteUrl}${pagePath}`;
-const pageTitle =
-  "Free Online Rent Payment System for Landlords and Property Managers | RentFray";
+const pageTitle = "Free Rent Collection Software | RentFray";
 const pageDescription =
-  "Free online rent payment system for landlords and property managers. Collect rent online, track tenant payments, and manage billing with no software cost.";
+  "Free rent collection software for landlords and property managers. Collect rent online, track tenant payments, and manage balances with no software cost.";
 
 const faqItems = [
   {
-    question: "How can I collect rent online?",
+    question: "Is RentFray really free for landlords and property managers?",
     answer:
-      "RentFray gives landlords and property managers a simple online payment system for collecting recurring rent from tenants.",
+      "Yes. RentFray is free for businesses. Tenants pay a small processing fee when they submit payments.",
   },
   {
-    question: "Is RentFray free for landlords and property managers?",
+    question: "Can I collect rent online with RentFray?",
     answer:
-      "Yes. RentFray is free for businesses. Tenants pay a small processing fee when making payments.",
+      "Yes. RentFray gives landlords and property managers a simple online payment system for collecting recurring rent.",
   },
   {
-    question: "Can I track tenant payments and balances?",
+    question: "Can I track balances and payment status?",
     answer:
       "Yes. RentFray is built to show what each tenant or unit owes, what has been paid, and what remains due.",
   },
@@ -58,13 +57,6 @@ const softwareSchema = {
     price: "0",
     priceCurrency: "USD",
   },
-};
-
-const organizationSchema = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "RentFray",
-  url: siteUrl,
 };
 
 export const metadata: Metadata = {
@@ -110,7 +102,7 @@ function FeatureCard({
   );
 }
 
-export default function OnlineRentPaymentSystemPage() {
+export default function FreeRentCollectionSoftwarePage() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <script
@@ -121,10 +113,6 @@ export default function OnlineRentPaymentSystemPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-      />
 
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
@@ -133,12 +121,11 @@ export default function OnlineRentPaymentSystemPage() {
               RentFray
             </p>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-              Free Online Rent Payment System for Landlords and Property
-              Managers
+              Free Rent Collection Software
             </h1>
             <p className="mt-6 text-lg leading-8 text-slate-600">
               Collect rent online, track every payment clearly, and manage
-              recurring billing without software fees.
+              recurring balances without software fees.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -149,10 +136,10 @@ export default function OnlineRentPaymentSystemPage() {
                 Start Free Setup
               </Link>
               <Link
-                href="/rent-collection-software-landlords"
+                href="/online-rent-payment-system"
                 className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
               >
-                For Landlords
+                See Overview
               </Link>
             </div>
           </div>
@@ -161,12 +148,15 @@ export default function OnlineRentPaymentSystemPage() {
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="max-w-4xl">
-          <SectionHeading>A Clear Way to Collect and Track Rent</SectionHeading>
+          <SectionHeading>
+            A Clear Way to Collect and Track Rent
+          </SectionHeading>
           <p className="mt-5 text-base leading-8 text-slate-600">
-            RentFray gives landlords and property managers a direct way to
-            collect rent online and track every payment in one place. No
-            spreadsheets, no manual guesswork, and no confusion about who has
-            paid and who still owes.
+            RentFray is free rent collection software for landlords and property
+            managers who want a simple, structured way to collect rent online.
+            Instead of relying on spreadsheets, manual notes, or confusing
+            tools, you get one clear system for tracking tenant payments,
+            balances, and recurring billing.
           </p>
         </div>
       </section>
@@ -174,52 +164,40 @@ export default function OnlineRentPaymentSystemPage() {
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="max-w-4xl">
-            <SectionHeading>Built for Recurring Property Payments</SectionHeading>
+            <SectionHeading>
+              Stop Chasing Rent and Manual Records
+            </SectionHeading>
             <p className="mt-5 text-base leading-8 text-slate-600">
-              RentFray is designed for property-based businesses that need
-              simple, structured rent collection with clear payment tracking and
-              obvious setup.
+              When rent collection is handled manually, it becomes harder to
+              know who has paid, who is behind, and what still needs attention.
+              That creates confusion, delays, and extra follow-up work.
+            </p>
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              RentFray replaces that confusion with one centralized rent
+              collection system designed for visibility, simplicity, and
+              day-to-day control.
             </p>
           </div>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-medium text-slate-800">
-              Apartment complexes
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-medium text-slate-800">
-              Rental housing
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-medium text-slate-800">
-              Mobile home parks
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-medium text-slate-800">
-              RV parks
-            </div>
-          </div>
-
-          <p className="mt-8 max-w-4xl text-base leading-8 text-slate-600">
-            It also supports other recurring-payment operations that need
-            balance visibility and clean billing structure, while keeping the
-            core experience focused on rent collection and payment clarity.
-          </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
-        <SectionHeading>Everything Needed to Manage Rent Clearly</SectionHeading>
+        <SectionHeading>
+          Everything Needed to Manage Rent Clearly
+        </SectionHeading>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <FeatureCard
             title="Collect Rent Online"
-            description="Tenants pay through a simple, guided payment flow designed to reduce friction and improve completion."
+            description="Tenants submit payments through a simple guided flow designed to be easy to understand and complete."
           />
           <FeatureCard
             title="Track Payments in Real Time"
-            description="See exactly who has paid, who has not, and what is still due across all units."
+            description="See exactly what has been paid, what remains due, and which tenants or units still need attention."
           />
           <FeatureCard
-            title="Clear, Consistent Balances"
-            description="Payment amounts, balances, and totals stay visible and easy to understand."
+            title="Clear Balance Visibility"
+            description="Payment amounts, balances, and recurring rent stay visible and easy to understand."
           />
         </div>
       </section>
@@ -229,8 +207,8 @@ export default function OnlineRentPaymentSystemPage() {
           <div className="max-w-4xl">
             <SectionHeading>No Software Cost for Businesses</SectionHeading>
             <p className="mt-5 text-base leading-8 text-slate-600">
-              RentFray is free for property owners and managers. There are no
-              monthly platform fees or software subscriptions. Tenants pay a
+              RentFray is free for landlords and property managers. There are
+              no monthly platform fees or software subscriptions. Tenants pay a
               small processing fee when they submit payments.
             </p>
             <p className="mt-4 text-base leading-8 text-slate-600">
@@ -243,13 +221,28 @@ export default function OnlineRentPaymentSystemPage() {
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="max-w-4xl">
-          <SectionHeading>Designed for Simplicity and Visibility</SectionHeading>
+          <SectionHeading>Built for Property-Based Businesses</SectionHeading>
           <p className="mt-5 text-base leading-8 text-slate-600">
-            RentFray removes unnecessary complexity while giving managers full
-            visibility into payment activity. Every transaction is clearly
-            tracked, every unit has a status, and the setup path stays direct
-            and easy to follow.
+            RentFray works for apartment complexes, rental housing, mobile home
+            parks, RV parks, and other recurring-payment property businesses. It
+            is built for operators who need obvious setup, clear balances, and a
+            direct way to collect rent online.
           </p>
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-medium text-slate-800">
+            Apartment complexes
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-medium text-slate-800">
+            Rental housing
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-medium text-slate-800">
+            Mobile home parks
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-medium text-slate-800">
+            RV parks
+          </div>
         </div>
       </section>
 
@@ -263,12 +256,12 @@ export default function OnlineRentPaymentSystemPage() {
             <ul className="mt-6 space-y-3 text-base leading-8 text-slate-600">
               <li>Real-time payment status</li>
               <li>Clear due amounts</li>
-              <li>Consistent tracking across all units</li>
-              <li>Simple setup for property operators</li>
+              <li>Consistent balance tracking</li>
+              <li>Simple setup for landlords and managers</li>
             </ul>
 
             <p className="mt-6 text-base leading-8 text-slate-600">
-              No guessing, no messy tracking, and no buried totals.
+              No guessing, no messy spreadsheets, and no buried totals.
             </p>
           </div>
         </div>
@@ -298,8 +291,7 @@ export default function OnlineRentPaymentSystemPage() {
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="rounded-3xl bg-slate-950 px-6 py-10 text-white shadow-xl sm:px-10">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Collect rent with clarity, accuracy, and full visibility using
-              RentFray.
+              Collect rent with clarity and full visibility using RentFray.
             </h2>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -310,10 +302,10 @@ export default function OnlineRentPaymentSystemPage() {
                 Start Setup
               </Link>
               <Link
-                href="/online-rent-payment-system-apartments"
+                href="/online-rent-payment-system"
                 className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                Apartment Page
+                Online Payment System
               </Link>
               <Link
                 href="/rent-collection-software-landlords"
@@ -322,28 +314,16 @@ export default function OnlineRentPaymentSystemPage() {
                 Landlord Page
               </Link>
               <Link
+                href="/online-rent-payment-system-apartments"
+                className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Apartment Page
+              </Link>
+              <Link
                 href="/mobile-home-park-rent-collection"
                 className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Mobile Home Parks
-              </Link>
-              <Link
-                href="/rv-park-rent-collection"
-                className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                RV Parks
-              </Link>
-              <Link
-                href="/self-storage-payment-system"
-                className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Self Storage
-              </Link>
-              <Link
-                href="/buy-here-pay-here-payment-system"
-                className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Car Lots
               </Link>
             </div>
           </div>
