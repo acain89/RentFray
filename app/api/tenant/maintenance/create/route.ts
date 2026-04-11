@@ -16,10 +16,10 @@ const VALID_URGENCY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 
 export async function POST(req: Request) {
   try {
-    // ✅ enforce session + role
     const session = await requireRole("TENANT");
 
-    if (!session.unitId) {
+    // ✅ EARLY HARD GUARD (TS + runtime safe)
+    if (!session.unitId || !session.propertyId) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
@@ -30,7 +30,6 @@ export async function POST(req: Request) {
     const description = String(body.description || "").trim();
 
     if (
-      !category ||
       !VALID_CATEGORIES.includes(
         category as (typeof VALID_CATEGORIES)[number]
       )
@@ -39,7 +38,6 @@ export async function POST(req: Request) {
     }
 
     if (
-      !urgency ||
       !VALID_URGENCY.includes(
         urgency as (typeof VALID_URGENCY)[number]
       )
@@ -47,13 +45,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid urgency" }, { status: 400 });
     }
 
-    if (!description || description.length < 5) {
+    if (description.length < 5) {
       return NextResponse.json(
         { error: "Description must be at least 5 characters" },
         { status: 400 }
       );
     }
 
+    // ✅ GUARANTEE UNIT EXISTS BEFORE USE
     const unit = await prisma.unit.findFirst({
       where: {
         id: session.unitId,
@@ -77,6 +76,8 @@ export async function POST(req: Request) {
         urgency,
         status: "OPEN",
         description,
+        createdByTenant: true,
+        tenantVisibleName: null,
       },
       select: {
         id: true,
@@ -89,10 +90,7 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      request,
-    });
+    return NextResponse.json({ ok: true, request });
   } catch (error) {
     console.error("tenant maintenance create POST error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

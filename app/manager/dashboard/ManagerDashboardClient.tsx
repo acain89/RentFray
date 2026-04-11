@@ -1072,21 +1072,21 @@ async function submitToggleUnitActive(): Promise<void> {
   try {
     setTogglingUnitActive(true);
 
-    const response = await fetch("/api/manager/units/toggle-active", {
+    const res = await fetch("/api/manager/units/toggle-active", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       credentials: "include",
       body: JSON.stringify({
         unitId: selectedUnit.unitId,
-        isActive: !selectedUnit.isActive,
+        makeActive: !selectedUnit.isActive,
       }),
     });
 
-    const json = (await response.json().catch(() => null)) as
-      | { ok?: boolean; error?: string }
-      | null;
+    const json = await res.json().catch(() => null);
 
-    if (!response.ok || !json?.ok) {
+    if (!res.ok || !json?.ok) {
       alert(json?.error || "Failed to update unit status.");
       return;
     }
@@ -1446,7 +1446,7 @@ async function reactivateInactiveUnit(unitId: string): Promise<void> {
       credentials: "include",
       body: JSON.stringify({
         unitId,
-        isActive: true,
+        makeActive: true,
       }),
     });
 
@@ -2321,62 +2321,50 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
   </button>
 </div>
 
-      <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          Active
-        </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+  <div className="flex items-center justify-between gap-4">
+    
+    {/* Status Text */}
+    <div className="text-sm text-slate-700">
+      {selectedUnit?.isActive ? (
+        <>
+          <span className="font-semibold text-emerald-600">
+            Unit {selectedUnit.unitNumber} is active.
+          </span>{" "}
+          This unit is available for occupancy and included in the active unit count.
+        </>
+      ) : (
+        <>
+          <span className="font-semibold text-red-600">
+            Unit {selectedUnit.unitNumber} is inactive.
+          </span>{" "}
+          This unit cannot be occupied and is excluded from the active unit count.
+        </>
+      )}
+    </div>
 
-        {canVacateUnit ? (
-          !showInactiveConfirm ? (
-            <button
-              type="button"
-              onClick={() => setShowInactiveConfirm(true)}
-              className="mt-2 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white"
-            >
-              {selectedUnit.isActive ? "Set Inactive" : "Reactivate"}
-            </button>
-          ) : (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-950">
-                Are you sure you want to make this unit inactive?
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-600">
-                It will not be available for other tenants/customers to use.
-              </div>
+    {/* Action Button */}
+    <button
+      type="button"
+      disabled={togglingUnitActive}
+      onClick={submitToggleUnitActive}
+      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+        selectedUnit?.isActive
+          ? "bg-red-600 text-white hover:bg-red-700"
+          : "bg-emerald-600 text-white hover:bg-emerald-700"
+      } ${
+        togglingUnitActive ? "cursor-not-allowed opacity-50" : ""
+      }`}
+    >
+      {togglingUnitActive
+        ? "Updating..."
+        : selectedUnit?.isActive
+        ? "Set Inactive"
+        : "Reactivate"}
+    </button>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={submitToggleUnitActive}
-                  disabled={togglingUnitActive}
-                  className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {togglingUnitActive
-                    ? selectedUnit.isActive
-                      ? "Saving..."
-                      : "Reactivating..."
-                    : selectedUnit.isActive
-                      ? "Confirm"
-                      : "Confirm Reactivate"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowInactiveConfirm(false)}
-                  disabled={togglingUnitActive}
-                  className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="mt-2 text-sm text-slate-600">
-            {selectedUnit.isActive ? "Active" : "Inactive"}
-          </div>
-        )}
-      </div>
+  </div>
+</div>
 
       <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
         <div className="text-sm font-semibold text-slate-950">

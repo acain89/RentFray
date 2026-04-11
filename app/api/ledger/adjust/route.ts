@@ -15,6 +15,15 @@ function toSafeCents(value: unknown): number {
   return Math.round(n);
 }
 
+/**
+ * Normalize a date to YYYY-MM (cycle key)
+ */
+function getCycleKey(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth() + 1;
+  return `${y}-${m.toString().padStart(2, "0")}`;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getSession();
@@ -39,21 +48,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    let entryType: "CHARGE" | "CREDIT";
-    let chargeType: "RENT" | "RECURRING_FEE" | "OTHER_FEE" | null;
-    let defaultMemo: string;
-
-    if (rawType !== "PRORATION") {
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return NextResponse.json(
-          { ok: false, error: "Invalid amount" },
-          { status: 400 }
-        );
-      }
-    }
-
-    const amountCents = Math.round(amount * 100);
 
     const unit = await prisma.unit.findFirst({
       where: {
@@ -85,20 +79,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // ============================
+    // 🔥 PRORATION (HARDENED)
+    // ============================
     if (rawType === "PRORATION") {
-      const moveInDate = String(body.moveInDate || "").trim();
+      const moveInDateStr = String(body.moveInDate || "").trim();
       const rentCents = toSafeCents(body.rentCents);
       const recurringCents = toSafeCents(body.recurringCents);
       const depositCents = toSafeCents(body.depositCents);
 
-      if (!moveInDate) {
+      if (!moveInDateStr) {
         return NextResponse.json(
           { ok: false, error: "Invalid proration data" },
           { status: 400 }
         );
       }
 
-      const effectiveDate = new Date(moveInDate);
+      const effectiveDate = new Date(moveInDateStr);
 
       if (Number.isNaN(effectiveDate.getTime())) {
         return NextResponse.json(
@@ -112,6 +109,36 @@ export async function POST(req: Request) {
           { ok: false, error: "Nothing to post" },
           { status: 400 }
         );
+      }
+
+      const cycleKey = getCycleKey(effectiveDate);
+
+      // 🚨 CRITICAL GUARD: prevent duplicate first-cycle rent
+      const existingRent = await prisma.ledgerEntry.findFirst({
+        where: {
+          tenantAssignmentId: assignment.id,
+          entryType: "CHARGE",
+          chargeType: "RENT",
+        },
+        select: {
+          id: true,
+          effectiveDate: true,
+        },
+      });
+
+      if (existingRent) {
+        const existingCycle = getCycleKey(existingRent.effectiveDate);
+
+        if (existingCycle === cycleKey) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Initial rent already exists for this tenant in this billing cycle",
+            },
+            { status: 400 }
+          );
+        }
       }
 
       const entries: Array<{
@@ -160,7 +187,8 @@ export async function POST(req: Request) {
               amountCents: entry.amountCents,
               memo: entry.memo,
               effectiveDate,
-              createdByManagementUserId: session.managementUserId ?? null,
+              createdByManagementUserId:
+                session.managementUserId ?? null,
             },
           })
         )
@@ -168,6 +196,22 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ ok: true });
     }
+
+    // ============================
+    // STANDARD ADJUSTMENTS
+    // ============================
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid amount" },
+        { status: 400 }
+      );
+    }
+
+    const amountCents = Math.round(amount * 100);
+
+    let entryType: "CHARGE" | "CREDIT";
+    let chargeType: "RENT" | "RECURRING_FEE" | "OTHER_FEE" | null;
+    let defaultMemo: string;
 
     if (rawType === "CHARGE") {
       entryType = "CHARGE";
