@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
-import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 type ApiSuccess<T> = {
   ok: true;
@@ -17,14 +20,6 @@ type ApiError = {
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function getNextMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
 }
 
 function getMonthLabel(date: Date): string {
@@ -53,33 +48,32 @@ export async function POST() {
       );
     }
 
-   
     const property = await prisma.property.findUnique({
-  where: { id: session.propertyId },
-  include: {
-    settings: true,
-    units: {
-      where: { isActive: true },
+      where: { id: session.propertyId },
       include: {
-        tenantAssignments: {
-          where: { isCurrent: true },
-          orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-          take: 1,
-          select: { id: true },
-        },
-        recurringFeeItems: {
+        settings: true,
+        units: {
           where: { isActive: true },
-          orderBy: [{ displayOrder: "asc" }, { id: "asc" }],
-          select: {
-            id: true,
-            label: true,
-            amountCents: true,
+          include: {
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+              take: 1,
+              select: { id: true },
+            },
+            recurringFeeItems: {
+              where: { isActive: true },
+              orderBy: [{ displayOrder: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                label: true,
+                amountCents: true,
+              },
+            },
           },
         },
       },
-    },
-  },
-});
+    });
 
     if (!property) {
       return NextResponse.json<ApiError>(
@@ -88,41 +82,8 @@ export async function POST() {
       );
     }
 
-     const now = new Date();
+    const now = new Date();
     const effectiveDate = safeDate(startOfDay(now));
-    const rentDates = getRentDateSummary({
-  ...resolveEffectiveBillingSettings({
-    tier: null,
-    propertySettings: property.settings,
-  }),
-  now,
-});
-
-const billingCycle = rentDates.billingCycle;
-const monthLabel = getMonthLabel(now);
-    const existingEntries = await prisma.ledgerEntry.findMany({
-      where: {
-        propertyId: property.id,
-        entryType: "CHARGE",
-        chargeType: "RECURRING_FEE",
-        billingCycle,
-        voidedAt: null,
-      },
-      select: {
-        unitId: true,
-        tenantAssignmentId: true,
-        memo: true,
-      },
-    });
-
-    const existingKeys = new Set<string>(
-      existingEntries.map(
-  (entry: (typeof existingEntries)[number]) =>
-    `${entry.unitId}::${entry.tenantAssignmentId ?? ""}::${clean(
-      entry.memo
-      )}`
-     )
-    );
 
     let posted = 0;
     let skipped = 0;
@@ -131,13 +92,26 @@ const monthLabel = getMonthLabel(now);
       for (const unit of property.units) {
         const activeAssignment = unit.tenantAssignments[0] ?? null;
 
+        const effective = resolveEffectiveBillingSettings({
+          tier: null,
+          propertySettings: property.settings,
+        });
+
+        const rentDates = getRentDateSummary({
+          ...effective,
+          now,
+        });
+
+        const billingCycle = rentDates.billingCycle;
+        const monthLabel = getMonthLabel(now);
+
         if (!activeAssignment) {
           skipped += unit.recurringFeeItems.length;
           continue;
         }
 
         for (const fee of unit.recurringFeeItems) {
-          const amountCents = fee.amountCents ?? 0; // ✅ FIX
+          const amountCents = fee.amountCents ?? 0;
           const label = clean(fee.label);
 
           if (!label || amountCents <= 0) {
@@ -146,12 +120,6 @@ const monthLabel = getMonthLabel(now);
           }
 
           const memo = `${label} - ${monthLabel}`;
-          const key = `${unit.id}::${activeAssignment.id}::${memo}`;
-
-          if (existingKeys.has(key)) {
-            skipped += 1;
-            continue;
-          }
 
           const existing = await tx.ledgerEntry.findFirst({
             where: {
@@ -181,14 +149,13 @@ const monthLabel = getMonthLabel(now);
               chargeType: "RECURRING_FEE",
               amountCents,
               effectiveDate,
-              billingCycle: billingCycle,
+              billingCycle,
               memo,
               createdByManagementUserId:
                 session.managementUserId ?? null,
             },
           });
 
-          existingKeys.add(key);
           posted += 1;
         }
       }
@@ -197,16 +164,14 @@ const monthLabel = getMonthLabel(now);
         data: {
           propertyId: property.id,
           actorType: "MANAGER",
-          actorManagementUserId:
-            session.managementUserId ?? null,
+          actorManagementUserId: session.managementUserId ?? null,
           action: "RECURRING_FEES_POSTED",
           targetType: "PROPERTY",
           targetId: property.id,
-          summary: `Recurring fees posted for ${monthLabel}`,
+          summary: `Recurring fees posted on ${getMonthLabel(now)}`,
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            billingCycle: billingCycle,
             triggeredAt: effectiveDate.toISOString(),
           }),
         },

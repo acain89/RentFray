@@ -128,7 +128,7 @@ const monthLabel = getMonthLabel(now);
       for (const unit of property.units) {
         const assignment = unit.tenantAssignments[0] ?? null;
         // 🔒 PROTECT: skip late fee if payment was started before late fee date
-const existingPayment = await prisma.payment.findFirst({
+const existingPayment = await tx.payment.findFirst({
   where: {
     unitId: unit.id,
     billingCycle,
@@ -160,7 +160,12 @@ if (existingPayment && existingPayment.createdAt <= effectiveDate) {
         }
 
         // ✅ FIX: already in cents — DO NOT convert
-        const feeCents = unit.tier?.lateFeeInitialCents ?? 0;
+        const effective = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings: property.settings,
+});
+
+const feeCents = effective.lateFeeInitialCents;
 
         if (feeCents <= 0) {
           skipped++;

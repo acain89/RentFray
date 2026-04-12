@@ -632,12 +632,11 @@ export default function Home() {
 
           <section className="space-y-6">
             <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Recurring payments. Account tracking. Simplified.
+              Rent collection that runs itself.
             </h1>
 
             <p className="text-base text-[#475569] sm:text-lg">
-              Set up your property, automate payments, and track everything — in
-              minutes. No spreadsheets. No confusion. Just a system that works.
+              Set it up in minutes. Share your code. Get paid automatically.
             </p>
 
             <p className="text-base font-semibold text-[#1e3a5f] sm:text-lg">
@@ -645,6 +644,18 @@ export default function Home() {
               trials.
             </p>
           </section>
+
+          <p className="text-sm text-[#475569] sm:text-base">
+  Built for apartments, mobile home parks, RV parks, storage, and small landlords.
+</p>
+
+<p className="text-sm text-[#475569] sm:text-base">
+  Be live today — no onboarding calls, no delays.
+</p>
+
+<p className="text-xs text-[#64748b] sm:text-sm">
+  Powered by Stripe. Bank-level security. You control your payouts.
+</p>
 
           <section className="mt-10 rounded-[32px] border border-[#1e293b] bg-[#0f172a] p-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
             <button

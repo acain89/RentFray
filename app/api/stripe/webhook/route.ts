@@ -6,6 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { canMakePayments } from "@/lib/liveGating";
 import { emitEvent } from "@/lib/realtime";
 import { assertValidTransition } from "@/lib/paymentStatus";
+import { getUnitLedgerSummary } from "@/lib/ledger";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 export const runtime = "nodejs";
 
@@ -21,10 +26,6 @@ function parseCents(value: string | undefined): number {
 
 function safeString(value: unknown): string {
   return String(value ?? "").trim();
-}
-
-function getBillingCycle(date: Date): string {
-  return date.toISOString().slice(0, 7); // YYYY-MM
 }
 
 async function updatePaymentStatus(
@@ -76,29 +77,20 @@ export async function POST(req: Request) {
     const sig = (await headers()).get("stripe-signature");
 
     if (!sig) {
-      return NextResponse.json(
-        { error: "Missing signature" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
     event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
   } catch {
-    return NextResponse.json(
-      { error: "Invalid signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
-    // Attach paymentIntent to existing payment record
     if (event.type === "checkout.session.completed") {
-
-     // ACH NOTE:
-// checkout.session.completed does NOT mean funds cleared.
-// We ONLY mark PAID on payment_intent.succeeded.
-// This block is ONLY for linking session → paymentIntent.
-
+      // ACH note:
+      // checkout.session.completed does NOT mean funds cleared.
+      // We ONLY mark PAID on payment_intent.succeeded.
+      // This block only links session -> paymentIntent.
       const session = event.data.object as Stripe.Checkout.Session;
 
       if (typeof session.payment_intent === "string") {
@@ -108,9 +100,8 @@ export async function POST(req: Request) {
         });
       }
     }
-  
-     const intent = event.data.object as Stripe.PaymentIntent;
 
+    const intent = event.data.object as Stripe.PaymentIntent;
 
     if (event.type === "payment_intent.payment_failed") {
       await updatePaymentStatus(intent.id, "FAILED");
@@ -124,86 +115,83 @@ export async function POST(req: Request) {
       }
     }
 
-     if (event.type === "account.updated") {
-  const account = event.data.object as Stripe.Account;
+    if (event.type === "account.updated") {
+      const account = event.data.object as Stripe.Account;
 
-  if (!account.id) {
-    return NextResponse.json({ received: true });
-  }
+      if (!account.id) {
+        return NextResponse.json({ received: true });
+      }
 
-  const property = await prisma.property.findFirst({
-    where: { stripeAccountId: account.id },
-    include: { paymentStatus: true },
-  });
+      const property = await prisma.property.findFirst({
+        where: { stripeAccountId: account.id },
+        include: { paymentStatus: true },
+      });
 
-  if (!property) {
-    return NextResponse.json({ received: true });
-  }
+      if (!property) {
+        return NextResponse.json({ received: true });
+      }
 
-  await prisma.property.update({
-    where: { id: property.id },
-    data: {
-      paymentStatus: {
-        upsert: {
-          create: {
-            processorConnected: true,
-            bankConnected: true,
-            chargesEnabled: Boolean(account.charges_enabled),
-            payoutsEnabled: Boolean(account.payouts_enabled),
-            onboardingComplete: Boolean(account.details_submitted),
-            requirementsDue: Boolean(
-              account.requirements?.currently_due?.length
-            ),
-            requirementsSummary:
-              account.requirements?.disabled_reason ?? null,
-            lastSyncedAt: new Date(),
-            readyForLive:
-              Boolean(account.charges_enabled) &&
-              Boolean(account.payouts_enabled),
-          },
-          update: {
-            processorConnected: true,
-            bankConnected: true,
-            chargesEnabled: Boolean(account.charges_enabled),
-            payoutsEnabled: Boolean(account.payouts_enabled),
-            onboardingComplete: Boolean(account.details_submitted),
-            requirementsDue: Boolean(
-              account.requirements?.currently_due?.length
-            ),
-            requirementsSummary:
-              account.requirements?.disabled_reason ?? null,
-            lastSyncedAt: new Date(),
-            readyForLive:
-              Boolean(account.charges_enabled) &&
-              Boolean(account.payouts_enabled),
+      await prisma.property.update({
+        where: { id: property.id },
+        data: {
+          paymentStatus: {
+            upsert: {
+              create: {
+                processorConnected: true,
+                bankConnected: true,
+                chargesEnabled: Boolean(account.charges_enabled),
+                payoutsEnabled: Boolean(account.payouts_enabled),
+                onboardingComplete: Boolean(account.details_submitted),
+                requirementsDue: Boolean(
+                  account.requirements?.currently_due?.length
+                ),
+                requirementsSummary:
+                  account.requirements?.disabled_reason ?? null,
+                lastSyncedAt: new Date(),
+                readyForLive:
+                  Boolean(account.charges_enabled) &&
+                  Boolean(account.payouts_enabled),
+              },
+              update: {
+                processorConnected: true,
+                bankConnected: true,
+                chargesEnabled: Boolean(account.charges_enabled),
+                payoutsEnabled: Boolean(account.payouts_enabled),
+                onboardingComplete: Boolean(account.details_submitted),
+                requirementsDue: Boolean(
+                  account.requirements?.currently_due?.length
+                ),
+                requirementsSummary:
+                  account.requirements?.disabled_reason ?? null,
+                lastSyncedAt: new Date(),
+                readyForLive:
+                  Boolean(account.charges_enabled) &&
+                  Boolean(account.payouts_enabled),
+              },
+            },
           },
         },
-      },
-    },
-  });
+      });
 
-  emitEvent("payment:update", { propertyId: property.id });
+      emitEvent("payment:update", { propertyId: property.id });
 
-  return NextResponse.json({ received: true });
-}
+      return NextResponse.json({ received: true });
+    }
 
+    if (event.type === "payment_intent.succeeded") {
+      const succeededIntent = event.data.object as Stripe.PaymentIntent;
 
-if (event.type === "payment_intent.succeeded") {
-  const intent = event.data.object as Stripe.PaymentIntent;
+      if (succeededIntent.payment_method_types?.[0] !== "us_bank_account") {
+        return NextResponse.json({ received: true });
+      }
 
-  if (intent.payment_method_types?.[0] !== "us_bank_account") {
-    return NextResponse.json({ received: true });
-  }
-      const metadata = intent.metadata || {};
+      const metadata = succeededIntent.metadata || {};
 
       const stripeAccountId = safeString(metadata.stripeAccountId);
-
       const propertyId = safeString(metadata.propertyId);
       const unitId = safeString(metadata.unitId);
       const tenantAssignmentId =
         safeString(metadata.tenantAssignmentId) || null;
-
-      const balanceCents = parseCents(metadata.ledgerBalanceCents);
       const feeCents = parseCents(metadata.processingFeeCents);
 
       if (!propertyId || !unitId) {
@@ -224,16 +212,36 @@ if (event.type === "payment_intent.succeeded") {
       }
 
       if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
-  console.error("STRIPE ACCOUNT MISMATCH", {
-    metadataAccount: stripeAccountId,
-    propertyAccount: property.stripeAccountId,
-  });
+        console.error("STRIPE ACCOUNT MISMATCH", {
+          metadataAccount: stripeAccountId,
+          propertyAccount: property.stripeAccountId,
+        });
 
-  return NextResponse.json({ received: true });
-}
+        return NextResponse.json({ received: true });
+      }
+
+      const existingPayment = await prisma.payment.findUnique({
+        where: { stripePaymentIntentId: succeededIntent.id },
+      });
+
+      if (!existingPayment) {
+        return NextResponse.json({ received: true });
+      }
+
+      const liveLedger = await getUnitLedgerSummary(
+        unitId,
+        tenantAssignmentId ?? undefined
+      );
+      const balanceCents = Math.max(0, liveLedger.balanceCents);
+
+      if (balanceCents <= 0 && feeCents <= 0) {
+        return NextResponse.json({ received: true });
+      }
 
       const stripeCents =
-        intent.amount_received ?? intent.amount ?? balanceCents + feeCents;
+        succeededIntent.amount_received ??
+        succeededIntent.amount ??
+        balanceCents + feeCents;
 
       if (stripeCents <= 0) {
         return NextResponse.json({ received: true });
@@ -241,36 +249,37 @@ if (event.type === "payment_intent.succeeded") {
 
       const expectedCents = balanceCents + feeCents;
 
-      // 🔒 STRICT: NO PARTIAL PAYMENTS
+      // Strict: no partial payments and no stale mismatches.
       if (expectedCents !== stripeCents) {
         console.error("PAYMENT MISMATCH — BLOCKED", {
           expectedCents,
           stripeCents,
-          intentId: intent.id,
+          intentId: succeededIntent.id,
         });
 
         return NextResponse.json({ received: true });
       }
 
-      // 🔒 REQUIRE EXISTING PAYMENT RECORD
-      const existingPayment = await prisma.payment.findUnique({
-        where: { stripePaymentIntentId: intent.id },
+      const effectiveDate = new Date();
+
+      const effective = resolveEffectiveBillingSettings({
+        tier: null,
+        propertySettings: property.settings,
       });
 
-      if (!existingPayment) {
-        return NextResponse.json({ received: true });
-      }
+      const rentDates = getRentDateSummary({
+        ...effective,
+        now: effectiveDate,
+      });
 
-      const effectiveDate = new Date();
-      const billingCycle = getBillingCycle(effectiveDate);
+      const billingCycle = rentDates.billingCycle;
 
       let didWrite = false;
 
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // 🔒 IDEMPOTENCY CHECK
         const existing = await tx.ledgerEntry.findFirst({
           where: {
-            referenceNumber: intent.id,
+            referenceNumber: succeededIntent.id,
             entryType: "PAYMENT",
             unitId,
           },
@@ -279,11 +288,10 @@ if (event.type === "payment_intent.succeeded") {
 
         if (existing) return;
 
-        // 🔒 PROCESSING FEE ENTRY
         if (feeCents > 0) {
           const existingFee = await tx.ledgerEntry.findFirst({
             where: {
-              referenceNumber: `${intent.id}:fee`,
+              referenceNumber: `${succeededIntent.id}:fee`,
               entryType: "CHARGE",
               unitId,
             },
@@ -302,14 +310,13 @@ if (event.type === "payment_intent.succeeded") {
                 effectiveDate,
                 billingCycle,
                 paymentId: existingPayment.id,
-                referenceNumber: `${intent.id}:fee`,
+                referenceNumber: `${succeededIntent.id}:fee`,
                 memo: "Processing fee",
               },
             });
           }
         }
 
-        // 🔒 PAYMENT ENTRY
         await tx.ledgerEntry.create({
           data: {
             propertyId,
@@ -321,32 +328,32 @@ if (event.type === "payment_intent.succeeded") {
             effectiveDate,
             billingCycle,
             paymentId: existingPayment.id,
-            referenceNumber: intent.id,
+            referenceNumber: succeededIntent.id,
             memo: "Stripe payment",
           },
         });
 
         didWrite = true;
 
-        // 🔒 AUDIT LOG
         await tx.auditLog.create({
           data: {
             propertyId,
             actorType: "SYSTEM",
             action: "PAYMENT_RECORDED",
             targetType: "PAYMENT",
-            targetId: intent.id,
+            targetId: succeededIntent.id,
             metadataJson: JSON.stringify({
               stripeCents,
               expectedCents,
               feeCents,
+              balanceCents,
               billingCycle,
             }),
           },
         });
       });
 
-      await updatePaymentStatus(intent.id, "PAID");
+      await updatePaymentStatus(succeededIntent.id, "PAID");
 
       if (didWrite) {
         emitEvent("payment:update", { propertyId, unitId });

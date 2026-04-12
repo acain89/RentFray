@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
+import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
 import { formatCentsToDollars } from "@/lib/billingConfig";
 import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import Stripe from "stripe";
@@ -35,7 +36,15 @@ export async function GET() {
   propertyCode: true,
   unitCount: true,
   stripeAccountId: true,
-        managementUsers: {
+  settings: {
+    select: {
+      rentDueDay: true,
+      gracePeriodDays: true,
+      lateFeeEnabled: true,
+      lateFeeFlatCents: true,
+    },
+  },
+  managementUsers: {
           where: { isActive: true },
           select: {
             id: true,
@@ -141,21 +150,32 @@ let totalPaidCount = 0;
 
         occupiedUnits++;
 
-        const [ledger, delinquency, payments] = await Promise.all([
+        const [ledger, delinquency] = await Promise.all([
   getUnitLedgerSummary(unit.id, assignment.id),
   getUnitDelinquencySummary(unit.id),
-  prisma.payment.findMany({
-    where: {
-      unitId: unit.id,
-      tenantAssignmentId: assignment.id,
-      status: "PAID",
-    },
-    select: {
-      paymentMethod: true,
-    },
-  }),
 ]);
 
+const effective = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings: property.settings,
+});
+
+const rentDates = getRentDateSummary({
+  ...effective,
+  now: new Date(),
+});
+
+const payments = await prisma.payment.findMany({
+  where: {
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    status: "PAID",
+    billingCycle: rentDates.billingCycle,
+  },
+  select: {
+    paymentMethod: true,
+  },
+});
         const netExpected =
   ledger.totalChargesCents - ledger.totalCreditsCents;
 
@@ -240,6 +260,30 @@ if (latestStatus === "FAILED") {
     const totalExpected = Math.round(totalExpectedCents) / 100;
     const totalCollected = Math.round(totalCollectedCents) / 100;
 
+     const billingLabel = (() => {
+  const anchorUnit = units[0] ?? null;
+
+  const effective = resolveEffectiveBillingSettings({
+    tier: anchorUnit?.tier ?? null,
+    propertySettings: property.settings ?? null,
+  });
+
+  const rentDates = getRentDateSummary({
+    ...effective,
+    now: new Date(),
+  });
+
+  const [year, month] = rentDates.billingCycle.split("-");
+
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
+    "en-US",
+    {
+      month: "long",
+      year: "numeric",
+    }
+  );
+})();
+
     return NextResponse.json({
       ok: true,
       property: {
@@ -272,10 +316,7 @@ if (latestStatus === "FAILED") {
             : 0,
       },
       cycleSnapshot: {
-        billingCycleLabel: new Date().toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        }),
+        billingCycleLabel: billingLabel,
         occupiedUnitsLabel: `${occupiedUnits} / ${capacity.effectiveUnitCount}`,
         portalPaidCount,
         manualPaidCount,

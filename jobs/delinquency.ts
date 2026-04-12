@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
+import {
+  resolveEffectiveBillingSettings,
+  getRentDateSummary,
+} from "@/lib/rentDates";
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function clampDay(year: number, month: number, day: number) {
-  const max = new Date(year, month + 1, 0).getDate();
-  return Math.max(1, Math.min(day, max));
 }
 
 export async function runDelinquencyJob(asOf = new Date()) {
@@ -16,36 +15,31 @@ export async function runDelinquencyJob(asOf = new Date()) {
   const units = await prisma.unit.findMany({
     where: { isActive: true },
     include: {
-      property: true,
+      property: { include: { settings: true } },
       tier: true,
       tenantAssignments: {
         where: { isCurrent: true },
+        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
         take: 1,
       },
     },
   });
 
   for (const unit of units) {
-    const { property, tier } = unit;
     const assignment = unit.tenantAssignments[0];
+    if (!assignment) continue;
 
-    if (!property || !tier || !assignment) continue;
+    const effective = resolveEffectiveBillingSettings({
+      tier: unit.tier,
+      propertySettings: unit.property.settings,
+    });
 
-    const dueDay = clampDay(
-      today.getFullYear(),
-      today.getMonth(),
-      tier.rentDueDay
-    );
+    const rentDates = getRentDateSummary({
+      ...effective,
+      now: today,
+    });
 
-    const dueDate = startOfDay(
-      new Date(today.getFullYear(), today.getMonth(), dueDay)
-    );
-
-    const delinquentDate = startOfDay(
-      new Date(dueDate.getTime() + (tier.gracePeriodDays + 1) * 86400000)
-    );
-
-    if (today < delinquentDate) continue;
+    if (!rentDates.isDelinquent) continue;
 
     const summary = await getUnitLedgerSummary(unit.id);
     if (summary.balanceCents <= 0) continue;
@@ -62,7 +56,7 @@ export async function runDelinquencyJob(asOf = new Date()) {
     await prisma.auditLog.create({
       data: {
         actorType: "SYSTEM",
-        propertyId: property.id,
+        propertyId: unit.propertyId,
         action: "UNIT_DELINQUENT",
         targetType: "UNIT",
         targetId: unit.id,
@@ -70,6 +64,7 @@ export async function runDelinquencyJob(asOf = new Date()) {
         metadataJson: JSON.stringify({
           balanceCents: summary.balanceCents,
           unitId: unit.id,
+          billingCycle: rentDates.billingCycle,
         }),
       },
     });

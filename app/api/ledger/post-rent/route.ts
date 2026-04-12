@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
-import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 type ApiSuccess<T> = {
   ok: true;
@@ -17,14 +20,6 @@ type ApiError = {
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function getNextMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
 }
 
 function getMonthLabel(date: Date): string {
@@ -49,28 +44,33 @@ export async function POST() {
       );
     }
 
-    
-
     const property = await prisma.property.findUnique({
-  where: { id: session.propertyId },
-  include: {
-    settings: true,
-    units: {
-      where: { isActive: true },
+      where: { id: session.propertyId },
       include: {
-        tier: {
-          select: { baseRentCents: true },
-        },
-        tenantAssignments: {
-          where: { isCurrent: true },
-          orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-          take: 1,
-          select: { id: true },
+        settings: true,
+        units: {
+          where: { isActive: true },
+          include: {
+            tier: {
+              select: {
+                baseRentCents: true,
+                rentDueDay: true,
+                gracePeriodDays: true,
+                lateFeeInitialCents: true,
+                lateFeeDailyCents: true,
+                maxLateFeeDays: true,
+              },
+            },
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+              take: 1,
+              select: { id: true },
+            },
+          },
         },
       },
-    },
-  },
-});
+    });
 
     if (!property) {
       return NextResponse.json<ApiError>(
@@ -79,39 +79,8 @@ export async function POST() {
       );
     }
 
-   const now = new Date();
+    const now = new Date();
     const effectiveDate = safeDate(startOfDay(now));
-    const rentDates = getRentDateSummary({
-  ...resolveEffectiveBillingSettings({
-    tier: null,
-    propertySettings: property.settings,
-  }),
-  now,
-});
-
-const billingCycle = rentDates.billingCycle;
-const monthLabel = getMonthLabel(now);
-    // --- PRE-FETCH EXISTING ---
-    const existingRents = await prisma.ledgerEntry.findMany({
-      where: {
-        propertyId: property.id,
-        entryType: "CHARGE",
-        chargeType: "RENT",
-        billingCycle,
-        voidedAt: null,
-      },
-      select: {
-        unitId: true,
-        tenantAssignmentId: true,
-      },
-    });
-
-    const existingKeys = new Set<string>(
-      existingRents.map(
-  (e: (typeof existingRents)[number]) =>
-    `${e.unitId}::${e.tenantAssignmentId ?? ""}`
-     )
-    );
 
     let posted = 0;
     let skipped = 0;
@@ -125,17 +94,22 @@ const monthLabel = getMonthLabel(now);
           continue;
         }
 
-        // ✅ FIX: use cents directly from schema
+        const effective = resolveEffectiveBillingSettings({
+          tier: unit.tier,
+          propertySettings: property.settings,
+        });
+
+        const rentDates = getRentDateSummary({
+          ...effective,
+          now,
+        });
+
+        const billingCycle = rentDates.billingCycle;
+        const monthLabel = getMonthLabel(now);
+
         const amountCents = unit.tier?.baseRentCents ?? 0;
 
         if (amountCents <= 0) {
-          skipped++;
-          continue;
-        }
-
-        const key = `${unit.id}::${assignment.id}`;
-
-        if (existingKeys.has(key)) {
           skipped++;
           continue;
         }
@@ -168,9 +142,8 @@ const monthLabel = getMonthLabel(now);
             amountCents,
             memo: `Monthly rent - ${monthLabel}`,
             effectiveDate,
-            billingCycle: billingCycle,
-            createdByManagementUserId:
-              session.managementUserId ?? null,
+            billingCycle,
+            createdByManagementUserId: session.managementUserId ?? null,
           },
         });
 
@@ -181,16 +154,14 @@ const monthLabel = getMonthLabel(now);
         data: {
           propertyId: property.id,
           actorType: "MANAGER",
-          actorManagementUserId:
-            session.managementUserId ?? null,
+          actorManagementUserId: session.managementUserId ?? null,
           action: "RENT_POSTED",
           targetType: "PROPERTY",
           targetId: property.id,
-          summary: `Rent posted for ${monthLabel}`,
+          summary: `Rent posted on ${getMonthLabel(now)}`,
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            billingCycle: billingCycle,
             triggeredAt: effectiveDate.toISOString(),
           }),
         },

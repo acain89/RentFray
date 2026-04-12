@@ -1,29 +1,24 @@
 import { prisma } from "@/lib/prisma";
+import {
+  resolveEffectiveBillingSettings,
+  getRentDateSummary,
+} from "@/lib/rentDates";
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function clampDay(year: number, month: number, day: number) {
-  const max = new Date(year, month + 1, 0).getDate();
-  return Math.max(1, Math.min(day, max));
-}
-
-function getBillingCycle(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 export async function runMonthlyRentJob(asOf = new Date()) {
   const today = startOfDay(asOf);
-  const billingCycle = getBillingCycle(today);
 
   const units = await prisma.unit.findMany({
     where: { isActive: true },
     include: {
-      property: true,
+      property: { include: { settings: true } },
       tier: true,
       tenantAssignments: {
         where: { isCurrent: true },
+        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
         take: 1,
       },
       recurringFeeItems: {
@@ -33,66 +28,78 @@ export async function runMonthlyRentJob(asOf = new Date()) {
   });
 
   for (const unit of units) {
-    const { property, tier } = unit;
     const assignment = unit.tenantAssignments[0];
+    if (!assignment) continue;
 
-    if (!property || !tier || !assignment) continue;
+    const effective = resolveEffectiveBillingSettings({
+      tier: unit.tier,
+      propertySettings: unit.property.settings,
+    });
 
-    const dueDay = clampDay(
-      today.getFullYear(),
-      today.getMonth(),
-      tier.rentDueDay
-    );
+    const rentDates = getRentDateSummary({
+      ...effective,
+      now: today,
+    });
 
-    if (today.getDate() !== dueDay) continue;
+    const billingCycle = rentDates.billingCycle;
+    const dueDate = new Date(rentDates.dueDate);
 
+    // ✅ Allow posting ANY time on/after due date (no exact-day dependency)
+    if (today < dueDate) continue;
+
+    // --- RENT ---
     const existingRent = await prisma.ledgerEntry.findFirst({
       where: {
         unitId: unit.id,
         billingCycle,
         chargeType: "RENT",
         entryType: "CHARGE",
+        voidedAt: null,
       },
     });
 
-    if (!existingRent && tier.baseRentCents > 0) {
+    if (!existingRent && unit.tier?.baseRentCents > 0) {
       await prisma.ledgerEntry.create({
         data: {
-          propertyId: property.id,
+          propertyId: unit.propertyId,
           unitId: unit.id,
           tenantAssignmentId: assignment.id,
           entryType: "CHARGE",
           chargeType: "RENT",
-          amountCents: tier.baseRentCents,
+          amountCents: unit.tier.baseRentCents,
           billingCycle,
-          effectiveDate: today,
+          effectiveDate: dueDate,
           memo: "Monthly Rent",
         },
       });
     }
 
+    // --- RECURRING FEES ---
     for (const fee of unit.recurringFeeItems) {
+      if (fee.amountCents <= 0) continue;
+
       const exists = await prisma.ledgerEntry.findFirst({
         where: {
           unitId: unit.id,
           billingCycle,
           chargeType: "RECURRING_FEE",
           memo: fee.label,
+          voidedAt: null,
         },
       });
 
-      if (exists || fee.amountCents <= 0) continue;
+      if (exists) continue;
 
       await prisma.ledgerEntry.create({
         data: {
-          propertyId: property.id,
+          propertyId: unit.propertyId,
           unitId: unit.id,
           tenantAssignmentId: assignment.id,
           entryType: "CHARGE",
           chargeType: "RECURRING_FEE",
           amountCents: fee.amountCents,
           billingCycle,
-          effectiveDate: today,
+          effectiveDate: dueDate,
           memo: fee.label,
         },
       });
