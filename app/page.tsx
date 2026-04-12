@@ -1,5 +1,3 @@
-// app/page.tsx
-
 "use client";
 
 import { useMemo, useState } from "react";
@@ -15,31 +13,31 @@ type Slide = {
 const slides: Slide[] = [
   {
     id: "panel1",
-    eyebrow: "No contracts. No trial periods. Rentfray is completely free for businesses.",
-    title: "Set up your entire business in under 5 minutes.",
+    eyebrow: "Start the system",
+    title: "Create the account, connect payouts, and hand tenants the sheet.",
     subtitle:
-      "Complete the 4-step setup, connect your account, and print the Tenant Instruction Sheet. That's it.",
+      "The setup is short, self-serve, and built for first-time users. Once tenants begin paying, the system starts doing the work.",
   },
   {
     id: "panel2",
-    eyebrow: "Activate the Property",
-    title: "Your system starts running the moment tenants pay.",
+    eyebrow: "Tenants activate themselves",
+    title: "Tenants use RentFray directly. You do not have to onboard them one-by-one.",
     subtitle:
-      "Write the Tier number and Property Code, hand it to the tenant, and your dashboard builds itself. Tenants enter code + unit + PIN — no manager input needed.",
+      "They enter the property code, unit number, and PIN, then pay from their phone. No spreadsheet import. No office-side data entry.",
   },
   {
     id: "panel3",
-    eyebrow: "Set Your Controls",
-    title: "Run everything from your phone.",
+    eyebrow: "Run the operation",
+    title: "Control the business from your phone.",
     subtitle:
-      "Add managers or leasing staff anytime, set a maintenance PIN, and control operations without office work, paperwork, or back-and-forth.",
+      "Add managers or staff, manage maintenance access, view exports, and keep operations moving without phone-tag or paperwork.",
   },
   {
     id: "panel4",
-    eyebrow: "Run the Business",
-    title: "Know exactly what’s happening at all times.",
+    eyebrow: "See what matters",
+    title: "Know who paid, who has not paid, and what needs attention.",
     subtitle:
-      "No spreadsheets. No chasing. No guesswork.",
+      "The dashboard becomes useful immediately as payments come in. No guesswork. No chasing people down.",
   },
 ];
 
@@ -67,37 +65,102 @@ function SlideDots({
   );
 }
 
-function Bubble({
-  className,
-  children,
+function DemoModal({
+  open,
+  slideIndex,
+  onClose,
+  onPrev,
+  onNext,
+  onSelect,
 }: {
-  className: string;
-  children: string;
+  open: boolean;
+  slideIndex: number;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  onSelect: (index: number) => void;
 }) {
+  const currentSlide = slides[slideIndex] ?? slides[0];
+
+  if (!open) return null;
+
   return (
-    <div
-      className={`absolute max-w-[240px] rounded-2xl border border-sky-200 bg-white/95 px-4 py-3 text-left text-sm font-medium leading-6 text-[#0f172a] shadow-lg ${className}`}
-    >
-      {children}
+    <div className="fixed inset-0 z-50 bg-[#0f172a]/70 p-3 backdrop-blur-sm sm:p-6">
+      <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/15 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.45)]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
+              Interactive demo
+            </div>
+            <div className="mt-1 text-xl font-semibold tracking-tight text-[#0f172a] sm:text-2xl">
+              {currentSlide.title}
+            </div>
+            <div className="mt-1 max-w-3xl text-sm text-[#475569]">
+              {currentSlide.subtitle}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#eef4f8] px-3 py-3 sm:px-5 sm:py-5">
+          <SlidePreview slideId={currentSlide.id} />
+        </div>
+
+        <div className="border-t border-slate-200 bg-white px-4 py-4 sm:px-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+                {currentSlide.eyebrow}
+              </div>
+              <SlideDots activeIndex={slideIndex} onSelect={onSelect} />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onPrev}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-[#0f172a] transition hover:bg-slate-50"
+              >
+                ← Previous
+              </button>
+              <button
+                type="button"
+                onClick={onNext}
+                className="rounded-2xl bg-[#0f172a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#162033]"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 function MockGetStartedPanel() {
   return (
-    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#1e293b] bg-[#0f172a] p-3 shadow-[0_30px_90px_rgba(15,23,42,0.32)]">
-      <div className="rounded-[24px] border border-[#1f3b62] bg-gradient-to-br from-[#0f172a] via-[#13233a] to-[#1d4ed8] p-5 text-white">
+    <div className="mx-auto w-full max-w-[980px] rounded-[30px] border border-[#1e293b] bg-[#0f172a] p-3 shadow-[0_30px_90px_rgba(15,23,42,0.32)]">
+      <div className="rounded-[26px] border border-[#1f3b62] bg-gradient-to-br from-[#0f172a] via-[#13233a] to-[#1d4ed8] p-5 text-white sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="max-w-2xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">
-              RentFray Setup
+              Step 1 — Start the system
             </div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight">
-              No phone calls. No emails. You can create your account right here, right now.
+            <div className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+              Complete setup. Print Tenant Instruction sheet. Done.
             </div>
-            <div className="mt-2 max-w-xl text-sm text-sky-100/90">
-              Create your property, tiers, and billing rules. Connect your bank.
-              Print the instruction sheet. Done.
+            <div className="mt-3 max-w-xl text-sm leading-6 text-sky-100/90">
+              Create the property. Set the tiers. Save billing rules. Connect
+              payouts. Print the tenant instruction sheet. That is the whole
+              handoff.
             </div>
           </div>
 
@@ -111,17 +174,17 @@ function MockGetStartedPanel() {
             {
               step: "1",
               title: "Complete the 4-step setup",
-              text: "Create your property, tiers, and billing rules.",
+              text: "Create login, property, tiers, and billing rules in one obvious path.",
             },
             {
               step: "2",
-              title: "Tap “ACCT” and connect your bank",
-              text: "Secure payouts through Stripe.",
+              title: "Tap ACCT and connect payouts",
+              text: "Secure Stripe-based owner payouts with plain-English status visibility.",
             },
             {
               step: "3",
-              title: "Print your Tenant Instruction Sheet",
-              text: "This is all your tenants need to get started. Takes less than 30 seconds to hand off.",
+              title: "Print the Tenant Instruction Sheet",
+              text: "Write the tier and property code on it. That becomes the tenant handoff.",
             },
           ].map((item) => (
             <div
@@ -132,7 +195,9 @@ function MockGetStartedPanel() {
                 {item.step}
               </div>
               <div className="mt-3 text-base font-semibold">{item.title}</div>
-              <div className="mt-2 text-sm text-sky-100/85">{item.text}</div>
+              <div className="mt-2 text-sm leading-6 text-sky-100/85">
+                {item.text}
+              </div>
             </div>
           ))}
         </div>
@@ -164,16 +229,16 @@ function MockGetStartedPanel() {
               ACCT
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold">Bank account</div>
+              <div className="text-sm font-semibold">Payout account</div>
               <div className="mt-3 grid gap-2">
                 <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                  Routing Number
+                  Owner payout status
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                  Account Number
+                  Bank connection
                 </div>
                 <div className="rounded-xl bg-[#0f172a] px-3 py-2 text-center text-sm font-semibold text-white">
-                  Connect Account
+                  Connect account
                 </div>
               </div>
             </div>
@@ -185,7 +250,9 @@ function MockGetStartedPanel() {
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-sm font-semibold">Tenant Instructions</div>
-              <div className="mt-2 text-xs text-slate-500">Property Code: 4821</div>
+              <div className="mt-2 text-xs text-slate-500">
+                Property Code: 4821
+              </div>
               <div className="mt-1 text-xs text-slate-500">Tier Number: 2</div>
               <div className="mt-3 space-y-2">
                 {[
@@ -203,44 +270,46 @@ function MockGetStartedPanel() {
           </div>
         </div>
       </div>
-  );
     </div>
   );
 }
 
 function MockActivatePanel() {
   return (
-    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-5">
+    <div className="mx-auto w-full max-w-[980px] rounded-[30px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
+      <div className="rounded-[26px] border border-[#d8e4ee] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="max-w-2xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              Activate the Property
+              Step 2 — Tenants activate themselves
             </div>
-            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
-              Your dashboard builds itself as tenants pay.
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a] sm:text-3xl">
+              Tenants onboard themselves with simple login.
             </div>
-            <div className="mt-2 max-w-2xl text-sm text-[#475569]">
-              Write the Tier number and Property Code on the sheet, hand it to the
-              tenant, and that’s it. Their first payment onboards them automatically.
+            <div className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
+              The tenant does not need direct manager-side setup. They use the
+              property code, unit number, and PIN. Their login starts
+              building the live system.
             </div>
           </div>
 
           <div className="rounded-2xl bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white">
-            No manager input needed
+            No manual onboarding
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Sheet with Code + Tier
+              Sheet with code + tier
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm font-semibold text-[#0f172a]">
                 Tenant Instruction Sheet
               </div>
-              <div className="mt-2 text-sm text-[#475569]">Property Code: 4821</div>
+              <div className="mt-2 text-sm text-[#475569]">
+                Property Code: 4821
+              </div>
               <div className="text-sm text-[#475569]">Tier Number: 2</div>
               <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
                 Hand to tenant
@@ -250,14 +319,14 @@ function MockActivatePanel() {
 
           <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              First Payment / Activation
+              First payment / activation
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-[10px] font-semibold tracking-[0.22em] text-[#64748b]">
                 RENTFRAY
               </div>
               <div className="mt-3 text-lg font-semibold text-[#0f172a]">
-                Activate Unit
+                Activate unit
               </div>
               <div className="mt-3 space-y-2">
                 {[
@@ -279,7 +348,7 @@ function MockActivatePanel() {
 
           <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Live Dashboard Begins Filling
+              Live dashboard starts filling
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm font-semibold text-[#0f172a]">
@@ -308,7 +377,7 @@ function MockActivatePanel() {
                 {[
                   "Unit 102 — Payment posted",
                   "Unit 205 — Payment posted",
-                  "Unit 301 — Pending",
+                  "Unit 301 — Payment pending",
                 ].map((row) => (
                   <div
                     key={row}
@@ -322,29 +391,25 @@ function MockActivatePanel() {
           </div>
         </div>
       </div>
-
-      <Bubble className="right-[345px] top-[120px]">
-        The system starts becoming useful immediately instead of “after setup someday.”
-      </Bubble>
     </div>
   );
 }
 
 function MockControlsPanel() {
   return (
-    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#dbe4ee] bg-[#f3f7fb] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-5">
+    <div className="mx-auto w-full max-w-[980px] rounded-[30px] border border-[#dbe4ee] bg-[#f3f7fb] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
+      <div className="rounded-[26px] border border-[#d8e4ee] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="max-w-2xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              Set Your Controls
+              Step 3 — Run the operation
             </div>
-            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
-              Run the day-to-day operation from your phone.
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a] sm:text-3xl">
+              Give owners simple controls, not office clutter.
             </div>
-            <div className="mt-2 max-w-2xl text-sm text-[#475569]">
-              All incoming information can be exported with a click. Set a maintenance PIN so
-              requests go straight from the tenant to your team. Don't play phone-tag.
+            <div className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
+              Add management users, set maintenance access, pull exports, and
+              keep the day-to-day operation inside one mobile-friendly system.
             </div>
           </div>
 
@@ -365,7 +430,7 @@ function MockControlsPanel() {
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Top Controls
+              Top controls
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {["Rent", "GP&LF", "Mngr", "Maint"].map((label) => (
@@ -377,18 +442,18 @@ function MockControlsPanel() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 text-sm text-slate-600">
-              Fast access to the handful of things owners actually need.
+            <div className="mt-3 text-sm leading-6 text-slate-600">
+              Fast access to the handful of things the owner actually needs.
             </div>
           </div>
 
           <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Add Manager / Staff
+              Add manager / staff
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm font-semibold text-[#0f172a]">
-                Management Users
+                Management users
               </div>
               <div className="mt-3 space-y-2">
                 {[
@@ -410,7 +475,7 @@ function MockControlsPanel() {
 
           <div className="rounded-[22px] border border-[#dbe4ee] bg-[#f8fbfd] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Maintenance PIN / Requests
+              Maintenance PIN / requests
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm font-semibold text-[#0f172a]">
@@ -436,10 +501,6 @@ function MockControlsPanel() {
           </div>
         </div>
       </div>
-
-      <Bubble className="left-[510px] top-[120px]">
-        Key controls stay one tap away instead of buried in menus.
-      </Bubble>
     </div>
   );
 }
@@ -447,27 +508,28 @@ function MockControlsPanel() {
 function MockRunBusinessPanel() {
   const units = [
     ["101", "Smith", "$0.00", "Current", "bg-emerald-500"],
-    ["102", "Johnson", "$245.00", "Grace", "bg-amber-400"],
+    ["102", "Johnson", "$750.00", "Pending", "bg-amber-400"],
     ["103", "Brown", "$780.00", "Past Due", "bg-red-500"],
     ["104", "-", "-", "Vacant", "bg-slate-400"],
     ["201", "Davis", "$0.00", "Current", "bg-emerald-500"],
-    ["202", "Miller", "$125.00", "Balance Due", "bg-emerald-500"],
+    ["202", "Miller", "$750.00", "Grace Period", "bg-blue-500"],
   ] as const;
 
   return (
-    <div className="relative mx-auto w-full max-w-[920px] rounded-[28px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
-      <div className="rounded-[24px] border border-[#d8e4ee] bg-white p-5">
+    <div className="mx-auto w-full max-w-[980px] rounded-[30px] border border-[#dbe4ee] bg-[#eef4f8] p-3 shadow-[0_25px_60px_rgba(15,23,42,0.16)]">
+      <div className="rounded-[26px] border border-[#d8e4ee] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="max-w-2xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              Run the Business
+              Step 4 — See what matters
             </div>
-            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
-              See who paid, who has not paid, and which units are vacant.
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a] sm:text-3xl">
+              Color-coded dots let's you see what's going on instantly. 
             </div>
-            <div className="mt-2 max-w-2xl text-sm text-[#475569]">
-              Everything after setup is basic, routine, and fast. Payments,
-              balances, and late fees take care of themselves.
+            <div className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
+              After setup, the system should feel basic, routine, and fast.
+              Payments, balances, and status visibility should not require extra
+              mental work.
             </div>
           </div>
 
@@ -500,7 +562,7 @@ function MockRunBusinessPanel() {
         <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
           <div className="rounded-[24px] border border-[#dbe4ee] bg-white p-3">
             <div className="mb-3 px-1 text-sm font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Unit Status
+              Unit status
             </div>
 
             <div className="space-y-2">
@@ -534,7 +596,7 @@ function MockRunBusinessPanel() {
           <div className="space-y-3">
             <div className="rounded-[24px] border border-[#dbe4ee] bg-white p-4">
               <div className="text-sm font-semibold text-[#0f172a]">
-                Revenue Snapshot
+                Revenue snapshot
               </div>
               <div className="mt-3 space-y-2">
                 {[
@@ -552,7 +614,7 @@ function MockRunBusinessPanel() {
 
             <div className="rounded-[24px] border border-[#dbe4ee] bg-white p-4">
               <div className="text-sm font-semibold text-[#0f172a]">
-                Mobile-Friendly
+                Mobile-friendly
               </div>
               <div className="mt-3 rounded-[24px] border border-slate-200 bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 p-4">
                 <div className="text-[10px] font-semibold tracking-[0.22em] text-[#64748b]">
@@ -572,14 +634,6 @@ function MockRunBusinessPanel() {
           </div>
         </div>
       </div>
-
-      <Bubble className="left-[18px] top-[320px]">
-        Color-coded status gives instant clarity without digging through reports.
-      </Bubble>
-
-      <Bubble className="right-[32px] top-[340px]">
-        Owners can run the business from a phone instead of from a desk.
-      </Bubble>
     </div>
   );
 }
@@ -597,6 +651,40 @@ function SlidePreview({ slideId }: { slideId: string }) {
     default:
       return null;
   }
+}
+
+function BenefitCard({
+  title,
+  text,
+}: {
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-[28px] border border-[#dbe4ee] bg-white p-5 shadow-sm">
+      <div className="text-lg font-semibold tracking-tight text-[#0f172a]">
+        {title}
+      </div>
+      <div className="mt-3 text-sm leading-6 text-[#334155]">{text}</div>
+    </div>
+  );
+}
+
+function ValueCard({
+  title,
+  text,
+}: {
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-[28px] border border-[#dbe4ee] bg-white p-5 shadow-sm">
+      <div className="text-lg font-semibold tracking-tight text-[#0f172a]">
+        {title}
+      </div>
+      <div className="mt-3 text-sm leading-6 text-[#334155]">{text}</div>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -625,245 +713,244 @@ export default function Home() {
   return (
     <>
       <main className="min-h-screen bg-[#dfe7ee] text-[#0f172a]">
-        <div className="mx-auto max-w-2xl px-5 py-10 sm:px-6">
-          <div className="mb-10 text-xs font-semibold tracking-[0.2em] text-[#0f172a]/70">
+        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-6 lg:px-8">
+          <div className="mb-8 text-xs font-semibold tracking-[0.2em] text-[#0f172a]/70">
             RENTFRAY
           </div>
 
-          <section className="space-y-6">
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Rent collection that runs itself.
-            </h1>
+          <section className="rounded-[36px] border border-[#d7e3ec] bg-gradient-to-b from-white to-[#eef4f8] px-6 py-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+           <div className="max-w-6xl">
+  <div className="inline-flex rounded-full border border-[#cfe0ea] bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1e3a5f] shadow-sm">
+    Free for businesses • No contracts • No setup fees • No cancellation fees
+  </div>
 
-            <p className="text-base text-[#475569] sm:text-lg">
-              Set it up in minutes. Share your code. Get paid automatically.
-            </p>
+  <h1 className="mt-5 max-w-4xl text-4xl font-semibold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+    Rent collection that runs itself.
+  </h1>
 
-            <p className="text-base font-semibold text-[#1e3a5f] sm:text-lg">
-              Always free. Full instant access. No hidden fees, contracts, or
-              trials.
-            </p>
-          </section>
+  <p className="mt-5 max-w-2xl text-base leading-7 text-[#475569] sm:text-lg">
+    Set it up in minutes. Tenants pay through RentFray. You get paid
+    automatically.
+  </p>
 
-          <p className="text-sm text-[#475569] sm:text-base">
-  Built for apartments, mobile home parks, RV parks, storage, and small landlords.
-</p>
+  <p className="mt-3 max-w-3xl text-base font-semibold leading-7 text-[#1e3a5f] sm:text-lg">
+    Stop chasing payments, tracking spreadsheets, and following up manually.
+  </p>
 
-<p className="text-sm text-[#475569] sm:text-base">
-  Be live today — no onboarding calls, no delays.
-</p>
+  <p className="mt-5 max-w-3xl text-sm font-semibold leading-6 text-[#0f172a] sm:text-base">
+    Built for apartments, mobile home parks, RV parks, self-storage, HOAs,
+    and independent landlords.
+  </p>
 
-<p className="text-xs text-[#64748b] sm:text-sm">
-  Powered by Stripe. Bank-level security. You control your payouts.
-</p>
+  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+    <button
+      type="button"
+      onClick={() => router.push("/setup")}
+      className="rounded-2xl bg-[#0f172a] px-6 py-4 text-base font-semibold text-white shadow-[0_15px_35px_rgba(15,23,42,0.24)] transition hover:-translate-y-[1px] hover:bg-[#162033]"
+    >
+      Start 4-step setup →
+    </button>
 
-          <section className="mt-10 rounded-[32px] border border-[#1e293b] bg-[#0f172a] p-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
-            <button
-              onClick={() => router.push("/setup")}
-              className="w-full rounded-2xl bg-gradient-to-r from-[#38bdf8] to-[#6366f1] px-6 py-5 text-base font-semibold text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(99,102,241,0.4)] active:scale-[0.99] sm:text-lg"
-            >
-              Start 4-step setup →
-            </button>
+    <button
+      type="button"
+      onClick={() => openAt(0)}
+      className="rounded-2xl border border-[#cbd5e1] bg-white px-6 py-4 text-base font-semibold text-[#0f172a] transition hover:-translate-y-[1px] hover:bg-[#f8fafc]"
+    >
+      See how it works
+    </button>
+  </div>
 
-            <p className="mt-4 text-center text-sm text-[#cbd5f5]">
-              Getting paid shouldn't be complicated.
-            </p>
-          </section>
-
-          <section className="mt-10 rounded-[32px] border border-[#cbd5e1] bg-white p-6 shadow-sm">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-[#0f172a]">
-                See how it works
-              </h2>
-              <p className="mt-2 max-w-xl text-sm text-[#475569] sm:text-base">
-                This is exactly how owners start — step by step.
-              </p>
-            </div>
-
-            <div className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Click to view each page.
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {slides.map((slide, index) => {
-                const bgClass =
-                  slide.id === "panel1"
-                    ? "bg-[#eff6ff]"
-                    : slide.id === "panel2"
-                    ? "bg-[#f8fafc]"
-                    : slide.id === "panel3"
-                    ? "bg-[#f5f3ff]"
-                    : "bg-[#f0fdf4]";
-
-                return (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    onClick={() => openAt(index)}
-                    className={`rounded-[24px] border border-[#dbe4ee] ${bgClass} px-4 py-4 text-left transition hover:-translate-y-[1px] hover:shadow-md`}
-                  >
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-                      {slide.eyebrow}
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-[#0f172a]">
-                      {slide.title}
-                    </div>
-                    <div className="mt-2 text-sm text-[#475569]">
-                      {slide.subtitle}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <div className="mb-4 mt-10 text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-            What happens next
-          </div>
-
-          <section className="mt-10 grid gap-4">
-            {[
-              "Create your full property setup in under 5 minutes.",
-              "Everything in one place — no spreadsheets needed.",
-              "No manual data entry — tenants onboard themselves.",
-              "Payments, balances, and billing — fully automated.",
-            ].map((text) => (
-              <div
-                key={text}
-                className="rounded-[24px] border border-[#bfe8cd] bg-[#e8f7ee] px-5 py-5 text-[#0f172a] shadow-sm transition hover:shadow-md"
-              >
-                <div className="text-base font-semibold leading-snug sm:text-lg">
-                  {text}
-                </div>
-              </div>
-            ))}
-          </section>
-
-          <section className="mt-10 rounded-[32px] border border-[#0f172a] bg-[#0f172a] p-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
-            <div className="space-y-3 text-center">
-              <div className="text-lg font-semibold">
-                Run your entire property from your phone.
-              </div>
-              <div className="text-sm text-[#cbd5f5]">
-                Completely free for owners.
-              </div>
-              <div className="text-sm text-[#cbd5f5]">
-                If you are currently paying debit or processing fees, RentFray
-                saves that money instead of adding another bill.
-              </div>
-              <div className="text-base font-semibold text-white">
-                If your tenants can pay, your system runs.
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-10 space-y-4">
-            <div>
-              <button
-                onClick={() => router.push("/property-code")}
-                className="w-full rounded-2xl bg-[#0f172a] px-5 py-4 text-sm font-semibold text-white"
-              >
-                Enter your property
-              </button>
-              <p className="mt-2 text-center text-xs text-[#475569]">
-                Already have a property code?
-              </p>
-            </div>
-
-            <div>
-              <button
-                onClick={() => router.push("/login/admin")}
-                className="w-full rounded-2xl border border-[#cbd5e1] bg-[#edf2f7] px-5 py-4 text-sm font-semibold text-[#0f172a]"
-              >
-                Admin access
-              </button>
-            </div>
-          </section>
+  <div className="mt-8 grid gap-4 lg:grid-cols-3">
+    <div className="relative rounded-[26px] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+      <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-[26px] bg-emerald-500" />
+      <div className="pl-3">
+        <div className="text-lg font-semibold text-emerald-700">Owners</div>
+        <div className="mt-4 space-y-2 text-sm leading-6 text-[#334155]">
+          <div>• RentFray is completely free.</div>
+          <div>• Complete self-serve setup in less than 5 minutes.</div>
+          <div>• No onboarding calls or emails.</div>
+          <div>• No manual tenant onboarding.</div>
+          <div>• Saves processing fees you may be paying now.</div>
         </div>
-        {/* Footer */}
-<footer className="mt-16 border-t border-[#cbd5e1] px-6 py-8 text-center">
-  <div className="space-y-2 text-sm text-[#475569]">
-    <div>
-      Questions?{" "}
-      <a
-        href="mailto:helpdesk@rentfray.com"
-        className="font-semibold text-[#0f172a] hover:underline"
-      >
-        helpdesk@rentfray.com
-      </a>
+      </div>
     </div>
 
-    <div>
+    <div className="relative rounded-[26px] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+      <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-[26px] bg-blue-500" />
+      <div className="pl-3">
+        <div className="text-lg font-semibold text-blue-700">Managers</div>
+        <div className="mt-4 space-y-2 text-sm leading-6 text-[#334155]">
+          <div>• See who paid, who has not paid, and what needs attention.</div>
+          <div>• Run day-to-day operations from your phone.</div>
+          <div>• No spreadsheet chasing or manual tracking.</div>
+          <div>• Tenants use RentFray directly instead of calling the office.</div>
+          <div>• Faster, cleaner routine rent management.</div>
+        </div>
+      </div>
+    </div>
+
+    <div className="relative rounded-[26px] border border-slate-300 bg-slate-100 p-5 shadow-sm">
+      <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-[26px] bg-slate-500" />
+      <div className="pl-3">
+        <div className="text-lg font-semibold text-slate-700">Tenants</div>
+        <div className="mt-4 space-y-2 text-sm leading-6 text-[#334155]">
+          <div>• Simple phone-based activation and payment flow.</div>
+          <div>• No office visit required to get started.</div>
+          <div>• Clear balance visibility in one place.</div>
+          <div>• Fast login with property code, unit number, and PIN.</div>
+          <div>• Easy recurring routine every month.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+          <section className="mt-10 rounded-[36px] border border-[#d7e3ec] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
+            <div className="rounded-[28px] border border-[#dbe4ee] bg-white p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+                Interactive demo
+              </div>
+
+              <div className="mt-2 text-xl font-semibold text-[#0f172a]">
+                See exactly how it works
+              </div>
+
+               <p className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
+  Tap a step to preview the full flow: setup, tenant activation, controls,
+  and live dashboard visibility.
+</p>
+
+              <div className="mt-4 flex flex-col gap-3">
+                {slides.map((slide, index) => {
+                  const isActive = index === activeSlide;
+
+                  return (
+                    <button
+                      key={slide.id}
+                      type="button"
+                      onClick={() => setActiveSlide(index)}
+                      className={`rounded-[18px] border px-4 py-3 text-left transition duration-200 ${
+                        isActive
+                          ? "border-[#0f172a] bg-[#f1f5f9] shadow-[0_10px_24px_rgba(15,23,42,0.10)]"
+                          : "border-[#dbe4ee] bg-[#f8fbfd] shadow-sm hover:-translate-y-[2px] hover:scale-[1.01] hover:shadow-[0_14px_28px_rgba(15,23,42,0.10)]"
+                      }`}
+                    >
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">
+                        {slide.eyebrow}
+                      </div>
+
+                      <div className="mt-1 text-base font-semibold text-[#0f172a]">
+                        {slide.title}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 origin-top scale-[0.9] overflow-hidden rounded-[20px]">
+                <div className="max-h-[420px] overflow-hidden rounded-[20px]">
+                  <SlidePreview slideId={currentSlide.id} />
+                </div>
+              </div>
+
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => openAt(activeSlide)}
+                  className="text-sm font-semibold text-[#0f172a] underline-offset-4 hover:underline"
+                >
+                  Expand this step →
+                </button>
+              </div>
+            </div>
+          </section>
+
+         
+          <section className="mt-10 rounded-[36px] border border-[#0f172a] bg-[#0f172a] px-6 py-8 text-white shadow-[0_30px_80px_rgba(15,23,42,0.38)] sm:px-8 sm:py-10">
+            <div className="mx-auto max-w-3xl text-center">
+              <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                Stop collecting rent manually.
+              </h2>
+              <p className="mt-3 max-w-2xl text-base text-[#cbd5f5] sm:mx-auto sm:text-lg">
+  Stop wasting time on manual collection, follow-up, and avoidable office work.
+</p>
+              <p className="mt-3 text-sm text-[#cbd5f5] sm:text-base">
+  Complete the setup, connect payouts, hand tenants the sheet, and be live today.
+</p>
+
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => router.push("/setup")}
+                  className="rounded-2xl bg-gradient-to-r from-[#38bdf8] to-[#6366f1] px-6 py-4 text-base font-semibold text-white transition hover:scale-[1.01] hover:shadow-[0_10px_30px_rgba(99,102,241,0.35)]"
+                >
+                  Start 4-step setup →
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-6 flex justify-center">
+  <div className="rounded-[20px] border border-[#d7e3ec] bg-white px-4 py-4 shadow-sm">
+    <div className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+      Access
+    </div>
+
+    <div className="flex flex-col gap-2 sm:flex-row">
       <button
-        onClick={() => router.push("/faq")}
-        className="font-semibold text-[#0f172a] hover:underline"
+        type="button"
+        onClick={() => router.push("/property-code")}
+        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
       >
-        View FAQ
+        Property Accounts
+      </button>
+
+      <button
+        type="button"
+        onClick={() => router.push("/login/admin")}
+        className="rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-5 py-2.5 text-sm font-semibold text-[#0f172a] transition hover:bg-[#eef4f8]"
+      >
+        Admin Access
       </button>
     </div>
   </div>
-</footer>
+</section>
+
+          <footer className="mt-14 border-t border-[#cbd5e1] px-2 py-8 text-center">
+            <div className="space-y-2 text-sm text-[#475569]">
+              <div>
+                Questions?{" "}
+                <a
+                  href="mailto:helpdesk@rentfray.com"
+                  className="font-semibold text-[#0f172a] hover:underline"
+                >
+                  helpdesk@rentfray.com
+                </a>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => router.push("/faq")}
+                  className="font-semibold text-[#0f172a] hover:underline"
+                >
+                  View FAQ
+                </button>
+              </div>
+            </div>
+          </footer>
+        </div>
       </main>
 
-      {openDemo ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/70 px-3 py-4 backdrop-blur-sm sm:px-6">
-          <div className="relative flex max-h-[94vh] w-full max-w-6xl flex-col overflow-visible rounded-[32px] border border-[#cbd5e1] bg-white shadow-[0_35px_120px_rgba(2,6,23,0.45)]">
-            <div className="flex items-start justify-between gap-4 border-b border-[#e2e8f0] px-5 py-4 sm:px-6">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                  {currentSlide.eyebrow}
-                </div>
-                <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a]">
-                  {currentSlide.title}
-                </div>
-                <div className="mt-2 max-w-2xl text-sm text-[#475569]">
-                  {currentSlide.subtitle}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setOpenDemo(false)}
-                className="rounded-2xl border border-[#cbd5e1] bg-white px-3 py-2 text-sm font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible bg-[#f8fbfd] px-3 py-6 sm:px-6 sm:py-8">
-              <SlidePreview slideId={currentSlide.id} />
-            </div>
-
-            <div className="border-t border-[#e2e8f0] bg-white px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={prevSlide}
-                    className="rounded-2xl border border-[#cbd5e1] bg-white px-4 py-2 text-sm font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
-                  >
-                    Previous
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={nextSlide}
-                    className="rounded-2xl bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1e293b]"
-                  >
-                    Next
-                  </button>
-                </div>
-
-                <div className="text-sm text-[#64748b]">
-                  Slide {activeSlide + 1} of {slides.length}
-                </div>
-              </div>
-
-              <SlideDots activeIndex={activeSlide} onSelect={setActiveSlide} />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DemoModal
+        open={openDemo}
+        slideIndex={activeSlide}
+        onClose={() => setOpenDemo(false)}
+        onPrev={prevSlide}
+        onNext={nextSlide}
+        onSelect={setActiveSlide}
+      />
     </>
   );
 }
