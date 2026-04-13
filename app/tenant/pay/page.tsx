@@ -32,8 +32,10 @@ export default function TenantPayPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [data, setData] = useState<BalanceData | null>(null);
+  const checkoutStatus = searchParams.get("checkout");
+  const isSuccess = checkoutStatus === "success";
+  const isCancelled = checkoutStatus === "cancelled";
 
-  const canceled = searchParams.get("canceled") === "1";
 
   useEffect(() => {
     async function load() {
@@ -56,11 +58,13 @@ export default function TenantPayPage() {
 
         // 🔒 IMPORTANT: DO NOT TRUST URL PARAMS
         // Always show neutral or safe messaging
-        if (!canceled) {
-          setMessage(
-            "If you completed a payment, it will appear here once it begins processing."
-          );
-        }
+        if (isSuccess) {
+  setMessage("Payment submitted. Awaiting bank processing.");
+} else if (!isCancelled) {
+  setMessage(
+    "If you completed a payment, it will appear here once it begins processing."
+  );
+}
       } catch {
         setError("Failed to load payment page.");
       } finally {
@@ -69,7 +73,7 @@ export default function TenantPayPage() {
     }
 
     load();
-  }, [canceled]);
+  }, [isSuccess, isCancelled]);
 
   const baseAmountDue = useMemo(() => {
     if (!data) return 0;
@@ -145,11 +149,26 @@ export default function TenantPayPage() {
         </p>
       </div>
 
-      {canceled ? (
-        <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
-          Payment canceled.
-        </div>
-      ) : null}
+      {isSuccess && (
+  <div className="border rounded-xl p-4 bg-white text-sm text-green-600">
+    Payment submitted. Bank processing has started. This may take a few business days.
+  </div>
+)}
+
+{isSuccess && (
+  <button
+    onClick={() => (window.location.href = "/tenant/dashboard")}
+    className="mt-3 px-4 py-2 rounded-lg bg-green-600 text-white"
+  >
+    Return to Dashboard
+  </button>
+)}
+
+{isCancelled && (
+  <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
+    Checkout cancelled. You can try again below.
+  </div>
+)}
 
       {error ? (
         <div className="border rounded-xl p-4 bg-white text-sm text-red-600">
@@ -187,14 +206,16 @@ export default function TenantPayPage() {
           Electronic payment only.
         </div>
 
-        <button
-          type="button"
-          onClick={handlePayNow}
-          disabled={paying || totalAmountDue <= 0}
-          className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-60"
-        >
-          {paying ? "Starting..." : "Pay Now"}
-        </button>
+       {!isSuccess && (
+  <button
+    type="button"
+    onClick={handlePayNow}
+    disabled={paying || totalAmountDue <= 0}
+    className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-60"
+  >
+    {paying ? "Starting..." : "Pay Now"}
+  </button>
+)}
       </div>
     </div>
   );

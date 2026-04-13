@@ -217,9 +217,9 @@ payment_method_types: ["us_bank_account"],
 
 payment_method_options: {
   us_bank_account: {
-    verification_method: "instant",
+    verification_method: "automatic",
     financial_connections: {
-      permissions: ["payment_method"],
+  permissions: ["payment_method", "balances"],
     },
   },
 },
@@ -255,8 +255,8 @@ customer_creation: "if_required",
           : []),
       ],
 
-      success_url: `${origin}/tenant/pay`,
-      cancel_url: `${origin}/tenant/pay?canceled=1`,
+  success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
 
       metadata: {
         propertyId: property.id,

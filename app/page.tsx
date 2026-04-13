@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Slide = {
@@ -692,18 +692,6 @@ export default function Home() {
   const [openDemo, setOpenDemo] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
 
-const [stats, setStats] = useState<{
-  liveProperties: number;
-  monthlyProcessedCents: number;
-  tenantsPaidToday: number;
-} | null>(null);
-
-useEffect(() => {
-  fetch("/api/public/stats")
-    .then((res) => res.json())
-    .then((data) => setStats(data))
-    .catch(() => {});
-}, []);
 
   const currentSlide = useMemo(
     () => slides[activeSlide] ?? slides[0],
@@ -772,40 +760,6 @@ useEffect(() => {
       See how it works
     </button>
   </div>
-
-{stats && (
-  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-    <div className="rounded-2xl border border-[#dbe4ee] bg-white px-5 py-4 text-center shadow-sm">
-      <div className="text-2xl font-semibold text-[#0f172a]">
-        {stats.liveProperties}
-      </div>
-      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#64748b]">
-        Active Properties
-      </div>
-    </div>
-
-    <div className="rounded-2xl border border-[#dbe4ee] bg-white px-5 py-4 text-center shadow-sm">
-      <div className="text-2xl font-semibold text-[#0f172a]">
-        $
-        {(stats.monthlyProcessedCents / 100).toLocaleString(undefined, {
-          maximumFractionDigits: 0,
-        })}
-      </div>
-      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#64748b]">
-        Processed This Month
-      </div>
-    </div>
-
-    <div className="rounded-2xl border border-[#dbe4ee] bg-white px-5 py-4 text-center shadow-sm">
-      <div className="text-2xl font-semibold text-[#0f172a]">
-        {stats.tenantsPaidToday}
-      </div>
-      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#64748b]">
-        Tenants Paid Today
-      </div>
-    </div>
-  </div>
-)}
 
 
   <div className="mt-8 grid gap-4 lg:grid-cols-3">
