@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
@@ -18,6 +17,10 @@ export async function GET() {
       balanceCents: summary.balanceCents,
       chargesCents: summary.totalChargesCents,
       paymentsCents: summary.totalPaidCents,
+      hasPendingPayment: summary.hasPendingPayment,
+      pendingPaymentAmountCents: summary.pendingPaymentAmountCents,
+      lastPaymentDate: summary.lastPaymentDate,
+      lastPaymentAmountCents: summary.lastPaymentAmountCents,
     });
   } catch (error: unknown) {
     console.error("GET /api/tenant/balance failed", error);

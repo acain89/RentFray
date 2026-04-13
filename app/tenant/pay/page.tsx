@@ -1,5 +1,3 @@
-// app/tenant/pay/page.tsx
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -35,7 +33,6 @@ export default function TenantPayPage() {
   const [message, setMessage] = useState("");
   const [data, setData] = useState<BalanceData | null>(null);
 
-  const success = searchParams.get("success") === "1";
   const canceled = searchParams.get("canceled") === "1";
 
   useEffect(() => {
@@ -56,6 +53,14 @@ export default function TenantPayPage() {
         }
 
         setData(json);
+
+        // 🔒 IMPORTANT: DO NOT TRUST URL PARAMS
+        // Always show neutral or safe messaging
+        if (!canceled) {
+          setMessage(
+            "If you completed a payment, it will appear here once it begins processing."
+          );
+        }
       } catch {
         setError("Failed to load payment page.");
       } finally {
@@ -64,7 +69,7 @@ export default function TenantPayPage() {
     }
 
     load();
-  }, []);
+  }, [canceled]);
 
   const baseAmountDue = useMemo(() => {
     if (!data) return 0;
@@ -107,12 +112,14 @@ export default function TenantPayPage() {
       }
 
       if (json?.preview) {
-        setMessage(json?.message || "Payment preview only. No live session created.");
+        setMessage(
+          json?.message || "Payment preview only. No live session created."
+        );
         return;
       }
 
-      if (json?.checkoutUrl) {
-        window.location.href = json.checkoutUrl;
+      if (json?.data?.url) {
+        window.location.href = json.data.url;
         return;
       }
 
@@ -137,12 +144,6 @@ export default function TenantPayPage() {
           {data?.unitNumber ? ` — Unit ${data.unitNumber}` : ""}
         </p>
       </div>
-
-      {success ? (
-        <div className="border rounded-xl p-4 bg-white text-sm text-green-600">
-          Payment session completed.
-        </div>
-      ) : null}
 
       {canceled ? (
         <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">

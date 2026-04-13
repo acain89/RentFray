@@ -169,14 +169,17 @@ if (property?.stripeAccountId) {
 
     // --- BLOCK DUPLICATE / OVERPAYMENT ---
     const existingPayment = await prisma.payment.findFirst({
-      where: {
-        unitId: unit.id,
-        billingCycle,
-        status: {
-          in: ["PENDING", "PAID"],
-        },
-      },
-    });
+  where: {
+    unitId: unit.id,
+    billingCycle,
+    status: {
+      in: ["PENDING", "PAID"],
+    },
+    createdAt: {
+      gte: new Date(Date.now() - 15 * 1000), // 🔒 15 second lock window
+    },
+  },
+});
 
     if (existingPayment) {
       return NextResponse.json<ApiError>(
@@ -214,7 +217,7 @@ payment_method_types: ["us_bank_account"],
 
 payment_method_options: {
   us_bank_account: {
-    verification_method: "automatic",
+    verification_method: "instant",
     financial_connections: {
       permissions: ["payment_method"],
     },
@@ -252,8 +255,8 @@ customer_creation: "if_required",
           : []),
       ],
 
-      success_url: `${origin}/tenant/pay?status=success`,
-      cancel_url: `${origin}/tenant/pay?status=cancelled`,
+      success_url: `${origin}/tenant/pay`,
+      cancel_url: `${origin}/tenant/pay?canceled=1`,
 
       metadata: {
         propertyId: property.id,
@@ -274,22 +277,6 @@ customer_creation: "if_required",
         { status: 500 }
       );
     }
-
-    // 🔒 CREATE PAYMENT RECORD (SOURCE OF TRUTH)
-    await prisma.payment.create({
-      data: {
-        propertyId: property.id,
-        unitId: unit.id,
-        tenantAssignmentId,
-        stripePaymentIntentId: null,
-        stripeSessionId: checkoutSession.id,
-        billingCycle,
-        amountCents: balanceCents,
-        processingFeeCents: processingFeeCents,
-        status: "PENDING",
-        paymentMethod: "ACH",
-      },
-    });
 
     return NextResponse.json<ApiSuccess<{ url: string }>>({
       ok: true,

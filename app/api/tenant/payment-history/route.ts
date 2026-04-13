@@ -33,7 +33,9 @@ export async function GET() {
         voidedAt: null,
         payment: {
           is: {
-            status: PaymentStatus.PAID,
+            status: {
+              in: [PaymentStatus.PAID, PaymentStatus.PENDING],
+            },
           },
         },
       },
@@ -64,7 +66,12 @@ export async function GET() {
           amountCents: Math.abs(entry.amountCents),
           method: payment?.paymentMethod ?? entry.paymentMethod ?? null,
           reference: entry.referenceNumber ?? null,
-          note: entry.memo ?? null,
+          note:
+            payment?.status === "PENDING"
+              ? "Processing"
+              : payment?.status === "PAID"
+              ? "Completed"
+              : entry.memo ?? "Payment",
           billingCycle: payment?.billingCycle ?? entry.billingCycle ?? null,
           effectiveDate: entry.effectiveDate,
           createdAt: entry.createdAt,

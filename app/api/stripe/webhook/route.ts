@@ -89,8 +89,9 @@ export async function POST(req: Request) {
     if (event.type === "checkout.session.completed") {
       // ACH note:
       // checkout.session.completed does NOT mean funds cleared.
-      // We ONLY mark PAID on payment_intent.succeeded.
-      // This block only links session -> paymentIntent.
+      // We ONLY create a real pending payment on payment_intent.processing
+      // and ONLY mark paid on payment_intent.succeeded.
+      // This block only links session -> paymentIntent if a payment row exists.
       const session = event.data.object as Stripe.Checkout.Session;
 
       if (typeof session.payment_intent === "string") {
@@ -99,12 +100,14 @@ export async function POST(req: Request) {
           data: { stripePaymentIntentId: session.payment_intent },
         });
       }
+
+      return NextResponse.json({ received: true });
     }
 
-    const intent = event.data.object as Stripe.PaymentIntent;
-
     if (event.type === "payment_intent.payment_failed") {
-      await updatePaymentStatus(intent.id, "FAILED");
+      const failedIntent = event.data.object as Stripe.PaymentIntent;
+      await updatePaymentStatus(failedIntent.id, "FAILED");
+      return NextResponse.json({ received: true });
     }
 
     if (event.type === "charge.refunded") {
@@ -113,6 +116,8 @@ export async function POST(req: Request) {
       if (typeof charge.payment_intent === "string") {
         await updatePaymentStatus(charge.payment_intent, "REVERSED");
       }
+
+      return NextResponse.json({ received: true });
     }
 
     if (event.type === "account.updated") {
@@ -178,6 +183,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
+    if (event.type === "payment_intent.processing") {
+      const processingIntent = event.data.object as Stripe.PaymentIntent;
+
+      if (processingIntent.payment_method_types?.[0] !== "us_bank_account") {
+        return NextResponse.json({ received: true });
+      }
+
+      const metadata = processingIntent.metadata || {};
+
+      const propertyId = safeString(metadata.propertyId);
+      const unitId = safeString(metadata.unitId);
+      const tenantAssignmentId =
+        safeString(metadata.tenantAssignmentId) || null;
+      const amountCents = parseCents(metadata.ledgerBalanceCents);
+      const feeCents = parseCents(metadata.processingFeeCents);
+      const billingCycle = safeString(metadata.billingCycle);
+
+      if (!propertyId || !unitId || !billingCycle) {
+        return NextResponse.json({ received: true });
+      }
+
+      await prisma.payment.upsert({
+        where: { stripePaymentIntentId: processingIntent.id },
+        update: {
+          billingCycle,
+          amountCents,
+          processingFeeCents: feeCents,
+          status: "PENDING",
+          paymentMethod: "ACH",
+          failedAt: null,
+          reversedAt: null,
+        },
+        create: {
+          propertyId,
+          unitId,
+          tenantAssignmentId,
+          stripePaymentIntentId: processingIntent.id,
+          stripeSessionId: null,
+          billingCycle,
+          amountCents,
+          processingFeeCents: feeCents,
+          status: "PENDING",
+          paymentMethod: "ACH",
+        },
+      });
+
+      emitEvent("payment:update", { propertyId, unitId });
+
+      return NextResponse.json({ received: true });
+    }
+
     if (event.type === "payment_intent.succeeded") {
       const succeededIntent = event.data.object as Stripe.PaymentIntent;
 
@@ -220,14 +276,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true });
       }
 
-      const existingPayment = await prisma.payment.findUnique({
-        where: { stripePaymentIntentId: succeededIntent.id },
-      });
-
-      if (!existingPayment) {
-        return NextResponse.json({ received: true });
-      }
-
       const liveLedger = await getUnitLedgerSummary(
         unitId,
         tenantAssignmentId ?? undefined
@@ -249,7 +297,6 @@ export async function POST(req: Request) {
 
       const expectedCents = balanceCents + feeCents;
 
-      // Strict: no partial payments and no stale mismatches.
       if (expectedCents !== stripeCents) {
         console.error("PAYMENT MISMATCH — BLOCKED", {
           expectedCents,
@@ -272,12 +319,36 @@ export async function POST(req: Request) {
         now: effectiveDate,
       });
 
-      const billingCycle = rentDates.billingCycle;
+      const billingCycle =
+        safeString(metadata.billingCycle) || rentDates.billingCycle;
+
+      const existingPayment = await prisma.payment.findUnique({
+        where: { stripePaymentIntentId: succeededIntent.id },
+      });
+
+      let payment = existingPayment;
+
+      if (!payment) {
+        payment = await prisma.payment.create({
+          data: {
+            propertyId,
+            unitId,
+            tenantAssignmentId,
+            stripePaymentIntentId: succeededIntent.id,
+            stripeSessionId: null,
+            billingCycle,
+            amountCents: balanceCents,
+            processingFeeCents: feeCents,
+            status: "PENDING",
+            paymentMethod: "ACH",
+          },
+        });
+      }
 
       let didWrite = false;
 
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const existing = await tx.ledgerEntry.findFirst({
+        const existingLedgerPayment = await tx.ledgerEntry.findFirst({
           where: {
             referenceNumber: succeededIntent.id,
             entryType: "PAYMENT",
@@ -286,7 +357,7 @@ export async function POST(req: Request) {
           select: { id: true },
         });
 
-        if (existing) return;
+        if (existingLedgerPayment) return;
 
         if (feeCents > 0) {
           const existingFee = await tx.ledgerEntry.findFirst({
@@ -309,7 +380,7 @@ export async function POST(req: Request) {
                 amountCents: feeCents,
                 effectiveDate,
                 billingCycle,
-                paymentId: existingPayment.id,
+                paymentId: payment.id,
                 referenceNumber: `${succeededIntent.id}:fee`,
                 memo: "Processing fee",
               },
@@ -327,7 +398,7 @@ export async function POST(req: Request) {
             amountCents: -balanceCents,
             effectiveDate,
             billingCycle,
-            paymentId: existingPayment.id,
+            paymentId: payment.id,
             referenceNumber: succeededIntent.id,
             memo: "Stripe payment",
           },
@@ -359,6 +430,8 @@ export async function POST(req: Request) {
         emitEvent("payment:update", { propertyId, unitId });
         emitEvent("ledger:update", { propertyId, unitId });
       }
+
+      return NextResponse.json({ received: true });
     }
   } catch (error) {
     console.error("Stripe webhook error:", error);

@@ -197,11 +197,16 @@ export async function POST() {
         : "UNPAID";
 
     let paymentMessage = "Payment required.";
-    if (tenantPaymentStatus === "PENDING") paymentMessage = "Processing";
-    if (tenantPaymentStatus === "PAID") paymentMessage = "Payment successful";
-    if (tenantPaymentStatus === "FAILED") paymentMessage = "Payment failed";
-    if (tenantPaymentStatus === "REVERSED") paymentMessage = "Payment reversed";
-    if (tenantPaymentStatus === "UNPAID") paymentMessage = "Payment required";
+
+if (tenantPaymentStatus === "PENDING") {
+  paymentMessage = "Payment pending — your bank is processing this payment.";
+} else if (tenantPaymentStatus === "PAID") {
+  paymentMessage = "Payment posted successfully.";
+} else if (tenantPaymentStatus === "FAILED") {
+  paymentMessage = "Payment failed — please try again.";
+} else if (tenantPaymentStatus === "REVERSED") {
+  paymentMessage = "Payment reversed.";
+}
 
     const ledgerEntries = await prisma.ledgerEntry.findMany({
       where: {

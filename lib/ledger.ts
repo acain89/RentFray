@@ -1,5 +1,3 @@
-// lib/ledger.ts
-
 import { prisma } from "@/lib/prisma";
 
 export type LedgerSummary = {
@@ -14,6 +12,8 @@ export type LedgerSummary = {
   lastPaymentDate: Date | null;
   lastPaymentAmountCents: number | null;
   lastPaymentAmount: number | null;
+  hasPendingPayment: boolean;
+  pendingPaymentAmountCents: number;
 };
 
 type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
@@ -138,12 +138,14 @@ export async function getUnitLedgerSummary(
 
   let balanceCents = 0;
   let totalChargesCents = 0;
-let totalCreditsCents = 0;
-let totalPaidCents = 0;
+  let totalCreditsCents = 0;
+  let totalPaidCents = 0;
 
   let lastPaymentDate: Date | null = null;
   let lastPaymentCreatedAt: Date | null = null;
   let lastPaymentAmountCents: number | null = null;
+  let hasPendingPayment = false;
+  let pendingPaymentAmountCents = 0;
 
   for (const entry of entries) {
     const entryType = normalizeLedgerEntryType(entry.entryType);
@@ -166,8 +168,13 @@ let totalPaidCents = 0;
     }
 
     if (isCreditEntry(entryType)) {
-  totalCreditsCents += Math.abs(rawAmountCents);
-}
+      totalCreditsCents += Math.abs(rawAmountCents);
+    }
+
+    if (isPaymentEntry(entryType) && paymentStatus === "PENDING") {
+      hasPendingPayment = true;
+      pendingPaymentAmountCents += Math.abs(rawAmountCents);
+    }
 
     if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {
       const paymentAbsCents = Math.abs(rawAmountCents);
@@ -195,11 +202,11 @@ let totalPaidCents = 0;
     }
   }
 
- return {
-  balanceCents,
-  totalChargesCents,
-  totalCreditsCents,
-  totalPaidCents,
+  return {
+    balanceCents,
+    totalChargesCents,
+    totalCreditsCents,
+    totalPaidCents,
     balance: centsToDollars(balanceCents),
     totalCharges: centsToDollars(totalChargesCents),
     totalCredits: centsToDollars(totalCreditsCents),
@@ -210,5 +217,7 @@ let totalPaidCents = 0;
       lastPaymentAmountCents === null
         ? null
         : centsToDollars(lastPaymentAmountCents),
+    hasPendingPayment,
+    pendingPaymentAmountCents,
   };
 }
