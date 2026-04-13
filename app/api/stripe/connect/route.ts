@@ -113,7 +113,7 @@ await prisma.property.update({
 const accountLink = await stripe.accountLinks.create({
   account: accountId,
   refresh_url: `${baseUrl}/manager/dashboard`,
-  return_url: `${baseUrl}/manager/dashboard`,
+  return_url: `${origin}/manager/dashboard?propertyId=${property.id}`,
   type: "account_onboarding",
 });
 
