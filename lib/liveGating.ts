@@ -33,7 +33,8 @@ type LiveReadiness = {
   hasUnits: boolean;
   hasSettings: boolean;
   stripeConnected: boolean;
-  achEnabled: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
   onboardingComplete: boolean;
   paymentReady: boolean;
   readyForLive: boolean;
@@ -64,22 +65,28 @@ export function getLiveReadiness(property: PropertyLike): LiveReadiness {
   const payment = property?.paymentStatus;
 
   const stripeConnected = Boolean(payment?.processorConnected);
-  const achEnabled = Boolean(payment?.chargesEnabled);
+  const chargesEnabled = Boolean(payment?.chargesEnabled);
   const payoutsEnabled = Boolean(payment?.payoutsEnabled);
   const onboardingComplete = Boolean(payment?.onboardingComplete);
 
-  const paymentReady =
-    Boolean(payment?.processorConnected) &&
-    Boolean(payment?.chargesEnabled) &&
-    Boolean(payment?.payoutsEnabled);
+  // ✅ CORE FIX:
+  // Allow payments if Stripe can charge (DO NOT require payouts)
+  const paymentReady = stripeConnected && chargesEnabled;
 
-  const readyForLive = hasUnits && hasSettings && paymentReady;
+  // "Ready for live" still requires full setup (including payouts)
+  const readyForLive =
+    hasUnits &&
+    hasSettings &&
+    stripeConnected &&
+    chargesEnabled &&
+    payoutsEnabled;
 
   return {
     hasUnits,
     hasSettings,
     stripeConnected,
-    achEnabled,
+    chargesEnabled,
+    payoutsEnabled,
     onboardingComplete,
     paymentReady,
     readyForLive,
@@ -104,5 +111,10 @@ export function canAccessTenantPortal(property: PropertyLike): boolean {
 
 export function canMakePayments(property: PropertyLike): boolean {
   const readiness = getLiveReadiness(property);
-  return isPropertyActive(property) && readiness.paymentReady;
+
+  return (
+    isPropertyActive(property) &&
+    isTenantAccessibleStatus(property) &&
+    readiness.paymentReady
+  );
 }

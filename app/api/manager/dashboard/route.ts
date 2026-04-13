@@ -7,6 +7,7 @@ import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentD
 import { formatCentsToDollars } from "@/lib/billingConfig";
 import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import Stripe from "stripe";
+import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2026-02-25.clover",
@@ -92,6 +93,25 @@ if (property.stripeAccountId) {
     bankMessage =
       "Unable to verify Stripe account status. Please try again.";
   }
+}
+
+if (
+  shouldAutoSetPropertyReady({
+    currentStatus: property.status,
+    isActive: property.isActive,
+    hasSettings: Boolean(property.settings),
+    unitsCount: Array.isArray(property.units) ? property.units.length : 0,
+    processorConnected: property.paymentStatus?.processorConnected,
+    chargesEnabled: property.paymentStatus?.chargesEnabled,
+    payoutsEnabled: property.paymentStatus?.payoutsEnabled,
+  })
+) {
+  await prisma.property.update({
+    where: { id: property.id },
+    data: { status: "READY" },
+  });
+
+  property.status = "READY";
 }
 
     const capacity = await getCapacitySnapshot(property.id);

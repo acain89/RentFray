@@ -8,6 +8,7 @@ import {
   formatCentsToDollars,
 } from "@/lib/billingConfig";
 import { canMakePayments } from "@/lib/liveGating";
+import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
@@ -168,12 +169,49 @@ if (property.stripeAccountId) {
         },
       },
     });
+
+    property.paymentStatus = {
+      ...property.paymentStatus,
+      processorConnected: true,
+      bankConnected: true,
+      chargesEnabled: Boolean(account.charges_enabled),
+      payoutsEnabled: Boolean(account.payouts_enabled),
+      onboardingComplete: Boolean(account.details_submitted),
+      requirementsDue: Boolean(account.requirements?.currently_due?.length),
+      requirementsSummary: account.requirements?.disabled_reason ?? null,
+      lastSyncedAt: new Date(),
+      readyForLive:
+        Boolean(account.charges_enabled) &&
+        Boolean(account.payouts_enabled),
+    };
   } catch (err) {
     console.error("Stripe sync failed:", err);
   }
 }
 
-    const currentAssignment = await prisma.tenantAssignment.findFirst({
+// ✅ ADD THIS RIGHT HERE (immediately after Stripe sync)
+
+if (
+  shouldAutoSetPropertyReady({
+    currentStatus: property.status,
+    isActive: property.isActive,
+    hasSettings: Boolean(property.settings),
+    unitsCount: Array.isArray(property.units) ? property.units.length : 0,
+    processorConnected: property.paymentStatus?.processorConnected,
+    chargesEnabled: property.paymentStatus?.chargesEnabled,
+    payoutsEnabled: property.paymentStatus?.payoutsEnabled,
+  })
+) {
+  await prisma.property.update({
+    where: { id: property.id },
+    data: { status: "READY" },
+  });
+
+  property.status = "READY";
+}
+
+
+ const currentAssignment = await prisma.tenantAssignment.findFirst({
       where: {
         propertyId: session.propertyId,
         unitId: unit.id,
@@ -200,7 +238,7 @@ if (property.stripeAccountId) {
     const totalDueCents =
       balanceCents > 0 ? balanceCents + processingFeeCents : 0;
 
-   const paymentEnabled = canMakePayments({
+  const paymentEnabled = canMakePayments({
   status: property.status,
   settings: property.settings,
   units: property.units,

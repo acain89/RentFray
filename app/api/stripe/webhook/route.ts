@@ -431,6 +431,16 @@ export async function POST(req: Request) {
         emitEvent("ledger:update", { propertyId, unitId });
       }
 
+     // ✅ AUTO PROMOTE READY → LIVE
+if (property.status === "READY") {
+  await prisma.property.update({
+    where: { id: propertyId },
+    data: { status: "LIVE" },
+  });
+
+  property.status = "LIVE";
+}
+
       return NextResponse.json({ received: true });
     }
   } catch (error) {

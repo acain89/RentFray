@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 type Slide = {
@@ -692,6 +692,19 @@ export default function Home() {
   const [openDemo, setOpenDemo] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
 
+const [stats, setStats] = useState<{
+  liveProperties: number;
+  monthlyProcessedCents: number;
+  tenantsPaidToday: number;
+} | null>(null);
+
+useEffect(() => {
+  fetch("/api/public/stats")
+    .then((res) => res.json())
+    .then((data) => setStats(data))
+    .catch(() => {});
+}, []);
+
   const currentSlide = useMemo(
     () => slides[activeSlide] ?? slides[0],
     [activeSlide]
@@ -743,7 +756,7 @@ export default function Home() {
   </p>
 
   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-    <button
+   <button
       type="button"
       onClick={() => router.push("/setup")}
       className="rounded-2xl bg-[#0f172a] px-6 py-4 text-base font-semibold text-white shadow-[0_15px_35px_rgba(15,23,42,0.24)] transition hover:-translate-y-[1px] hover:bg-[#162033]"
@@ -759,6 +772,41 @@ export default function Home() {
       See how it works
     </button>
   </div>
+
+{stats && (
+  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="rounded-2xl border border-[#dbe4ee] bg-white px-5 py-4 text-center shadow-sm">
+      <div className="text-2xl font-semibold text-[#0f172a]">
+        {stats.liveProperties}
+      </div>
+      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#64748b]">
+        Active Properties
+      </div>
+    </div>
+
+    <div className="rounded-2xl border border-[#dbe4ee] bg-white px-5 py-4 text-center shadow-sm">
+      <div className="text-2xl font-semibold text-[#0f172a]">
+        $
+        {(stats.monthlyProcessedCents / 100).toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        })}
+      </div>
+      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#64748b]">
+        Processed This Month
+      </div>
+    </div>
+
+    <div className="rounded-2xl border border-[#dbe4ee] bg-white px-5 py-4 text-center shadow-sm">
+      <div className="text-2xl font-semibold text-[#0f172a]">
+        {stats.tenantsPaidToday}
+      </div>
+      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#64748b]">
+        Tenants Paid Today
+      </div>
+    </div>
+  </div>
+)}
+
 
   <div className="mt-8 grid gap-4 lg:grid-cols-3">
     <div className="relative rounded-[26px] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
@@ -805,6 +853,7 @@ export default function Home() {
   </div>
 </div>
 </section>
+
 
           <section className="mt-10 rounded-[36px] border border-[#d7e3ec] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
             <div className="rounded-[28px] border border-[#dbe4ee] bg-white p-4 shadow-sm">
