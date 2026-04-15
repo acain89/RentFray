@@ -338,7 +338,8 @@ if (tenantPaymentStatus === "PENDING") {
     const filteredLedgerEntries = ledgerEntries.filter(
       (entry: (typeof ledgerEntries)[number]) => {
         if (entry.entryType !== "PAYMENT") return true;
-        return normalizePaymentStatus(entry.payment?.status) === "PAID";
+        const status = normalizePaymentStatus(entry.payment?.status);
+return status === "PAID" || status === "PENDING";
       }
     );
 
@@ -403,6 +404,11 @@ if (tenantPaymentStatus === "PENDING") {
       balanceCents,
       processingFeeCents,
       totalDueCents,
+
+     hasPendingPayment: ledgerSummary.hasPendingPayment,
+     pendingPaymentAmountCents: ledgerSummary.pendingPaymentAmountCents,
+     pendingPaymentAmount:
+       ledgerSummary.pendingPaymentAmountCents / 100,
 
       balance: balanceCents / 100,
       processingFee: formatCentsToDollars(processingFeeCents),

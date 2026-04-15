@@ -231,6 +231,7 @@ const lastPayment = await prisma.payment.findFirst({
   where: {
     unitId: unit.id,
     tenantAssignmentId: assignment.id,
+    status: { in: ["PENDING", "FAILED", "PAID"] },
   },
   orderBy: { createdAt: "desc" },
   select: { status: true },
