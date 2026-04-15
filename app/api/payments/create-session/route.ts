@@ -219,7 +219,7 @@ payment_method_options: {
   us_bank_account: {
     verification_method: "automatic",
     financial_connections: {
-  permissions: ["payment_method", "balances"],
+      permissions: ["payment_method"],
     },
   },
 },

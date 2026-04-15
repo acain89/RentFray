@@ -480,17 +480,6 @@ function toggleGpLfTierSelection(tierId: string): void {
   );
 }
 
-function applyGpLfToTierDraft(tier: RentTierDraft): RentTierDraft {
-  return {
-    ...tier,
-    dueDay: gpLfSettings.dueDay,
-    graceDays: gpLfSettings.graceDays,
-    lateFeeEnabled: gpLfSettings.lateFeeEnabled,
-    lateFeeAmount: gpLfSettings.lateFeeInitial,
-    lateFeeDaily: gpLfSettings.lateFeeDaily,
-    lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
-  };
-}  
 
 function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
   const source =
@@ -1778,12 +1767,7 @@ async function saveGpLfSettings(): Promise<void> {
     return;
   }
 
-  // ONLY modify selected tiers
-  const updatedTiers = localTiers.map((tier) =>
-    targetTierIds.includes(tier.id)
-      ? applyGpLfToTierDraft(tier)
-      : tier
-  );
+const updatedTiers = [...localTiers];
 
   try {
     setSavingGpLf(true);
@@ -1794,9 +1778,7 @@ async function saveGpLfSettings(): Promise<void> {
   headers: { "Content-Type": "application/json" },
   credentials: "include",
   body: JSON.stringify({
-    tiers: updatedTiers
-      .filter((tier) => targetTierIds.includes(tier.id))
-      .map((tier) => ({
+  tiers: localTiers.map((tier) => ({
         id: tier.id,
         dueDay: tier.dueDay,
         graceDays: tier.graceDays,
