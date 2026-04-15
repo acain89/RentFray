@@ -86,23 +86,47 @@ export async function POST(req: Request) {
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      // ACH note:
-      // checkout.session.completed does NOT mean funds cleared.
-      // We ONLY create a real pending payment on payment_intent.processing
-      // and ONLY mark paid on payment_intent.succeeded.
-      // This block only links session -> paymentIntent if a payment row exists.
-      const session = event.data.object as Stripe.Checkout.Session;
+  if (event.type === "checkout.session.completed") {
+  const session = event.data.object as Stripe.Checkout.Session;
 
-      if (typeof session.payment_intent === "string") {
-        await prisma.payment.updateMany({
-          where: { stripeSessionId: session.id },
-          data: { stripePaymentIntentId: session.payment_intent },
+  if (typeof session.payment_intent === "string") {
+    const updated = await prisma.payment.updateMany({
+      where: { stripeSessionId: session.id },
+      data: { stripePaymentIntentId: session.payment_intent },
+    });
+
+    if (updated.count === 0) {
+      const metadata = session.metadata ?? {};
+
+      const propertyId = safeString(metadata.propertyId);
+      const unitId = safeString(metadata.unitId);
+      const tenantAssignmentId =
+        safeString(metadata.tenantAssignmentId) || null;
+      const billingCycle = safeString(metadata.billingCycle);
+      const amountCents = parseCents(metadata.ledgerBalanceCents);
+      const feeCents = parseCents(metadata.processingFeeCents);
+
+      if (propertyId && unitId && billingCycle) {
+        await prisma.payment.create({
+          data: {
+            propertyId,
+            unitId,
+            tenantAssignmentId,
+            stripePaymentIntentId: session.payment_intent,
+            stripeSessionId: session.id,
+            billingCycle,
+            amountCents,
+            processingFeeCents: feeCents,
+            status: "PENDING",
+            paymentMethod: "ACH",
+          },
         });
       }
-
-      return NextResponse.json({ received: true });
     }
+  }
+
+  return NextResponse.json({ received: true });
+}
 
     if (event.type === "payment_intent.payment_failed") {
       const failedIntent = event.data.object as Stripe.PaymentIntent;

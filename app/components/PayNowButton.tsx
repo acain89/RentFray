@@ -45,13 +45,14 @@ export default function PayNowButton({
     }
   }
 
-  return (
-    <button
-      onClick={handlePay}
-      disabled={loading}
-      className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60"
-    >
-      {loading ? "Redirecting..." : "Verify Bank & Pay"}
-    </button>
-  );
+ return (
+  <button
+    type="button"
+    onClick={handlePay}
+    disabled={loading}
+    className="rounded bg-green-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {loading ? "Pending..." : "Verify Bank & Pay"}
+  </button>
+);
 }

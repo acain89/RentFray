@@ -115,26 +115,31 @@ export async function getUnitLedgerSummary(
   unitId: string,
   tenantAssignmentId?: string
 ): Promise<LedgerSummary> {
-  const entries = await prisma.ledgerEntry.findMany({
-    where: {
-      unitId,
-      voidedAt: null,
-      ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
+  const now = new Date();
+
+const entries = await prisma.ledgerEntry.findMany({
+  where: {
+    unitId,
+    voidedAt: null,
+    ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
+    effectiveDate: {
+      lte: now, // 🔒 HIDE FUTURE CHARGES
     },
-    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-      amountCents: true,
-      entryType: true,
-      effectiveDate: true,
-      createdAt: true,
-      payment: {
-        select: {
-          status: true,
-        },
+  },
+  orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+  select: {
+    id: true,
+    amountCents: true,
+    entryType: true,
+    effectiveDate: true,
+    createdAt: true,
+    payment: {
+      select: {
+        status: true,
       },
     },
-  });
+  },
+});
 
   let balanceCents = 0;
   let totalChargesCents = 0;

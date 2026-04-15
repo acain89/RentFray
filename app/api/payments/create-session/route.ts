@@ -29,6 +29,8 @@ function getBillingCycle(date: Date): string {
 }
 
 export async function POST(req: Request) {
+  let paymentLockId: string | null = null;
+
   try {
     const secretKey = process.env.STRIPE_SECRET_KEY;
 
@@ -86,47 +88,45 @@ export async function POST(req: Request) {
 
     const property = unit.property;
 
-// 🔥 LIVE STRIPE SYNC (SOURCE OF TRUTH)
-if (property?.stripeAccountId) {
-  const stripeAccount = await stripe.accounts.retrieve(
-    property.stripeAccountId
-  );
+    if (property?.stripeAccountId) {
+      const stripeAccount = await stripe.accounts.retrieve(
+        property.stripeAccountId
+      );
 
-  const updatedStatus = {
-    processorConnected: true,
-    bankConnected: true,
-    chargesEnabled: Boolean(stripeAccount.charges_enabled),
-    payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
-    onboardingComplete: Boolean(stripeAccount.details_submitted),
-    requirementsDue: Boolean(
-      stripeAccount.requirements?.currently_due?.length
-    ),
-    requirementsSummary:
-      stripeAccount.requirements?.disabled_reason ?? null,
-    lastSyncedAt: new Date(),
-    readyForLive:
-      Boolean(stripeAccount.charges_enabled) &&
-      Boolean(stripeAccount.payouts_enabled),
-  };
+      const updatedStatus = {
+        processorConnected: true,
+        bankConnected: true,
+        chargesEnabled: Boolean(stripeAccount.charges_enabled),
+        payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
+        onboardingComplete: Boolean(stripeAccount.details_submitted),
+        requirementsDue: Boolean(
+          stripeAccount.requirements?.currently_due?.length
+        ),
+        requirementsSummary:
+          stripeAccount.requirements?.disabled_reason ?? null,
+        lastSyncedAt: new Date(),
+        readyForLive:
+          Boolean(stripeAccount.charges_enabled) &&
+          Boolean(stripeAccount.payouts_enabled),
+      };
 
-  await prisma.property.update({
-    where: { id: property.id },
-    data: {
-      paymentStatus: {
-        upsert: {
-          create: updatedStatus,
-          update: updatedStatus,
+      await prisma.property.update({
+        where: { id: property.id },
+        data: {
+          paymentStatus: {
+            upsert: {
+              create: updatedStatus,
+              update: updatedStatus,
+            },
+          },
         },
-      },
-    },
-  });
+      });
 
-  // overwrite local object so gating uses fresh data
-  property.paymentStatus = {
-    ...property.paymentStatus,
-    ...updatedStatus,
-  };
-}
+      property.paymentStatus = {
+        ...property.paymentStatus,
+        ...updatedStatus,
+      };
+    }
 
     if (
       !canMakePayments({
@@ -143,7 +143,6 @@ if (property?.stripeAccountId) {
       );
     }
 
-    // --- LEDGER (SOURCE OF TRUTH) ---
     const ledger = await getUnitLedgerSummary(unit.id);
     const balanceCents = Math.max(0, toSafeInteger(ledger.balanceCents));
 
@@ -154,10 +153,8 @@ if (property?.stripeAccountId) {
       );
     }
 
-    // --- NO PARTIAL PAYMENTS ---
     const processingFeeCents = getProcessingFeeCents(balanceCents);
     const totalCents = balanceCents + processingFeeCents;
-
     const billingCycle = getBillingCycle(new Date());
 
     if (totalCents <= 0) {
@@ -167,19 +164,21 @@ if (property?.stripeAccountId) {
       );
     }
 
-    // --- BLOCK DUPLICATE / OVERPAYMENT ---
+    const assignment = unit.tenantAssignments[0] ?? null;
+    const tenantAssignmentId = assignment?.id ?? null;
+
     const existingPayment = await prisma.payment.findFirst({
-  where: {
-    unitId: unit.id,
-    billingCycle,
-    status: {
-      in: ["PENDING", "PAID"],
-    },
-    createdAt: {
-      gte: new Date(Date.now() - 15 * 1000), // 🔒 15 second lock window
-    },
-  },
-});
+      where: {
+        unitId: unit.id,
+        billingCycle,
+        status: {
+          in: ["PENDING", "PAID"],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
 
     if (existingPayment) {
       return NextResponse.json<ApiError>(
@@ -188,8 +187,12 @@ if (property?.stripeAccountId) {
       );
     }
 
-    const assignment = unit.tenantAssignments[0] ?? null;
-    const tenantAssignmentId = assignment?.id ?? null;
+    if (!property.stripeAccountId) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "Bank not connected" },
+        { status: 400 }
+      );
+    }
 
     const tenantName =
       assignment && (assignment.firstName || assignment.lastName)
@@ -201,31 +204,44 @@ if (property?.stripeAccountId) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:10000";
 
-    if (!property.stripeAccountId) {
-  return NextResponse.json({ ok: false, error: "Bank not connected" }, { status: 400 });
-}
+    const paymentLock = await prisma.payment.create({
+      data: {
+        propertyId: property.id,
+        unitId: unit.id,
+        tenantAssignmentId,
+        stripeSessionId: null,
+        stripePaymentIntentId: null,
+        billingCycle,
+        amountCents: balanceCents,
+        processingFeeCents,
+        status: "PENDING",
+        paymentMethod: "ACH",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    paymentLockId = paymentLock.id;
 
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_intent_data: {
-  application_fee_amount: processingFeeCents,
-  transfer_data: {
-    destination: property.stripeAccountId!,
-  },
-},
+        application_fee_amount: processingFeeCents,
+        transfer_data: {
+          destination: property.stripeAccountId,
+        },
+      },
       mode: "payment",
-payment_method_types: ["us_bank_account"],
-
-payment_method_options: {
-  us_bank_account: {
-    verification_method: "instant",
-    financial_connections: {
-      permissions: ["payment_method"],
-    },
-  },
-},
-
-customer_creation: "if_required",
-
+      payment_method_types: ["us_bank_account"],
+      payment_method_options: {
+        us_bank_account: {
+          verification_method: "instant",
+          financial_connections: {
+            permissions: ["payment_method"],
+          },
+        },
+      },
+      customer_creation: "if_required",
       line_items: [
         {
           price_data: {
@@ -254,10 +270,8 @@ customer_creation: "if_required",
             ]
           : []),
       ],
-
-  success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-  cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
-
+      success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
       metadata: {
         propertyId: property.id,
         unitId: unit.id,
@@ -272,17 +286,38 @@ customer_creation: "if_required",
     });
 
     if (!checkoutSession.url) {
+      await prisma.payment.delete({
+        where: { id: paymentLock.id },
+      });
+
       return NextResponse.json<ApiError>(
         { ok: false, error: "No checkout URL returned." },
         { status: 500 }
       );
     }
 
+    await prisma.payment.update({
+      where: { id: paymentLock.id },
+      data: {
+        stripeSessionId: checkoutSession.id,
+      },
+    });
+
     return NextResponse.json<ApiSuccess<{ url: string }>>({
       ok: true,
       data: { url: checkoutSession.url },
     });
   } catch (error: unknown) {
+    if (paymentLockId) {
+      try {
+        await prisma.payment.delete({
+          where: { id: paymentLockId },
+        });
+      } catch {
+        // swallow cleanup error
+      }
+    }
+
     if (error instanceof Stripe.errors.StripeError) {
       return NextResponse.json<ApiError>(
         { ok: false, error: error.message || "Stripe error." },

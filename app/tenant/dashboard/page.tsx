@@ -347,6 +347,8 @@ export default function TenantDashboard() {
   const paymentBlocked = !data.paymentEnabled;
   const isPending = data.paymentStatus === "PENDING";
   const totalDue = statement?.totalDue ?? data.balance;
+  const pendingMessage =
+    data.paymentMessage || "Payment in progress — no further action required";
 
   const parsedAmount = Number(amount);
   const numericAmount =
@@ -388,7 +390,7 @@ export default function TenantDashboard() {
                 Payment Pending
               </p>
               <p className="mt-2 text-sm font-medium text-amber-700">
-                {data.paymentMessage || "Payment pending."}
+                {pendingMessage}
               </p>
               {data.latestPaymentTimestamp ? (
                 <p className="mt-2 text-sm text-slate-500">
@@ -462,7 +464,11 @@ export default function TenantDashboard() {
               {isPending ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <div className="text-base font-semibold text-amber-800">
-                    Payment pending.
+                    Payment in progress
+                  </div>
+                  <div className="mt-1 text-sm text-amber-700">
+                    No further action is required while your bank processes this
+                    payment.
                   </div>
                   {data.latestPaymentTimestamp ? (
                     <div className="mt-1 text-sm text-amber-700">
@@ -512,15 +518,6 @@ export default function TenantDashboard() {
             {numericAmount !== null ? (
               <PayNowButton unitId={data.unitId} amount={numericAmount} />
             ) : null}
-          </div>
-        ) : null}
-
-        {isPending ? (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Payment pending.
-            {data.latestPaymentTimestamp
-              ? ` Submitted on ${fmtDate(data.latestPaymentTimestamp)}.`
-              : ""}
           </div>
         ) : null}
 
