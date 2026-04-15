@@ -136,6 +136,14 @@ export default function GpLfPanel({
   const selectedTierCount =
     gpLfTierMode === "all" ? localTiers.length : gpLfSelectedTierIds.length;
 
+  const selectedTierNames =
+    gpLfTierMode === "all"
+      ? localTiers.map((t) => t.tierName).join(", ")
+      : localTiers
+          .filter((t) => gpLfSelectedTierIds.includes(t.id))
+          .map((t) => t.tierName)
+          .join(", ");
+
   return (
     <OverlayShell
       title="Grace Period & Late Fees"
@@ -193,9 +201,20 @@ export default function GpLfPanel({
             ) : null}
 
             <div className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.5)] px-3 py-3 text-sm text-[var(--rf-text-soft)]">
-              {gpLfTierMode === "all"
-                ? `Applying these settings to all ${localTiers.length} tier${localTiers.length === 1 ? "" : "s"}.`
-                : `Selected tiers: ${selectedTierCount}`}
+              {gpLfTierMode === "all" ? (
+                <div className="text-sm font-semibold text-red-600">
+                  Applying to ALL tiers ({localTiers.length})
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-amber-600">
+                  Applying to {selectedTierCount} selected tier
+                  {selectedTierCount === 1 ? "" : "s"}
+                </div>
+              )}
+
+              <div className="mt-1 text-xs text-[var(--rf-text-muted)]">
+                {selectedTierNames || "No tiers selected."}
+              </div>
             </div>
           </div>
         </div>
@@ -230,7 +249,9 @@ export default function GpLfPanel({
                   value={
                     gpLfComparisonSummary.lateFeeInitial === "Mixed"
                       ? "Mixed"
-                      : formatGpLfMoney(gpLfComparisonSummary.lateFeeInitial || "0")
+                      : formatGpLfMoney(
+                          gpLfComparisonSummary.lateFeeInitial || "0"
+                        )
                   }
                 />
                 <SummaryCard
@@ -238,7 +259,9 @@ export default function GpLfPanel({
                   value={
                     gpLfComparisonSummary.lateFeeDaily === "Mixed"
                       ? "Mixed"
-                      : formatGpLfMoney(gpLfComparisonSummary.lateFeeDaily || "0")
+                      : formatGpLfMoney(
+                          gpLfComparisonSummary.lateFeeDaily || "0"
+                        )
                   }
                 />
                 <SummaryCard
@@ -371,6 +394,12 @@ export default function GpLfPanel({
           </div>
         </div>
 
+        {selectedTierCount > 1 ? (
+          <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            This will overwrite existing settings for {selectedTierCount} tiers.
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
@@ -386,7 +415,13 @@ export default function GpLfPanel({
             disabled={!canEditLateFeeSettings || savingGpLf}
             className="rf-btn rf-btn-primary flex-1 px-4"
           >
-            {savingGpLf ? "Saving..." : "Save Changes"}
+            {savingGpLf
+              ? "Saving..."
+              : gpLfTierMode === "all"
+              ? "Apply to All Tiers"
+              : selectedTierCount === 1
+              ? "Save Tier"
+              : "Apply to Selected Tiers"}
           </button>
         </div>
 

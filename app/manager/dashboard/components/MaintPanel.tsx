@@ -22,6 +22,7 @@ type Props = {
   setMaintenancePin: React.Dispatch<React.SetStateAction<string>>;
   maintenancePinConfirm: string;
   setMaintenancePinConfirm: React.Dispatch<React.SetStateAction<string>>;
+  maintenancePinSet: boolean;
   savingMaintenancePin: boolean;
   maintenancePinError: string;
   maintenancePinSuccess: string;
@@ -169,6 +170,7 @@ export default function MaintPanel({
   setMaintenancePin,
   maintenancePinConfirm,
   setMaintenancePinConfirm,
+  maintenancePinSet,
   savingMaintenancePin,
   maintenancePinError,
   maintenancePinSuccess,
@@ -199,6 +201,15 @@ export default function MaintPanel({
             title="Maintenance login PIN"
             subtitle="Set the 4-digit PIN used for maintenance access."
           >
+          {maintenancePinSet ? (
+  <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+    Maintenance access is configured.
+  </div>
+) : (
+  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+    No maintenance PIN has been set yet.
+  </div>
+)}
             <div className="grid gap-3 sm:grid-cols-2">
               <input
                 type="password"

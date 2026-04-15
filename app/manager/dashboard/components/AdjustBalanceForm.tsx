@@ -129,12 +129,13 @@ export default function AdjustBalanceForm({
           return;
         }
 
-        const res = await fetch("/api/ledger/adjust", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+       const res = await fetch("/api/ledger/adjust", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  credentials: "include",
+  body: JSON.stringify({
             unitId,
             type,
             moveInDate,
@@ -142,9 +143,10 @@ export default function AdjustBalanceForm({
             recurringCents,
             depositCents,
             memo: memo.trim(),
-          }),
-        });
+           }),
+          });
 
+       
         const json: { ok?: boolean; error?: string } = await res.json();
 
         if (!res.ok || !json.ok) {
@@ -163,13 +165,14 @@ export default function AdjustBalanceForm({
         return;
       }
 
-      const res = await fetch("/api/ledger/adjust", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          unitId,
+   const res = await fetch("/api/ledger/adjust", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  credentials: "include",
+  body: JSON.stringify({
+     unitId,
           type,
           amount: roundMoney(parsedAmount),
           memo: memo.trim(),

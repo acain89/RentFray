@@ -207,59 +207,60 @@ export default function ManagerPanel({
       onClose={onClose}
     >
       <div className="space-y-5">
-        {canManageManagers ? (
-          <SectionCard
-            title="Add manager or staff"
-            subtitle="Create a new property account and assign the correct role."
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="rf-label">Email</label>
-                <input
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="manager@email.com"
-                  className="rf-input"
-                />
-              </div>
 
-              <div>
-                <label className="rf-label">Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Create password"
-                  className="rf-input"
-                />
-              </div>
+                 {canManageManagers ? (
+  <SectionCard
+    title="Add manager or staff"
+    subtitle="Create a new property account and assign the correct role."
+  >
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <label className="rf-label">Email</label>
+        <input
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+          placeholder="manager@email.com"
+          className="rf-input"
+        />
+      </div>
 
-              <div>
-                <label className="rf-label">Role</label>
-                <select
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as ManagerRole)}
-                  className="rf-input"
-                >
-                  <option value="MANAGER">Manager</option>
-                  <option value="STAFF">Staff</option>
-                </select>
-              </div>
-            </div>
+      <div>
+        <label className="rf-label">Password</label>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Create password"
+          className="rf-input"
+        />
+      </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => void createManager()}
-                disabled={creatingUser}
-                className="rf-btn rf-btn-primary px-4"
-              >
-                {creatingUser ? "Creating..." : "Create User"}
-              </button>
-            </div>
-          </SectionCard>
-        ) : null}
+      <div>
+        <label className="rf-label">Role</label>
+        <select
+          value={newRole}
+          onChange={(e) => setNewRole(e.target.value as ManagerRole)}
+          className="rf-input"
+        >
+          <option value="MANAGER">Manager</option>
+          <option value="STAFF">Staff</option>
+        </select>
+      </div>
+    </div>
 
+    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+      <button
+        type="button"
+        onClick={() => void createManager()}
+        disabled={creatingUser}
+        className="rf-btn rf-btn-primary px-4"
+      >
+        {creatingUser ? "Creating..." : "Create User"}
+      </button>
+    </div>
+  </SectionCard>
+) : null}       
+                      
         <SectionCard
           title="Current users"
           subtitle="Review existing property users and update roles."
@@ -296,38 +297,44 @@ export default function ManagerPanel({
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <select
-                        value={user.role}
-                        onChange={(e) =>
-                          void updateManager(user.id, {
-                            role: e.target.value as ManagerRole,
-                          })
-                        }
-                        disabled={!canManageManagers}
-                        className="rf-input min-w-[150px]"
-                      >
-                        <option value="MANAGER">Manager</option>
-                        <option value="STAFF">Staff</option>
-                      </select>
+                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+  {user.role === "OWNER" ? (
+   <div className="rf-input min-w-[150px] flex items-center justify-between">
+  <span>Owner</span>
+  <span className="text-[10px] text-[var(--rf-text-muted)]">(Primary)</span>
+</div>
+  ) : (
+    <>
+      <select
+        value={user.role}
+        onChange={(e) =>
+          void updateManager(user.id, {
+            role: e.target.value as ManagerRole,
+          })
+        }
+        disabled={!canManageManagers}
+        className="rf-input min-w-[150px]"
+      >
+        <option value="MANAGER">Manager</option>
+        <option value="STAFF">Staff</option>
+      </select>
 
-                      {canManageManagers ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void updateManager(user.id, {
-                              role:
-                                user.role === "MANAGER" ? "STAFF" : "MANAGER",
-                            })
-                          }
-                          className="rf-btn rf-btn-secondary px-4 text-xs"
-                        >
-                          {user.role === "MANAGER"
-                            ? "Make Staff"
-                            : "Make Manager"}
-                        </button>
-                      ) : null}
-                    </div>
+      {canManageManagers ? (
+        <button
+          type="button"
+          onClick={() =>
+            void updateManager(user.id, {
+              role: user.role === "MANAGER" ? "STAFF" : "MANAGER",
+            })
+          }
+          className="rf-btn rf-btn-secondary px-4 text-xs"
+        >
+          {user.role === "MANAGER" ? "Make Staff" : "Make Manager"}
+        </button>
+      ) : null}
+    </>
+  )}
+</div>
                   </div>
                 </div>
               ))}

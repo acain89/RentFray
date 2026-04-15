@@ -121,3 +121,38 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function GET() {
+  try {
+    const session = await getSession();
+
+    if (!session || !session.propertyId) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const existingUser = await prisma.maintenanceUser.findFirst({
+      where: {
+        propertyId: session.propertyId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      hasPin: Boolean(existingUser),
+    });
+  } catch (error) {
+    console.error("GET /api/manager/maintenance/pin failed", error);
+
+    return NextResponse.json(
+      { ok: false, error: "Failed to check maintenance PIN." },
+      { status: 500 }
+    );
+  }
+}

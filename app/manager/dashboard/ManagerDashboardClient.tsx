@@ -446,6 +446,7 @@ export default function Page() {
   const [inactiveActionUnitId, setInactiveActionUnitId] = useState("");
   const [confirmReactivateUnitId, setConfirmReactivateUnitId] = useState("");
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState("");
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
 
 
   const [gpLfSettings, setGpLfSettings] = useState({
@@ -585,6 +586,7 @@ function getMixedBooleanText(values: boolean[]): string {
   const [savingMaintenancePin, setSavingMaintenancePin] = useState(false);
   const [maintenancePinError, setMaintenancePinError] = useState("");
   const [maintenancePinSuccess, setMaintenancePinSuccess] = useState("");
+  const [maintenancePinSet, setMaintenancePinSet] = useState(false);
 
   const sessionRole = data?.session?.role || "OWNER";
   const canManageMoney = sessionRole === "OWNER" || sessionRole === "MANAGER";
@@ -647,7 +649,8 @@ async function updateUnitCount(next: number): Promise<void> {
       return;
     }
 
-    await loadDashboard();
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
   } catch {
     alert("Failed to update unit count.");
   } finally {
@@ -708,38 +711,42 @@ async function logout(): Promise<void> {
 }
 
   async function loadDashboard(): Promise<void> {
-    try {
-      setLoading(true);
-      setError("");
+  if (loadingDashboard) return;
 
-      const response = await fetch("/api/manager/dashboard", {
-        credentials: "include",
-        cache: "no-store",
-      });
+  try {
+    setLoadingDashboard(true);
+    setLoading(true);
+    setError("");
 
-      const json = (await response.json().catch(() => null)) as
-        | DashboardData
-        | { error?: string }
-        | null;
+    const response = await fetch("/api/manager/dashboard", {
+      credentials: "include",
+      cache: "no-store",
+    });
 
-      if (!response.ok) {
-        setError(
-          json && "error" in json && typeof json.error === "string"
-            ? json.error
-            : "Failed to load dashboard."
-        );
-        setData(null);
-        return;
-      }
+    const json = (await response.json().catch(() => null)) as
+      | DashboardData
+      | { error?: string }
+      | null;
 
-      setData(json as DashboardData);
-    } catch {
-      setError("Failed to load dashboard.");
+    if (!response.ok) {
+      setError(
+        json && "error" in json && typeof json.error === "string"
+          ? json.error
+          : "Failed to load dashboard."
+      );
       setData(null);
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    setData(json as DashboardData);
+  } catch {
+    setError("Failed to load dashboard.");
+    setData(null);
+  } finally {
+    setLoading(false);
+    setLoadingDashboard(false);
   }
+}
 
   async function loadMaintenanceRequests(): Promise<void> {
     try {
@@ -770,6 +777,25 @@ async function logout(): Promise<void> {
       setMaintenanceLoading(false);
     }
   }
+
+async function loadMaintenancePinStatus(): Promise<void> {
+  try {
+    const response = await fetch("/api/manager/maintenance/pin", {
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    const json = (await response.json().catch(() => null)) as
+      | { ok?: boolean; hasPin?: boolean; error?: string }
+      | null;
+
+    if (response.ok && json?.ok) {
+      setMaintenancePinSet(Boolean(json.hasPin));
+    }
+  } catch {
+    // leave silent
+  }
+}
 
 async function loadPropertyTiers(): Promise<void> {
   if (!data?.property?.id) return;
@@ -1003,7 +1029,9 @@ async function saveTierCharges(): Promise<void> {
     }
 
     await loadTierCharges();
-    alert("Charges saved");
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
+alert("Charges saved");
   } catch {
     setChargesError("Failed to save charges.");
   } finally {
@@ -1091,7 +1119,9 @@ async function submitToggleUnitActive(): Promise<void> {
       return;
     }
 
-    await loadDashboard();
+
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
     setShowInactiveConfirm(false);
     closeUnitPanel();
   } catch {
@@ -1142,6 +1172,7 @@ async function submitToggleUnitActive(): Promise<void> {
       }
 
       setMaintenancePinSuccess("Maintenance PIN saved.");
+      setMaintenancePinSet(true);
       setMaintenancePin("");
       setMaintenancePinConfirm("");
     } catch {
@@ -1364,7 +1395,9 @@ const exportMonthOptions = getExportMonthOptions();
       setNewPassword("");
       setNewRole("STAFF");
 
-      await loadDashboard();
+     
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
     } finally {
       setCreatingUser(false);
     }
@@ -1461,7 +1494,8 @@ async function reactivateInactiveUnit(unitId: string): Promise<void> {
 
     setConfirmReactivateUnitId("");
     await loadInactiveUnits();
-    await loadDashboard();
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
   } catch {
     alert("Failed to reactivate unit.");
   } finally {
@@ -1491,8 +1525,10 @@ async function deleteInactiveUnit(unitId: string): Promise<void> {
       return;
     }
 
-    setConfirmDeleteUnitId("");
-    await loadInactiveUnits();
+   setConfirmDeleteUnitId("");
+await loadInactiveUnits();
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
   } catch {
     alert("Failed to delete inactive unit.");
   } finally {
@@ -1529,7 +1565,8 @@ async function deleteInactiveUnit(unitId: string): Promise<void> {
         return;
       }
 
-      await loadDashboard();
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
     } catch {
       alert("Update failed");
     }
@@ -1548,7 +1585,8 @@ useEffect(() => {
 
 useEffect(() => {
   (async () => {
-    await loadDashboard();
+    await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
   })();
 }, []);
 
@@ -1570,6 +1608,7 @@ useEffect(() => {
 useEffect(() => {
   if (activePanel === "maint") {
     void loadMaintenanceRequests();
+    void loadMaintenancePinStatus();
   }
 }, [activePanel]);
 
@@ -1778,7 +1817,9 @@ async function saveGpLfSettings(): Promise<void> {
 
     // merge back into local state safely
     setLocalTiers(updatedTiers);
-    setGpLfSaveMessage("Grace period and late fee settings saved.");
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
+setGpLfSaveMessage("Grace period and late fee settings saved.");
   } catch {
     setGpLfSaveMessage("Failed to save GP/LF settings.");
   } finally {
@@ -1812,7 +1853,9 @@ async function saveLocalRentSettings(): Promise<void> {
     }
 
     setEditingTierId(null);
-    alert("Saved");
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
+alert("Saved");
   } catch {
     alert("Save failed");
   }
@@ -2533,7 +2576,8 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
       unitId={selectedUnit.unitId}
       onClose={() => setShowAdjustModal(false)}
       onSuccess={async () => {
-        await loadDashboard();
+        await new Promise((r) => setTimeout(r, 150));
+await loadDashboard();
         closeUnitPanel();
       }}
     />
@@ -2679,13 +2723,13 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
 ) : null}
 
 {activePanel === "bank" ? (
-  <BankPanel
-    bankStatus={bankStatus}
-    bankMessage={bankMessage}
-    onClose={closePanel}
-    connectBank={connectBank}
-    handleOnboard={handleOnboard}
-  />
+ <BankPanel
+  bankStatus={bankStatus}
+  bankMessage={bankMessage}
+  isOwner={isOwner}
+  onConnect={connectBank}
+  onOnboard={handleOnboard}
+/>
 ) : null}
 
 
@@ -2771,6 +2815,7 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
     setMaintenancePin={setMaintenancePin}
     maintenancePinConfirm={maintenancePinConfirm}
     setMaintenancePinConfirm={setMaintenancePinConfirm}
+    maintenancePinSet={maintenancePinSet}
     savingMaintenancePin={savingMaintenancePin}
     maintenancePinError={maintenancePinError}
     maintenancePinSuccess={maintenancePinSuccess}
@@ -2782,7 +2827,7 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
     maintenanceActionError={maintenanceActionError}
     runMaintenanceAction={runMaintenanceAction}
   />
-) : null}   
+) : null}
  </>
   );
 }

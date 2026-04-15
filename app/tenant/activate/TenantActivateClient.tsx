@@ -106,7 +106,7 @@ export default function TenantActivateClient({
         return;
       }
 
-      router.replace("/tenant/dashboard");
+      window.location.href = "/tenant/dashboard";
     } catch {
       setError("Network error. Please try again.");
       setLoading(false);
