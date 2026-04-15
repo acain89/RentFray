@@ -217,7 +217,7 @@ payment_method_types: ["us_bank_account"],
 
 payment_method_options: {
   us_bank_account: {
-    verification_method: "automatic",
+    verification_method: "instant",
     financial_connections: {
       permissions: ["payment_method"],
     },
