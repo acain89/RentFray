@@ -2176,15 +2176,7 @@ if (error === "Unauthorized") {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2">
-                      {!vacant && canManageMoney ? (
-                        <button
-                          type="button"
-                          onClick={() => openUnitPanel(unit)}
-                          className="rf-btn rf-btn-secondary min-h-[34px] px-3 text-xs"
-                        >
-                          MP
-                        </button>
-                      ) : null}
+                   {/* MP button removed — handled inside unit panel */}
                     </div>
                   </div>
                 </div>
@@ -2705,15 +2697,24 @@ await loadDashboard();
 ) : null}
 
 {activePanel === "bank" ? (
- <BankPanel
-  bankStatus={bankStatus}
-  bankMessage={bankMessage}
-  isOwner={isOwner}
-  onConnect={connectBank}
-  onOnboard={handleOnboard}
-/>
+  <OverlayShell
+    title="Account & Payouts"
+    subtitle="Connect and manage the payout account for this property."
+    onClose={closePanel}
+  >
+    <BankPanel
+      bankStatus={bankStatus}
+      bankMessage={bankMessage}
+      isOwner={isOwner}
+      onConnect={() => {
+        void connectBank();
+      }}
+      onOnboard={() => {
+        void handleOnboard();
+      }}
+    />
+  </OverlayShell>
 ) : null}
-
 
       {activePanel === "gplf" ? (
   <GpLfPanel
