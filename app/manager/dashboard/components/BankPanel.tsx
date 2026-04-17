@@ -51,18 +51,18 @@ onOnboard,
 }: Props) {
 const ui = getStatusUI(bankStatus);
 
-return ( <div className="space-y-6">
-{/* STATUS */} <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-<div className={`text-lg font-semibold ${ui.color}`}>
-{ui.title} </div> <div className="mt-1 text-sm text-slate-600">
-{ui.description} </div>
-
-    {bankMessage ? (
-      <div className="mt-3 rounded-lg bg-white border border-slate-200 p-3 text-sm text-slate-700">
-        {bankMessage}
+return (
+  <div className="space-y-6">
+    {/* STATUS */}
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className={`text-lg font-semibold ${ui.color}`}>
+        {ui.title}
       </div>
-    ) : null}
-  </div>
+
+      <div className="mt-1 text-sm text-slate-600">
+        {bankMessage || ui.description}
+      </div>
+    </div>
 
   {/* ACTIONS */}
   {isOwner ? (

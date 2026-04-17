@@ -1591,8 +1591,23 @@ useEffect(() => {
   if (data?.property?.id) {
     void loadPropertyTiers();
   }
-}, [data?.property?.id]);
+}, [data]);
 
+
+useEffect(() => {
+  if (activePanel !== "gplf") return;
+
+  const nextVisibleTierIds =
+    gpLfTierMode === "all"
+      ? localTiers.map((tier) => tier.id)
+      : gpLfSelectedTierIds;
+
+  const visibleTiers = localTiers.filter((tier) =>
+    nextVisibleTierIds.includes(tier.id)
+  );
+
+  setGpLfSettings(getGpLfSettingsFromTiers(visibleTiers));
+}, [activePanel, gpLfTierMode, gpLfSelectedTierIds, localTiers]);
 
 useEffect(() => {
   if (activePanel === "maint") {
@@ -1759,7 +1774,7 @@ async function saveGpLfSettings(): Promise<void> {
 
   const targetTierIds =
     gpLfTierMode === "all"
-      ? localTiers.map((tier) => tier.id)
+      ? localTiers.map((t) => t.id)
       : gpLfSelectedTierIds;
 
   if (targetTierIds.length === 0) {
@@ -1767,28 +1782,31 @@ async function saveGpLfSettings(): Promise<void> {
     return;
   }
 
-const updatedTiers = [...localTiers];
-
   try {
     setSavingGpLf(true);
     setGpLfSaveMessage("");
 
-    const res = await fetch(`/api/admin/properties/${data.property.id}/gplf`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  credentials: "include",
-  body: JSON.stringify({
-  tiers: localTiers.map((tier) => ({
+    const tiersToUpdate = localTiers
+      .filter((tier) => targetTierIds.includes(tier.id))
+      .map((tier) => ({
         id: tier.id,
-        dueDay: tier.dueDay,
-        graceDays: tier.graceDays,
-        lateFeeEnabled: tier.lateFeeEnabled,
-        lateFeeAmount: tier.lateFeeAmount,
-        lateFeeDaily: tier.lateFeeDaily,
-        lateFeeMaxDays: tier.lateFeeMaxDays,
-      })),
-  }),
-});
+        dueDay: gpLfSettings.dueDay,
+        graceDays: gpLfSettings.graceDays,
+        lateFeeEnabled: gpLfSettings.lateFeeEnabled,
+        lateFeeAmount: gpLfSettings.lateFeeInitial,
+        lateFeeDaily: gpLfSettings.lateFeeDaily,
+        lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
+      }));
+
+    const res = await fetch(
+      `/api/admin/properties/${data.property.id}/gplf`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tiers: tiersToUpdate }),
+      }
+    );
 
     const json = await res.json().catch(() => null);
 
@@ -1797,10 +1815,16 @@ const updatedTiers = [...localTiers];
       return;
     }
 
-    // merge back into local state safely
-    setLocalTiers(updatedTiers);
-await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+    await loadDashboard();
+await loadPropertyTiers();
+setGpLfSettings({
+  dueDay: gpLfSettings.dueDay,
+  graceDays: gpLfSettings.graceDays,
+  lateFeeEnabled: gpLfSettings.lateFeeEnabled,
+  lateFeeInitial: gpLfSettings.lateFeeInitial,
+  lateFeeDaily: gpLfSettings.lateFeeDaily,
+  lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
+});
 setGpLfSaveMessage("Grace period and late fee settings saved.");
   } catch {
     setGpLfSaveMessage("Failed to save GP/LF settings.");
@@ -1852,18 +1876,40 @@ alert("Saved");
   setShowManualPaymentConfirm(false);
 }
 
-  function openPanel(panel: Exclude<PanelKey, null>): void {
+function openPanel(panel: Exclude<PanelKey, null>): void {
   setActivePanel(panel);
 
   if (panel === "gplf") {
     setGpLfTierMode("selected");
     setGpLfSelectedTierIds([]);
-    setGpLfSettings(getGpLfSettingsFromTiers(localTiers));
+    setGpLfSettings({
+      dueDay: "",
+      graceDays: "",
+      lateFeeEnabled: false,
+      lateFeeInitial: "",
+      lateFeeDaily: "",
+      lateFeeMaxDays: "",
+    });
     setGpLfSaveMessage("");
   }
 }
 
-  function closePanel(): void {
+useEffect(() => {
+  if (activePanel !== "gplf") return;
+
+  const nextVisibleTierIds =
+    gpLfTierMode === "all"
+      ? localTiers.map((tier) => tier.id)
+      : gpLfSelectedTierIds;
+
+  const visibleTiers = localTiers.filter((tier) =>
+    nextVisibleTierIds.includes(tier.id)
+  );
+
+  setGpLfSettings(getGpLfSettingsFromTiers(visibleTiers));
+}, [activePanel, gpLfTierMode, gpLfSelectedTierIds, localTiers]);
+
+function closePanel(): void {
   setActivePanel(null);
 
   setMaintenanceError("");
@@ -1886,7 +1932,7 @@ alert("Saved");
   setInactiveActionUnitId("");
   setConfirmReactivateUnitId("");
   setConfirmDeleteUnitId("");
-  }
+}  
 
   if (loading) {
     return (
