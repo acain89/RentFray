@@ -111,16 +111,10 @@ if (
      * ONLY pull units that ACTUALLY HAVE TENANTS
      */
     const units = await prisma.unit.findMany({
-      where: {
-        propertyId: property.id,
-        isActive: true,
-        tenantAssignments: {
-          some: {
-            isCurrent: true,
-            moveOutDate: null,
-          },
-        },
-      },
+  where: {
+    propertyId: property.id,
+    isActive: true,
+  },
       orderBy: { unitNumber: "asc" },
       select: {
       id: true,
@@ -156,7 +150,21 @@ let totalPaidCount = 0;
       units.map(async (unit: (typeof units)[number]) => {
         const assignment = unit.tenantAssignments[0] ?? null;
 
-        if (!assignment) return null;
+        if (!assignment) {
+  return {
+    unitId: unit.id,
+    unitNumber: unit.unitNumber,
+    isActive: unit.isActive === true,
+    tenantName: null,
+    balanceCents: 0,
+    balance: "0.00",
+    totalPaid: "0.00",
+    isDelinquent: false,
+    daysPastDue: 0,
+    paymentStatus: "UNPAID",
+    tierName: unit.tier?.name ?? "Units",
+  };
+}
 
         occupiedUnits++;
 

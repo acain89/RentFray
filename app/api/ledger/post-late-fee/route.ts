@@ -4,7 +4,10 @@ import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/financialAccess";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import { Prisma } from "@prisma/client";
-import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 type ApiSuccess<T> = {
   ok: true;
@@ -18,14 +21,6 @@ type ApiError = {
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function getNextMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
 }
 
 function getMonthLabel(date: Date): string {
@@ -50,27 +45,32 @@ export async function POST() {
       );
     }
 
-  
     const property = await prisma.property.findUnique({
-  where: { id: session.propertyId },
-  include: {
-    settings: true,
-    units: {
-      where: { isActive: true },
+      where: { id: session.propertyId },
       include: {
-        tier: {
-          select: { lateFeeInitialCents: true },
-        },
-        tenantAssignments: {
-          where: { isCurrent: true },
-          orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-          take: 1,
-          select: { id: true },
+        settings: true,
+        units: {
+          where: { isActive: true },
+          include: {
+            tier: {
+              select: {
+                rentDueDay: true,
+                gracePeriodDays: true,
+                lateFeeInitialCents: true,
+                lateFeeDailyCents: true,
+                maxLateFeeDays: true,
+              },
+            },
+            tenantAssignments: {
+              where: { isCurrent: true },
+              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+              take: 1,
+              select: { id: true },
+            },
+          },
         },
       },
-    },
-  },
-});
+    });
 
     if (!property) {
       return NextResponse.json<ApiError>(
@@ -79,20 +79,13 @@ export async function POST() {
       );
     }
 
-     const now = new Date();
+    const now = new Date();
     const effectiveDate = safeDate(startOfDay(now));
-    const rentDates = getRentDateSummary({
-  ...resolveEffectiveBillingSettings({
-    tier: null,
-    propertySettings: property.settings,
-  }),
-  now,
-});
+    const billingCycle = `${effectiveDate.getFullYear()}-${String(
+      effectiveDate.getMonth() + 1
+    ).padStart(2, "0")}`;
+    const monthLabel = getMonthLabel(now);
 
-const billingCycle = rentDates.billingCycle;
-const monthLabel = getMonthLabel(now);
-
-    // --- PRE-FETCH EXISTING ---
     const existingFees = await prisma.ledgerEntry.findMany({
       where: {
         propertyId: property.id,
@@ -109,16 +102,16 @@ const monthLabel = getMonthLabel(now);
 
     const existingKeys = new Set<string>(
       existingFees.map(
-     (e: (typeof existingFees)[number]) => `${e.unitId}::${e.tenantAssignmentId ?? ""}`
-     )
+        (entry: (typeof existingFees)[number]) =>
+          `${entry.unitId}::${entry.tenantAssignmentId ?? ""}`
+      )
     );
 
-    // --- PRE-CALCULATE DELINQUENCY ---
     const delinquencyMap = new Map<string, boolean>();
 
     for (const unit of property.units) {
-      const result = await getUnitDelinquencySummary(unit.id);
-      delinquencyMap.set(unit.id, !!result?.isDelinquent);
+      const result = await getUnitDelinquencySummary(unit.id, now);
+      delinquencyMap.set(unit.id, Boolean(result?.isDelinquent));
     }
 
     let posted = 0;
@@ -127,38 +120,7 @@ const monthLabel = getMonthLabel(now);
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const unit of property.units) {
         const assignment = unit.tenantAssignments[0] ?? null;
-        // 🔒 PROTECT: skip late fee if payment was started before late fee date
-const rentDates = getRentDateSummary({
-  ...resolveEffectiveBillingSettings({
-    tier: unit.tier,
-    propertySettings: property.settings,
-  }),
-  now,
-});
 
-const graceCutoff = new Date(rentDates.graceEndsOn);
-
-const existingPayment = await tx.payment.findFirst({
-  where: {
-    unitId: unit.id,
-    billingCycle,
-    status: {
-      in: ["PENDING", "PAID"],
-    },
-    createdAt: {
-      lte: graceCutoff,
-    },
-  },
-  orderBy: { createdAt: "desc" },
-  select: {
-    createdAt: true,
-  },
-});
-
-if (existingPayment) {
-  skipped++;
-  continue;
-}
         if (!assignment) {
           skipped++;
           continue;
@@ -171,13 +133,12 @@ if (existingPayment) {
           continue;
         }
 
-        // ✅ FIX: already in cents — DO NOT convert
         const effective = resolveEffectiveBillingSettings({
-  tier: unit.tier,
-  propertySettings: property.settings,
-});
+          tier: unit.tier,
+          propertySettings: property.settings,
+        });
 
-const feeCents = effective.lateFeeInitialCents;
+        const feeCents = effective.lateFeeInitialCents;
 
         if (feeCents <= 0) {
           skipped++;
@@ -187,6 +148,36 @@ const feeCents = effective.lateFeeInitialCents;
         const key = `${unit.id}::${assignment.id}`;
 
         if (existingKeys.has(key)) {
+          skipped++;
+          continue;
+        }
+
+        const rentDates = getRentDateSummary({
+          ...resolveEffectiveBillingSettings({
+            tier: unit.tier,
+            propertySettings: property.settings,
+          }),
+          now,
+        });
+
+        const graceCutoff = new Date(rentDates.graceEndsOn);
+
+        const existingPayment = await tx.payment.findFirst({
+          where: {
+            unitId: unit.id,
+            billingCycle,
+            status: {
+              in: ["PENDING", "PAID"],
+            },
+            createdAt: {
+              lte: graceCutoff,
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        });
+
+        if (existingPayment) {
           skipped++;
           continue;
         }
@@ -219,9 +210,8 @@ const feeCents = effective.lateFeeInitialCents;
             amountCents: feeCents,
             memo: `Late fee - ${monthLabel}`,
             effectiveDate,
-            billingCycle: billingCycle,
-            createdByManagementUserId:
-              session.managementUserId ?? null,
+            billingCycle,
+            createdByManagementUserId: session.managementUserId ?? null,
           },
         });
 
@@ -232,8 +222,7 @@ const feeCents = effective.lateFeeInitialCents;
         data: {
           propertyId: property.id,
           actorType: "MANAGER",
-          actorManagementUserId:
-            session.managementUserId ?? null,
+          actorManagementUserId: session.managementUserId ?? null,
           action: "LATE_FEES_POSTED",
           targetType: "PROPERTY",
           targetId: property.id,
@@ -241,7 +230,7 @@ const feeCents = effective.lateFeeInitialCents;
           metadataJson: JSON.stringify({
             posted,
             skipped,
-            billingCycle: billingCycle,
+            billingCycle,
             triggeredAt: effectiveDate.toISOString(),
           }),
         },

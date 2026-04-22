@@ -166,7 +166,7 @@ const existingPayment = await tx.payment.findFirst({
   },
   orderBy: { createdAt: "desc" },
   select: {
-    createdAt: true,
+    id: true,
   },
 });
 

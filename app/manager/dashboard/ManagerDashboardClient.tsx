@@ -97,7 +97,7 @@ type DashboardData = {
   tiers: DashboardTier[];
 };
 
-type UnitStatus = "PAID" | "GRACE" | "PENDING" | "FAILED" | "DELINQUENT";
+type UnitStatus = "PAID" | "GRACE" | "PENDING" | "FAILED" | "DELINQUENT" | "VACANT";
 
 type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | "bank" | null;
 
@@ -220,13 +220,13 @@ type InactiveUnitsResponse = {
 };
 
 function getStatus(unit: Unit): UnitStatus {
-  // PRIORITY ORDER (matches backend)
+  // ✅ FIRST: handle vacancy
+  if (!unit.tenantName) return "VACANT";
 
+  // existing priority order
   if (unit.paymentStatus === "FAILED") return "FAILED";
   if (unit.paymentStatus === "PENDING") return "PENDING";
-
-  if (unit.balance <= 0) return "PAID";
-
+  if (unit.paymentStatus === "PAID") return "PAID";
   if (unit.isDelinquent) return "DELINQUENT";
 
   return "GRACE";
@@ -244,6 +244,8 @@ function getStatusDotClass(status: UnitStatus): string {
       return "bg-orange-500"; // orange
     case "DELINQUENT":
       return "bg-red-500"; // red
+    case "VACANT":
+      return "bg-slate-400"; // gray
     default:
       return "bg-slate-400";
   }
