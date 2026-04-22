@@ -128,12 +128,25 @@ const monthLabel = getMonthLabel(now);
       for (const unit of property.units) {
         const assignment = unit.tenantAssignments[0] ?? null;
         // 🔒 PROTECT: skip late fee if payment was started before late fee date
+const rentDates = getRentDateSummary({
+  ...resolveEffectiveBillingSettings({
+    tier: unit.tier,
+    propertySettings: property.settings,
+  }),
+  now,
+});
+
+const graceCutoff = new Date(rentDates.graceEndsOn);
+
 const existingPayment = await tx.payment.findFirst({
   where: {
     unitId: unit.id,
     billingCycle,
     status: {
       in: ["PENDING", "PAID"],
+    },
+    createdAt: {
+      lte: graceCutoff,
     },
   },
   orderBy: { createdAt: "desc" },
@@ -142,11 +155,10 @@ const existingPayment = await tx.payment.findFirst({
   },
 });
 
-if (existingPayment && existingPayment.createdAt <= effectiveDate) {
+if (existingPayment) {
   skipped++;
   continue;
 }
-
         if (!assignment) {
           skipped++;
           continue;

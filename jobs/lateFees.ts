@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
-import { resolveEffectiveBillingSettings } from "@/lib/rentDates";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -140,24 +143,37 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
         continue;
       }
 
-      const existingPayment = await tx.payment.findFirst({
-        where: {
-          unitId: unit.id,
-          billingCycle,
-          status: {
-            in: ["PENDING", "PAID"],
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        select: {
-          createdAt: true,
-        },
-      });
+      const rentDates = getRentDateSummary({
+  ...resolveEffectiveBillingSettings({
+    tier: unit.tier,
+    propertySettings: unit.property.settings,
+  }),
+  now,
+});
 
-      if (existingPayment && existingPayment.createdAt <= effectiveDate) {
-        skipped++;
-        continue;
-      }
+const graceCutoff = new Date(rentDates.graceEndsOn);
+
+const existingPayment = await tx.payment.findFirst({
+  where: {
+    unitId: unit.id,
+    billingCycle,
+    status: {
+      in: ["PENDING", "PAID"],
+    },
+    createdAt: {
+      lte: graceCutoff,
+    },
+  },
+  orderBy: { createdAt: "desc" },
+  select: {
+    createdAt: true,
+  },
+});
+
+if (existingPayment) {
+  skipped++;
+  continue;
+}      
 
       const exists = await tx.ledgerEntry.findFirst({
         where: {
