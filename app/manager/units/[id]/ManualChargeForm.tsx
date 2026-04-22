@@ -228,6 +228,26 @@ export default function ManualChargeForm({
         />
       </div>
 
+      <div className="text-xs text-slate-600">
+  {(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (effectiveDate > today) {
+      return (
+        <span className="text-blue-600">
+          Will appear on next billing cycle statement.
+        </span>
+      );
+    }
+
+    return (
+      <span className="text-amber-600">
+        This will be due immediately and reflected in the current balance.
+      </span>
+    );
+  })()}
+</div>
+
       <button
         type="submit"
         disabled={loading}
@@ -239,10 +259,18 @@ export default function ManualChargeForm({
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {success && (
-        <div className="text-sm text-green-600">
-          Charge successfully posted.
-        </div>
-      )}
+  <div className="text-sm text-green-600">
+    {(() => {
+      const today = new Date().toISOString().slice(0, 10);
+
+      if (effectiveDate > today) {
+        return "Charge scheduled — will appear on next statement.";
+      }
+
+      return "Charge posted — now due and reflected in balance.";
+    })()}
+  </div>
+)}
     </form>
   );
 }

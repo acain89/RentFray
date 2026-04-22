@@ -58,6 +58,67 @@ async function updatePaymentStatus(
   });
 }
 
+async function reverseLedgerEntries(intentId: string) {
+  const payment = await prisma.payment.findUnique({
+    where: { stripePaymentIntentId: intentId },
+    include: { ledgerEntries: true },
+  });
+
+  if (!payment) return;
+
+  const existingReversal = await prisma.ledgerEntry.findFirst({
+    where: {
+      referenceNumber: `${intentId}:reversal`,
+      entryType: "ADJUSTMENT",
+    },
+    select: { id: true },
+  });
+
+  if (existingReversal) return;
+
+  const entries = payment.ledgerEntries as { amountCents: number }[];
+
+const totalReversal = entries.reduce(
+  (sum, entry) => sum + entry.amountCents,
+  0
+);
+
+  if (totalReversal === 0) return;
+
+  await prisma.ledgerEntry.create({
+    data: {
+      propertyId: payment.propertyId,
+      unitId: payment.unitId,
+      tenantAssignmentId: payment.tenantAssignmentId,
+      entryType: "ADJUSTMENT",
+      amountCents: -totalReversal,
+      effectiveDate: new Date(),
+      paymentId: payment.id,
+      referenceNumber: `${intentId}:reversal`,
+      memo: "Payment reversal (ACH return / dispute)",
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      propertyId: payment.propertyId,
+      actorType: "SYSTEM",
+      action: "PAYMENT_REVERSED",
+      targetType: "PAYMENT",
+      targetId: intentId,
+    },
+  });
+
+  emitEvent("payment:update", {
+    propertyId: payment.propertyId,
+    unitId: payment.unitId,
+  });
+  emitEvent("ledger:update", {
+    propertyId: payment.propertyId,
+    unitId: payment.unitId,
+  });
+}
+
 export async function POST(req: Request) {
   if (!stripeSecretKey || !stripeWebhookSecret) {
     return NextResponse.json(
@@ -134,15 +195,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    if (event.type === "charge.refunded") {
-      const charge = event.data.object as Stripe.Charge;
+   if (event.type === "charge.refunded") {
+  const charge = event.data.object as Stripe.Charge;
 
-      if (typeof charge.payment_intent === "string") {
-        await updatePaymentStatus(charge.payment_intent, "REVERSED");
-      }
+  if (typeof charge.payment_intent === "string") {
+    await updatePaymentStatus(charge.payment_intent, "REVERSED");
+    await reverseLedgerEntries(charge.payment_intent);
+  }
 
-      return NextResponse.json({ received: true });
-    }
+  return NextResponse.json({ received: true });
+}
+
+
+if (event.type === "payment_intent.canceled") {
+  const canceledIntent = event.data.object as Stripe.PaymentIntent;
+
+  await updatePaymentStatus(canceledIntent.id, "REVERSED");
+  await reverseLedgerEntries(canceledIntent.id);
+
+  return NextResponse.json({ received: true });
+}
+
+if (event.type === "charge.dispute.created") {
+  const dispute = event.data.object as Stripe.Dispute;
+
+  if (typeof dispute.payment_intent === "string") {
+    await updatePaymentStatus(dispute.payment_intent, "REVERSED");
+    await reverseLedgerEntries(dispute.payment_intent);
+  }
+
+  return NextResponse.json({ received: true });
+}
+
 
     if (event.type === "account.updated") {
       const account = event.data.object as Stripe.Account;

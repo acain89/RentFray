@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 type ApiSuccess<T> = {
   ok: true;
@@ -178,16 +182,19 @@ export async function POST(req: Request) {
     }
 
     const unit = await prisma.unit.findFirst({
-      where: {
-        id: unitId,
-        propertyId,
+  where: {
+    id: unitId,
+    propertyId,
+  },
+  include: {
+    tier: true,
+    property: {
+      include: {
+        settings: true,
       },
-      select: {
-        id: true,
-        propertyId: true,
-        unitNumber: true,
-      },
-    });
+    },
+  },
+});
 
     if (!unit) {
       return NextResponse.json<ApiError>(
@@ -243,24 +250,37 @@ export async function POST(req: Request) {
       });
     }
 
+const effective = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings: unit.property.settings,
+});
+
+const rentDates = getRentDateSummary({
+  ...effective,
+  now: effectiveDate,
+});
+
+const billingCycle = rentDates.billingCycle;
+
     const chargeType = toLedgerChargeType(type);
 
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         const entry = await tx.ledgerEntry.create({
-          data: {
-            propertyId,
-            unitId,
-            tenantAssignmentId: activeAssignment?.id ?? null,
-            entryType: "CHARGE",
-            chargeType,
-            amountCents,
-            effectiveDate,
-            memo,
-            referenceNumber,
-            createdByManagementUserId: session.managementUserId ?? null,
-          },
-        });
+  data: {
+    propertyId,
+    unitId,
+    tenantAssignmentId: activeAssignment?.id ?? null,
+    entryType: "CHARGE",
+    chargeType,
+    amountCents,
+    effectiveDate,
+    billingCycle, // ✅ CRITICAL FIX
+    memo,
+    referenceNumber,
+    createdByManagementUserId: session.managementUserId ?? null,
+  },
+});
 
         await tx.auditLog.create({
           data: {

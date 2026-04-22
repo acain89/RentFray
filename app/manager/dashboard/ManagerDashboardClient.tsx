@@ -2337,102 +2337,96 @@ if (error === "Unauthorized") {
   >
     <div className="space-y-5 pb-6">
       <div className="grid gap-3 sm:grid-cols-2">
-  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-      Tenant
-    </div>
-    <div className="mt-2 text-lg font-semibold text-slate-950">
-      {selectedUnit.tenantName || "-"}
-    </div>
-  </div>
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Tenant
+          </div>
+          <div className="mt-2 text-lg font-semibold text-slate-950">
+            {selectedUnit.tenantName || "-"}
+          </div>
+        </div>
 
-  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-      Balance
-    </div>
-    <div className="mt-2 text-lg font-semibold text-slate-950">
-      {toMoney(selectedUnit.balance)}
-    </div>
-  </div>
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Balance
+          </div>
+          <div className="mt-2 text-lg font-semibold text-slate-950">
+            {toMoney(selectedUnit.balance)}
+          </div>
+        </div>
 
-  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-      Tier
-    </div>
-    <div className="mt-2 text-lg font-semibold text-slate-950">
-      {selectedUnit.tierName || "Units"}
-    </div>
-  </div>
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Tier
+          </div>
+          <div className="mt-2 text-lg font-semibold text-slate-950">
+            {selectedUnit.tierName || "Units"}
+          </div>
+        </div>
 
-  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-      Status
-    </div>
-    <div className="mt-2 text-lg font-semibold text-slate-950">
-      {getStatusText(selectedUnit.status, selectedUnit.daysPastDue)}
-    </div>
-  </div>
-</div>
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Status
+          </div>
+          <div className="mt-2 text-lg font-semibold text-slate-950">
+            {getStatusText(selectedUnit.status, selectedUnit.daysPastDue)}
+          </div>
+        </div>
+      </div>
 
-<div className="mt-4 block sticky top-0 bg-white z-10">
-  <button
-    type="button"
-    onClick={() => setShowAdjustModal(true)}
-    disabled={!canManageMoney}
-className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"  >
-    Adjust Balance
-  </button>
-</div>
+      <div className="sticky top-0 z-10 mt-4 block bg-white">
+        <button
+          type="button"
+          onClick={() => setShowAdjustModal(true)}
+          disabled={!canManageMoney}
+          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+        >
+          Adjust Balance
+        </button>
+      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-  <div className="flex items-center justify-between gap-4">
-    
-    {/* Status Text */}
-    <div className="text-sm text-slate-700">
-      {selectedUnit?.isActive ? (
-        <>
-          <span className="font-semibold text-emerald-600">
-            Unit {selectedUnit.unitNumber} is active.
-          </span>{" "}
-          Units must be vacated before setting as inactive.
-        </>
-      ) : (
-        <>
-          <span className="font-semibold text-red-600">
-            Unit {selectedUnit.unitNumber} is inactive.
-          </span>{" "}
-          This unit cannot be occupied and is excluded from the active unit count.
-        </>
-      )}
-    </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm text-slate-700">
+            {selectedUnit?.isActive ? (
+              <>
+                <span className="font-semibold text-emerald-600">
+                  Unit {selectedUnit.unitNumber} is active.
+                </span>{" "}
+                Units must be vacated before setting as inactive.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-red-600">
+                  Unit {selectedUnit.unitNumber} is inactive.
+                </span>{" "}
+                This unit cannot be occupied and is excluded from the active unit
+                count.
+              </>
+            )}
+          </div>
 
-    {/* Action Button */}
-    <button
-      type="button"
-      disabled={togglingUnitActive}
-      onClick={submitToggleUnitActive}
-      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-        selectedUnit?.isActive
-          ? "bg-red-600 text-white hover:bg-red-700"
-          : "bg-emerald-600 text-white hover:bg-emerald-700"
-      } ${
-        togglingUnitActive ? "cursor-not-allowed opacity-50" : ""
-      }`}
-    >
-      {togglingUnitActive
-        ? "Updating..."
-        : selectedUnit?.isActive
-        ? "Set Inactive"
-        : "Reactivate"}
-    </button>
-
-  </div>
-</div>
+          <button
+            type="button"
+            disabled={togglingUnitActive}
+            onClick={submitToggleUnitActive}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              selectedUnit?.isActive
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            } ${togglingUnitActive ? "cursor-not-allowed opacity-50" : ""}`}
+          >
+            {togglingUnitActive
+              ? "Updating..."
+              : selectedUnit?.isActive
+                ? "Set Inactive"
+                : "Reactivate"}
+          </button>
+        </div>
+      </div>
 
       <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-slate-950">
-          Manual Payment
-        </div>
+        <div className="text-sm font-semibold text-slate-950">Manual Payment</div>
         <div className="mt-2 text-sm leading-6 text-slate-600">
           Record an offline payment for this unit and immediately reduce the
           balance shown on the dashboard.
@@ -2503,12 +2497,10 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
       </div>
 
       <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-slate-950">
-          Vacate Unit
-        </div>
+        <div className="text-sm font-semibold text-slate-950">Vacate Unit</div>
         <div className="mt-2 text-sm leading-6 text-slate-600">
-          This action will remove tenant access, clear login credentials,
-          mark the unit available, and preserve ledger history.
+          This action will remove tenant access, clear login credentials, mark
+          the unit available, and preserve ledger history.
         </div>
 
         {!canVacateUnit ? (
@@ -2571,18 +2563,113 @@ className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm
       </div>
 
       <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-slate-950">
-          Maintenance History
-        </div>
+        <div className="text-sm font-semibold text-slate-950">Maintenance</div>
         <div className="mt-2 text-sm leading-6 text-slate-600">
-          Unit-level maintenance history will populate here when the
-          maintenance routes are wired into the new overlay system.
+          Review maintenance requests for this unit.
         </div>
+
+        {maintenanceActionError ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {maintenanceActionError}
+          </div>
+        ) : null}
+
+        {maintenanceLoading ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Loading maintenance requests...
+          </div>
+        ) : maintenanceError ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {maintenanceError}
+          </div>
+        ) : maintenanceRequests.filter(
+            (request) => request.unitNumber === selectedUnit.unitNumber
+          ).length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            No maintenance requests for this unit.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {maintenanceRequests
+              .filter((request) => request.unitNumber === selectedUnit.unitNumber)
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              )
+              .map((request) => {
+                const busy = maintenanceActionId === request.id;
+
+                return (
+                  <div
+                    key={request.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-950">
+                          {request.category}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {request.description}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          {request.urgency} • {request.status} •{" "}
+                          {formatDate(request.createdAt)}
+                        </div>
+                      </div>
+
+                      {canManageMaintenance ? (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void runMaintenanceAction(
+                                request.id,
+                                "IN_PROGRESS"
+                              )
+                            }
+                            disabled={busy}
+                            className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                          >
+                            In Progress
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void runMaintenanceAction(request.id, "COMPLETE")
+                            }
+                            disabled={busy}
+                            className="rounded-2xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+                          >
+                            Complete
+                          </button>
+
+                                                    <button
+                            type="button"
+                            onClick={() =>
+                              void runMaintenanceAction(request.id, "DELETE")
+                            }
+                            disabled={busy}
+                            className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
       </div>
     </div>
   </OverlayShell>
 ) : null}
 
+      
 {showAdjustModal && selectedUnit ? (
   <OverlayShell
     title="Adjust Balance"
@@ -2604,130 +2691,6 @@ await loadDashboard();
   </OverlayShell>
 ) : null}
 
-{activePanel === "charges" ? (
-  <OverlayShell
-    title="Additional Charges"
-    subtitle={`Add recurring tier charges that begin ${formatMonthLabel(
-      chargesEffectiveMonth
-    )}.`}
-    onClose={closePanel}
-    showFooter={false}
-  >
-    <div className="space-y-5">
-      {chargesError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {chargesError}
-        </div>
-      ) : null}
-
-      {chargesLoading ? (
-        <div className="rounded-[24px] border border-[var(--rf-border)] bg-white/70 px-4 py-6 text-sm text-[var(--rf-text-soft)]">
-          Loading charges...
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {tierCharges.map((tier) => (
-            <div
-              key={tier.tierId}
-              className="rounded-[24px] border border-[var(--rf-border)] bg-white/70 p-4 shadow-[var(--rf-shadow-sm)]"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-                    Tier
-                  </div>
-                  <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-                    {tier.tierName}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => addTierCharge(tier.tierId)}
-                  className="rf-btn rf-btn-secondary min-h-[36px] px-3 text-xs"
-                >
-                  Add charge
-                </button>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {tier.charges.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[var(--rf-border)] bg-[var(--rf-bg-soft)] px-4 py-3 text-sm text-[var(--rf-text-soft)]">
-                    No charges added for this tier.
-                  </div>
-                ) : (
-                  tier.charges.map((charge) => (
-                    <div
-                      key={charge.id}
-                      className="grid gap-3 rounded-2xl border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-3 sm:grid-cols-[1fr_140px_auto]"
-                    >
-                      <div>
-                        <label className="rf-label">Charge label</label>
-                        <input
-                          value={charge.label}
-                          onChange={(e) =>
-                            updateTierCharge(tier.tierId, charge.id, {
-                              label: e.target.value,
-                            })
-                          }
-                          placeholder="Trash, water, admin fee..."
-                          className="rf-input"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="rf-label">Amount</label>
-                        <input
-                          value={charge.amount}
-                          onChange={(e) =>
-                            updateTierCharge(tier.tierId, charge.id, {
-                              amount: e.target.value.replace(/[^0-9.]/g, ""),
-                            })
-                          }
-                          placeholder="0.00"
-                          className="rf-input"
-                        />
-                      </div>
-
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          onClick={() => removeTierCharge(tier.tierId, charge.id)}
-                          className="rf-btn rf-btn-secondary w-full px-3 text-xs sm:w-auto"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3 pt-1 sm:flex-row">
-        <button
-          type="button"
-          onClick={closePanel}
-          className="rf-btn rf-btn-secondary px-4"
-        >
-          Cancel
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void saveTierCharges()}
-          disabled={savingCharges || chargesLoading}
-          className="rf-btn rf-btn-primary flex-1 px-4"
-        >
-          {savingCharges ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
-    </div>
-  </OverlayShell>
-) : null}
 
 {activePanel === "rent" ? (
   <RentPanel
@@ -2836,7 +2799,7 @@ await loadDashboard();
   />
 ) : null}
 
-{activePanel === "maint" ? (
+{activePanel === "maint" && (
   <MaintPanel
     onClose={closePanel}
     canManageMaintenance={canManageMaintenance}
@@ -2856,7 +2819,7 @@ await loadDashboard();
     maintenanceActionError={maintenanceActionError}
     runMaintenanceAction={runMaintenanceAction}
   />
-) : null}
- </>
-  );
+)}
+</>
+);
 }

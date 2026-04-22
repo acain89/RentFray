@@ -193,13 +193,28 @@ export default async function UnitDetail({ params }: Props) {
         orderBy: [{ createdAt: "desc" }],
       },
       notes: {
-        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+  orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+},
+
+      maintenanceRequests: {
+        orderBy: [{ createdAt: "desc" }],
+        select: {
+          id: true,
+          category: true,
+          status: true,
+          urgency: true,
+          description: true,
+          createdAt: true,
+          completedAt: true,
+        },
       },
     },
   });
 
   if (!unit) {
-    return (
+   
+
+   return (
       <div className="min-h-[50vh] bg-slate-50 p-6">
         <div className="mx-auto max-w-7xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -1099,6 +1114,74 @@ export default async function UnitDetail({ params }: Props) {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className={sectionCardClasses()}>
+              <div className="border-b border-slate-200 px-6 py-5">
+                <div className="text-lg font-semibold text-slate-950">
+                  Maintenance request history for this unit
+                </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  All maintenance activity, newest first.
+                </div>
+              </div>
+
+              <div className="p-6">
+                {!unit.maintenanceRequests || unit.maintenanceRequests.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
+                    No maintenance requests have been submitted for this unit.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {unit.maintenanceRequests.map(
+  (req: (typeof unit.maintenanceRequests)[number]) => {
+    return (
+      <div
+        key={req.id}
+        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+            {req.category}
+          </span>
+
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+              req.urgency === "HIGH"
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : req.urgency === "LOW"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-100 text-slate-600 border border-slate-200"
+            }`}
+          >
+            {req.urgency}
+          </span>
+
+          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+            {req.status}
+          </span>
+
+          <span className="text-xs text-slate-500">
+            {fmtDate(req.createdAt)}
+          </span>
+        </div>
+
+        <div className="mt-3 text-sm leading-6 text-slate-700">
+          {req.description}
+        </div>
+
+        {req.completedAt && (
+          <div className="mt-2 text-xs text-emerald-600">
+            Completed: {fmtDate(req.completedAt)}
+          </div>
+        )}
+      </div>
+    );
+  }
+)}
                   </div>
                 )}
               </div>

@@ -29,34 +29,24 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const property = await prisma.property.findUnique({
-      where: { id: session.propertyId },
+   const property = await prisma.property.findUnique({
+  where: { id: session.propertyId },
+  include: {
+    settings: true,
+    paymentStatus: true,
+    units: true,
+    managementUsers: {
+      where: { isActive: true },
       select: {
-  id: true,
-  name: true,
-  propertyCode: true,
-  unitCount: true,
-  stripeAccountId: true,
-  settings: {
-    select: {
-      rentDueDay: true,
-      gracePeriodDays: true,
-      lateFeeEnabled: true,
-      lateFeeFlatCents: true,
+        id: true,
+        role: true,
+        email: true,
+        username: true,
+        displayName: true,
+      },
     },
   },
-  managementUsers: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            role: true,
-            email: true,
-            username: true,
-            displayName: true,
-          },
-        },
-      },
-    });
+});
 
    if (!property) {
   return NextResponse.json(
@@ -227,33 +217,28 @@ const hasPortal = payments.some(
 /**
  * STEP 1: Detect most recent payment status (operational state)
  */
-const lastPayment = await prisma.payment.findFirst({
+const cyclePayments = await prisma.payment.findMany({
   where: {
     unitId: unit.id,
     tenantAssignmentId: assignment.id,
-    status: { in: ["PENDING", "FAILED", "PAID"] },
+    billingCycle: rentDates.billingCycle,
   },
-  orderBy: { createdAt: "desc" },
   select: { status: true },
 });
 
-const latestStatus = lastPayment?.status ?? null;
+const statuses = cyclePayments as { status: PaymentStatus }[];
 
-/**
- * PRIORITY ORDER:
- * FAILED > PENDING > PAID > DELINQUENT > UNPAID
- */
+const hasPaid = statuses.some((p) => p.status === "PAID");
+const hasPending = statuses.some((p) => p.status === "PENDING");
+const hasFailed = statuses.some((p) => p.status === "FAILED");
+const hasReversed = statuses.some((p) => p.status === "REVERSED");
 
-if (latestStatus === "FAILED") {
-  paymentStatus = "FAILED";
-} else if (latestStatus === "PENDING") {
-  paymentStatus = "PENDING";
-} else if (ledger.balanceCents <= 0) {
+if (ledger.balanceCents <= 0) {
   paymentStatus = "PAID";
-} else if (delinquency.isDelinquent) {
-  paymentStatus = "UNPAID"; // still unpaid, frontend handles red
-} else {
-  paymentStatus = "UNPAID";
+} else if (hasReversed || hasFailed) {
+  paymentStatus = "FAILED";
+} else if (hasPending) {
+  paymentStatus = "PENDING";
 }
 
         return {

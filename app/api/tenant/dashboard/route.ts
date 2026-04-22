@@ -277,18 +277,31 @@ if (
     });
 
     const latestPayment = cyclePayments[0] ?? null;
-    const latestPaymentStatus = normalizePaymentStatus(latestPayment?.status);
 
-    const tenantPaymentStatus: PaymentStatus =
-      totalDueCents <= 0
-        ? "PAID"
-        : latestPaymentStatus === "PENDING"
-        ? "PENDING"
-        : latestPaymentStatus === "FAILED"
-        ? "FAILED"
-        : latestPaymentStatus === "REVERSED"
-        ? "REVERSED"
-        : "UNPAID";
+   const hasPaid = cyclePayments.some(
+  (p: { status: PaymentStatus }) => p.status === "PAID"
+);
+const hasPending = cyclePayments.some(
+  (p: { status: PaymentStatus }) => p.status === "PENDING"
+);
+const hasFailed = cyclePayments.some(
+  (p: { status: PaymentStatus }) => p.status === "FAILED"
+);
+const hasReversed = cyclePayments.some(
+  (p: { status: PaymentStatus }) => p.status === "REVERSED"
+);
+
+let tenantPaymentStatus: PaymentStatus = "UNPAID";
+
+if (totalDueCents <= 0) {
+  tenantPaymentStatus = "PAID";
+} else if (hasPending) {
+  tenantPaymentStatus = "PENDING";
+} else if (hasReversed) {
+  tenantPaymentStatus = "REVERSED";
+} else if (hasFailed) {
+  tenantPaymentStatus = "FAILED";
+}
 
     let paymentMessage = "Payment required.";
 
@@ -339,7 +352,7 @@ if (tenantPaymentStatus === "PENDING") {
       (entry: (typeof ledgerEntries)[number]) => {
         if (entry.entryType !== "PAYMENT") return true;
         const status = normalizePaymentStatus(entry.payment?.status);
-return status === "PAID" || status === "PENDING";
+return status === "PAID" || status === "PENDING" || status === "REVERSED";
       }
     );
 
@@ -431,12 +444,12 @@ return status === "PAID" || status === "PENDING";
 
       paymentStatus: tenantPaymentStatus,
       paymentMessage,
-      latestPaymentTimestamp:
-        latestPayment?.paidAt?.toISOString() ??
-        latestPayment?.failedAt?.toISOString() ??
-        latestPayment?.reversedAt?.toISOString() ??
-        latestPayment?.createdAt?.toISOString() ??
-        null,
+     latestPaymentTimestamp:
+     latestPayment?.paidAt?.toISOString() ??
+     latestPayment?.failedAt?.toISOString() ??
+     latestPayment?.reversedAt?.toISOString() ??
+     latestPayment?.createdAt?.toISOString() ??
+     null,
 
       paymentHistory: cyclePayments.map(
         (payment: (typeof cyclePayments)[number]) => ({
