@@ -246,6 +246,9 @@ export default function AdjustBalanceForm({
             <div className="text-sm font-semibold text-slate-950">
               Prorate Move-In
             </div>
+             <div className="mt-1 text-xs text-slate-500">
+             Use this calculator to determine move-in charges.
+            </div>
             <div className="mt-1 text-sm leading-6 text-slate-600">
               Uses a 30-day month:
               <span className="font-semibold text-slate-900">
@@ -328,21 +331,7 @@ export default function AdjustBalanceForm({
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
               />
             </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Memo (optional)
-              </label>
-              <input
-                type="text"
-                placeholder="Optional note for management"
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                disabled={loading}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-              />
             </div>
-          </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-3">
@@ -439,31 +428,38 @@ export default function AdjustBalanceForm({
         </div>
       )}
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={loading}
-          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-        >
-          Cancel
-        </button>
+      {type === "PRORATION" ? (
+  <div className="flex">
+    <button
+      type="button"
+      onClick={onClose}
+      disabled={loading}
+      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+    >
+      Close
+    </button>
+  </div>
+) : (
+  <div className="flex gap-3">
+    <button
+      type="button"
+      onClick={onClose}
+      disabled={loading}
+      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+    >
+      Cancel
+    </button>
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={loading}
-          className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-        >
-          {loading
-            ? type === "PRORATION"
-              ? "Saving..."
-              : "Applying..."
-            : type === "PRORATION"
-            ? "Save Proration"
-            : "Apply"}
-        </button>
-      </div>
+    <button
+      type="button"
+      onClick={submit}
+      disabled={loading}
+      className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+    >
+      {loading ? "Applying..." : "Apply"}
+    </button>
+  </div>
+)}
     </div>
   );
 }
