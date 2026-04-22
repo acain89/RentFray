@@ -224,66 +224,71 @@ export async function POST(req: Request) {
 
     paymentLockId = paymentLock.id;
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      payment_intent_data: {
-        application_fee_amount: processingFeeCents,
-        transfer_data: {
-          destination: property.stripeAccountId,
-        },
+    
+     const paymentMetadata = {
+  propertyId: property.id,
+  unitId: unit.id,
+  stripeAccountId: property.stripeAccountId,
+  tenantAssignmentId: tenantAssignmentId ?? "",
+  ledgerBalanceCents: String(balanceCents),
+  processingFeeCents: String(processingFeeCents),
+  totalAmountCents: String(totalCents),
+  billingCycle,
+  paymentStartedAt: new Date().toISOString(),
+};
+
+const checkoutSession = await stripe.checkout.sessions.create({
+  payment_intent_data: {
+    application_fee_amount: processingFeeCents,
+    transfer_data: {
+      destination: property.stripeAccountId,
+    },
+    metadata: paymentMetadata,
+  },
+  mode: "payment",
+  payment_method_types: ["us_bank_account"],
+  payment_method_options: {
+    us_bank_account: {
+      verification_method: "instant",
+      financial_connections: {
+        permissions: ["payment_method"],
       },
-      mode: "payment",
-      payment_method_types: ["us_bank_account"],
-      payment_method_options: {
-        us_bank_account: {
-          verification_method: "instant",
-          financial_connections: {
-            permissions: ["payment_method"],
-          },
+    },
+  },
+  customer_creation: "if_required",
+  line_items: [
+    {
+      price_data: {
+        currency: "usd",
+        product_data: {
+          name: `RentFray payment — Unit ${unit.unitNumber}`,
+          description: `${property.name} balance payment for ${tenantName}`,
         },
+        unit_amount: balanceCents,
       },
-      customer_creation: "if_required",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `RentFray payment — Unit ${unit.unitNumber}`,
-              description: `${property.name} balance payment for ${tenantName}`,
-            },
-            unit_amount: balanceCents,
-          },
-          quantity: 1,
-        },
-        ...(processingFeeCents > 0
-          ? [
-              {
-                price_data: {
-                  currency: "usd",
-                  product_data: {
-                    name: "Processing fee",
-                    description: `${property.name} ACH processing fee`,
-                  },
-                  unit_amount: processingFeeCents,
-                },
-                quantity: 1,
+      quantity: 1,
+    },
+    ...(processingFeeCents > 0
+      ? [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: "Processing fee",
+                description: `${property.name} ACH processing fee`,
               },
-            ]
-          : []),
-      ],
-      success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
-      metadata: {
-        propertyId: property.id,
-        unitId: unit.id,
-        stripeAccountId: property.stripeAccountId,
-        tenantAssignmentId: tenantAssignmentId ?? "",
-        ledgerBalanceCents: String(balanceCents),
-        processingFeeCents: String(processingFeeCents),
-        totalAmountCents: String(totalCents),
-        billingCycle,
-        paymentStartedAt: new Date().toISOString(),
-      },
-    });
+              unit_amount: processingFeeCents,
+            },
+            quantity: 1,
+          },
+        ]
+      : []),
+  ],
+  success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
+  metadata: paymentMetadata,
+});
+
 
     if (!checkoutSession.url) {
       await prisma.payment.delete({
