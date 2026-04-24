@@ -18,6 +18,12 @@ export async function POST(req: Request) {
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = req.headers.get("authorization");
 
+   console.log("CRON DEBUG", {
+  hasSecret: Boolean(cronSecret),
+  secretLength: cronSecret?.length ?? 0,
+  authHeader,
+});
+
     if (!cronSecret) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "CRON_SECRET is not configured." },
