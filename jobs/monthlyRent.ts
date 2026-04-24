@@ -44,8 +44,7 @@ export async function runMonthlyRentJob(asOf = new Date()) {
     const billingCycle = rentDates.billingCycle;
     const dueDate = new Date(rentDates.dueDate);
 
-    // ✅ Allow posting ANY time on/after due date (no exact-day dependency)
-    if (today < dueDate) continue;
+    if (today.getTime() !== dueDate.getTime()) continue;
 
     // --- RENT ---
     const existingRent = await prisma.ledgerEntry.findFirst({
