@@ -19,6 +19,17 @@ export type LedgerSummary = {
 type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
+type LedgerEntryRow = {
+  id: string;
+  amountCents: number;
+  entryType: unknown;
+  effectiveDate: Date;
+  createdAt: Date;
+  payment: {
+    status: unknown;
+  } | null;
+};
+
 function normalizeLedgerEntryType(value: unknown): LedgerEntryType | null {
   const type = String(value ?? "").trim().toUpperCase();
 
@@ -58,10 +69,6 @@ function isPaymentEntry(type: LedgerEntryType): boolean {
 
 function isCreditEntry(type: LedgerEntryType): boolean {
   return type === "CREDIT";
-}
-
-function isAdjustmentEntry(type: LedgerEntryType): boolean {
-  return type === "ADJUSTMENT";
 }
 
 function centsToDollars(cents: number): number {
@@ -117,29 +124,62 @@ export async function getUnitLedgerSummary(
 ): Promise<LedgerSummary> {
   const now = new Date();
 
-const entries = await prisma.ledgerEntry.findMany({
-  where: {
-    unitId,
-    voidedAt: null,
-    ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
-    effectiveDate: {
-      lte: now, // 🔒 HIDE FUTURE CHARGES
-    },
-  },
-  orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
-  select: {
-    id: true,
-    amountCents: true,
-    entryType: true,
-    effectiveDate: true,
-    createdAt: true,
-    payment: {
-      select: {
-        status: true,
+  const unit = await prisma.unit.findUnique({
+    where: { id: unitId },
+    select: {
+      property: {
+        select: {
+          billingCycleStartDate: true,
+        },
       },
     },
-  },
-});
+  });
+
+  const billingStart = unit?.property?.billingCycleStartDate
+    ? new Date(unit.property.billingCycleStartDate)
+    : null;
+
+  const entries: LedgerEntryRow[] = await prisma.ledgerEntry.findMany({
+    where: {
+      unitId,
+      voidedAt: null,
+      ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
+      effectiveDate: {
+        lte: now,
+      },
+    },
+    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      amountCents: true,
+      entryType: true,
+      effectiveDate: true,
+      createdAt: true,
+      payment: {
+        select: {
+          status: true,
+        },
+      },
+    },
+  });
+
+  const visibleEntries: LedgerEntryRow[] = billingStart
+    ? entries.filter((entry: LedgerEntryRow) => {
+        const entryType = normalizeLedgerEntryType(entry.entryType);
+        if (!entryType) return false;
+
+        if (!isChargeEntry(entryType)) {
+          return true;
+        }
+
+        const effectiveDate = toSafeDate(entry.effectiveDate);
+        if (!effectiveDate) {
+          return true;
+        }
+
+        return effectiveDate >= billingStart;
+      })
+    : entries;
 
   let balanceCents = 0;
   let totalChargesCents = 0;
@@ -152,7 +192,7 @@ const entries = await prisma.ledgerEntry.findMany({
   let hasPendingPayment = false;
   let pendingPaymentAmountCents = 0;
 
-  for (const entry of entries) {
+  for (const entry of visibleEntries) {
     const entryType = normalizeLedgerEntryType(entry.entryType);
     if (!entryType) {
       continue;

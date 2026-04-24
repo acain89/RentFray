@@ -49,6 +49,7 @@ model Property {
   units               Unit[]
   unitNotes           UnitNote[]
   recurringFees       UnitRecurringFee[]
+  billingCycleStartDate DateTime?
 
   @@index([status])
   @@index([isActive])

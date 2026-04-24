@@ -15,6 +15,7 @@ type PatchBody = {
   lateFeeFlat?: unknown;
   convenienceFeeEnabled?: unknown;
   convenienceFeeAmount?: unknown;
+  billingCycleStartDate?: unknown;
 };
 
 function safeString(value: unknown): string {
@@ -84,13 +85,14 @@ export async function GET(
     return NextResponse.json({
       ok: true,
       property: {
-        id: property.id,
-        name: property.name,
-        code: property.propertyCode,
-        type: property.propertyType,
-        isActive: property.isActive,
-        address: property.addressLine1,
-      },
+  id: property.id,
+  name: property.name,
+  code: property.propertyCode,
+  type: property.propertyType,
+  isActive: property.isActive,
+  address: property.addressLine1,
+  billingCycleStartDate: property.billingCycleStartDate,
+},
       settings: property.settings,
       tiers: property.tiers.map((t: (typeof property.tiers)[number]) => ({
   id: t.id,
@@ -174,42 +176,112 @@ export async function PATCH(
       toNumber(body.convenienceFeeAmount, 0) * 100
     );
 
-    if (!name) {
-      return NextResponse.json(
-        { error: "Property name is required." },
-        { status: 400 }
-      );
-    }
+    const billingCycleStartDateRaw =
+  typeof body.billingCycleStartDate === "string"
+    ? body.billingCycleStartDate.trim()
+    : "";
 
-    if (!address) {
-      return NextResponse.json(
-        { error: "Property address is required." },
-        { status: 400 }
-      );
-    }
+const billingCycleStartDate = billingCycleStartDateRaw
+  ? new Date(`${billingCycleStartDateRaw}T00:00:00`)
+  : undefined;
 
-    if (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31) {
-      return NextResponse.json(
-        { error: "Rent due day must be 1–31." },
-        { status: 400 }
-      );
-    }
+  const billingCycleOnlyUpdate =
+  Object.keys(body).length === 1 &&
+  typeof body.billingCycleStartDate === "string" &&
+  body.billingCycleStartDate.trim().length > 0;
 
-    if (
-      !Number.isInteger(gracePeriodDays) ||
-      gracePeriodDays < 0 ||
-      gracePeriodDays > 31
-    ) {
-      return NextResponse.json(
-        { error: "Grace period must be 0–31." },
-        { status: 400 }
-      );
-    }
+if (billingCycleOnlyUpdate) {
+  const existing = await prisma.property.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      billingCycleStartDate: true,
+    },
+  });
 
-    const existing = await prisma.property.findUnique({
-      where: { id },
-      select: { id: true, settings: { select: { id: true } } },
-    });
+  if (!existing) {
+    return NextResponse.json(
+      { error: "Property not found." },
+      { status: 404 }
+    );
+  }
+
+  const hasLedgerActivity = await prisma.ledgerEntry.findFirst({
+    where: { propertyId: id },
+    select: { id: true },
+  });
+
+  if (existing.billingCycleStartDate && hasLedgerActivity) {
+    return NextResponse.json(
+      { error: "Billing cycle start date is locked after activity." },
+      { status: 400 }
+    );
+  }
+
+  const property = await prisma.property.update({
+    where: { id },
+    data: {
+      billingCycleStartDate,
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    property: {
+      id: property.id,
+      name: property.name,
+      billingCycleStartDate: property.billingCycleStartDate,
+    },
+  });
+}
+
+if (!billingCycleOnlyUpdate && !name) {
+  return NextResponse.json(
+    { error: "Property name is required." },
+    { status: 400 }
+  );
+}
+
+if (!billingCycleOnlyUpdate && !address) {
+  return NextResponse.json(
+    { error: "Property address is required." },
+    { status: 400 }
+  );
+}
+
+if (
+  !billingCycleOnlyUpdate &&
+  (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31)
+) {
+  return NextResponse.json(
+    { error: "Rent due day must be 1–31." },
+    { status: 400 }
+  );
+}
+
+if (
+  !billingCycleOnlyUpdate &&
+  (
+    !Number.isInteger(gracePeriodDays) ||
+    gracePeriodDays < 0 ||
+    gracePeriodDays > 31
+  )
+) {
+  return NextResponse.json(
+    { error: "Grace period must be 0–31." },
+    { status: 400 }
+  );
+}
+
+  
+   const existing = await prisma.property.findUnique({
+  where: { id },
+  select: {
+    id: true,
+    billingCycleStartDate: true,
+    settings: { select: { id: true } },
+  },
+});
 
     if (!existing) {
       return NextResponse.json(
@@ -218,45 +290,78 @@ export async function PATCH(
       );
     }
 
+    const hasLedgerActivity = await prisma.ledgerEntry.findFirst({
+  where: {
+    propertyId: id,
+  },
+  select: { id: true },
+});
+
+if (
+  existing.billingCycleStartDate &&
+  billingCycleStartDate &&
+  hasLedgerActivity
+) {
+  return NextResponse.json(
+    {
+      error: "Billing cycle start date is locked after activity.",
+    },
+    { status: 400 }
+  );
+}
+
     const updated = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        const property = await tx.property.update({
-          where: { id },
-          data: {
-            name,
-            addressLine1: address,
-            propertyType,
-            isActive,
-          },
-        });
+  async (tx: Prisma.TransactionClient) => {
+    const property = await tx.property.update({
+      where: { id },
+      data: {
+        ...(billingCycleOnlyUpdate
+          ? {}
+          : {
+              name,
+              addressLine1: address,
+              propertyType,
+              isActive,
+            }),
+        ...(billingCycleStartDate !== undefined
+          ? { billingCycleStartDate }
+          : {}),
+      },
+    });
 
-        const settings = existing.settings
-          ? await tx.propertySettings.update({
-              where: { propertyId: id },
-              data: {
-                rentDueDay,
-                gracePeriodDays,
-                lateFeeEnabled,
-                lateFeeFlatCents,
-                convenienceFeeEnabled,
-                convenienceFeeAmountCents,
-              },
-            })
-          : await tx.propertySettings.create({
-              data: {
-                propertyId: id,
-                rentDueDay,
-                gracePeriodDays,
-                lateFeeEnabled,
-                lateFeeFlatCents,
-                convenienceFeeEnabled,
-                convenienceFeeAmountCents,
-              },
-            });
+    const settings = billingCycleOnlyUpdate
+      ? existing.settings
+        ? await tx.propertySettings.findUnique({
+            where: { propertyId: id },
+          })
+        : null
+      : existing.settings
+        ? await tx.propertySettings.update({
+            where: { propertyId: id },
+            data: {
+              rentDueDay,
+              gracePeriodDays,
+              lateFeeEnabled,
+              lateFeeFlatCents,
+              convenienceFeeEnabled,
+              convenienceFeeAmountCents,
+            },
+          })
+        : await tx.propertySettings.create({
+            data: {
+              propertyId: id,
+              rentDueDay,
+              gracePeriodDays,
+              lateFeeEnabled,
+              lateFeeFlatCents,
+              convenienceFeeEnabled,
+              convenienceFeeAmountCents,
+            },
+          });
 
-        return { property, settings };
-      }
-    );
+    return { property, settings };
+  }
+);
 
     return NextResponse.json({
       ok: true,

@@ -60,6 +60,7 @@ type DashboardData = {
   bankStatus?: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED";
   bankMessage?: string;
 };
+billingCycleStartDate?: string | null;
 };
   session: {
     role: "OWNER" | "MANAGER" | "STAFF";
@@ -449,6 +450,9 @@ export default function Page() {
   const [confirmReactivateUnitId, setConfirmReactivateUnitId] = useState("");
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState("");
   const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [billingCycleStartDate, setBillingCycleStartDate] = useState("");
+  const [billingCycleStartDateLocked, setBillingCycleStartDateLocked] = useState(false);
+  const [savingBillingCycleStartDate, setSavingBillingCycleStartDate] = useState(false);
 
 
   const [gpLfSettings, setGpLfSettings] = useState({
@@ -1575,6 +1579,12 @@ useEffect(() => {
 }, [activePanel, showInactiveUnits, sessionRole]);
 
 useEffect(() => {
+  const raw = data?.property?.billingCycleStartDate ?? "";
+  setBillingCycleStartDate(raw ? raw.slice(0, 10) : "");
+  setBillingCycleStartDateLocked(Boolean(raw));
+}, [data]);
+
+useEffect(() => {
   (async () => {
     await new Promise((r) => setTimeout(r, 150));
 await loadDashboard();
@@ -1835,6 +1845,40 @@ setGpLfSaveMessage("Grace period and late fee settings saved.");
   }
 }
 
+async function saveBillingCycleStartDate(): Promise<void> {
+  if (!data?.property?.id || !billingCycleStartDate) return;
+
+  try {
+    setSavingBillingCycleStartDate(true);
+
+    const res = await fetch(`/api/admin/properties/${data.property.id}`, {
+  method: "PATCH",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  credentials: "include",
+  body: JSON.stringify({
+    billingCycleStartDate,
+  }),
+});
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      alert(json?.error || "Failed to save billing cycle start date.");
+      return;
+    }
+
+    setBillingCycleStartDateLocked(true);
+    await new Promise((r) => setTimeout(r, 150));
+    await loadDashboard();
+  } catch {
+    alert("Failed to save billing cycle start date.");
+  } finally {
+    setSavingBillingCycleStartDate(false);
+  }
+}
+
 async function saveLocalRentSettings(): Promise<void> {
   if (!data?.property?.id) return;
 
@@ -1935,6 +1979,19 @@ function closePanel(): void {
   setConfirmReactivateUnitId("");
   setConfirmDeleteUnitId("");
 }  
+
+const unitMaintenanceRequests = selectedUnit
+  ? maintenanceRequests
+      .filter(
+        (request) =>
+          request.unitNumber === selectedUnit.unitNumber &&
+          request.status.toUpperCase() !== "COMPLETE"
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+  : [];
 
   if (loading) {
     return (
@@ -2564,109 +2621,97 @@ if (error === "Unauthorized") {
         ) : null}
       </div>
 
-      <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-slate-950">Maintenance</div>
-        <div className="mt-2 text-sm leading-6 text-slate-600">
-          Review maintenance requests for this unit.
-        </div>
+<div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+  <div className="text-sm font-semibold text-slate-950">Maintenance</div>
+  <div className="mt-2 text-sm leading-6 text-slate-600">
+    Review maintenance requests for this unit.
+  </div>
 
-        {maintenanceActionError ? (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {maintenanceActionError}
-          </div>
-        ) : null}
+  {maintenanceActionError ? (
+    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {maintenanceActionError}
+    </div>
+  ) : null}
 
-        {maintenanceLoading ? (
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Loading maintenance requests...
-          </div>
-        ) : maintenanceError ? (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {maintenanceError}
-          </div>
-        ) : maintenanceRequests.filter(
-            (request) => request.unitNumber === selectedUnit.unitNumber
-          ).length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            No maintenance requests for this unit.
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {maintenanceRequests
-              .filter((request) => request.unitNumber === selectedUnit.unitNumber)
-              .sort(
-                (a, b) =>
-                  new Date(b.createdAt).getTime() -
-                  new Date(a.createdAt).getTime()
-              )
-              .map((request) => {
-                const busy = maintenanceActionId === request.id;
+  {maintenanceLoading ? (
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      Loading maintenance requests...
+    </div>
+  ) : maintenanceError ? (
+    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {maintenanceError}
+    </div>
+  ) : unitMaintenanceRequests.length === 0 ? (
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      No maintenance requests for this unit.
+    </div>
+  ) : (
+    <div className="mt-4 space-y-3">
+      {unitMaintenanceRequests.map((request) => {
+        const busy = maintenanceActionId === request.id;
 
-                return (
-                  <div
-                    key={request.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+        return (
+          <div
+            key={request.id}
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">
+                  {request.category}
+                </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  {request.description}
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  {request.urgency} • {request.status} •{" "}
+                  {formatDate(request.createdAt)}
+                </div>
+              </div>
+
+              {canManageMaintenance ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void runMaintenanceAction(request.id, "IN_PROGRESS")
+                    }
+                    disabled={busy}
+                    className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-950">
-                          {request.category}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-600">
-                          {request.description}
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">
-                          {request.urgency} • {request.status} •{" "}
-                          {formatDate(request.createdAt)}
-                        </div>
-                      </div>
+                    In Progress
+                  </button>
 
-                      {canManageMaintenance ? (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void runMaintenanceAction(
-                                request.id,
-                                "IN_PROGRESS"
-                              )
-                            }
-                            disabled={busy}
-                            className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
-                          >
-                            In Progress
-                          </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void runMaintenanceAction(request.id, "COMPLETE")
+                    }
+                    disabled={busy}
+                    className="rounded-2xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+                  >
+                    Complete
+                  </button>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void runMaintenanceAction(request.id, "COMPLETE")
-                            }
-                            disabled={busy}
-                            className="rounded-2xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
-                          >
-                            Complete
-                          </button>
-
-                                                    <button
-                            type="button"
-                            onClick={() =>
-                              void runMaintenanceAction(request.id, "DELETE")
-                            }
-                            disabled={busy}
-                            className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void runMaintenanceAction(request.id, "DELETE")
+                    }
+                    disabled={busy}
+                    className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
-        )}
-      </div>
+        );
+      })}
+    </div>
+  )}
+</div>
     </div>
   </OverlayShell>
 ) : null}
@@ -2723,6 +2768,13 @@ await loadDashboard();
       onOnboard={() => {
         void handleOnboard();
       }}
+      billingCycleStartDate={billingCycleStartDate}
+      setBillingCycleStartDate={setBillingCycleStartDate}
+      billingCycleStartDateLocked={billingCycleStartDateLocked}
+      saveBillingCycleStartDate={() => {
+        void saveBillingCycleStartDate();
+      }}
+      savingBillingCycleStartDate={savingBillingCycleStartDate}
     />
   </OverlayShell>
 ) : null}

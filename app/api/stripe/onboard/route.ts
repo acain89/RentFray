@@ -3,16 +3,47 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2026-02-25.clover",
-});
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type ApiError = {
+  error: string;
+};
+
+type ApiSuccess = {
+  url: string;
+};
 
 export async function POST() {
   try {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+
+    if (!secretKey) {
+      return NextResponse.json<ApiError>(
+        { error: "Stripe is not configured." },
+        { status: 500 }
+      );
+    }
+
+    if (!baseUrl) {
+      return NextResponse.json<ApiError>(
+        { error: "Base URL is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: "2026-02-25.clover",
+    });
+
     const session = await getSession();
 
     if (!session || session.role !== "OWNER" || !session.propertyId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json<ApiError>(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     const property = await prisma.property.findUnique({
@@ -21,23 +52,26 @@ export async function POST() {
     });
 
     if (!property?.stripeAccountId) {
-      return NextResponse.json(
+      return NextResponse.json<ApiError>(
         { error: "No Stripe account found" },
         { status: 400 }
       );
     }
 
+    const redirectUrl = `${baseUrl}/manager/bank`;
+
     const link = await stripe.accountLinks.create({
       account: property.stripeAccountId,
-      refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/bank`,
-      return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/manager/bank`,
+      refresh_url: redirectUrl,
+      return_url: redirectUrl,
       type: "account_onboarding",
     });
 
-    return NextResponse.json({ url: link.url });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
+    return NextResponse.json<ApiSuccess>({ url: link.url });
+  } catch (error: unknown) {
+    console.error("POST /api/stripe/onboard error:", error);
+
+    return NextResponse.json<ApiError>(
       { error: "Failed to create onboarding link" },
       { status: 500 }
     );
