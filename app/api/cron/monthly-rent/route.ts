@@ -15,14 +15,10 @@ type ApiError = {
 
 export async function POST(req: Request) {
   try {
-    const cronSecret = process.env.CRON_SECRET;
-    const authHeader = req.headers.get("authorization");
-
-   console.log("CRON DEBUG", {
-  hasSecret: Boolean(cronSecret),
-  secretLength: cronSecret?.length ?? 0,
-  authHeader,
-});
+    const cronSecret = process.env.CRON_SECRET?.trim() ?? "";
+    const rawAuth =
+      req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
+    const token = rawAuth.replace(/^Bearer\s+/i, "").trim();
 
     if (!cronSecret) {
       return NextResponse.json<ApiError>(
@@ -31,7 +27,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (token !== cronSecret) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Unauthorized" },
         { status: 401 }
