@@ -12,9 +12,7 @@ import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2026-02-25.clover",
-});
+export const revalidate = 0;
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
@@ -63,7 +61,15 @@ let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" =
 let bankMessage =
   "Connect your payout account to begin receiving payments.";
 
-if (property.stripeAccountId) {
+const secretKey = process.env.STRIPE_SECRET_KEY;
+
+const stripe = secretKey
+  ? new Stripe(secretKey, {
+      apiVersion: "2026-02-25.clover",
+    })
+  : null;
+
+if (property.stripeAccountId && stripe) {
   try {
     const account = await stripe.accounts.retrieve(property.stripeAccountId);
 
