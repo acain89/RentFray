@@ -8,6 +8,8 @@ import { formatCentsToDollars } from "@/lib/billingConfig";
 import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import Stripe from "stripe";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2026-02-25.clover",
