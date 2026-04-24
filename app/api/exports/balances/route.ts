@@ -5,6 +5,9 @@ import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import { formatCentsToDollars } from "@/lib/billingConfig";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type CsvValue = string | number | null;
 type CsvRow = Record<string, CsvValue>;
 

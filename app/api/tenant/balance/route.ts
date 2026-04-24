@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const session = await requireRole("TENANT");

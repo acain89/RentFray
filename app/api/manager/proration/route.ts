@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getProrationSummary } from "@/lib/proration";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 function clean(value: unknown) {
   return String(value || "").trim();
 }

@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { canAccessTenantPortal } from "@/lib/liveGating";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 function isFourDigitCode(value: string) {
   return /^\d{4}$/.test(value);
 }

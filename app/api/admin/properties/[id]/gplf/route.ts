@@ -3,6 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type GPLFTierInput = {
   id: string;
   dueDay: string;

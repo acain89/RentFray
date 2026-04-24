@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type NoteType = "GENERAL" | "PAYMENT" | "SYSTEM";
 
 type ApiSuccess<T> = {

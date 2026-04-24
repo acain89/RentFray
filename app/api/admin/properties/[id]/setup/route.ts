@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 function clean(value: unknown) {
   return String(value || "").trim();
 }

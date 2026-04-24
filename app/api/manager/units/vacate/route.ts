@@ -6,6 +6,9 @@ import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
 import { Prisma } from "@prisma/client";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type VacateBody = {
   unitId?: unknown;
   moveOutDate?: unknown;

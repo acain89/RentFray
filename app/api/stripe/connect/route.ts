@@ -3,9 +3,9 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
 type ApiError = {
   error: string;
 };

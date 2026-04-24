@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  getSeededLivePropertyCount,
+
+getSeededLivePropertyCount,
   getSeededMonthlyProcessedCents,
   getSeededTenantsPaidToday,
 } from "@/lib/stats";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 function startOfMonthUtc(): Date {
   const now = new Date();
   return new Date(

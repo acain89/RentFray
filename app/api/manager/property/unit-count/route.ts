@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import {
-  getStoredUnitCountForEffectiveTarget,
+
+getStoredUnitCountForEffectiveTarget,
   validateUnitCapacityUpdate,
 } from "@/lib/propertyCapacity";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type UpdateUnitCountBody = {
   unitCount?: unknown;
 };

@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ActiveTenantAssignment = {
   firstName: string | null;
   lastName: string | null;

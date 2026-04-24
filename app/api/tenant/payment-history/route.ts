@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { PaymentStatus } from "@prisma/client";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type TenantPaymentHistoryItem = {
   id: string;
   type: string;

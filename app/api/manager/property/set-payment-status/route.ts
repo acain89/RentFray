@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 function toBool(value: unknown) {
   return value === true || value === "true" || value === "1";
 }

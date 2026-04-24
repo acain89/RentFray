@@ -4,6 +4,9 @@ import { getSession } from "@/lib/session";
 import { verifyManagementPassword } from "@/lib/managementAuth";
 import bcrypt from "bcryptjs";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type Body = {
   currentLogin?: unknown;
   currentPassword?: unknown;

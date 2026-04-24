@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { runMonthlyRentJob } from "@/jobs/monthlyRent";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ApiSuccess = {
   ok: true;
 };
@@ -9,9 +12,6 @@ type ApiError = {
   ok: false;
   error: string;
 };
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {

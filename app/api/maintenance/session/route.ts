@@ -5,6 +5,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 const ALLOWED_PROPERTY_STATUSES = new Set(
   ["TEST", "READY", "LIVE", "SETUP", "DRAFT"] as const
 );

@@ -12,8 +12,9 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
-export const runtime = "nodejs";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 

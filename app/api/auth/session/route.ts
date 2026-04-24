@@ -3,6 +3,9 @@
 import { NextResponse } from "next/server";
 import { getSession, clearSessionCookie } from "@/lib/session";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type SessionUser = {
   role: string;
   propertyId: string | null;

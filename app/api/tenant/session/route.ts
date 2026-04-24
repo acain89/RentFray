@@ -5,11 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import {
-  checkPinAllowed,
+
+checkPinAllowed,
   recordFailedAttempt,
   clearPinAttempts,
 } from "@/lib/pinLockout";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const body = await req.json();

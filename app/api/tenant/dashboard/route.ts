@@ -4,16 +4,21 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
-  getProcessingFeeCents,
+
+getProcessingFeeCents,
   formatCentsToDollars,
 } from "@/lib/billingConfig";
 import { canMakePayments } from "@/lib/liveGating";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import {
-  getRentDateSummary,
+
+getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
 type StatementItem = {
@@ -513,3 +518,4 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
     );
   }
 }
+

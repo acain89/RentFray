@@ -3,6 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type IncomingCharge = {
   label?: string;
   amount?: string;

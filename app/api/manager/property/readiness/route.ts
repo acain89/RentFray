@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getLiveReadiness } from "@/lib/liveGating";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const session = await getSession();

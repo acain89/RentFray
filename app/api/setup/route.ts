@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type BillingFrequency = "MONTHLY";
 type LateFeeType = "FLAT" | "PERCENT";
 

@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type CreateBody = {
   email?: unknown;
   password?: unknown;

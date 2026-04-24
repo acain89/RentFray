@@ -5,10 +5,14 @@ import { canManageFinancials } from "@/lib/financialAccess";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import { Prisma } from "@prisma/client";
 import {
-  getRentDateSummary,
+
+getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ApiSuccess<T> = {
   ok: true;
   data: T;

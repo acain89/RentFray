@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { PaymentStatus } from "@prisma/client";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type TenantReceipt = {
   id: string;
   amountCents: number;

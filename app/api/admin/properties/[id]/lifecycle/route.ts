@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getLiveReadiness } from "@/lib/liveGating";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 const ALLOWED_STATUSES = ["SETUP", "TEST", "READY", "LIVE", "SUSPENDED"] as const;
 type PropertyStatus = (typeof ALLOWED_STATUSES)[number];
 

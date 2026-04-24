@@ -4,6 +4,9 @@ import { hashPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { canActivateUnit } from "@/lib/propertyCapacity";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ActivateBody = {
   propertyCode: string;
   firstName: string;

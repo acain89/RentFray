@@ -3,8 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
-export const dynamic = "force-dynamic";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ChargeInput = {
   label?: string;
   amount?: string | number;

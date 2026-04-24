@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { Prisma } from "@prisma/client";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 const ALLOWED_STATUSES = new Set(
   ["OPEN", "IN_PROGRESS", "COMPLETE", "THIRD_PARTY"] as const
 );

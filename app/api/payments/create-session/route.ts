@@ -6,8 +6,9 @@ import { getUnitLedgerSummary } from "@/lib/ledger";
 import { canMakePayments } from "@/lib/liveGating";
 import { getProcessingFeeCents } from "@/lib/billingConfig";
 
-export const runtime = "nodejs";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ApiSuccess<T> = {
   ok: true;
   data: T;

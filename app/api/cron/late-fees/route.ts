@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { runLateFeesJob } from "@/jobs/lateFees";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ApiSuccess = {
   ok: true;
   billingCycle: string;
@@ -12,8 +15,6 @@ type ApiError = {
   ok: false;
   error: string;
 };
-
-export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {

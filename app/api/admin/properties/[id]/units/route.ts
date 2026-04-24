@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ApiSuccess<T> = {
   ok: true;
   data: T;

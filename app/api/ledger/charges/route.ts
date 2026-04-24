@@ -7,10 +7,14 @@ import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
 import {
-  getRentDateSummary,
+
+getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 type ApiSuccess<T> = {
   ok: true;
   data: T;

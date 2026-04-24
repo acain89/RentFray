@@ -5,6 +5,9 @@ import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { canManagerOperate } from "@/lib/liveGating";
 import { verifyManagementPassword } from "@/lib/managementAuth";
 
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 const ALLOWED_MANAGEMENT_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
 
 type LoginBody = {
