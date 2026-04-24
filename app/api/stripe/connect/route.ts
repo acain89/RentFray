@@ -3,16 +3,38 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2026-02-25.clover",
-});
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type ApiError = {
+  error: string;
+};
+
+type ApiSuccess = {
+  ok: true;
+  url: string;
+};
 
 export async function POST() {
   try {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:10000";
+
+    if (!secretKey) {
+      return NextResponse.json<ApiError>(
+        { error: "Stripe is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: "2026-02-25.clover",
+    });
+
     const session = await getSession();
 
     if (!session || session.role !== "OWNER" || !session.propertyId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json<ApiError>({ error: "Unauthorized" }, { status: 401 });
     }
 
     const property = await prisma.property.findUnique({
@@ -25,7 +47,7 @@ export async function POST() {
     });
 
     if (!property) {
-      return NextResponse.json(
+      return NextResponse.json<ApiError>(
         { error: "Property not found" },
         { status: 404 }
       );
@@ -42,18 +64,18 @@ export async function POST() {
       });
     } else {
       const account = await stripe.accounts.create({
-  type: "express",
-  business_type: "company",
-  business_profile: {
-    name: property.name,
-    product_description: `Property management and rent collection for ${property.name}`,
-  },
-  capabilities: {
-    transfers: { requested: true },
-    card_payments: { requested: true }, // required for charges_enabled
-    us_bank_account_ach_payments: { requested: true }, // ACH support
-  },
-});
+        type: "express",
+        business_type: "company",
+        business_profile: {
+          name: property.name,
+          product_description: `Property management and rent collection for ${property.name}`,
+        },
+        capabilities: {
+          transfers: { requested: true },
+          card_payments: { requested: true },
+          us_bank_account_ach_payments: { requested: true },
+        },
+      });
 
       accountId = account.id;
 
@@ -63,75 +85,51 @@ export async function POST() {
       });
     }
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:10000";
-
     const stripeAccount = await stripe.accounts.retrieve(accountId);
 
-await prisma.property.update({
-  where: { id: property.id },
-  data: {
-    paymentStatus: {
-      upsert: {
-        create: {
-          processorConnected: true,
-          bankConnected: true,
-          chargesEnabled: Boolean(stripeAccount.charges_enabled),
-          payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
-          onboardingComplete: Boolean(stripeAccount.details_submitted),
-          requirementsDue: Boolean(
-            stripeAccount.requirements?.currently_due?.length
-          ),
-          requirementsSummary:
-            stripeAccount.requirements?.disabled_reason ?? null,
-          lastSyncedAt: new Date(),
-          readyForLive:
-            Boolean(stripeAccount.charges_enabled) &&
-            Boolean(stripeAccount.payouts_enabled),
-        },
-        update: {
-          processorConnected: true,
-          bankConnected: true,
-          chargesEnabled: Boolean(stripeAccount.charges_enabled),
-          payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
-          onboardingComplete: Boolean(stripeAccount.details_submitted),
-          requirementsDue: Boolean(
-            stripeAccount.requirements?.currently_due?.length
-          ),
-          requirementsSummary:
-            stripeAccount.requirements?.disabled_reason ?? null,
-          lastSyncedAt: new Date(),
-          readyForLive:
-            Boolean(stripeAccount.charges_enabled) &&
-            Boolean(stripeAccount.payouts_enabled),
+    const paymentStatusData = {
+      processorConnected: true,
+      bankConnected: true,
+      chargesEnabled: Boolean(stripeAccount.charges_enabled),
+      payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
+      onboardingComplete: Boolean(stripeAccount.details_submitted),
+      requirementsDue: Boolean(stripeAccount.requirements?.currently_due?.length),
+      requirementsSummary: stripeAccount.requirements?.disabled_reason ?? null,
+      lastSyncedAt: new Date(),
+      readyForLive:
+        Boolean(stripeAccount.charges_enabled) &&
+        Boolean(stripeAccount.payouts_enabled),
+    };
+
+    await prisma.property.update({
+      where: { id: property.id },
+      data: {
+        paymentStatus: {
+          upsert: {
+            create: paymentStatusData,
+            update: paymentStatusData,
+          },
         },
       },
-    },
-  },
-});
+    });
 
-const accountLink = await stripe.accountLinks.create({
-  account: accountId,
-  refresh_url: `${baseUrl}/manager/dashboard`,
-  return_url: `${origin}/manager/dashboard?propertyId=${property.id}`,
-  type: "account_onboarding",
-});
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${baseUrl}/manager/dashboard`,
+      return_url: `${baseUrl}/manager/dashboard?propertyId=${property.id}`,
+      type: "account_onboarding",
+    });
 
-return NextResponse.json({
-  ok: true,
-  url: accountLink.url,
-});
-  } catch (err: unknown) {
-    console.error("STRIPE CONNECT ERROR:", err);
+    return NextResponse.json<ApiSuccess>({
+      ok: true,
+      url: accountLink.url,
+    });
+  } catch (error: unknown) {
+    console.error("POST /api/stripe/connect error:", error);
 
     const message =
-      err instanceof Error && err.message ? err.message : "Stripe error";
+      error instanceof Error && error.message ? error.message : "Stripe error";
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json<ApiError>({ error: message }, { status: 500 });
   }
 }
