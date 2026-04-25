@@ -78,18 +78,15 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
         continue;
       }
 
-      const rentDates = getRentDateSummary({ ...effective, now });
-      const graceCutoff = new Date(rentDates.graceEndsOn);
-
       const existingPayment = await tx.payment.findFirst({
-        where: {
-          unitId: unit.id,
-          billingCycle,
-          status: { in: ["PENDING", "PAID"] },
-          createdAt: { lte: graceCutoff },
-        },
-        select: { id: true },
-      });
+  where: {
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    billingCycle,
+    status: { in: ["PENDING", "PAID"] },
+  },
+  select: { id: true },
+});
 
       if (existingPayment) {
         skipped++;
