@@ -26,6 +26,7 @@ function isPublicRoute(pathname: string) {
     pathname.startsWith("/api/request-setup") ||
     pathname.startsWith("/api/property/resolve") ||
     pathname.startsWith("/api/public/property/lookup") ||
+    pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/manager/session") ||
     pathname.startsWith("/api/tenant/session") ||
     pathname.startsWith("/api/tenant/activate") ||
