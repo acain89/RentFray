@@ -35,6 +35,10 @@ export default function TenantInstructionsPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">4) Click "First Time Tenant Use."</div>
+
+            <p className="mt-3 text-sm font-bold text-red-600">
+           ⚠️ IMPORTANT: If you are a new tenant and have already paid a prorated move-in amount, *DO NOT* create your account until the 1st day of the next billing cycle. Otherwise, your portal will show the full rent amount due for the current cycle.
+           </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
