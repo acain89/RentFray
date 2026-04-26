@@ -377,20 +377,21 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
           entry.entryType === "CREDIT" ||
           entry.entryType === "ADJUSTMENT";
 
-        if (entry.entryType === "CHARGE") {
-          if (entry.chargeType === "RENT") {
-            rentCents += entry.amountCents;
-          } else if (entry.chargeType === "LATE_FEE") {
-            lateFeesCents += entry.amountCents;
-          } else if (
-            entry.chargeType === "RECURRING_FEE" ||
-            entry.chargeType === "OTHER_FEE"
-          ) {
-            recurringChargesCents += entry.amountCents;
-          }
-        } else if (isCreditLike) {
-          creditsCents += Math.abs(entry.amountCents);
-        }
+       if (entry.entryType === "CHARGE") {
+  if (entry.chargeType === "RENT") {
+    rentCents += entry.amountCents;
+  } else if (
+    entry.chargeType === "LATE_FEE" ||
+    entry.chargeType === "LATE_FEE_INITIAL" ||
+    entry.chargeType === "LATE_FEE_DAILY"
+  ) {
+    lateFeesCents += entry.amountCents;
+  } else {
+    recurringChargesCents += entry.amountCents;
+  }
+} else if (isCreditLike) {
+  creditsCents += Math.abs(entry.amountCents);
+}
 
         return {
           label: buildStatementLabel(entry),

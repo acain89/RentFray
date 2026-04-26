@@ -2752,6 +2752,73 @@ await loadDashboard();
   />
 ) : null}
 
+{activePanel === "charges" ? (
+  <OverlayShell
+    title="Additional Charges"
+    subtitle="Manage recurring charges per tier"
+    onClose={closePanel}
+  >
+    <div className="space-y-4">
+      {tierCharges.map((tier) => (
+        <div key={tier.tierId} className="space-y-2">
+          <div className="font-semibold text-sm">
+            {tier.tierName}
+          </div>
+
+          {tier.charges.map((charge) => (
+            <div key={charge.id} className="flex gap-2">
+              <input
+                value={charge.label}
+                onChange={(e) =>
+                  updateTierCharge(tier.tierId, charge.id, {
+                    label: e.target.value,
+                  })
+                }
+                placeholder="Label"
+                className="border px-2 py-1 text-sm rounded"
+              />
+
+              <input
+                value={charge.amount}
+                onChange={(e) =>
+                  updateTierCharge(tier.tierId, charge.id, {
+                    amount: e.target.value,
+                  })
+                }
+                placeholder="Amount"
+                className="border px-2 py-1 text-sm rounded w-24"
+              />
+
+              <button
+                onClick={() =>
+                  removeTierCharge(tier.tierId, charge.id)
+                }
+                className="text-red-500 text-xs"
+              >
+                X
+              </button>
+            </div>
+          ))}
+
+          <button
+            onClick={() => addTierCharge(tier.tierId)}
+            className="text-xs text-blue-600"
+          >
+            + Add Charge
+          </button>
+        </div>
+      ))}
+
+      <button
+        onClick={saveTierCharges}
+        className="rf-btn rf-btn-primary"
+      >
+        Save Charges
+      </button>
+    </div>
+  </OverlayShell>
+) : null}
+
 {activePanel === "bank" ? (
   <OverlayShell
     title="Account & Payouts"

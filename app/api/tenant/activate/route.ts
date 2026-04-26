@@ -198,7 +198,7 @@ export async function POST(req: Request) {
         amountCents: selectedTier.baseRentCents,
         effectiveDate: new Date(),
         billingCycle,
-        memo: "Initial rent charge (activation)",
+        memo: "Base Rent",
       },
     });
 
@@ -247,7 +247,7 @@ if (propertyWithSettings?.settings) {
           amountCents: effective.lateFeeInitialCents,
           effectiveDate: now,
           billingCycle,
-          memo: "Initial late fee (activation catch-up)",
+          memo: "Initial late fee",
         },
       });
     }
@@ -264,7 +264,7 @@ if (propertyWithSettings?.settings) {
           amountCents: effective.lateFeeDailyCents,
           effectiveDate: new Date(graceEnd.getTime() + i * 86400000),
           billingCycle,
-          memo: "Daily late fee (activation catch-up)",
+          memo: `Daily late fee for ${feeDate.toISOString().slice(0,10)}`
         },
       });
     }
