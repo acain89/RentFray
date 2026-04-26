@@ -79,7 +79,6 @@ export async function POST(req: Request) {
   id: true,
   baseRentCents: true,
   rentDueDay: true,
-  lateFeeEnabled: true,
   lateFeeInitialCents: true,
   lateFeeDailyCents: true,
   maxLateFeeDays: true,
