@@ -206,7 +206,6 @@ export async function POST(req: Request) {
 
 const now = new Date();
 
-// You already have rentDates system — reuse it
 const { getRentDateSummary, resolveEffectiveBillingSettings } = await import("@/lib/rentDates");
 
 const propertyWithSettings = await prisma.property.findUnique({
@@ -215,10 +214,10 @@ const propertyWithSettings = await prisma.property.findUnique({
 });
 
 if (propertyWithSettings?.settings) {
- const effective = resolveEffectiveBillingSettings({
-  tier: selectedTier,
-  propertySettings: propertyWithSettings.settings,
-});
+  const effective = resolveEffectiveBillingSettings({
+    tier: selectedTier,
+    propertySettings: propertyWithSettings.settings,
+  });
 
   const rentDates = getRentDateSummary({
     ...effective,
@@ -235,7 +234,7 @@ if (propertyWithSettings?.settings) {
     const maxDays = effective.maxLateFeeDays ?? 0;
     const applicableDays = Math.min(daysLate, maxDays);
 
-    // Initial late fee (once)
+    // Initial late fee
     if (effective.lateFeeInitialCents > 0) {
       await prisma.ledgerEntry.create({
         data: {
@@ -254,6 +253,8 @@ if (propertyWithSettings?.settings) {
 
     // Daily late fees
     for (let i = 1; i <= applicableDays; i++) {
+      const feeDate = new Date(graceEnd.getTime() + i * 86400000);
+
       await prisma.ledgerEntry.create({
         data: {
           propertyId: property.id,
@@ -261,33 +262,37 @@ if (propertyWithSettings?.settings) {
           tenantAssignmentId: tenantAssignment.id,
           entryType: "CHARGE",
           chargeType: "LATE_FEE_DAILY",
-          amountCents: effective.lateFeeDailyCents,
-          effectiveDate: new Date(graceEnd.getTime() + i * 86400000),
+          amountCents: effective.lateFeeDailyCents ?? 0,
+          effectiveDate: feeDate,
           billingCycle,
-          memo: `Daily late fee for ${feeDate.toISOString().slice(0,10)}`
+          memo: `Daily late fee for ${feeDate.toISOString().slice(0, 10)}`,
         },
       });
     }
   }
 }
 
-    const token = createSessionToken({
-      role: "TENANT",
-      propertyId: property.id,
-      unitId: savedUnit.id,
-    });
+const token = createSessionToken({
+  role: "TENANT",
+  propertyId: property.id,
+  unitId: savedUnit.id,
+});
 
-    await setSessionCookie(token);
+await setSessionCookie(token);
 
-    return NextResponse.json({
-      ok: true,
-      role: "TENANT",
-      propertyId: property.id,
-      unitId: savedUnit.id,
-    });
-  } catch (error: unknown) {
-    console.error("POST /api/tenant/activate failed", error);
+return NextResponse.json({
+  ok: true,
+  role: "TENANT",
+  propertyId: property.id,
+  unitId: savedUnit.id,
+});
 
-    return NextResponse.json({ error: "Activation failed." }, { status: 500 });
-  }
+} catch (error: unknown) {
+  console.error("POST /api/tenant/activate failed", error);
+
+  return NextResponse.json(
+    { error: "Activation failed." },
+    { status: 500 }
+  );
+}
 }
