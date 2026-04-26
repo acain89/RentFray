@@ -78,12 +78,13 @@ export async function POST(req: Request) {
       select: {
   id: true,
   baseRentCents: true,
+  rentDueDay: true,
   lateFeeEnabled: true,
   lateFeeInitialCents: true,
   lateFeeDailyCents: true,
   maxLateFeeDays: true,
   gracePeriodDays: true,
-      },
+     },
     },
   },
 });
