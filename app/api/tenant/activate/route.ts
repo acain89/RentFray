@@ -76,8 +76,13 @@ export async function POST(req: Request) {
     tiers: {
       where: { id: tierId, isActive: true },
       select: {
-        id: true,
-        baseRentCents: true,
+  id: true,
+  baseRentCents: true,
+  lateFeeEnabled: true,
+  lateFeeInitialCents: true,
+  lateFeeDailyCents: true,
+  maxLateFeeDays: true,
+  gracePeriodDays: true,
       },
     },
   },
@@ -196,6 +201,75 @@ export async function POST(req: Request) {
         memo: "Initial rent charge (activation)",
       },
     });
+
+// 🔥 LATE FEE CATCH-UP (activation after due date)
+
+const now = new Date();
+
+// You already have rentDates system — reuse it
+const { getRentDateSummary, resolveEffectiveBillingSettings } = await import("@/lib/rentDates");
+
+const propertyWithSettings = await prisma.property.findUnique({
+  where: { id: property.id },
+  include: { settings: true },
+});
+
+if (propertyWithSettings?.settings) {
+ const effective = resolveEffectiveBillingSettings({
+  tier: selectedTier,
+  propertySettings: propertyWithSettings.settings,
+});
+
+  const rentDates = getRentDateSummary({
+    ...effective,
+    now,
+  });
+
+  const graceEnd = new Date(`${rentDates.graceEndsOn}T00:00:00`);
+
+  if (graceEnd && now > graceEnd) {
+    const daysLate = Math.floor(
+      (now.getTime() - graceEnd.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const maxDays = effective.maxLateFeeDays ?? 0;
+    const applicableDays = Math.min(daysLate, maxDays);
+
+    // Initial late fee (once)
+    if (effective.lateFeeInitialCents > 0) {
+      await prisma.ledgerEntry.create({
+        data: {
+          propertyId: property.id,
+          unitId: savedUnit.id,
+          tenantAssignmentId: tenantAssignment.id,
+          entryType: "CHARGE",
+          chargeType: "LATE_FEE_INITIAL",
+          amountCents: effective.lateFeeInitialCents,
+          effectiveDate: now,
+          billingCycle,
+          memo: "Initial late fee (activation catch-up)",
+        },
+      });
+    }
+
+    // Daily late fees
+    for (let i = 1; i <= applicableDays; i++) {
+      await prisma.ledgerEntry.create({
+        data: {
+          propertyId: property.id,
+          unitId: savedUnit.id,
+          tenantAssignmentId: tenantAssignment.id,
+          entryType: "CHARGE",
+          chargeType: "LATE_FEE_DAILY",
+          amountCents: effective.lateFeeDailyCents,
+          effectiveDate: new Date(graceEnd.getTime() + i * 86400000),
+          billingCycle,
+          memo: "Daily late fee (activation catch-up)",
+        },
+      });
+    }
+  }
+}
 
     const token = createSessionToken({
       role: "TENANT",
