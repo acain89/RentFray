@@ -41,7 +41,7 @@ function getStatusUI(status?: Props["bankStatus"]) {
       return {
         title: "No payout account",
         description:
-          "Connect a bank account to start receiving rent payments.",
+            "Set up secure Stripe payouts so this property can receive tenant payments.",
         color: "text-slate-600",
       };
   }
@@ -128,7 +128,7 @@ export default function BankPanel({
               onClick={onConnect}
               className="rf-btn rf-btn-primary px-4 text-sm"
             >
-              Connect Bank Account
+              Connect securely through Stripe
             </button>
           )}
 
@@ -141,8 +141,8 @@ export default function BankPanel({
               className="rf-btn rf-btn-primary px-4 text-sm"
             >
               {bankStatus === "CONNECTED"
-                ? "Update Payout Account"
-                : "Continue Setup"}
+              ? "Manage secure Stripe connection"
+              : "Continue secure Stripe setup"}
             </button>
           )}
         </div>

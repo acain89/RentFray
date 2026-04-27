@@ -264,8 +264,28 @@ const rentDates = getRentDateSummary({
   now: effectiveDate,
 });
 
-const billingCycle = rentDates.billingCycle;
+let billingCycle = rentDates.billingCycle;
 
+// 🔒 BLOCK: if pending payment exists → push to next cycle
+const hasPending = await prisma.payment.findFirst({
+  where: {
+    propertyId,
+    unitId,
+    tenantAssignmentId: activeAssignment?.id ?? null,
+    billingCycle,
+    status: { in: ["PENDING", "PAID"] },
+  },
+  select: { id: true },
+});
+
+if (hasPending) {
+  const [year, month] = billingCycle.split("-").map(Number);
+
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  billingCycle = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+}
     const chargeType = toLedgerChargeType(type);
 
     const result = await prisma.$transaction(

@@ -5,7 +5,6 @@ import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import ManualPaymentForm from "./ManualPaymentForm";
 import ManualChargeForm from "./ManualChargeForm";
 import PostRentButton from "./PostRentButton";
-import PostLateFeeButton from "./PostLateFeeButton";
 
 function centsToDollars(cents: number | null | undefined): number {
   return Number(cents || 0) / 100;
@@ -527,7 +526,6 @@ export default async function UnitDetail({ params }: Props) {
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <PostRentButton unitId={unit.id} />
-                      <PostLateFeeButton unitId={unit.id} />
                     </div>
                   </div>
 

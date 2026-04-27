@@ -265,25 +265,38 @@ if (event.type === "charge.dispute.created") {
     }
 
     if (event.type === "payment_intent.processing") {
-      const processingIntent = event.data.object as Stripe.PaymentIntent;
+  const processingIntent = event.data.object as Stripe.PaymentIntent;
 
-      if (processingIntent.payment_method_types?.[0] !== "us_bank_account") {
-        return NextResponse.json({ received: true });
-      }
+  // 🚨 STRICT GUARD
+  if (
+    processingIntent.status !== "processing" ||
+    processingIntent.payment_method_types?.[0] !== "us_bank_account" ||
+    !processingIntent.payment_method ||
+    typeof processingIntent.payment_method !== "string"
+  ) {
+    return NextResponse.json({ received: true });
+  }
 
-      const metadata = processingIntent.metadata || {};
+  const paymentMethod = await stripe.paymentMethods.retrieve(
+    processingIntent.payment_method
+  );
 
-      const propertyId = safeString(metadata.propertyId);
-      const unitId = safeString(metadata.unitId);
-      const tenantAssignmentId =
-        safeString(metadata.tenantAssignmentId) || null;
-      const amountCents = parseCents(metadata.ledgerBalanceCents);
-      const feeCents = parseCents(metadata.processingFeeCents);
-      const billingCycle = safeString(metadata.billingCycle);
+  if (!paymentMethod || paymentMethod.type !== "us_bank_account") {
+    return NextResponse.json({ received: true });
+  }
 
-      if (!propertyId || !unitId || !billingCycle) {
-        return NextResponse.json({ received: true });
-      }
+  const metadata = processingIntent.metadata || {};
+  const propertyId = safeString(metadata.propertyId);
+const unitId = safeString(metadata.unitId);
+const tenantAssignmentId =
+  safeString(metadata.tenantAssignmentId) || null;
+const amountCents = parseCents(metadata.ledgerBalanceCents);
+const feeCents = parseCents(metadata.processingFeeCents);
+const billingCycle = safeString(metadata.billingCycle);
+
+if (!propertyId || !unitId || !billingCycle) {
+  return NextResponse.json({ received: true });
+}
 
       await prisma.payment.upsert({
         where: { stripePaymentIntentId: processingIntent.id },

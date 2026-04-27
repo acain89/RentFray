@@ -78,20 +78,21 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
         continue;
       }
 
-      const existingPayment = await tx.payment.findFirst({
+      const blockingPayment = await tx.payment.findFirst({
   where: {
+    propertyId: unit.propertyId,
     unitId: unit.id,
     tenantAssignmentId: assignment.id,
     billingCycle,
     status: { in: ["PENDING", "PAID"] },
   },
-  select: { id: true },
+  select: { id: true, status: true },
 });
 
-      if (existingPayment) {
-        skipped++;
-        continue;
-      }
+if (blockingPayment) {
+  skipped++;
+  continue;
+}
 
       const shouldPostInitial = delinquency.daysPastDue >= 1;
       const shouldPostDaily =
@@ -101,17 +102,19 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
 
       if (shouldPostInitial && effective.lateFeeInitialCents > 0) {
         const initialExists = await tx.ledgerEntry.findFirst({
-          where: {
-            propertyId: unit.propertyId,
-            unitId: unit.id,
-            tenantAssignmentId: assignment.id,
-            entryType: "CHARGE",
-            chargeType: "LATE_FEE_INITIAL",
-            billingCycle,
-            voidedAt: null,
-          },
-          select: { id: true },
-        });
+  where: {
+    propertyId: unit.propertyId,
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    entryType: "CHARGE",
+    chargeType: {
+      in: ["LATE_FEE_INITIAL", "LATE_FEE"],
+    },
+    billingCycle,
+    voidedAt: null,
+  },
+  select: { id: true },
+});
 
         if (!initialExists) {
           await tx.ledgerEntry.create({

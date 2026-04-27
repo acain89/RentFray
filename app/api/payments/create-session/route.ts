@@ -30,7 +30,6 @@ function getBillingCycle(date: Date): string {
 }
 
 export async function POST(req: Request) {
-  let paymentLockId: string | null = null;
 
   try {
     const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -205,26 +204,6 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:10000";
 
-    const paymentLock = await prisma.payment.create({
-      data: {
-        propertyId: property.id,
-        unitId: unit.id,
-        tenantAssignmentId,
-        stripeSessionId: null,
-        stripePaymentIntentId: null,
-        billingCycle,
-        amountCents: balanceCents,
-        processingFeeCents,
-        status: "PENDING",
-        paymentMethod: "ACH",
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    paymentLockId = paymentLock.id;
-
     
      const paymentMetadata = {
   propertyId: property.id,
@@ -241,6 +220,7 @@ export async function POST(req: Request) {
 const checkoutSession = await stripe.checkout.sessions.create({
   payment_intent_data: {
     application_fee_amount: processingFeeCents,
+    on_behalf_of: property.stripeAccountId,
     transfer_data: {
       destination: property.stripeAccountId,
     },
@@ -262,8 +242,8 @@ const checkoutSession = await stripe.checkout.sessions.create({
       price_data: {
         currency: "usd",
         product_data: {
-          name: `RentFray payment — Unit ${unit.unitNumber}`,
-          description: `${property.name} balance payment for ${tenantName}`,
+          name: `${property.name} — Unit ${unit.unitNumber}`,
+          description: `Rent payment for ${property.name}`,
         },
         unit_amount: balanceCents,
       },
@@ -275,8 +255,8 @@ const checkoutSession = await stripe.checkout.sessions.create({
             price_data: {
               currency: "usd",
               product_data: {
-                name: "Processing fee",
-                description: `${property.name} ACH processing fee`,
+                name: `${property.name} processing fee`,
+                description: `ACH processing fee for ${property.name}`,
               },
               unit_amount: processingFeeCents,
             },
@@ -290,39 +270,19 @@ const checkoutSession = await stripe.checkout.sessions.create({
   metadata: paymentMetadata,
 });
 
-
     if (!checkoutSession.url) {
-      await prisma.payment.delete({
-        where: { id: paymentLock.id },
-      });
-
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "No checkout URL returned." },
-        { status: 500 }
-      );
-    }
-
-    await prisma.payment.update({
-      where: { id: paymentLock.id },
-      data: {
-        stripeSessionId: checkoutSession.id,
-      },
-    });
+  return NextResponse.json<ApiError>(
+    { ok: false, error: "No checkout URL returned." },
+    { status: 500 }
+  );
+}
 
     return NextResponse.json<ApiSuccess<{ url: string }>>({
       ok: true,
       data: { url: checkoutSession.url },
     });
   } catch (error: unknown) {
-    if (paymentLockId) {
-      try {
-        await prisma.payment.delete({
-          where: { id: paymentLockId },
-        });
-      } catch {
-        // swallow cleanup error
-      }
-    }
+   
 
     if (error instanceof Stripe.errors.StripeError) {
       return NextResponse.json<ApiError>(

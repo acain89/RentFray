@@ -16,6 +16,50 @@ export const revalidate = 0;
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
+function buildExportMonths(startDateValue: Date | string | null | undefined) {
+  const fallback = new Date();
+  const parsed =
+    startDateValue instanceof Date
+      ? startDateValue
+      : startDateValue
+        ? new Date(startDateValue)
+        : fallback;
+
+  const safeStart = Number.isNaN(parsed.getTime()) ? fallback : parsed;
+  const now = new Date();
+
+  const start = new Date(safeStart.getFullYear(), safeStart.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const months: {
+    value: string;
+    label: string;
+    year: number;
+    month: number;
+  }[] = [];
+
+  let cursor = new Date(start);
+
+  while (cursor <= end) {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth() + 1;
+
+    months.push({
+      value: `${year}-${String(month).padStart(2, "0")}`,
+      label: cursor.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+      year,
+      month,
+    });
+
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return months.reverse();
+}
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -48,6 +92,17 @@ export async function GET() {
     },
   },
 });
+
+function getNextCycleKey(cycleKey: string): string {
+  const [yearRaw, monthRaw] = cycleKey.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+}
 
    if (!property) {
   return NextResponse.json(
@@ -192,6 +247,32 @@ const rentDates = getRentDateSummary({
   now: new Date(),
 });
 
+const nextBillingCycle = getNextCycleKey(rentDates.billingCycle);
+
+const nextCycleAdjustments = await prisma.ledgerEntry.findMany({
+  where: {
+    propertyId: property.id,
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    billingCycle: nextBillingCycle,
+    entryType: {
+      in: ["CHARGE", "CREDIT"],
+    },
+    voidedAt: null,
+  },
+  orderBy: [{ createdAt: "desc" }],
+  select: {
+    id: true,
+    entryType: true,
+    chargeType: true,
+    amountCents: true,
+    memo: true,
+    effectiveDate: true,
+    createdAt: true,
+    billingCycle: true,
+  },
+});
+
 const payments = await prisma.payment.findMany({
   where: {
     unitId: unit.id,
@@ -207,7 +288,20 @@ const payments = await prisma.payment.findMany({
   ledger.totalChargesCents - ledger.totalCreditsCents;
 
 totalExpectedCents += Math.max(0, netExpected);
-totalCollectedCents += Math.max(0, ledger.totalPaidCents);
+const cyclePaymentsSum = await prisma.payment.aggregate({
+  where: {
+    propertyId: property.id,
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    status: "PAID",
+    billingCycle: rentDates.billingCycle,
+  },
+  _sum: {
+    amountCents: true,
+  },
+});
+
+totalCollectedCents += Math.max(0, cyclePaymentsSum._sum.amountCents ?? 0);
 
         if (delinquency.isDelinquent) {
           delinquentCount++;
@@ -259,20 +353,32 @@ if (ledger.balanceCents <= 0) {
 }
 
         return {
-          unitId: unit.id,
-          unitNumber: unit.unitNumber,
-          isActive: unit.isActive === true,
-          tenantName: `${assignment.firstName ?? ""} ${
-            assignment.lastName ?? ""
-          }`.trim(),
-          balanceCents: ledger.balanceCents,
-          balance: formatCentsToDollars(ledger.balanceCents),
-          totalPaid: formatCentsToDollars(ledger.totalPaidCents),
-          isDelinquent: Boolean(delinquency.isDelinquent),
-          daysPastDue: Number(delinquency.daysPastDue || 0),
-          paymentStatus,
-          tierName: unit.tier?.name ?? "Units",
-        };
+  unitId: unit.id,
+  unitNumber: unit.unitNumber,
+  isActive: unit.isActive === true,
+  tenantName: `${assignment.firstName ?? ""} ${
+    assignment.lastName ?? ""
+  }`.trim(),
+  balanceCents: ledger.balanceCents,
+  balance: formatCentsToDollars(ledger.balanceCents),
+  totalPaid: formatCentsToDollars(ledger.totalPaidCents),
+  isDelinquent: Boolean(delinquency.isDelinquent),
+  daysPastDue: Number(delinquency.daysPastDue || 0),
+  paymentStatus,
+  tierName: unit.tier?.name ?? "Units",
+ nextCycleAdjustments: nextCycleAdjustments.map(
+  (entry: (typeof nextCycleAdjustments)[number]) => ({
+    id: entry.id,
+    type: entry.entryType,
+    chargeType: entry.chargeType,
+    amount: entry.amountCents / 100,
+    memo: entry.memo,
+    effectiveDate: entry.effectiveDate.toISOString(),
+    createdAt: entry.createdAt.toISOString(),
+    billingCycle: entry.billingCycle,
+  })
+),
+};
       })
     );
 
@@ -296,6 +402,8 @@ if (ledger.balanceCents <= 0) {
     now: new Date(),
   });
 
+
+
   const [year, month] = rentDates.billingCycle.split("-");
 
   return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
@@ -307,6 +415,8 @@ if (ledger.balanceCents <= 0) {
   );
 })();
 
+  const exportMonths = buildExportMonths(property.billingCycleStartDate);
+
     return NextResponse.json({
       ok: true,
       property: {
@@ -315,6 +425,9 @@ if (ledger.balanceCents <= 0) {
   code: property.propertyCode,
   unitCount: capacity.effectiveUnitCount,
   managementUsers: property.managementUsers,
+  billingCycleStartDate: property.billingCycleStartDate
+  ? property.billingCycleStartDate.toISOString()
+  : null,
   paymentStatus: {
     bankConnected: bankStatus === "CONNECTED",
     bankStatus,
@@ -354,6 +467,13 @@ if (ledger.balanceCents <= 0) {
         difference: totalCollected - totalExpected,
       },
       units: finalUnits,
+      exportOptions: {
+  months: exportMonths,
+  startYear: exportMonths[exportMonths.length - 1]?.year ?? null,
+  startMonth: exportMonths[exportMonths.length - 1]?.month ?? null,
+  currentYear: exportMonths[0]?.year ?? null,
+  currentMonth: exportMonths[0]?.month ?? null,
+},
     });
   } catch (error) {
     console.error("dashboard error", error);

@@ -12,6 +12,16 @@ import AdjustBalanceForm from "./components/AdjustBalanceForm";
 
 export const dynamic = "force-dynamic";
 
+type NextCycleAdjustment = {
+  id: string;
+  type: "CHARGE" | "CREDIT";
+  chargeType: string | null;
+  amount: number;
+  memo: string | null;
+  effectiveDate: string;
+  createdAt: string;
+  billingCycle: string | null;
+};
 
 type Unit = {
   unitId: string;
@@ -23,6 +33,7 @@ type Unit = {
   tierName?: string | null;
   paymentStatus: "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
   isActive: boolean;
+  nextCycleAdjustments?: NextCycleAdjustment[];
 };
 
 type DashboardPayment = {
@@ -100,7 +111,7 @@ billingCycleStartDate?: string | null;
 
 type UnitStatus = "PAID" | "GRACE" | "PENDING" | "FAILED" | "DELINQUENT" | "VACANT";
 
-type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | "bank" | null;
+type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | "bank" | "exports" |null;
 
 type UnitWithStatus = Unit & {
   status: UnitStatus;
@@ -607,10 +618,8 @@ function getMixedBooleanText(values: boolean[]): string {
     : 0;
 }, [data?.units]);
 
-  const [exportMonth, setExportMonth] = useState(() => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-});
+ const [exportMonth, setExportMonth] = useState("");
+
 const [exportType, setExportType] = useState<"balances" | "ledger" | "payments">("balances");
 const [exportUnitSearch, setExportUnitSearch] = useState("");
 const [exporting, setExporting] = useState(false);
@@ -1304,17 +1313,39 @@ await loadDashboard();
     }
   }
 
-   function getExportMonthOptions(count = 12): { value: string; label: string }[] {
+   function getExportMonthOptions(
+  startDateString?: string | null
+): { value: string; label: string }[] {
+  if (!startDateString) return [];
+
+  const startDate = new Date(startDateString);
+  if (Number.isNaN(startDate.getTime())) return [];
+
   const now = new Date();
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const label = date.toLocaleDateString("en-US", {
+
+  const start = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const months: { value: string; label: string }[] = [];
+
+  let cursor = new Date(start);
+
+  while (cursor <= end) {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth() + 1;
+
+    const value = `${year}-${String(month).padStart(2, "0")}`;
+    const label = cursor.toLocaleDateString("en-US", {
       month: "long",
       year: "numeric",
     });
-    return { value, label };
-  });
+
+    months.push({ value, label });
+
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return months.reverse(); // newest first
 }
 
 async function runExport(): Promise<void> {
@@ -1354,7 +1385,9 @@ async function runExport(): Promise<void> {
   }
 }
 
-const exportMonthOptions = getExportMonthOptions();
+const exportMonthOptions = getExportMonthOptions(
+  data?.property?.billingCycleStartDate
+);
 
 
   async function createManager(): Promise<void> {
@@ -1633,6 +1666,13 @@ useEffect(() => {
     void loadTierCharges();
   }
 }, [activePanel, data?.property?.id]);
+
+useEffect(() => {
+  if (!exportMonthOptions.length) return;
+
+  // default to most recent month
+  setExportMonth(exportMonthOptions[0].value);
+}, [exportMonthOptions]);
 
 const unitsWithStatus = useMemo<UnitWithStatus[]>(() => {
   if (!data?.units?.length) return [];
@@ -2068,6 +2108,13 @@ if (error === "Unauthorized") {
       </button>
 
       <button
+  onClick={() => openPanel("exports")}
+  className="rf-btn rf-btn-primary"
+>
+  Exports
+</button>
+
+      <button
         type="button"
         onClick={() => openPanel("gplf")}
         className="rf-btn rf-btn-primary px-4 text-sm"
@@ -2443,6 +2490,50 @@ if (error === "Unauthorized") {
           Adjust Balance
         </button>
       </div>
+
+
+     {selectedUnit.nextCycleAdjustments?.length ? (
+  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm shadow-sm">
+    <div className="font-semibold text-amber-900">Next cycle:</div>
+
+    <div className="mt-3 space-y-3">
+      {selectedUnit.nextCycleAdjustments.map((item) => (
+        <div
+          key={item.id}
+          className="rounded-xl border border-amber-200 bg-white/80 p-3"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-semibold text-slate-950">
+              {item.type === "CREDIT" ? "Credit" : "Charge"}
+            </div>
+
+            <div
+              className={`font-semibold ${
+                item.type === "CREDIT" ? "text-emerald-700" : "text-slate-950"
+              }`}
+            >
+              {item.type === "CREDIT" ? "-" : "+"}
+              {toMoney(item.amount)}
+            </div>
+          </div>
+
+          <div className="mt-2 text-xs text-slate-600">
+            Memo: {item.memo || "No memo"}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-600">
+            Added: {new Date(item.createdAt).toLocaleString()}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-600">
+            Takes effect: {item.billingCycle || "Next billing cycle"}{" "}
+            ({new Date(item.effectiveDate).toLocaleDateString()})
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+) : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-4">
@@ -2918,6 +3009,61 @@ await loadDashboard();
     propertyName={propertyName}
     propertyCode={propertyCode}
   />
+) : null}
+
+{activePanel === "exports" ? (
+  <OverlayShell
+    title="Exports"
+    subtitle="Download balances, ledger, or payments"
+    onClose={closePanel}
+  >
+    <div className="space-y-4">
+
+      {/* Export Type */}
+      <select
+        value={exportType}
+        onChange={(e) =>
+          setExportType(e.target.value as "balances" | "ledger" | "payments")
+        }
+        className="rf-input w-full"
+      >
+        <option value="balances">Balances</option>
+        <option value="ledger">Ledger</option>
+        <option value="payments">Payments</option>
+      </select>
+
+      {/* Month */}
+      <select
+        value={exportMonth}
+        onChange={(e) => setExportMonth(e.target.value)}
+        className="rf-input w-full"
+      >
+        {exportMonthOptions.map((m) => (
+          <option key={m.value} value={m.value}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+
+      {/* Unit filter */}
+      <input
+        value={exportSelectedUnit}
+        onChange={(e) => setExportSelectedUnit(e.target.value)}
+        placeholder="Unit (optional)"
+        className="rf-input w-full"
+      />
+
+      {/* Download */}
+      <button
+        onClick={runExport}
+        disabled={exporting || !exportMonth}
+        className="rf-btn rf-btn-primary w-full"
+      >
+        {exporting ? "Exporting..." : "Download CSV"}
+      </button>
+
+    </div>
+  </OverlayShell>
 ) : null}
 
 {activePanel === "maint" && (

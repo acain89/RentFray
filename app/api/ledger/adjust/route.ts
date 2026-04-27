@@ -27,6 +27,21 @@ function getCycleKey(date: Date): string {
   return `${y}-${m.toString().padStart(2, "0")}`;
 }
 
+function getNextCycleKey(cycleKey: string): string {
+  const [yearRaw, monthRaw] = cycleKey.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month)) {
+    return getCycleKey(new Date());
+  }
+
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getSession();
@@ -226,19 +241,44 @@ export async function POST(req: Request) {
       defaultMemo = "Credit";
     }
 
-    await prisma.ledgerEntry.create({
-      data: {
-        propertyId: session.propertyId,
-        unitId: unit.id,
-        tenantAssignmentId: assignment.id,
-        entryType,
-        chargeType,
-        amountCents,
-        memo: memo || defaultMemo,
-        effectiveDate: new Date(),
-        createdByManagementUserId: session.managementUserId ?? null,
-      },
-    });
+    const currentEffectiveDate = new Date();
+const currentBillingCycle = getCycleKey(currentEffectiveDate);
+
+const blockingPayment = await prisma.payment.findFirst({
+  where: {
+    propertyId: session.propertyId,
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    billingCycle: currentBillingCycle,
+    status: { in: ["PENDING", "PAID"] },
+  },
+  select: { id: true },
+});
+
+const finalBillingCycle = blockingPayment
+  ? getNextCycleKey(currentBillingCycle)
+  : currentBillingCycle;
+
+const finalEffectiveDate = blockingPayment
+  ? new Date(`${finalBillingCycle}-01T00:00:00`)
+  : currentEffectiveDate;
+
+await prisma.ledgerEntry.create({
+  data: {
+    propertyId: session.propertyId,
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    entryType,
+    chargeType,
+    amountCents,
+    memo: blockingPayment
+      ? `${memo || defaultMemo} (applies next billing cycle)`
+      : memo || defaultMemo,
+    effectiveDate: finalEffectiveDate,
+    billingCycle: finalBillingCycle,
+    createdByManagementUserId: session.managementUserId ?? null,
+  },
+});
 
     return NextResponse.json({ ok: true });
   } catch {

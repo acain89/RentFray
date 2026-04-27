@@ -131,6 +131,11 @@ export async function POST(req: Request) {
 
     const { unitId, tenantId, amountCents, memo, effectiveDate } = parsed;
 
+// Guard against accidental tiny test payments
+if (amountCents < 500) { // $5.00 threshold (adjust if needed)
+  return badRequest("Payment amount too small.");
+}
+
     const unit = await prisma.unit.findFirst({
       where: {
         id: unitId,
@@ -198,7 +203,7 @@ export async function POST(req: Request) {
             paidAt: effectiveDate,
             paymentMethod: "MANUAL",
            stripePaymentIntentId: `manual_${unit.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-            billingCycle: null,
+           billingCycle: new Date().toISOString().slice(0, 7),
           },
           select: {
             id: true,
