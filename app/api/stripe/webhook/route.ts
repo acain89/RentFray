@@ -532,7 +532,7 @@ export async function POST(req: Request) {
             tenantAssignmentId,
             entryType: "PAYMENT",
             paymentMethod: "ACH",
-            amountCents: -balanceCents,
+            amountCents: -expectedCents,
             effectiveDate,
             billingCycle,
             paymentId: payment.id,
