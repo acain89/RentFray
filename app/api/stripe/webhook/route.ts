@@ -393,58 +393,52 @@ export async function POST(req: Request) {
     }
 
     if (event.type === "payment_intent.succeeded") {
-      const succeededIntent = event.data.object as Stripe.PaymentIntent;
+  const succeededIntent = event.data.object as Stripe.PaymentIntent;
 
-      if (succeededIntent.payment_method_types?.[0] !== "us_bank_account") {
-        return NextResponse.json({ received: true });
-      }
+  if (succeededIntent.payment_method_types?.[0] !== "us_bank_account") {
+    return NextResponse.json({ received: true });
+  }
 
-      const metadata = succeededIntent.metadata || {};
+  const metadata = succeededIntent.metadata || {};
 
-      const stripeAccountId = safeString(metadata.stripeAccountId);
-      const propertyId = safeString(metadata.propertyId);
-      const unitId = safeString(metadata.unitId);
-      const tenantAssignmentId = safeString(metadata.tenantAssignmentId) || null;
-      const feeCents = parseCents(metadata.processingFeeCents);
+  const stripeAccountId = safeString(metadata.stripeAccountId);
+  const propertyId = safeString(metadata.propertyId);
+  const unitId = safeString(metadata.unitId);
+  const tenantAssignmentId =
+    safeString(metadata.tenantAssignmentId) || null;
 
-      if (!propertyId || !unitId) {
-        return NextResponse.json({ received: true });
-      }
+  // ✅ USE SNAPSHOT FROM STRIPE (NOT LIVE LEDGER)
+  const balanceCents = parseCents(metadata.ledgerBalanceCents);
+  const feeCents = parseCents(metadata.processingFeeCents);
+  const expectedCents =
+    parseCents(metadata.totalAmountCents) || balanceCents + feeCents;
 
-      const property = await prisma.property.findUnique({
-        where: { id: propertyId },
-        include: {
-          settings: true,
-          units: true,
-          paymentStatus: true,
-        },
-      });
+  if (!propertyId || !unitId || expectedCents <= 0) {
+    return NextResponse.json({ received: true });
+  }
 
-      if (!property || !property.isActive || !canMakePayments(property)) {
-        return NextResponse.json({ received: true });
-      }
+  const property = await prisma.property.findUnique({
+    where: { id: propertyId },
+    include: {
+      settings: true,
+      units: true,
+      paymentStatus: true,
+    },
+  });
 
-      if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
-        console.error("STRIPE ACCOUNT MISMATCH", {
-          metadataAccount: stripeAccountId,
-          propertyAccount: property.stripeAccountId,
-        });
+  if (!property || !property.isActive || !canMakePayments(property)) {
+    return NextResponse.json({ received: true });
+  }
 
-        return NextResponse.json({ received: true });
-      }
+  if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
+    console.error("STRIPE ACCOUNT MISMATCH", {
+      metadataAccount: stripeAccountId,
+      propertyAccount: property.stripeAccountId,
+    });
 
-      const liveLedger = await getUnitLedgerSummary(
-        unitId,
-        tenantAssignmentId ?? undefined
-      );
+    return NextResponse.json({ received: true });
+  }
 
-      const balanceCents = Math.max(0, liveLedger.balanceCents);
-
-      if (balanceCents <= 0 && feeCents <= 0) {
-        await ensurePaymentFromIntent(succeededIntent);
-        await updatePaymentStatus(succeededIntent.id, "PAID");
-        return NextResponse.json({ received: true });
-      }
 
       const stripeCents =
         succeededIntent.amount_received ??
@@ -455,7 +449,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true });
       }
 
-      const expectedCents = balanceCents + feeCents;
 
       if (expectedCents !== stripeCents) {
         console.error("PAYMENT MISMATCH — BLOCKED", {
