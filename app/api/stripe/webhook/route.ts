@@ -132,23 +132,23 @@ export async function POST(req: Request) {
     apiVersion: "2026-02-25.clover",
   });
 
-  let event: Stripe.Event;
+ let event: Stripe.Event;
 
-  try {
-  // all your event logic
-} catch (error) {
-  console.error("Stripe webhook error:", error);
+try {
+  const body = await req.text();
+  const sig = (await headers()).get("stripe-signature");
 
-  // ✅ ALWAYS return 200 so Stripe stops retrying
-  return NextResponse.json({ received: true });
-}
-
-    event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
-  } catch {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  if (!sig) {
+    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
-  try {
+  event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
+} catch (error) {
+  console.error("Stripe signature error:", error);
+  return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+}
+
+try {
   
 if (event.type === "checkout.session.completed") {
   const session = event.data.object as Stripe.Checkout.Session;
@@ -246,7 +246,7 @@ if (event.type === "charge.dispute.created") {
                 payoutsEnabled: Boolean(account.payouts_enabled),
                 onboardingComplete: Boolean(account.details_submitted),
                 requirementsDue: Boolean(
-                  account.requirements?.currently_due?.length
+                account.requirements?.currently_due?.length ?? 0
                 ),
                 requirementsSummary:
                   account.requirements?.disabled_reason ?? null,
