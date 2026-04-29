@@ -135,12 +135,13 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
-    const body = await req.text();
-    const sig = (await headers()).get("stripe-signature");
+  // all your event logic
+} catch (error) {
+  console.error("Stripe webhook error:", error);
 
-    if (!sig) {
-      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
-    }
+  // ✅ ALWAYS return 200 so Stripe stops retrying
+  return NextResponse.json({ received: true });
+}
 
     event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
   } catch {
@@ -229,7 +230,7 @@ if (event.type === "charge.dispute.created") {
                 payoutsEnabled: Boolean(account.payouts_enabled),
                 onboardingComplete: Boolean(account.details_submitted),
                 requirementsDue: Boolean(
-                  account.requirements?.currently_due?.length
+                account.requirements?.currently_due?.length ?? 0
                 ),
                 requirementsSummary:
                   account.requirements?.disabled_reason ?? null,
@@ -327,6 +328,48 @@ if (!propertyId || !unitId || !billingCycle) {
 
       return NextResponse.json({ received: true });
     }
+
+   if (event.type === "checkout.session.async_payment_succeeded") {
+  const session = event.data.object as Stripe.Checkout.Session;
+
+  if (typeof session.payment_intent !== "string") {
+    return NextResponse.json({ received: true });
+  }
+
+  const intentId = session.payment_intent;
+
+  await updatePaymentStatus(intentId, "PAID");
+
+  // Trigger UI refresh
+  const payment = await prisma.payment.findUnique({
+    where: { stripePaymentIntentId: intentId },
+    select: { propertyId: true, unitId: true },
+  });
+
+  if (payment) {
+    emitEvent("payment:update", {
+      propertyId: payment.propertyId,
+      unitId: payment.unitId,
+    });
+
+    emitEvent("ledger:update", {
+      propertyId: payment.propertyId,
+      unitId: payment.unitId,
+    });
+  }
+
+  return NextResponse.json({ received: true });
+}
+
+    if (event.type === "checkout.session.async_payment_failed") {
+  const session = event.data.object as Stripe.Checkout.Session;
+
+  if (typeof session.payment_intent === "string") {
+    await updatePaymentStatus(session.payment_intent, "FAILED");
+  }
+
+  return NextResponse.json({ received: true });
+}
 
     if (event.type === "payment_intent.succeeded") {
       const succeededIntent = event.data.object as Stripe.PaymentIntent;
