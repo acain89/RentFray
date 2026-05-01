@@ -46,6 +46,10 @@ export async function runMonthlyRentJob(asOf = new Date()) {
 
     if (today.getTime() !== dueDate.getTime()) continue;
 
+if (assignment.moveInDate && startOfDay(assignment.moveInDate) > dueDate) {
+  continue;
+}
+
     // --- RENT ---
     const existingRent = await prisma.ledgerEntry.findFirst({
       where: {

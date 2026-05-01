@@ -313,7 +313,7 @@ if (totalDueCents <= 0) {
 if (tenantPaymentStatus === "PENDING") {
   paymentMessage = "Payment pending — your bank is processing this payment.";
 } else if (tenantPaymentStatus === "PAID") {
-  paymentMessage = "Payment posted successfully.";
+  paymentMessage = "You're all paid up. Check back on your next due date.";
 } else if (tenantPaymentStatus === "FAILED") {
   paymentMessage = "Payment failed — please try again.";
 } else if (tenantPaymentStatus === "REVERSED") {

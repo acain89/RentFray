@@ -27,7 +27,10 @@ export default function TenantActivateClient({
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+const [loading, setLoading] = useState(false);
+
+const [recentMoveIn, setRecentMoveIn] = useState<boolean | null>(null);
+const [moveInDate, setMoveInDate] = useState<string>("");
 
   useEffect(() => {
     if (!propertyCode) {
@@ -77,6 +80,16 @@ export default function TenantActivateClient({
       return;
     }
 
+    if (recentMoveIn === null) {
+  setError("Please answer the move-in question.");
+  return;
+}
+
+if (recentMoveIn && !moveInDate) {
+  setError("Select your move-in date.");
+  return;
+}
+
     setLoading(true);
     setError("");
 
@@ -88,13 +101,15 @@ export default function TenantActivateClient({
         },
         credentials: "include",
         body: JSON.stringify({
-          propertyCode,
-          firstName: cleanFirstName,
-          lastName: cleanLastName,
-          unitNumber: cleanUnitNumber,
-          confirmUnitNumber: cleanConfirmUnitNumber,
-          pin: cleanPin,
-          confirmPin: cleanConfirmPin,
+  propertyCode,
+  firstName: cleanFirstName,
+  lastName: cleanLastName,
+  unitNumber: cleanUnitNumber,
+  confirmUnitNumber: cleanConfirmUnitNumber,
+  pin: cleanPin,
+  confirmPin: cleanConfirmPin,
+  recentMoveIn,
+  moveInDate: moveInDate || null,
         }),
       });
 
@@ -246,6 +261,46 @@ export default function TenantActivateClient({
                 autoComplete="new-password"
               />
             </div>
+
+           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+  <p className="text-sm font-medium">
+    Did you move into this unit within the last 30 days?
+  </p>
+
+  <div className="flex gap-3">
+    <button
+      type="button"
+      onClick={() => setRecentMoveIn(true)}
+      className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+        recentMoveIn === true ? "border-slate-900 bg-white" : "border-slate-200"
+      }`}
+    >
+      Yes
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setRecentMoveIn(false);
+        setMoveInDate("");
+      }}
+      className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+        recentMoveIn === false ? "border-slate-900 bg-white" : "border-slate-200"
+      }`}
+    >
+      No
+    </button>
+  </div>
+
+  {recentMoveIn === true && (
+    <input
+      type="date"
+      value={moveInDate}
+      onChange={(e) => setMoveInDate(e.target.value)}
+      className={inputClass(false)}
+    />
+  )}
+</div>
 
             {error ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

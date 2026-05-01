@@ -111,7 +111,17 @@ billingCycleStartDate?: string | null;
 
 type UnitStatus = "PAID" | "GRACE" | "PENDING" | "FAILED" | "DELINQUENT" | "VACANT";
 
-type PanelKey = "charges" | "rent" | "gplf" | "manager" | "info" | "maint" | "bank" | "exports" |null;
+type PanelKey =
+  | "manage"
+  | "charges"
+  | "rent"
+  | "gplf"
+  | "manager"
+  | "info"
+  | "maint"
+  | "bank"
+  | "exports"
+  | null;
 
 type UnitWithStatus = Unit & {
   status: UnitStatus;
@@ -382,7 +392,7 @@ function OverlayShell({
       <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-auto sm:max-h-[90vh] sm:rounded-[32px]">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--rf-border)] bg-[rgba(255,255,255,0.28)] px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold tracking-tight text-[var(--rf-text)]">
+            <h2 className="text-xl font-semibold tracking-tight text-emerald-800">
               {title}
             </h2>
             {subtitle ? (
@@ -420,7 +430,53 @@ function getMonthRange() {
   return { start, next };
 }
 
+type ManageSectionItem = {
+  label: string;
+  description: string;
+  panel: Exclude<PanelKey, "manage" | null>;
+};
 
+function ManageSection({
+  title,
+  helper,
+  items,
+  openPanel,
+}: {
+  title: string;
+  helper: string;
+  items: ManageSectionItem[];
+  openPanel: (panel: Exclude<PanelKey, null>) => void;
+}) {
+  return (
+<section className="rounded-[26px] border border-emerald-300/60 bg-gradient-to-br from-white via-emerald-50/40 to-sky-50/30 p-4 shadow-[var(--rf-shadow-sm)]">      <div className="mb-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">
+          {title}
+        </h3>
+        <p className="mt-1 text-xs text-[var(--rf-text-soft)]">
+          ({helper})
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {items.map((item) => (
+          <button
+            key={`${title}-${item.label}`}
+            type="button"
+            onClick={() => openPanel(item.panel)}
+            className="flex w-full flex-col gap-1 rounded-2xl border border-emerald-200/70 bg-white/70 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-sky-50 hover:shadow-[var(--rf-shadow-sm)] sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="text-sm font-semibold text-emerald-800">
+              {item.label}
+            </span>
+            <span className="text-xs text-[var(--rf-text-soft)] sm:max-w-[62%] sm:text-right">
+              {item.description}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function Page() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -1776,6 +1832,10 @@ const gpLfComparisonSummary = useMemo(() => {
     setShowManualPaymentConfirm(false);
   }
 
+function goBackToManage() {
+  setActivePanel("manage");
+}
+
 function updateLocalTier(
   tierId: string,
   updates: Partial<RentTierDraft>
@@ -2072,7 +2132,7 @@ if (error === "Unauthorized") {
         <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--rf-text-muted)]">
           RentFray manager
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--rf-text)] sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-emerald-800 sm:text-3xl">
           {propertyName}
         </h1>
         <div className="text-sm text-[var(--rf-text-soft)]">
@@ -2090,83 +2150,26 @@ if (error === "Unauthorized") {
       </div>
     </div>
 
-    <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => openPanel("charges")}
-        className="rf-btn rf-btn-primary px-4 text-sm"
-      >
-        +
-      </button>
 
-      <button
-        type="button"
-        onClick={() => openPanel("rent")}
-        className="rf-btn rf-btn-primary px-4 text-sm"
-      >
-        Rent
-      </button>
+   <div className="flex flex-wrap gap-2">
+  <button
+    type="button"
+    onClick={() => openPanel("manage")}
+    className="rf-btn rf-btn-primary px-5 text-sm"
+  >
+    Manage
+  </button>
 
-      <button
-  onClick={() => openPanel("exports")}
-  className="rf-btn rf-btn-primary"
->
-  Exports
-</button>
-
-      <button
-        type="button"
-        onClick={() => openPanel("gplf")}
-        className="rf-btn rf-btn-primary px-4 text-sm"
-      >
-        GP&amp;LF
-      </button>
-
-      <button
-        type="button"
-        onClick={() => openPanel("manager")}
-        className="rf-btn rf-btn-primary px-4 text-sm"
-      >
-        Mngr
-      </button>
-
-      {isOwner ? (
-        <button
-          type="button"
-          onClick={() => openPanel("bank")}
-          className="rf-btn rf-btn-primary px-4 text-sm"
-        >
-          Accnt
-        </button>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => openPanel("info")}
-        className="rf-btn rf-btn-primary px-4 text-sm"
-      >
-        Info
-      </button>
-
-      <button
-        type="button"
-        onClick={() => openPanel("maint")}
-        className="rf-btn rf-btn-primary px-4 text-sm"
-      >
-        Maint
-      </button>
-
-      <button
-        type="button"
-        onClick={logout}
-        className="rf-btn rf-btn-secondary px-3 text-xs"
-      >
-        Logout
-      </button>
-    </div>
-  </div>
+  <button
+    type="button"
+    onClick={logout}
+    className="rf-btn rf-btn-secondary px-3 text-xs"
+  >
+    Logout
+  </button>
+</div>
+</div>
 </section>
-
             
       
               <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -2296,10 +2299,10 @@ if (error === "Unauthorized") {
               return (
                 <div
                   key={unit.unitId}
-                  className="overflow-x-auto rounded-[22px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] shadow-[var(--rf-shadow-sm)]"
+                  className="overflow-hidden rounded-[22px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] shadow-[var(--rf-shadow-sm)]"
                 >
-                  <div className="flex min-w-[560px] items-center justify-between gap-3 px-3 py-3 sm:min-w-0">
-                    <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid w-full grid-cols-[auto_minmax(72px,1fr)_minmax(64px,0.8fr)_minmax(74px,0.7fr)] items-center gap-2 px-3 py-3 sm:grid-cols-[auto_minmax(110px,1fr)_minmax(100px,1fr)_minmax(110px,1fr)_minmax(130px,1.2fr)]">
+                    <div className="contents">
                       <span
                         className={`h-3.5 w-3.5 shrink-0 rounded-full ${getStatusDotClass(
                           unit.status
@@ -2309,20 +2312,20 @@ if (error === "Unauthorized") {
                      <button
                       type="button"
                       onClick={() => openUnitPanel(unit)}
-                      className="text-emerald-400 underline font-semibold hover:text-emerald-300 transition"
+                      className="min-w-0 truncate text-left text-sm font-semibold text-[var(--rf-accent)] underline transition hover:opacity-80"
                       >
                       Unit {unit.unitNumber}
                      </button>
 
-                      <div className="min-w-[84px] truncate text-sm font-medium text-[var(--rf-text-soft)]">
+                      <div className="min-w-0 truncate text-sm font-medium text-[var(--rf-text-soft)]">
                         {unit.displayLastName}
                       </div>
 
-                      <div className="min-w-[110px] text-sm font-semibold text-[var(--rf-text)]">
+                      <div className="min-w-0 text-right text-sm font-semibold tabular-nums text-[var(--rf-text)]">
                         {vacant ? "-" : toMoney(unit.balance)}
                       </div>
 
-                      <div className="hidden min-w-[120px] text-xs text-[var(--rf-text-muted)] sm:block">
+                      <div className="hidden min-w-0 truncate text-right text-xs text-[var(--rf-text-muted)] sm:block">
                         {getStatusText(unit.status, unit.daysPastDue)}
                       </div>
                     </div>
@@ -2339,94 +2342,6 @@ if (error === "Unauthorized") {
       ))}
     </div>
   )}
-</section>
-            
-
-<section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-  <div className="text-lg font-semibold text-slate-950">Exports</div>
-  <div className="mt-1 text-sm text-slate-600">
-    Download balances, ledger, or payments by month.
-  </div>
-
-  <div className="mt-4 grid gap-3 sm:grid-cols-5">
-    <select
-      value={exportMonth}
-      onChange={(e) => setExportMonth(e.target.value)}
-      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-    >
-      {exportMonthOptions.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-
-    <select
-      value={exportType}
-      onChange={(e) =>
-        setExportType(e.target.value as "balances" | "ledger" | "payments")
-      }
-      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-    >
-      <option value="balances">Balances</option>
-      <option value="ledger">Ledger</option>
-      <option value="payments">Payments</option>
-    </select>
-
-    <input
-      type="text"
-      value={exportUnitSearch}
-      onChange={(e) => setExportUnitSearch(e.target.value)}
-      placeholder="Search unit (optional)"
-      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-    />
-
-     <button
-  type="button"
-  onClick={() => {
-  const value = exportUnitSearch.trim();
-
-  const exists = data?.units?.some(
-    (u) => u.unitNumber === value
-  );
-
-  if (!exists) {
-    setExportUnitError("Unit not found");
-    setExportSelectedUnit("");
-    return;
-  }
-
-  setExportUnitError("");
-  setExportSelectedUnit(value);
-}}
-  className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
->
-  Search
-</button>
-
-{exportSelectedUnit ? (
-  <div className="text-sm font-semibold text-slate-800">
-    Selected unit: {exportSelectedUnit}
-  </div>
-) : null}
-
-    <button
-      type="button"
-      onClick={runExport}
-      disabled={exporting}
-      className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-    >
-      {exporting ? "Exporting..." : "Export"}
-    </button>
-
-    <button
-  type="button"
-  onClick={() => window.open("/tenant-instructions", "_blank")}
-  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
->
-  Tenant Instructions
-</button>
-</div>
 </section>
            
      </div>
@@ -2829,10 +2744,108 @@ await loadDashboard();
   </OverlayShell>
 ) : null}
 
+{activePanel === "manage" ? (
+  <OverlayShell
+    title="Manage"
+    onClose={closePanel}
+    showFooter={false}
+  >
+    <div className="space-y-5">
+   <div className="rounded-[26px] border border-emerald-300/70 bg-gradient-to-br from-emerald-100 via-sky-100 to-white px-4 py-4 shadow-[var(--rf-shadow-sm)]">
+        <p className="text-base font-semibold tracking-tight text-[var(--rf-text)] sm:text-lg">
+          Everything you need to manage your property — organized in one place.
+        </p>
+        <p className="mt-1 text-sm text-[var(--rf-text-soft)]">
+          Choose a section below. Most setup items only need to be completed once.
+        </p>
+      </div>
+
+      <ManageSection
+        title="Property Setup"
+        helper="Complete your account setup here. Most users only need to do this once."
+        items={[
+          ...(isOwner
+            ? [
+                {
+                  label: "Account & Payouts",
+                  description:
+                    "Connect your bank, enable payments, and set your billing start date.",
+                  panel: "bank" as const,
+                },
+              ]
+            : []),
+          {
+            label: "Management Team",
+            description: "Add or manage who has access to this property.",
+            panel: "manager" as const,
+          },
+          {
+            label: "Maintenance Settings",
+            description: "Set a maintenance PIN and view maintenace requests.",
+            panel: "maint" as const,
+          },
+        ]}
+        openPanel={openPanel}
+      />
+
+      <ManageSection
+        title="Billing Configuration"
+        helper="You already set these during setup. Only change them if your pricing or rules need to be updated."
+        items={[
+          {
+            label: "Tiers",
+            description: "Define rent amounts for each unit type.",
+            panel: "rent" as const,
+          },
+          {
+            label: "Fees & Rules",
+            description: "Change grace periods and late fee behavior.",
+            panel: "gplf" as const,
+          },
+          {
+            label: "Charges",
+            description: "Change the recurring charges like utilities or extra fees.",
+            panel: "charges" as const,
+          },
+        ]}
+        openPanel={openPanel}
+      />
+
+      <ManageSection
+        title="Operations"
+        helper="Use these tools to manage and review your property as it runs."
+        items={[
+          {
+            label: "Exports",
+            description: "Download reports for payments, balances, and records.",
+            panel: "exports" as const,
+          },
+          {
+            label: "Property Info",
+            description: "View your property details, codes, and overview.",
+            panel: "info" as const,
+          },
+        ]}
+        openPanel={openPanel}
+      />
+
+       <div className="pt-2">
+  <button
+    type="button"
+    onClick={() => window.open("/tenant-instructions", "_blank")}
+    className="w-full rounded-2xl bg-[#0f172a] px-4 py-4 text-sm font-semibold text-white transition hover:bg-[#1e293b] active:scale-[0.99] shadow-md"
+  >
+    Tenant Instruction Sheet
+  </button>
+</div>   
+    </div>
+  </OverlayShell>
+) : null} 
+
 
 {activePanel === "rent" ? (
   <RentPanel
-    onClose={closePanel}
+    onClose={goBackToManage}
     canEditRentSettings={canEditRentSettings}
     localTiers={localTiers}
     editingTierId={editingTierId}
@@ -2847,7 +2860,7 @@ await loadDashboard();
   <OverlayShell
     title="Additional Charges"
     subtitle="Manage recurring charges per tier"
-    onClose={closePanel}
+    onClose={goBackToManage}
   >
     <div className="space-y-4">
       {tierCharges.map((tier) => (
@@ -2914,7 +2927,7 @@ await loadDashboard();
   <OverlayShell
     title="Account & Payouts"
     subtitle="Connect and manage the payout account for this property."
-    onClose={closePanel}
+    onClose={goBackToManage}
   >
     <BankPanel
       bankStatus={bankStatus}
@@ -2939,7 +2952,7 @@ await loadDashboard();
 
       {activePanel === "gplf" ? (
   <GpLfPanel
-    onClose={closePanel}
+    onClose={goBackToManage}
     canEditLateFeeSettings={canEditLateFeeSettings}
     gpLfTierMode={gpLfTierMode}
     setGpLfTierMode={setGpLfTierMode}
@@ -2959,7 +2972,7 @@ await loadDashboard();
 
             {activePanel === "manager" ? (
   <ManagerPanel
-    onClose={closePanel}
+    onClose={goBackToManage}
     sessionRole={sessionRole}
     canManageManagers={canManageManagers}
     managers={managers}
@@ -3005,7 +3018,7 @@ await loadDashboard();
 
 {activePanel === "info" ? (
   <InfoPanel
-    onClose={closePanel}
+    onClose={goBackToManage}
     propertyName={propertyName}
     propertyCode={propertyCode}
   />
@@ -3015,7 +3028,7 @@ await loadDashboard();
   <OverlayShell
     title="Exports"
     subtitle="Download balances, ledger, or payments"
-    onClose={closePanel}
+    onClose={goBackToManage}
   >
     <div className="space-y-4">
 
@@ -3068,7 +3081,7 @@ await loadDashboard();
 
 {activePanel === "maint" && (
   <MaintPanel
-    onClose={closePanel}
+    onClose={goBackToManage}
     canManageMaintenance={canManageMaintenance}
     maintenancePin={maintenancePin}
     setMaintenancePin={setMaintenancePin}

@@ -43,6 +43,8 @@ export default function TenantActivateClient({
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [alreadyActivated, setAlreadyActivated] = useState<boolean>(false);
+  const [recentMoveIn, setRecentMoveIn] = useState<boolean | null>(null);
+  const [moveInDate, setMoveInDate] = useState<string>("");
 
   useEffect(() => {
     if (!propertyCode) {
@@ -108,6 +110,16 @@ export default function TenantActivateClient({
       return;
     }
 
+   if (recentMoveIn === null) {
+  setError("Please answer the move-in question.");
+  return;
+}
+
+if (recentMoveIn && !moveInDate) {
+  setError("Select your move-in date.");
+  return;
+}
+
     setLoading(true);
     setError("");
     setAlreadyActivated(false);
@@ -128,6 +140,8 @@ export default function TenantActivateClient({
           tierId: selectedTierId,
           pin: cleanPin,
           confirmPin: cleanConfirmPin,
+recentMoveIn,
+moveInDate: moveInDate || null,
         }),
       });
 
@@ -271,6 +285,46 @@ export default function TenantActivateClient({
                 Go to Tenant Login
               </button>
             )}
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+  <p className="text-sm font-medium">
+    Did you move into this unit within the last 30 days?
+  </p>
+
+  <div className="flex gap-3">
+    <button
+      type="button"
+      onClick={() => setRecentMoveIn(true)}
+      className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+        recentMoveIn === true ? "border-slate-900 bg-white" : "border-slate-200"
+      }`}
+    >
+      Yes
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setRecentMoveIn(false);
+        setMoveInDate("");
+      }}
+      className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+        recentMoveIn === false ? "border-slate-900 bg-white" : "border-slate-200"
+      }`}
+    >
+      No
+    </button>
+  </div>
+
+  {recentMoveIn === true && (
+    <input
+      type="date"
+      value={moveInDate}
+      onChange={(e) => setMoveInDate(e.target.value)}
+      className={inputClass(false)}
+    />
+  )}
+</div>
 
             <button
               type="submit"

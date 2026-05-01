@@ -400,20 +400,34 @@ export default function TenantDashboard() {
             </>
           ) : (
             <>
-              <p className="mt-2 text-4xl font-semibold tracking-tight">
-                {money(totalDue)}
-              </p>
+              {totalDue <= 0 ? (
+  <>
+    <p className="mt-2 text-4xl font-semibold tracking-tight">
+      {money(0)}
+    </p>
 
-              <p className="mt-2 text-sm font-medium">
-                {data.isDelinquent ? (
-                  <span className="text-red-600">Past Due</span>
-                ) : (
-                  <span className="text-green-600">Current</span>
-                )}
-              </p>
-            </>
-          )}
-        </div>
+    <p className="mt-3 text-sm font-semibold text-green-700">
+      You're all paid up. Check back on your next due date.
+    </p>
+  </>
+) : (
+  <>
+    <p className="mt-2 text-4xl font-semibold tracking-tight">
+      {money(totalDue)}
+    </p>
+
+    <p className="mt-2 text-sm font-medium">
+      {data.isDelinquent ? (
+        <span className="text-red-600">Past Due</span>
+      ) : (
+        <span className="text-green-600">Current</span>
+      )}
+    </p>
+  </>
+)}
+</>
+)}
+</div>
 
         {statement ? (
           <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
