@@ -217,9 +217,9 @@ export async function getUnitLedgerSummary(
     }
 
     if (isPaymentEntry(entryType) && paymentStatus === "PENDING") {
-      hasPendingPayment = true;
-      pendingPaymentAmountCents += Math.abs(rawAmountCents);
-    }
+  hasPendingPayment = true;
+  pendingPaymentAmountCents += Math.max(0, Math.abs(rawAmountCents));
+}
 
     if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {
       const paymentAbsCents = Math.abs(rawAmountCents);

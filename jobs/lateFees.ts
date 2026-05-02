@@ -7,10 +7,6 @@ function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function getBillingCycle(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function safeDate(date: Date): Date {
   return Number.isNaN(date.getTime()) ? new Date() : date;
 }
@@ -29,7 +25,6 @@ type LateFeesJobResult = {
 export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResult> {
   const now = safeDate(asOf);
   const effectiveDate = startOfDay(now);
-  const billingCycle = getBillingCycle(effectiveDate);
   const effectiveDay = isoDay(effectiveDate);
 
   const units = await prisma.unit.findMany({
@@ -67,11 +62,18 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
       }
 
       const effective = resolveEffectiveBillingSettings({
-        tier: unit.tier,
-        propertySettings: unit.property.settings,
-      });
+  tier: unit.tier,
+  propertySettings: unit.property.settings,
+});
 
-      const delinquency = await getUnitDelinquencySummary(unit.id, now);
+const rentDates = getRentDateSummary({
+  ...effective,
+  now,
+});
+
+const billingCycle = rentDates.billingCycle;
+
+const delinquency = await getUnitDelinquencySummary(unit.id, now);
 
       if (!delinquency.isDelinquent || delinquency.daysPastDue <= 0) {
         skipped++;
@@ -180,9 +182,9 @@ if (blockingPayment) {
   });
 
   return {
-    ok: true,
-    billingCycle,
-    posted,
-    skipped,
-  };
+  ok: true,
+  billingCycle: "per-unit",
+  posted,
+  skipped,
+};
 }

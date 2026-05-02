@@ -473,7 +473,20 @@ export async function GET() {
         totalPaidCents: 0,
       };
 
+      const effective = resolveEffectiveBillingSettings({
+        tier: unit.tier,
+        propertySettings: property.settings,
+      });
+
+      const rentDates = getRentDateSummary({
+        ...effective,
+        now,
+      });
+
+
       let rentChargesCents = 0;
+
+      let currentCycleBalanceCents = 0;
 
       for (const entry of unitLedgerEntries) {
         if (
@@ -497,11 +510,17 @@ export async function GET() {
         const rawAmountCents = toSafeInteger(entry.amountCents);
         const paymentStatus = normalizePaymentStatus(entry.payment?.status);
 
-        ledger.balanceCents += getLedgerImpactCents({
-          entryType,
-          amountCents: rawAmountCents,
-          paymentStatus,
-        });
+        const impactCents = getLedgerImpactCents({
+  entryType,
+  amountCents: rawAmountCents,
+  paymentStatus,
+});
+
+ledger.balanceCents += impactCents;
+
+if (entry.billingCycle === rentDates.billingCycle) {
+  currentCycleBalanceCents += impactCents;
+}
 
         if (entryType === "CHARGE") {
           ledger.totalChargesCents += Math.abs(rawAmountCents);
@@ -520,21 +539,12 @@ export async function GET() {
         }
       }
 
-      const effective = resolveEffectiveBillingSettings({
-        tier: unit.tier,
-        propertySettings: property.settings,
-      });
-
-      const rentDates = getRentDateSummary({
-        ...effective,
-        now,
-      });
-
+     
       const dueDate = parseDateOnly(rentDates.dueDate);
-      const isDelinquent =
-        ledger.balanceCents > 0 &&
-        rentDates.isDelinquent &&
-        dueDate !== null;
+    const isDelinquent =
+  currentCycleBalanceCents > 0 &&
+  rentDates.isDelinquent &&
+  dueDate !== null;
 
       const daysPastDue =
         isDelinquent && dueDate ? diffDays(today, dueDate) : 0;
@@ -564,7 +574,7 @@ export async function GET() {
         delinquentCount++;
       }
 
-      if (ledger.balanceCents > 0) {
+      if (currentCycleBalanceCents > 0) {
         unpaidUnitsCount++;
       } else {
         totalPaidCount++;
@@ -592,7 +602,7 @@ export async function GET() {
         (payment: DashboardPaymentRow) => payment.status === "REVERSED"
       );
 
-      if (ledger.balanceCents <= 0) {
+      if (currentCycleBalanceCents <= 0) {
         paymentStatus = "PAID";
       } else if (hasReversed || hasFailed) {
         paymentStatus = "FAILED";

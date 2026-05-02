@@ -5,6 +5,10 @@ import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { canMakePayments } from "@/lib/liveGating";
 import { getProcessingFeeCents } from "@/lib/billingConfig";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 
 export const runtime = "nodejs";
@@ -25,9 +29,6 @@ function toSafeInteger(value: unknown): number {
   return Math.trunc(n);
 }
 
-function getBillingCycle(date: Date): string {
-  return date.toISOString().slice(0, 7); // YYYY-MM
-}
 
 export async function POST(req: Request) {
 
@@ -143,7 +144,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const ledger = await getUnitLedgerSummary(unit.id);
+    const assignment = unit.tenantAssignments[0] ?? null;
+
+const ledger = await getUnitLedgerSummary(
+  unit.id,
+  assignment?.id ?? undefined
+);
     const balanceCents = Math.max(0, toSafeInteger(ledger.balanceCents));
 
     if (balanceCents <= 0) {
@@ -155,7 +161,19 @@ export async function POST(req: Request) {
 
     const processingFeeCents = getProcessingFeeCents(balanceCents);
     const totalCents = balanceCents + processingFeeCents;
-    const billingCycle = getBillingCycle(new Date());
+    const now = new Date();
+
+const effectiveBillingSettings = resolveEffectiveBillingSettings({
+  tier: unit.tier ?? null,
+  propertySettings: property.settings ?? null,
+});
+
+const rentDates = getRentDateSummary({
+  ...effectiveBillingSettings,
+  now,
+});
+
+const billingCycle = rentDates.billingCycle;
 
     if (totalCents <= 0) {
       return NextResponse.json<ApiError>(
@@ -164,21 +182,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const assignment = unit.tenantAssignments[0] ?? null;
     const tenantAssignmentId = assignment?.id ?? null;
 
-    const existingPayment = await prisma.payment.findFirst({
-      where: {
-        unitId: unit.id,
-        billingCycle,
-        status: {
-          in: ["PENDING", "PAID"],
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
+   const existingPayment = await prisma.payment.findFirst({
+  where: {
+    unitId: unit.id,
+    tenantAssignmentId: tenantAssignmentId ?? undefined,
+    billingCycle,
+    status: {
+      in: ["PENDING", "PAID"],
+    },
+  },
+  select: {
+    id: true,
+  },
+});
 
     if (existingPayment) {
       return NextResponse.json<ApiError>(

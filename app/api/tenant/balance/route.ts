@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
+import { prisma } from "@/lib/prisma";
 
 
 export const runtime = "nodejs";
@@ -13,7 +14,20 @@ export async function GET() {
       return NextResponse.json({ error: "Invalid session." }, { status: 401 });
     }
 
-    const summary = await getUnitLedgerSummary(session.unitId);
+    const assignment = await prisma.tenantAssignment.findFirst({
+  where: {
+    propertyId: session.propertyId,
+    unitId: session.unitId,
+    isCurrent: true,
+  },
+  orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+  select: { id: true },
+});
+
+const summary = await getUnitLedgerSummary(
+  session.unitId,
+  assignment?.id ?? undefined
+);
 
     return NextResponse.json({
       ok: true,

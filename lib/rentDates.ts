@@ -138,11 +138,32 @@ export function getRentDateSummary(
   config: RentDateConfig
 ): RentDateSummary {
   const now = config.now ?? new Date();
-  const { year, month } = getChicagoParts(now);
 
-  const safeDueDay = clampDay(year, month, config.dueDay);
+  const { year, month, day } = getChicagoParts(now);
 
-  const dueDate = new Date(year, month - 1, safeDueDay);
+  // Determine correct billing cycle based on due date
+  const isBeforeDueDay = day < config.dueDay;
+
+  const cycleMonth = isBeforeDueDay
+    ? month === 1
+      ? 12
+      : month - 1
+    : month;
+
+  const cycleYear =
+    isBeforeDueDay && month === 1 ? year - 1 : year;
+
+  const safeDueDay = clampDay(
+    cycleYear,
+    cycleMonth,
+    config.dueDay
+  );
+
+  const dueDate = new Date(
+    cycleYear,
+    cycleMonth - 1,
+    safeDueDay
+  );
 
   const graceEnds = addDays(dueDate, config.gracePeriodDays);
 
@@ -170,12 +191,12 @@ export function getRentDateSummary(
     }
   }
 
-  const today = new Date(year, month - 1, getChicagoParts(now).day);
+  const today = new Date(year, month - 1, day);
 
   const isDelinquent = today > graceEnds;
 
   return {
-    billingCycle: `${year}-${String(month).padStart(2, "0")}`,
+    billingCycle: `${cycleYear}-${String(cycleMonth).padStart(2, "0")}`,
     dueDate: toDateOnlyString(dueDate),
     graceEndsOn: toDateOnlyString(graceEnds),
     initialLateFeeDate: initialLateFeeDate

@@ -33,13 +33,14 @@ export async function getUnitDelinquencySummary(
         take: 1,
       },
       ledgerEntries: {
-        where: { voidedAt: null },
-        select: {
-          entryType: true,
-          chargeType: true,
-          amountCents: true,
-        },
+       where: { voidedAt: null },
+       select: {
+       entryType: true,
+       chargeType: true,
+       amountCents: true,
+       billingCycle: true,
       },
+     },
     },
   });
 
@@ -97,11 +98,15 @@ export async function getUnitDelinquencySummary(
 
   let rentChargesCents = 0;
 
-  for (const entry of unit.ledgerEntries) {
-    if (entry.entryType === "CHARGE" && entry.chargeType === "RENT") {
-      rentChargesCents += entry.amountCents ?? 0;
-    }
+ for (const entry of unit.ledgerEntries) {
+  if (
+    entry.entryType === "CHARGE" &&
+    entry.chargeType === "RENT" &&
+    entry.billingCycle === rentDates.billingCycle
+  ) {
+    rentChargesCents += entry.amountCents ?? 0;
   }
+}
 
   const totalBalanceCents = ledger.balanceCents;
 

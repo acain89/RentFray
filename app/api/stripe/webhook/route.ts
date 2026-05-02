@@ -404,9 +404,17 @@ export async function POST(req: Request) {
   const stripeAccountId = safeString(metadata.stripeAccountId);
   const propertyId = safeString(metadata.propertyId);
   const unitId = safeString(metadata.unitId);
-  const tenantAssignmentId =
-    safeString(metadata.tenantAssignmentId) || null;
+  
 
+const tenantAssignmentId = safeString(metadata.tenantAssignmentId);
+
+if (!tenantAssignmentId) {
+  console.error("MISSING TENANT ASSIGNMENT — BLOCKED", {
+    intentId: succeededIntent.id,
+  });
+
+  return NextResponse.json({ received: true });
+}
   // ✅ USE SNAPSHOT FROM STRIPE (NOT LIVE LEDGER)
   const balanceCents = parseCents(metadata.ledgerBalanceCents);
   const feeCents = parseCents(metadata.processingFeeCents);
@@ -473,8 +481,15 @@ export async function POST(req: Request) {
         now: effectiveDate,
       });
 
-      const billingCycle =
-        safeString(metadata.billingCycle) || rentDates.billingCycle;
+      const billingCycle = safeString(metadata.billingCycle);
+
+if (!billingCycle) {
+  console.error("MISSING BILLING CYCLE IN METADATA — BLOCKED", {
+    intentId: succeededIntent.id,
+  });
+
+  return NextResponse.json({ received: true });
+}
 
       const payment = await ensurePaymentFromIntent(succeededIntent);
 

@@ -131,10 +131,52 @@ export async function GET(req: Request) {
       units.map(async (unit: UnitWithRelations) => {
         const currentAssignment = unit.tenantAssignments?.[0] ?? null;
 
+        const cycleEntries = billingCycle
+  ? await prisma.ledgerEntry.findMany({
+      where: {
+        propertyId: session.propertyId,
+        unitId: unit.id,
+        tenantAssignmentId: currentAssignment?.id ?? undefined,
+        billingCycle,
+        voidedAt: null,
+      },
+    })
+  : [];
+
         const summary = await getUnitLedgerSummary(
-          unit.id,
-          currentAssignment?.id
-        );
+  unit.id,
+  currentAssignment?.id
+);
+
+let cycleChargesCents = summary.totalChargesCents;
+let cyclePaidCents = summary.totalPaidCents;
+let cycleBalanceCents = summary.balanceCents;
+
+if (billingCycle) {
+  cycleChargesCents = 0;
+  cyclePaidCents = 0;
+  cycleBalanceCents = 0;
+
+  for (const entry of cycleEntries) {
+    if (entry.entryType === "CHARGE") {
+      cycleChargesCents += entry.amountCents;
+      cycleBalanceCents += entry.amountCents;
+    }
+
+    if (
+      entry.entryType === "PAYMENT" &&
+      entry.payment &&
+      entry.payment.status === "PAID"
+    ) {
+      cyclePaidCents += Math.abs(entry.amountCents);
+      cycleBalanceCents -= Math.abs(entry.amountCents);
+    }
+
+    if (entry.entryType === "CREDIT") {
+      cycleBalanceCents -= Math.abs(entry.amountCents);
+    }
+  }
+}
 
         const delinquency = await getUnitDelinquencySummary(unit.id);
 
@@ -155,12 +197,12 @@ export async function GET(req: Request) {
           tierName: unit.tier?.name ?? "",
           marketRentCents,
           marketRent: formatCentsToDollars(marketRentCents),
-          currentBalanceCents: summary.balanceCents,
-          currentBalance: formatCentsToDollars(summary.balanceCents),
-          totalChargesCents: summary.totalChargesCents,
-          totalCharges: formatCentsToDollars(summary.totalChargesCents),
-          totalPaidCents: summary.totalPaidCents,
-          totalPaid: formatCentsToDollars(summary.totalPaidCents),
+          currentBalanceCents: cycleBalanceCents,
+          currentBalance: formatCentsToDollars(cycleBalanceCents),
+          totalChargesCents: cycleChargesCents,
+          totalCharges: formatCentsToDollars(cycleChargesCents),
+          totalPaidCents: cyclePaidCents,
+          totalPaid: formatCentsToDollars(cyclePaidCents),
           lastPaymentDate: fmtDate(summary.lastPaymentDate),
           lastPaymentAmountCents: summary.lastPaymentAmountCents ?? 0,
           lastPaymentAmount:

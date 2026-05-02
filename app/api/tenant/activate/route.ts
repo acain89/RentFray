@@ -237,19 +237,92 @@ if (recentMoveIn && moveInDate) {
 }
 
 if (shouldPostRent) {
-  await prisma.ledgerEntry.create({
-    data: {
-      propertyId: property.id,
-      unitId: savedUnit.id,
-      tenantAssignmentId: tenantAssignment.id,
-      entryType: "CHARGE",
-      chargeType: "RENT",
-      amountCents: selectedTier.baseRentCents,
-      effectiveDate: new Date(),
-      billingCycle,
-      memo: "Base Rent",
-    },
+  const now = new Date();
+
+  const { getRentDateSummary, resolveEffectiveBillingSettings } =
+    await import("@/lib/rentDates");
+
+  const propertyWithSettings = await prisma.property.findUnique({
+    where: { id: property.id },
+    include: { settings: true },
   });
+
+  if (propertyWithSettings?.settings) {
+    const effective = resolveEffectiveBillingSettings({
+      tier: selectedTier,
+      propertySettings: propertyWithSettings.settings,
+    });
+
+    const rentDates = getRentDateSummary({
+      ...effective,
+      now,
+    });
+
+    const graceEnd = new Date(rentDates.graceEndsOn + "T00:00:00");
+
+    // 🔹 POST RENT
+    await prisma.ledgerEntry.create({
+      data: {
+        propertyId: property.id,
+        unitId: savedUnit.id,
+        tenantAssignmentId: tenantAssignment.id,
+        entryType: "CHARGE",
+        chargeType: "RENT",
+        amountCents: selectedTier.baseRentCents,
+        effectiveDate: now,
+        billingCycle,
+        memo: "Base Rent",
+      },
+    });
+
+    // 🔹 LATE FEE CATCH-UP
+    if (now > graceEnd) {
+      const daysLate = Math.floor(
+        (now.getTime() - graceEnd.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      const maxDays = effective.maxLateFeeDays ?? 0;
+      const applicableDays = Math.min(daysLate, maxDays);
+
+      // Initial late fee
+      if (effective.lateFeeInitialCents > 0) {
+        await prisma.ledgerEntry.create({
+          data: {
+            propertyId: property.id,
+            unitId: savedUnit.id,
+            tenantAssignmentId: tenantAssignment.id,
+            entryType: "CHARGE",
+            chargeType: "LATE_FEE_INITIAL",
+            amountCents: effective.lateFeeInitialCents,
+            effectiveDate: now,
+            billingCycle,
+            memo: "Initial late fee",
+          },
+        });
+      }
+
+      // Daily late fees
+      for (let i = 1; i <= applicableDays; i++) {
+        const feeDate = new Date(graceEnd.getTime() + i * 86400000);
+
+        await prisma.ledgerEntry.create({
+          data: {
+            propertyId: property.id,
+            unitId: savedUnit.id,
+            tenantAssignmentId: tenantAssignment.id,
+            entryType: "CHARGE",
+            chargeType: "LATE_FEE_DAILY",
+            amountCents: effective.lateFeeDailyCents ?? 0,
+            effectiveDate: feeDate,
+            billingCycle,
+            memo: `Daily late fee for ${feeDate
+              .toISOString()
+              .slice(0, 10)}`,
+          },
+        });
+      }
+    }
+  }
 }
 
 // ---------------- SESSION ----------------

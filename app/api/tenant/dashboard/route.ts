@@ -256,7 +256,12 @@ if (
       propertySettings: property.settings,
     });
 
-    const rentDates = getRentDateSummary(effectiveBillingSettings);
+    const now = new Date();
+
+const rentDates = getRentDateSummary({
+  ...effectiveBillingSettings,
+  now,
+});
     const billingCycle = rentDates.billingCycle;
 
     const cyclePayments = await prisma.payment.findMany({
@@ -363,7 +368,10 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
 
     const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
 
-    const statementSourceEntries = filteredLedgerEntries;
+    const statementSourceEntries = filteredLedgerEntries.filter(
+  (entry: (typeof filteredLedgerEntries)[number]) =>
+    entry.billingCycle === billingCycle
+);
 
     let rentCents = 0;
     let recurringChargesCents = 0;
