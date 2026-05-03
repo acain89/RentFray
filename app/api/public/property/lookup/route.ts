@@ -2,7 +2,6 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { canAccessTenantPortal } from "@/lib/liveGating";
 
 
 export const runtime = "nodejs";
@@ -38,14 +37,6 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Property not found." },
         { status: 404 }
-      );
-    }
-
-    // ✅ CENTRALIZED GATING
-    if (!canAccessTenantPortal(property)) {
-      return NextResponse.json(
-        { error: "Property not available yet." },
-        { status: 403 }
       );
     }
 

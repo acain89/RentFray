@@ -104,23 +104,6 @@ export function shouldDisplayPaid(status: PaymentStatus): boolean {
 
 /*
 ========================================================
-MANAGER COLOR MAPPING (SV / FV)
-========================================================
-*/
-
-export function getStatusColor(status: PaymentStatus): "red" | "yellow" | "green" {
-  switch (status) {
-    case "PAID":
-      return "green";
-    case "PENDING":
-      return "yellow";
-    default:
-      return "red";
-  }
-}
-
-/*
-========================================================
 PAYMENT SYSTEM READINESS
 ========================================================
 */

@@ -9,6 +9,7 @@ import {
 import { formatCentsToDollars } from "@/lib/billingConfig";
 import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
+import { getUnitStatus } from "@/lib/unitStatusEngine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -590,25 +591,25 @@ if (entry.billingCycle === rentDates.billingCycle) {
         else if (hasPortal) portalPaidCount++;
       }
 
-      let paymentStatus: PaymentStatus = "UNPAID";
+       const hasPending = cyclePayments.some(
+  (payment: DashboardPaymentRow) => payment.status === "PENDING"
+);
+const hasFailed = cyclePayments.some(
+  (payment: DashboardPaymentRow) => payment.status === "FAILED"
+);
+const hasReversed = cyclePayments.some(
+  (payment: DashboardPaymentRow) => payment.status === "REVERSED"
+);
 
-      const hasPending = cyclePayments.some(
-        (payment: DashboardPaymentRow) => payment.status === "PENDING"
-      );
-      const hasFailed = cyclePayments.some(
-        (payment: DashboardPaymentRow) => payment.status === "FAILED"
-      );
-      const hasReversed = cyclePayments.some(
-        (payment: DashboardPaymentRow) => payment.status === "REVERSED"
-      );
-
-      if (currentCycleBalanceCents <= 0) {
-        paymentStatus = "PAID";
-      } else if (hasReversed || hasFailed) {
-        paymentStatus = "FAILED";
-      } else if (hasPending) {
-        paymentStatus = "PENDING";
-      }
+const unitStatus = getUnitStatus({
+  balanceCents: ledger.balanceCents,
+  currentCycleBalanceCents,
+  hasPendingPayment: hasPending,
+  hasFailedPayment: hasFailed,
+  hasReversedPayment: hasReversed,
+  isDelinquent,
+  isWithinGracePeriod: currentCycleBalanceCents > 0 && !isDelinquent,
+});    
 
       return {
         unitId: unit.id,
@@ -622,7 +623,11 @@ if (entry.billingCycle === rentDates.billingCycle) {
         totalPaid: formatCentsToDollars(ledger.totalPaidCents),
         isDelinquent,
         daysPastDue,
-        paymentStatus,
+        paymentStatus: unitStatus.paymentStatus,
+        displayStatus: unitStatus.status,
+        statusColor: unitStatus.color,
+        statusLabel: unitStatus.label,
+        tenantMessage: unitStatus.tenantMessage,
         tierName: unit.tier?.name ?? "Units",
        nextCycleAdjustments: unitNextEntries
   .filter(

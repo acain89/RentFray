@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getUnitStatus } from "@/lib/unitStatusEngine";
 import { getSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
@@ -301,31 +302,19 @@ const hasReversed = cyclePayments.some(
   (p: { status: PaymentStatus }) => p.status === "REVERSED"
 );
 
-let tenantPaymentStatus: PaymentStatus = "UNPAID";
+const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
 
-if (totalDueCents <= 0) {
-  tenantPaymentStatus = "PAID";
-} else if (hasPending) {
-  tenantPaymentStatus = "PENDING";
-} else if (hasReversed) {
-  tenantPaymentStatus = "REVERSED";
-} else if (hasFailed) {
-  tenantPaymentStatus = "FAILED";
-}
+const unitStatus = getUnitStatus({
+  balanceCents,
+  currentCycleBalanceCents: balanceCents, // tenant view = current
+  hasPendingPayment: hasPending,
+  hasFailedPayment: hasFailed,
+  hasReversedPayment: hasReversed,
+  isDelinquent,
+  isWithinGracePeriod: balanceCents > 0 && !isDelinquent,
+});
 
-    let paymentMessage = "Payment required.";
-
-if (tenantPaymentStatus === "PENDING") {
-  paymentMessage = "Payment pending — your bank is processing this payment.";
-} else if (tenantPaymentStatus === "PAID") {
-  paymentMessage = "You're all paid up. Check back on your next due date.";
-} else if (tenantPaymentStatus === "FAILED") {
-  paymentMessage = "Payment failed — please try again.";
-} else if (tenantPaymentStatus === "REVERSED") {
-  paymentMessage = "Payment reversed.";
-}
-
-    const ledgerEntries = await prisma.ledgerEntry.findMany({
+       const ledgerEntries = await prisma.ledgerEntry.findMany({
       where: {
         propertyId: session.propertyId,
         unitId: session.unitId,
@@ -365,8 +354,6 @@ if (tenantPaymentStatus === "PENDING") {
 return status === "PAID" || status === "PENDING" || status === "REVERSED";
       }
     );
-
-    const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
 
     const statementSourceEntries = filteredLedgerEntries.filter(
   (entry: (typeof filteredLedgerEntries)[number]) =>
@@ -456,8 +443,12 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
         items: statementItems,
       },
 
-      paymentStatus: tenantPaymentStatus,
-      paymentMessage,
+      paymentStatus: unitStatus.paymentStatus,
+      displayStatus: unitStatus.status,
+      statusColor: unitStatus.color,
+      statusLabel: unitStatus.label,
+      
+paymentMessage: unitStatus.tenantMessage,
      latestPaymentTimestamp:
      latestPayment?.paidAt?.toISOString() ??
      latestPayment?.failedAt?.toISOString() ??

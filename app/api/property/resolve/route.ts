@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 type ResolveRequestBody = {
   code?: string;
   propertyCode?: string;
@@ -12,7 +12,6 @@ type ResolveRequestBody = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Partial<ResolveRequestBody>;
-
     const propertyCode = String(body.code ?? body.propertyCode ?? "").trim();
 
     if (!/^\d{4,5}$/.test(propertyCode)) {
@@ -22,25 +21,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const property = await prisma.property.findFirst({
-  where: {
-    propertyCode,
-  },
+    const property = await prisma.property.findUnique({
+  where: { propertyCode },
   select: {
     id: true,
     name: true,
     propertyCode: true,
-    tiers: {
-      where: {
-        isActive: true,
-      },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        baseRentCents: true,
-      },
-    },
   },
 });
 
@@ -51,7 +37,18 @@ export async function POST(req: Request) {
       );
     }
 
-    type PropertyTier = (typeof property.tiers)[number];
+    const tiers = await prisma.tier.findMany({
+      where: {
+        propertyId: property.id,
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        baseRentCents: true,
+      },
+    });
 
     return NextResponse.json({
       ok: true,
@@ -60,11 +57,7 @@ export async function POST(req: Request) {
         name: property.name,
         propertyCode: property.propertyCode,
       },
-      tiers: property.tiers.map((tier: PropertyTier) => ({
-        id: tier.id,
-        name: tier.name,
-        baseRentCents: tier.baseRentCents,
-      })),
+      tiers,
     });
   } catch (error: unknown) {
     console.error("PROPERTY_RESOLVE_ERROR:", error);

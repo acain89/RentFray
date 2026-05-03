@@ -44,6 +44,11 @@ export default function AdminPage() {
     [properties]
   );
 
+const totalProperties = useMemo(
+  () => properties.length,
+  [properties]
+);
+
   const refresh = useCallback(() => {
     setRefreshTick((p) => p + 1);
   }, []);
@@ -213,7 +218,7 @@ export default function AdminPage() {
                 color: "#0f172a",
               }}
             >
-              Total Occupied: {totalOccupiedUnits}/{totalEffectiveUnits}
+              Total Accounts / Units: {totalProperties}/{totalEffectiveUnits}
             </div>
           )}
 
