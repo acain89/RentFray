@@ -8,16 +8,10 @@ export type UnitDisplayStatus =
   | "PAST_DUE"
   | "UNPAID";
 
-export type UnitStatusColor =
-  | "green"
-  | "yellow"
-  | "orange"
-  | "blue"
-  | "red";
+export type UnitStatusColor = "green" | "yellow" | "orange" | "blue" | "red";
 
 export type UnitStatusInput = {
   balanceCents: number;
-  currentCycleBalanceCents: number;
   hasPendingPayment: boolean;
   hasFailedPayment: boolean;
   hasReversedPayment: boolean;
@@ -35,9 +29,6 @@ export type UnitStatusResult = {
 
 export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
   const balanceCents = Math.trunc(Number(input.balanceCents) || 0);
-  const currentCycleBalanceCents = Math.trunc(
-    Number(input.currentCycleBalanceCents) || 0
-  );
 
   if (input.hasPendingPayment) {
     return {
@@ -45,7 +36,8 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       paymentStatus: "PENDING",
       color: "yellow",
       label: "Payment pending",
-      tenantMessage: "Your payment is pending. Your balance will update after the payment clears.",
+      tenantMessage:
+        "Your payment is pending. Your balance will update after the payment clears.",
     };
   }
 
@@ -55,11 +47,12 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       paymentStatus: "FAILED",
       color: "orange",
       label: "Payment failed",
-      tenantMessage: "Your payment failed or was reversed. Please submit a new payment.",
+      tenantMessage:
+        "Your payment failed or was reversed. Please submit a new payment.",
     };
   }
 
-  if (balanceCents <= 0 || currentCycleBalanceCents <= 0) {
+  if (balanceCents <= 0) {
     return {
       status: "PAID",
       paymentStatus: "PAID",
@@ -75,7 +68,8 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       paymentStatus: "UNPAID",
       color: "blue",
       label: "Balance due",
-      tenantMessage: "You have a balance due, but you are still within the grace period.",
+      tenantMessage:
+        "You have a balance due, but you are still within the grace period.",
     };
   }
 

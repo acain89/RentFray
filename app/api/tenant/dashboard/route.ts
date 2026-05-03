@@ -306,7 +306,6 @@ const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
 
 const unitStatus = getUnitStatus({
   balanceCents,
-  currentCycleBalanceCents: balanceCents, // tenant view = current
   hasPendingPayment: hasPending,
   hasFailedPayment: hasFailed,
   hasReversedPayment: hasReversed,
