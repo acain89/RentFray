@@ -21,8 +21,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const property = await prisma.property.findUnique({
-  where: { propertyCode },
+    const property = await prisma.property.findFirst({
+  where: {
+    propertyCode: {
+      equals: propertyCode,
+      mode: "insensitive",
+    },
+  },
   select: {
     id: true,
     name: true,
@@ -32,7 +37,7 @@ export async function POST(req: Request) {
 
     if (!property) {
       return NextResponse.json(
-        { error: "Invalid property code" },
+        { error: "Invalid property code." },
         { status: 404 }
       );
     }

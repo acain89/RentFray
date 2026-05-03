@@ -236,7 +236,6 @@ export default function TenantDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
-  const [amount, setAmount] = useState<string>("");
 
   async function logout(): Promise<void> {
     try {
@@ -288,11 +287,6 @@ export default function TenantDashboard() {
         }
 
         setData(normalized);
-
-        const dueAmount =
-          normalized.statement?.totalDue ?? normalized.balance ?? 0;
-
-        setAmount(Number(dueAmount || 0).toFixed(2));
       } catch {
         if (!active) return;
         setError("Failed to load dashboard.");
@@ -349,14 +343,6 @@ export default function TenantDashboard() {
   const totalDue = statement?.totalDue ?? data.balance;
   const pendingMessage =
     data.paymentMessage || "Payment in progress — no further action required";
-
-  const parsedAmount = Number(amount);
-  const numericAmount =
-    amount.trim() !== "" &&
-    Number.isFinite(parsedAmount) &&
-    parsedAmount > 0
-      ? parsedAmount
-      : null;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 px-4 py-6 text-slate-900">
@@ -511,35 +497,41 @@ export default function TenantDashboard() {
           </div>
         ) : null}
 
-        {!paymentBlocked && !isPending && totalDue > 0 ? (
-          <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold">Make a Payment</p>
+         {totalDue > 0 ? (
+  <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <div>
+      <p className="text-sm font-semibold">Make a Payment</p>
+      <p className="mt-1 text-sm text-slate-600">
+        Amount due: <span className="font-semibold">{money(totalDue)}</span>
+      </p>
+    </div>
 
-            <input
-              type="number"
-              step="0.01"
-              min="1"
-              value={amount}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "" || Number(val) >= 0) {
-                  setAmount(val);
-                }
-              }}
-              className="w-full rounded-xl border px-4 py-3 text-lg"
-            />
+    {isPending ? (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        {pendingMessage}
+      </div>
+    ) : null}
 
-            {numericAmount !== null ? (
-              <PayNowButton unitId={data.unitId} amount={numericAmount} />
-            ) : null}
-          </div>
-        ) : null}
+    {paymentBlocked && !isPending ? (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Payments are currently disabled.
+      </div>
+    ) : null}
 
-        {paymentBlocked && !isPending ? (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-            Payments are currently disabled.
-          </div>
-        ) : null}
+    <PayNowButton
+      unitId={data.unitId}
+      amount={totalDue}
+      disabled={paymentBlocked || isPending}
+      disabledReason={
+        isPending
+          ? pendingMessage
+          : paymentBlocked
+            ? "Payments are currently disabled for this property."
+            : "Payment is not available right now."
+      }
+    />
+  </div>
+) : null}        
 
         <div className="grid grid-cols-2 gap-3">
           <button

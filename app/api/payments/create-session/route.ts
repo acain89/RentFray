@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, refreshSessionCookie } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { canMakePayments } from "@/lib/liveGating";
 import { getProcessingFeeCents } from "@/lib/billingConfig";
@@ -48,37 +48,40 @@ export async function POST(req: Request) {
 
     const session = await getSession();
 
-    if (
-      !session ||
-      session.role !== "TENANT" ||
-      !session.unitId ||
-      !session.propertyId
-    ) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+if (
+  !session ||
+  session.role !== "TENANT" ||
+  !session.unitId ||
+  !session.propertyId
+) {
+  return NextResponse.json<ApiError>(
+    { ok: false, error: "Unauthorized" },
+    { status: 401 }
+  );
+}
 
-    const unit = await prisma.unit.findFirst({
-      where: {
-        id: session.unitId,
-        propertyId: session.propertyId,
-      },
+await refreshSessionCookie(session);
+
+     const unit = await prisma.unit.findFirst({
+  where: {
+    id: session.unitId,
+    propertyId: session.propertyId,
+  },
+  include: {
+    property: {
       include: {
-        property: {
-          include: {
-            settings: true,
-            paymentStatus: true,
-            units: true,
-          },
-        },
-        tenantAssignments: {
-          where: { isCurrent: true },
-          take: 1,
-        },
+        settings: true,
+        paymentStatus: true,
+        units: true,
       },
-    });
+    },
+    tenantAssignments: {
+      where: { isCurrent: true },
+      take: 1,
+    },
+  },
+});
+
 
     if (!unit) {
       return NextResponse.json<ApiError>(
@@ -171,6 +174,7 @@ const effectiveBillingSettings = resolveEffectiveBillingSettings({
 const rentDates = getRentDateSummary({
   ...effectiveBillingSettings,
   now,
+  billingCycleStartDate: property.billingCycleStartDate,
 });
 
 const billingCycle = rentDates.billingCycle;
@@ -184,6 +188,8 @@ const billingCycle = rentDates.billingCycle;
 
     const tenantAssignmentId = assignment?.id ?? null;
 
+   
+
    const existingPayment = await prisma.payment.findFirst({
   where: {
     unitId: unit.id,
@@ -193,17 +199,27 @@ const billingCycle = rentDates.billingCycle;
       in: ["PENDING", "PAID"],
     },
   },
-  select: {
-    id: true,
-  },
+  select: { id: true },
 });
 
-    if (existingPayment) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "Payment already in progress or completed." },
-        { status: 400 }
-      );
-    }
+if (existingPayment) {
+  return NextResponse.json(
+    { ok: false, error: "Payment already in progress." },
+    { status: 400 }
+  );
+}
+
+   const createdPayment = await prisma.payment.create({
+  data: {
+    propertyId: property.id,
+    unitId: unit.id,
+    tenantAssignmentId: tenantAssignmentId ?? undefined,
+    billingCycle,
+    amountCents: balanceCents,
+    processingFeeCents,
+    status: "PENDING",
+  },
+});
 
     if (!property.stripeAccountId) {
       return NextResponse.json<ApiError>(
@@ -223,7 +239,8 @@ const billingCycle = rentDates.billingCycle;
       "http://localhost:10000";
 
     
-     const paymentMetadata = {
+   const paymentMetadata = {
+  paymentId: createdPayment.id,
   propertyId: property.id,
   unitId: unit.id,
   stripeAccountId: property.stripeAccountId,

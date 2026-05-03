@@ -30,11 +30,18 @@ export async function GET() {
 
     const payments = await prisma.payment.findMany({
       where: {
-        unitId: session.unitId,
-        propertyId: session.propertyId,
-        status: PaymentStatus.PAID,
-      },
-      orderBy: { paidAt: "desc" },
+  unitId: session.unitId,
+  propertyId: session.propertyId,
+  status: {
+    in: [
+      PaymentStatus.PENDING,
+      PaymentStatus.PAID,
+      PaymentStatus.FAILED,
+      PaymentStatus.REVERSED,
+    ],
+  },
+},
+      orderBy: [{ createdAt: "desc" }, { paidAt: "desc" }],
       take: 100,
       select: {
         id: true,

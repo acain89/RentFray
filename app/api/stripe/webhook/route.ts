@@ -37,10 +37,18 @@ async function updatePaymentStatus(
 ): Promise<void> {
   if (!intentId) return;
 
-  const existing = await prisma.payment.findUnique({
-    where: { stripePaymentIntentId: intentId },
-    select: { status: true },
-  });
+  const existing = await prisma.payment.findFirst({
+  where: {
+    OR: [
+      { stripePaymentIntentId: intentId },
+      { id: intentId }, // fallback (safety)
+    ],
+  },
+  select: {
+    id: true,
+    status: true,
+  },
+});
 
   if (!existing) return;
 
@@ -51,7 +59,7 @@ async function updatePaymentStatus(
   assertValidTransition(currentStatus, nextStatus);
 
   await prisma.payment.update({
-    where: { stripePaymentIntentId: intentId },
+  where: { id: existing.id },
     data: {
       status: nextStatus,
       ...(nextStatus === "PAID" && { paidAt: new Date() }),
@@ -69,13 +77,37 @@ async function ensurePaymentFromIntent(
 
   const propertyId = safeString(metadata.propertyId);
   const unitId = safeString(metadata.unitId);
-  const tenantAssignmentId = safeString(metadata.tenantAssignmentId) || null;
+  const paymentId = safeString(metadata.paymentId); // 🔥 NEW
+  const tenantAssignmentId =
+    metadata.tenantAssignmentId && metadata.tenantAssignmentId !== ""
+      ? metadata.tenantAssignmentId
+      : null;
   const billingCycle = safeString(metadata.billingCycle);
   const amountCents = parseCents(metadata.ledgerBalanceCents);
   const feeCents = parseCents(metadata.processingFeeCents);
 
   if (!propertyId || !unitId || !billingCycle) return null;
 
+  /**
+   * 🔥 PRIORITY 1: LINK TO EXISTING PAYMENT
+   */
+  if (paymentId) {
+    return prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        stripePaymentIntentId: intent.id,
+        stripeSessionId: stripeSessionId ?? undefined,
+        billingCycle,
+        amountCents,
+        processingFeeCents: feeCents,
+        paymentMethod: "ACH",
+      },
+    });
+  }
+
+  /**
+   * 🔁 FALLBACK (SHOULD RARELY HAPPEN)
+   */
   return prisma.payment.upsert({
     where: { stripePaymentIntentId: intent.id },
     update: {
@@ -90,7 +122,7 @@ async function ensurePaymentFromIntent(
     create: {
       propertyId,
       unitId,
-      tenantAssignmentId,
+      tenantAssignmentId: tenantAssignmentId ?? undefined,
       stripePaymentIntentId: intent.id,
       stripeSessionId: stripeSessionId ?? null,
       billingCycle,
@@ -406,7 +438,11 @@ export async function POST(req: Request) {
   const unitId = safeString(metadata.unitId);
   
 
-const tenantAssignmentId = safeString(metadata.tenantAssignmentId);
+const tenantAssignmentId =
+  typeof metadata.tenantAssignmentId === "string" &&
+  metadata.tenantAssignmentId.trim() !== ""
+    ? metadata.tenantAssignmentId
+    : null;
 
 if (!tenantAssignmentId) {
   console.error("MISSING TENANT ASSIGNMENT — BLOCKED", {

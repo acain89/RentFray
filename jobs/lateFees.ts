@@ -1,18 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
-import { getUnitDelinquencySummary } from "@/lib/delinquency";
-import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function safeDate(date: Date): Date {
-  return Number.isNaN(date.getTime()) ? new Date() : date;
-}
-
 function isoDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return startOfDay(date).toISOString().slice(0, 10);
 }
 
 type LateFeesJobResult = {
@@ -23,7 +17,7 @@ type LateFeesJobResult = {
 };
 
 export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResult> {
-  const now = safeDate(asOf);
+  const now = asOf;
   const effectiveDate = startOfDay(now);
   const effectiveDay = isoDay(effectiveDate);
 
@@ -41,7 +35,7 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
         },
       },
       tenantAssignments: {
-        where: { isCurrent: true },
+        where: { isCurrent: true, moveOutDate: null },
         orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
         take: 1,
         select: { id: true },
@@ -52,112 +46,99 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
   let posted = 0;
   let skipped = 0;
 
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    for (const unit of units) {
-      const assignment = unit.tenantAssignments[0] ?? null;
+  for (const unit of units) {
+    const assignment = unit.tenantAssignments[0] ?? null;
 
-      if (!assignment) {
-        skipped++;
-        continue;
-      }
+    if (!assignment) {
+      skipped++;
+      continue;
+    }
 
-      const effective = resolveEffectiveBillingSettings({
-  tier: unit.tier,
-  propertySettings: unit.property.settings,
-});
+    const financialState = await getUnitFinancialState({
+      propertyId: unit.propertyId,
+      unitId: unit.id,
+      tenantAssignmentId: assignment.id,
+      tier: unit.tier,
+      propertySettings: unit.property.settings,
+      billingCycleStartDate: unit.property.billingCycleStartDate,
+      now,
+    });
 
-const rentDates = getRentDateSummary({
-  ...effective,
-  now,
-});
+    const effective = financialState.effectiveBillingSettings;
+    const billingCycle = financialState.billingCycle;
 
-const billingCycle = rentDates.billingCycle;
+    if (
+      !effective.lateFeeEnabled ||
+      !financialState.isPastGracePeriod ||
+      financialState.daysPastGrace <= 0 ||
+      financialState.ledgerBalanceCents <= 0 ||
+      financialState.hasPendingPayment ||
+      financialState.hasPaidPayment
+    ) {
+      skipped++;
+      continue;
+    }
 
-const delinquency = await getUnitDelinquencySummary(unit.id, now);
+    const shouldPostInitial =
+      financialState.daysPastGrace >= 1 && effective.lateFeeInitialCents > 0;
 
-      if (!delinquency.isDelinquent || delinquency.daysPastDue <= 0) {
-        skipped++;
-        continue;
-      }
+    const shouldPostDaily =
+      financialState.daysPastGrace >= 2 &&
+      effective.lateFeeDailyCents > 0 &&
+      effective.maxLateFeeDays > 0 &&
+      financialState.daysPastGrace - 1 <= effective.maxLateFeeDays;
 
-      const blockingPayment = await tx.payment.findFirst({
-  where: {
-    propertyId: unit.propertyId,
-    unitId: unit.id,
-    tenantAssignmentId: assignment.id,
-    billingCycle,
-    status: { in: ["PENDING", "PAID"] },
-  },
-  select: { id: true, status: true },
-});
+    if (shouldPostInitial) {
+      const existingInitial = await prisma.ledgerEntry.findFirst({
+        where: {
+          propertyId: unit.propertyId,
+          unitId: unit.id,
+          tenantAssignmentId: assignment.id,
+          billingCycle,
+          entryType: "CHARGE",
+          chargeType: { in: ["LATE_FEE", "LATE_FEE_INITIAL"] },
+          voidedAt: null,
+        },
+        select: { id: true },
+      });
 
-if (blockingPayment) {
-  skipped++;
-  continue;
-}
-
-      const shouldPostInitial = delinquency.daysPastDue >= 1;
-      const shouldPostDaily =
-        delinquency.daysPastDue >= 2 &&
-        effective.lateFeeDailyCents > 0 &&
-        delinquency.daysPastDue - 1 <= effective.maxLateFeeDays;
-
-      if (shouldPostInitial && effective.lateFeeInitialCents > 0) {
-        const initialExists = await tx.ledgerEntry.findFirst({
-  where: {
-    propertyId: unit.propertyId,
-    unitId: unit.id,
-    tenantAssignmentId: assignment.id,
-    entryType: "CHARGE",
-    chargeType: {
-      in: ["LATE_FEE_INITIAL", "LATE_FEE"],
-    },
-    billingCycle,
-    voidedAt: null,
-  },
-  select: { id: true },
-});
-
-        if (!initialExists) {
-          await tx.ledgerEntry.create({
-            data: {
-              propertyId: unit.propertyId,
-              unitId: unit.id,
-              tenantAssignmentId: assignment.id,
-              entryType: "CHARGE",
-              chargeType: "LATE_FEE_INITIAL",
-              amountCents: effective.lateFeeInitialCents,
-              memo: `Initial late fee - ${billingCycle}`,
-              effectiveDate,
-              billingCycle,
-              createdByManagementUserId: null,
-            },
-          });
-
-          posted++;
-        }
-      }
-
-      if (shouldPostDaily) {
-        const dailyExists = await tx.ledgerEntry.findFirst({
-          where: {
+      if (!existingInitial) {
+        await prisma.ledgerEntry.create({
+          data: {
             propertyId: unit.propertyId,
             unitId: unit.id,
             tenantAssignmentId: assignment.id,
             entryType: "CHARGE",
-            chargeType: "LATE_FEE_DAILY",
-            memo: `Daily late fee - ${effectiveDay}`,
-            voidedAt: null,
+            chargeType: "LATE_FEE_INITIAL",
+            amountCents: effective.lateFeeInitialCents,
+            memo: `Initial late fee - ${billingCycle}`,
+            effectiveDate,
+            billingCycle,
+            createdByManagementUserId: null,
           },
-          select: { id: true },
         });
 
-        if (dailyExists) {
-          skipped++;
-          continue;
-        }
+        posted++;
+      }
+    }
 
-        await tx.ledgerEntry.create({
+    if (shouldPostDaily) {
+      const existingDaily = await prisma.ledgerEntry.findFirst({
+        where: {
+          propertyId: unit.propertyId,
+          unitId: unit.id,
+          tenantAssignmentId: assignment.id,
+          billingCycle,
+          entryType: "CHARGE",
+          chargeType: "LATE_FEE_DAILY",
+          memo: `Daily late fee - ${effectiveDay}`,
+          voidedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (!existingDaily) {
+        await prisma.ledgerEntry.create({
           data: {
             propertyId: unit.propertyId,
             unitId: unit.id,
@@ -174,17 +155,17 @@ if (blockingPayment) {
 
         posted++;
       }
-
-      if (!shouldPostInitial && !shouldPostDaily) {
-        skipped++;
-      }
     }
-  });
+
+    if (!shouldPostInitial && !shouldPostDaily) {
+      skipped++;
+    }
+  }
 
   return {
-  ok: true,
-  billingCycle: "per-unit",
-  posted,
-  skipped,
-};
+    ok: true,
+    billingCycle: "per-unit",
+    posted,
+    skipped,
+  };
 }

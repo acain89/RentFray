@@ -1,4 +1,9 @@
-export type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+export type PaymentStatus =
+  | "UNPAID"
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REVERSED";
 
 export type UnitDisplayStatus =
   | "PAID"
@@ -25,10 +30,11 @@ export type UnitStatusResult = {
   color: UnitStatusColor;
   label: string;
   tenantMessage: string;
+  canAttemptPayment: boolean;
 };
 
 export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
-  const balanceCents = Math.trunc(Number(input.balanceCents) || 0);
+  const balanceCents = Math.max(0, Math.trunc(Number(input.balanceCents) || 0));
 
   if (input.hasPendingPayment) {
     return {
@@ -37,7 +43,8 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       color: "yellow",
       label: "Payment pending",
       tenantMessage:
-        "Your payment is pending. Your balance will update after the payment clears.",
+        "Your payment is processing. You do not need to submit another payment while this one is pending.",
+      canAttemptPayment: false,
     };
   }
 
@@ -49,6 +56,7 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       label: "Payment failed",
       tenantMessage:
         "Your payment failed or was reversed. Please submit a new payment.",
+      canAttemptPayment: balanceCents > 0,
     };
   }
 
@@ -59,6 +67,18 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       color: "green",
       label: "Paid",
       tenantMessage: "Your balance is paid.",
+      canAttemptPayment: false,
+    };
+  }
+
+  if (input.isDelinquent) {
+    return {
+      status: "PAST_DUE",
+      paymentStatus: "UNPAID",
+      color: "red",
+      label: "Past due",
+      tenantMessage: "Your balance is past due.",
+      canAttemptPayment: true,
     };
   }
 
@@ -70,16 +90,7 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       label: "Balance due",
       tenantMessage:
         "You have a balance due, but you are still within the grace period.",
-    };
-  }
-
-  if (input.isDelinquent) {
-    return {
-      status: "PAST_DUE",
-      paymentStatus: "UNPAID",
-      color: "red",
-      label: "Past due",
-      tenantMessage: "Your balance is past due.",
+      canAttemptPayment: true,
     };
   }
 
@@ -89,5 +100,6 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
     color: "blue",
     label: "Balance due",
     tenantMessage: "You have a balance due.",
+    canAttemptPayment: true,
   };
 }

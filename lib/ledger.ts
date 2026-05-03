@@ -163,6 +163,17 @@ export async function getUnitLedgerSummary(
     },
   });
 
+    const payments = await prisma.payment.findMany({
+  where: {
+    unitId,
+    ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
+  },
+  select: {
+    status: true,
+    amountCents: true,
+  },
+});
+
   const visibleEntries: LedgerEntryRow[] = billingStart
     ? entries.filter((entry: LedgerEntryRow) => {
         const entryType = normalizeLedgerEntryType(entry.entryType);
@@ -216,9 +227,16 @@ export async function getUnitLedgerSummary(
       totalCreditsCents += Math.abs(rawAmountCents);
     }
 
-    if (isPaymentEntry(entryType) && paymentStatus === "PENDING") {
-  hasPendingPayment = true;
-  pendingPaymentAmountCents += Math.max(0, Math.abs(rawAmountCents));
+    for (const payment of payments) {
+  const status = normalizePaymentStatus(payment.status);
+
+  if (status === "PENDING") {
+    hasPendingPayment = true;
+    pendingPaymentAmountCents += Math.max(
+      0,
+      Math.abs(toSafeInteger(payment.amountCents))
+    );
+  }
 }
 
     if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, refreshSessionCookie } from "@/lib/session";
 import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
@@ -11,6 +11,7 @@ import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import { getUnitStatus } from "@/lib/unitStatusEngine";
 import { getUnitLedgerSummary } from "@/lib/ledger";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,6 +122,12 @@ function getBillingLabel(cycleKey: string): string {
 export async function GET() {
   try {
     const session = await getSession();
+
+if (!session) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+await refreshSessionCookie(session);
 
     if (
       !session ||
@@ -261,10 +268,11 @@ export async function GET() {
       tier: anchorUnit?.tier ?? null,
       propertySettings: property.settings ?? null,
     });
-    const anchorRentDates = getRentDateSummary({
-      ...anchorEffective,
-      now,
-    });
+   const anchorRentDates = getRentDateSummary({
+  ...anchorEffective,
+  now,
+  billingCycleStartDate: property.billingCycleStartDate,
+});
 
     const currentBillingCycle = anchorRentDates.billingCycle;
     const nextBillingCycle = getNextCycleKey(currentBillingCycle);
@@ -376,25 +384,21 @@ const nextEntriesByUnit = new Map<string, typeof nextCycleEntries>();
     const unitPayments = paymentsByUnit.get(unit.id) ?? [];
     const unitNextEntries = nextEntriesByUnit.get(unit.id) ?? [];
 
-    const ledger = await getUnitLedgerSummary(unit.id, assignment.id);
-    const balanceCents = ledger.balanceCents;
+    const financialState = await getUnitFinancialState({
+  propertyId: property.id,
+  unitId: unit.id,
+  tenantAssignmentId: assignment.id,
+  tier: unit.tier,
+  propertySettings: property.settings,
+  billingCycleStartDate: property.billingCycleStartDate,
+  now,
+});
 
-    const effective = resolveEffectiveBillingSettings({
-      tier: unit.tier,
-      propertySettings: property.settings,
-    });
-
-    const rentDates = getRentDateSummary({
-      ...effective,
-      now,
-    });
-
-    const dueDate = parseDateOnly(rentDates.dueDate);
-
-    const isDelinquent =
-      balanceCents > 0 && rentDates.isDelinquent && dueDate !== null;
-
-    const daysPastDue = isDelinquent && dueDate ? diffDays(today, dueDate) : 0;
+const ledger = financialState.ledgerSummary;
+const balanceCents = financialState.ledgerBalanceCents;
+const rentDates = financialState.rentDates;
+const isDelinquent = financialState.isDelinquent;
+const daysPastDue = financialState.daysPastDue;
 
     const cyclePayments = unitPayments.filter(
       (payment: DashboardPaymentRow) =>
@@ -417,13 +421,15 @@ const nextEntriesByUnit = new Map<string, typeof nextCycleEntries>();
 
     totalCollectedCents += cyclePaidCents;
 
-    if (isDelinquent) {
-      delinquentCount++;
-    }
+   if (!financialState.hasPendingPayment && isDelinquent) {
+  delinquentCount++;
+}
 
-    if (balanceCents > 0) {
-      unpaidUnitsCount++;
-    } else {
+    if (financialState.hasPendingPayment) {
+  // Pending = neither paid nor unpaid
+} else if (balanceCents > 0) {
+  unpaidUnitsCount++;
+} else {
       totalPaidCount++;
 
       const hasManual = paidCyclePayments.some(
@@ -433,28 +439,13 @@ const nextEntriesByUnit = new Map<string, typeof nextCycleEntries>();
         (payment: DashboardPaymentRow) => payment.paymentMethod === "ACH"
       );
 
-      if (hasManual) manualPaidCount++;
-      else if (hasPortal) portalPaidCount++;
-    }
+      if (!financialState.hasPendingPayment) {
+  if (hasManual) manualPaidCount++;
+  else if (hasPortal) portalPaidCount++;
+}
+}
 
-    const hasPending = cyclePayments.some(
-      (payment: DashboardPaymentRow) => payment.status === "PENDING"
-    );
-    const hasFailed = cyclePayments.some(
-      (payment: DashboardPaymentRow) => payment.status === "FAILED"
-    );
-    const hasReversed = cyclePayments.some(
-      (payment: DashboardPaymentRow) => payment.status === "REVERSED"
-    );
-
-    const unitStatus = getUnitStatus({
-      balanceCents,
-      hasPendingPayment: hasPending,
-      hasFailedPayment: hasFailed,
-      hasReversedPayment: hasReversed,
-      isDelinquent,
-      isWithinGracePeriod: balanceCents > 0 && !isDelinquent,
-    });
+const unitStatus = financialState.status;
 
     return {
       unitId: unit.id,

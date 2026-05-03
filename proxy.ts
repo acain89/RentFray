@@ -53,16 +53,16 @@ export function proxy(req: NextRequest) {
   }
 
   if (!session) {
-    if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const url = req.nextUrl.clone();
-    url.pathname = "/property-code";
-    url.search = "";
-
-    return NextResponse.redirect(url);
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
   }
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/property-code";
+  url.search = "";
+
+  return NextResponse.redirect(url);
+}
 
   return NextResponse.next();
 }

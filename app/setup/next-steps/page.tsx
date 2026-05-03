@@ -21,55 +21,58 @@ export default async function NextStepsPage({
           </div>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-            Next Steps
+            Setup Complete
           </h1>
 
           <p className="mt-2 text-sm text-[#64748b]">
-            You're set up. Just finish these quick steps.
+            Your property account has been created. Finish these steps before
+            tenants start paying.
           </p>
         </div>
 
         <div className="mt-8 space-y-5 text-sm leading-relaxed text-[#334155]">
           <div>
-            <strong>1. Your property code:</strong>
+            <strong>1. Save your property code</strong>
             <div className="mt-1 rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-4 py-3 text-lg font-semibold tracking-wide">
               {propertyCode}
             </div>
             <p className="mt-1 text-xs text-[#64748b]">
-              Write this down. You will need it anytime you log in.
+              Managers and tenants use this code to find the correct property.
             </p>
           </div>
 
           <div>
-            <strong>2. Owner Account</strong>
+            <strong>2. Connect payouts</strong>
             <p className="mt-1">
-              This is your Owner Account. It is the only account that can access or
-              change banking information. If needed, update the login to transfer
-              control.
+              Open the dashboard, click <strong>Manage</strong>, then select{" "}
+              <strong>Account & Payouts</strong>. Payments cannot be accepted
+              until Stripe onboarding is complete.
             </p>
           </div>
 
           <div>
-            <strong>3. Add banking info</strong>
+            <strong>3. Set your billing cycle start date</strong>
             <p className="mt-1">
-              Go to the dashboard and click <strong>Accnt</strong> to connect your
-              payout account. This is required before receiving payments.
+              In <strong>Account & Payouts</strong>, set the date RentFray
+              should begin tracking balances. This prevents tenants from seeing
+              old pre-RentFray balances.
             </p>
           </div>
 
           <div>
-            <strong>4. Activate tenants</strong>
+            <strong>4. Review rent, grace period, and late fees</strong>
             <p className="mt-1">
-              Print the Tenant Instructions sheet. Write the property code and the
-              correct Tier number for each tenant.
+              Use <strong>Manage</strong> to confirm each tier’s rent amount,
+              due day, grace period, and late fee rules before tenant activation.
             </p>
           </div>
 
           <div>
-            <strong>5. You're ready</strong>
+            <strong>5. Give tenants the instruction sheet</strong>
             <p className="mt-1">
-              Your property is now fully set up. Use the dashboard buttons and unit
-              controls to manage charges, credits, prorations, and more.
+              Print the Tenant Instructions sheet. Write the property code and
+              correct tier for each tenant. That's it. Your dashboard will now build itself 
+              as tenant use the RentFray portal. 
             </p>
           </div>
         </div>

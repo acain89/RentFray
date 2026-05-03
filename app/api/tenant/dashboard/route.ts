@@ -2,14 +2,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUnitStatus } from "@/lib/unitStatusEngine";
-import { getSession } from "@/lib/session";
+import { getSession, refreshSessionCookie } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
-
 getProcessingFeeCents,
   formatCentsToDollars,
 } from "@/lib/billingConfig";
 import { canMakePayments } from "@/lib/liveGating";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import {
 
@@ -83,6 +83,12 @@ function buildStatementLabel(entry: {
 export async function POST() {
   try {
     const session = await getSession();
+
+if (!session) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+await refreshSessionCookie(session);
 
     if (
       !session ||
@@ -233,37 +239,33 @@ if (
 
     const currentAssignmentId = currentAssignment?.id ?? null;
 
-    const ledgerSummary = await getUnitLedgerSummary(
-      unit.id,
-      currentAssignmentId
-    );
-
-    const balanceCents = Math.max(0, ledgerSummary.balanceCents);
-    const processingFeeCents =
-      balanceCents > 0 ? getProcessingFeeCents(balanceCents) : 0;
-    const totalDueCents =
-      balanceCents > 0 ? balanceCents + processingFeeCents : 0;
-
-  const paymentEnabled = canMakePayments({
-  status: property.status,
-  settings: property.settings,
-  units: property.units,
-  paymentStatus: property.paymentStatus,
-  isActive: property.isActive,
+    const financialState = await getUnitFinancialState({
+  propertyId: session.propertyId,
+  unitId: unit.id,
+  tenantAssignmentId: currentAssignmentId,
+  tier: unit.tier,
+  propertySettings: property.settings,
+  billingCycleStartDate: property.billingCycleStartDate,
 });
 
-    const effectiveBillingSettings = resolveEffectiveBillingSettings({
-      tier: unit.tier,
-      propertySettings: property.settings,
-    });
+const ledgerSummary = financialState.ledgerSummary;
+const balanceCents = financialState.ledgerBalanceCents;
+const processingFeeCents = financialState.processingFeeCents;
+const totalDueCents = financialState.tenantTotalDueCents;
+const rentDates = financialState.rentDates;
+const billingCycle = financialState.billingCycle;
+const isDelinquent = financialState.isDelinquent;
+const unitStatus = financialState.status;
 
-    const now = new Date();
+  const paymentEnabled =
+  canMakePayments({
+    status: property.status,
+    settings: property.settings,
+    units: property.units,
+    paymentStatus: property.paymentStatus,
+    isActive: property.isActive,
+  }) && unitStatus.canAttemptPayment;
 
-const rentDates = getRentDateSummary({
-  ...effectiveBillingSettings,
-  now,
-});
-    const billingCycle = rentDates.billingCycle;
 
     const cyclePayments = await prisma.payment.findMany({
       where: {
@@ -289,29 +291,6 @@ const rentDates = getRentDateSummary({
 
     const latestPayment = cyclePayments[0] ?? null;
 
-   const hasPaid = cyclePayments.some(
-  (p: { status: PaymentStatus }) => p.status === "PAID"
-);
-const hasPending = cyclePayments.some(
-  (p: { status: PaymentStatus }) => p.status === "PENDING"
-);
-const hasFailed = cyclePayments.some(
-  (p: { status: PaymentStatus }) => p.status === "FAILED"
-);
-const hasReversed = cyclePayments.some(
-  (p: { status: PaymentStatus }) => p.status === "REVERSED"
-);
-
-const isDelinquent = balanceCents > 0 && rentDates.isDelinquent;
-
-const unitStatus = getUnitStatus({
-  balanceCents,
-  hasPendingPayment: hasPending,
-  hasFailedPayment: hasFailed,
-  hasReversedPayment: hasReversed,
-  isDelinquent,
-  isWithinGracePeriod: balanceCents > 0 && !isDelinquent,
-});
 
        const ledgerEntries = await prisma.ledgerEntry.findMany({
       where: {
@@ -418,10 +397,13 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
       processingFeeCents,
       totalDueCents,
 
-     hasPendingPayment: ledgerSummary.hasPendingPayment,
-     pendingPaymentAmountCents: ledgerSummary.pendingPaymentAmountCents,
-     pendingPaymentAmount:
-       ledgerSummary.pendingPaymentAmountCents / 100,
+      hasPendingPayment: financialState.hasPendingPayment,
+pendingPaymentAmountCents: financialState.hasPendingPayment
+  ? totalDueCents
+  : 0,
+pendingPaymentAmount: financialState.hasPendingPayment
+  ? totalDueCents / 100
+  : 0,
 
       balance: balanceCents / 100,
       processingFee: formatCentsToDollars(processingFeeCents),

@@ -1773,11 +1773,10 @@ const tierGroups = useMemo<TierGroup[]>(() => {
     );
   }, [maintenanceRequests]);
 
-  const stats = useMemo(() => {
+    const stats = useMemo(() => {
     const totalUnits = unitsWithStatus.length;
-    const occupiedUnits = unitsWithStatus.length;
-
-const vacantUnits = 0;
+    const occupiedUnits = unitsWithStatus.filter(u => u.tenantName).length;
+    const vacantUnits = unitsWithStatus.filter(u => !u.tenantName).length;
     const tiers = tierGroups.length;
 
     return {
@@ -2294,28 +2293,30 @@ if (error === "Unauthorized") {
 
           <div className="space-y-2">
             {group.units.map((unit) => {
-              const vacant = false;
+              const vacant = !unit.tenantName;
 
-              return (
-                <div
-                  key={unit.unitId}
-                  className="overflow-hidden rounded-[22px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] shadow-[var(--rf-shadow-sm)]"
-                >
-                  <div className="grid w-full grid-cols-[auto_minmax(72px,1fr)_minmax(64px,0.8fr)_minmax(74px,0.7fr)] items-center gap-2 px-3 py-3 sm:grid-cols-[auto_minmax(110px,1fr)_minmax(100px,1fr)_minmax(110px,1fr)_minmax(130px,1.2fr)]">
-                    <div className="contents">
-                      <span
-                        className={`h-3.5 w-3.5 shrink-0 rounded-full ${getStatusDotClass(
-                          unit.status
-                        )}`}
-                      />
+             return (
+  <div
+    key={unit.unitId}
+    className="overflow-hidden rounded-[22px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] shadow-[var(--rf-shadow-sm)]"
+  >
+    <div className="grid w-full grid-cols-[auto_90px_minmax(70px,1fr)_minmax(64px,0.8fr)_minmax(90px,0.8fr)] items-center gap-3 px-3 py-3">
+      <span
+        className={`h-3.5 w-3.5 shrink-0 rounded-full ${getStatusDotClass(
+          unit.status
+        )}`}
+      />
 
-                     <button
-                      type="button"
-                      onClick={() => openUnitPanel(unit)}
-                      className="min-w-0 truncate text-left text-sm font-semibold text-[var(--rf-accent)] underline transition hover:opacity-80"
-                      >
-                      Unit {unit.unitNumber}
-                     </button>
+      <button
+        type="button"
+        onClick={() => openUnitPanel(unit)}
+        className="inline-flex items-center gap-1 text-left text-sm font-semibold text-emerald-700 transition hover:text-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+        title={`Open Unit ${unit.unitNumber}`}
+      >
+        <span className="border-b-2 border-emerald-400 leading-none">
+          Unit {unit.unitNumber}
+        </span>
+      </button>
 
                       <div className="min-w-0 truncate text-sm font-medium text-[var(--rf-text-soft)]">
                         {unit.displayLastName}
@@ -2329,11 +2330,6 @@ if (error === "Unauthorized") {
                         {getStatusText(unit.status, unit.daysPastDue)}
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                   {/* MP button removed — handled inside unit panel */}
-                    </div>
-                  </div>
                 </div>
               );
             })}

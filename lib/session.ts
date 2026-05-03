@@ -355,3 +355,44 @@ export async function setSessionCookie(token: string) {
     maxAge: SESSION_TTL_SECONDS,
   });
 }
+
+export async function refreshSessionCookie(session: SessionPayload) {
+  let refreshedToken: string;
+
+  if (session.role === "ADMIN") {
+    refreshedToken = createSessionToken({
+      role: "ADMIN",
+      adminAccessId: session.adminAccessId,
+    });
+  } else if (
+    session.role === "OWNER" ||
+    session.role === "MANAGER" ||
+    session.role === "STAFF"
+  ) {
+    if (!session.propertyId || !session.managementUserId) return;
+
+    refreshedToken = createSessionToken({
+      role: session.role,
+      propertyId: session.propertyId,
+      managementUserId: session.managementUserId,
+    });
+  } else if (session.role === "TENANT") {
+    if (!session.propertyId || !session.unitId) return;
+
+    refreshedToken = createSessionToken({
+      role: "TENANT",
+      propertyId: session.propertyId,
+      unitId: session.unitId,
+    });
+  } else {
+    if (!session.propertyId || !session.maintenanceUserId) return;
+
+    refreshedToken = createSessionToken({
+      role: "MAINTENANCE",
+      propertyId: session.propertyId,
+      maintenanceUserId: session.maintenanceUserId,
+    });
+  }
+
+  await setSessionCookie(refreshedToken);
+}

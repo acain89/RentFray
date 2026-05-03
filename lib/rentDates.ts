@@ -11,6 +11,7 @@ export type RentDateConfig = {
   lateFeeDailyCents: number;
   maxLateFeeDays: number;
   now?: Date;
+  billingCycleStartDate?: Date | null;
 };
 
 export type RentDateSummary = {
@@ -164,6 +165,41 @@ export function getRentDateSummary(
     cycleMonth - 1,
     safeDueDay
   );
+
+   // 🔒 HARD START DATE LOCK
+if (config.billingCycleStartDate) {
+  const start = new Date(config.billingCycleStartDate);
+
+  // If calculated cycle is BEFORE start → override everything
+  if (dueDate < start) {
+    const startYear = start.getFullYear();
+    const startMonth = start.getMonth() + 1;
+
+    const safeStartDueDay = clampDay(
+      startYear,
+      startMonth,
+      config.dueDay
+    );
+
+    const newDueDate = new Date(
+      startYear,
+      startMonth - 1,
+      safeStartDueDay
+    );
+
+    const newGraceEnds = addDays(newDueDate, config.gracePeriodDays);
+
+    return {
+      billingCycle: `${startYear}-${String(startMonth).padStart(2, "0")}`,
+      dueDate: toDateOnlyString(newDueDate),
+      graceEndsOn: toDateOnlyString(newGraceEnds),
+      initialLateFeeDate: null,
+      dailyLateFeeStartDate: null,
+      dailyLateFeeLastDate: null,
+      isDelinquent: false,
+    };
+  }
+}
 
   const graceEnds = addDays(dueDate, config.gracePeriodDays);
 
