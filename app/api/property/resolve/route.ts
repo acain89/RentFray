@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const tiers = await prisma.tier.findMany({
+   const tiers = await prisma.propertyTier.findMany({
       where: {
         propertyId: property.id,
         isActive: true,
