@@ -9,6 +9,7 @@ function isPublicRoute(pathname: string) {
   return (
     pathname === "/" ||
     pathname === "/setup" ||
+    pathname === "/offline" ||
     pathname.startsWith("/property-code") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/manager/login") ||
@@ -41,9 +42,12 @@ export function proxy(req: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname.startsWith("/api/stripe/webhook") ||
+    pathname === "/sw.js" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/offline" ||
     pathname.startsWith("/images") ||
-    pathname.startsWith("/icons")
+    pathname.startsWith("/icons") ||
+    pathname.startsWith("/api/stripe/webhook")
   ) {
     return NextResponse.next();
   }
@@ -53,20 +57,22 @@ export function proxy(req: NextRequest) {
   }
 
   if (!session) {
-  if (pathname.startsWith("/api")) {
-    return NextResponse.next();
+    if (pathname.startsWith("/api")) {
+      return NextResponse.next();
+    }
+
+    const url = req.nextUrl.clone();
+    url.pathname = "/property-code";
+    url.search = "";
+
+    return NextResponse.redirect(url);
   }
-
-  const url = req.nextUrl.clone();
-  url.pathname = "/property-code";
-  url.search = "";
-
-  return NextResponse.redirect(url);
-}
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|offline|icons|images).*)",
+  ],
 };
