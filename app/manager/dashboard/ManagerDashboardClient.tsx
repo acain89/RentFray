@@ -280,21 +280,21 @@ function getStatus(unit: Unit): UnitStatus {
 function getStatusDotClass(status: UnitStatus): string {
   switch (status) {
     case "PAID":
-      return "bg-emerald-500 ring-2 ring-emerald-100 shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_0_10px_rgba(16,185,129,0.35)]";
+      return "bg-emerald-500 ring-2 ring-white shadow-[0_0_0_1px_rgba(16,185,129,0.35),0_2px_6px_rgba(15,23,42,0.18)]";
     case "GRACE":
-      return "bg-sky-500 ring-2 ring-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.25),0_0_10px_rgba(14,165,233,0.35)]";
+      return "bg-sky-500 ring-2 ring-white shadow-[0_0_0_1px_rgba(14,165,233,0.35),0_2px_6px_rgba(15,23,42,0.18)]";
     case "PENDING":
-      return "bg-amber-400 ring-2 ring-amber-100 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_0_10px_rgba(245,158,11,0.35)]";
+      return "bg-amber-400 ring-2 ring-white shadow-[0_0_0_1px_rgba(245,158,11,0.35),0_2px_6px_rgba(15,23,42,0.18)]";
     case "FAILED":
-      return "bg-orange-500 ring-2 ring-orange-100 shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_0_10px_rgba(249,115,22,0.35)]";
+      return "bg-orange-500 ring-2 ring-white shadow-[0_0_0_1px_rgba(249,115,22,0.35),0_2px_6px_rgba(15,23,42,0.18)]";
     case "PAST_DUE":
-      return "bg-rose-500 ring-2 ring-rose-100 shadow-[0_0_0_1px_rgba(244,63,94,0.25),0_0_10px_rgba(244,63,94,0.35)]";
+      return "bg-rose-500 ring-2 ring-white shadow-[0_0_0_1px_rgba(244,63,94,0.35),0_2px_6px_rgba(15,23,42,0.18)]";
     case "UNPAID":
-      return "bg-sky-500 ring-2 ring-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.25),0_0_10px_rgba(14,165,233,0.35)]";
+      return "bg-sky-500 ring-2 ring-white shadow-[0_0_0_1px_rgba(14,165,233,0.35),0_2px_6px_rgba(15,23,42,0.18)]";
     case "VACANT":
-      return "bg-slate-400 ring-2 ring-slate-100 shadow-[0_0_0_1px_rgba(148,163,184,0.25)]";
+      return "bg-slate-400 ring-2 ring-white shadow-[0_0_0_1px_rgba(148,163,184,0.35),0_2px_6px_rgba(15,23,42,0.15)]";
     default:
-      return "bg-slate-400 ring-2 ring-slate-100";
+      return "bg-slate-400 ring-2 ring-white shadow-[0_0_0_1px_rgba(148,163,184,0.35),0_2px_6px_rgba(15,23,42,0.15)]";
   }
 }
 
@@ -2200,29 +2200,29 @@ if (error === "Unauthorized") {
   return (
     <>
       <main className="min-h-screen px-3 py-4 sm:px-5 sm:py-6">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.65),transparent_35%)]" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[var(--rf-bg-app)] to-[var(--rf-bg-page)]" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.10),transparent_34%)]" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-slate-50 via-emerald-50/35 to-slate-100" />
         <div className="mx-auto max-w-6xl space-y-5">
 
-                        <section className="rounded-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] px-4 py-4 shadow-[var(--rf-shadow-md)] sm:px-5">
+                       <section className="rounded-[28px] border border-emerald-200 bg-white px-4 py-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:px-5">
   <div className="flex flex-col gap-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="flex flex-col gap-1">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--rf-text-muted)]">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/70">
           RentFray manager
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-emerald-800 sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
           {propertyName}
         </h1>
-        <div className="text-sm text-[var(--rf-text-soft)]">
+        <div className="text-sm text-slate-600">
           Property Code:{" "}
-          <span className="font-mono font-semibold text-[var(--rf-text)]">
+          <span className="font-mono font-semibold text-slate-900">
             {propertyCode}
           </span>
         </div>
         <div className="text-sm text-[var(--rf-text-soft)]">
           Role:{" "}
-          <span className="font-semibold text-[var(--rf-text)]">
+          <span className="font-semibold text-slate-900">
             {sessionRole}
           </span>
         </div>
@@ -2252,22 +2252,22 @@ if (error === "Unauthorized") {
             
       
               
-<section className="rounded-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] p-4 shadow-[var(--rf-shadow-md)] sm:p-5">
+<section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:p-5">
   <div className="flex flex-col gap-4">
     <div className="flex flex-col gap-1">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--rf-text-muted)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         Current cycle
       </div>
-      <div className="text-lg font-semibold text-[var(--rf-text)]">
+      <div className="text-lg font-semibold text-slate-900">
         {data.cycleSnapshot?.billingCycleLabel || "—"}
       </div>
-      <div className="text-sm text-[var(--rf-text-soft)]">
+      <div className="text-sm text-slate-600">
         {data.cycleSnapshot?.occupiedUnitsLabel || ""}
       </div>
     </div>
 
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <div className="rounded-2xl border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-3">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
           Collected
         </div>
@@ -2276,7 +2276,7 @@ if (error === "Unauthorized") {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-3">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
           Expected
         </div>
@@ -2285,7 +2285,7 @@ if (error === "Unauthorized") {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-3">
+     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
           Paid units
         </div>
@@ -2294,7 +2294,7 @@ if (error === "Unauthorized") {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-3">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
           Unpaid
         </div>
@@ -2304,7 +2304,7 @@ if (error === "Unauthorized") {
       </div>
     </div>
 
-    <div className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.45)] p-4">
+    <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4">
       <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
         Difference
       </div>
@@ -2321,16 +2321,16 @@ if (error === "Unauthorized") {
   </div>
 </section>
 
-            <section className="rounded-[28px] border border-[var(--rf-border)] bg-white/60 px-3 py-3 shadow-[var(--rf-shadow-md)] backdrop-blur-sm sm:px-4">
+            <section className="rounded-[28px] border border-slate-200 bg-white px-3 py-3 shadow-[0_14px_34px_rgba(15,23,42,0.07)] sm:px-4">
   {tierGroups.length === 0 ? (
-    <div className="rounded-[24px] border border-dashed border-[var(--rf-border)] bg-[var(--rf-bg-soft)] px-4 py-8 text-center text-sm text-[var(--rf-text-muted)]">
+    <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
       No units found.
     </div>
   ) : (
     <div className="space-y-4">
       {tierGroups.map((group) => (
         <div key={group.tierName} className="space-y-2">
-          <div className="px-1 text-sm font-semibold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
+          <div className="px-1 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
             {group.tierName}
           </div>
 
@@ -2338,41 +2338,41 @@ if (error === "Unauthorized") {
             {group.units.map((unit) => {
               const vacant = !unit.tenantName;
 
-             return (
-  <div
-    key={unit.unitId}
-    className="overflow-hidden rounded-[22px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] shadow-[var(--rf-shadow-sm)]"
-  >
-    <div className="grid w-full grid-cols-[auto_90px_minmax(70px,1fr)_minmax(64px,0.8fr)_minmax(90px,0.8fr)] items-center gap-3 px-3 py-3">
-      <span
-          className={`h-4 w-4 shrink-0 rounded-full ${getStatusDotClass(
-          unit.status
-        )}`}
-      />
+              return (
+                <div
+                  key={unit.unitId}
+                  className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition hover:border-emerald-300 hover:shadow-[0_8px_22px_rgba(15,23,42,0.09)]"
+                >
+                  <div className="grid w-full grid-cols-[auto_90px_minmax(70px,1fr)_minmax(64px,0.8fr)_minmax(90px,0.8fr)] items-center gap-3 px-3 py-3">
+                    <span
+                      className={`h-4 w-4 shrink-0 rounded-full ${getStatusDotClass(
+                        unit.status
+                      )}`}
+                    />
 
-      <button
-        type="button"
-        onClick={() => openUnitPanel(unit)}
-        className="inline-flex items-center gap-1 text-left text-sm font-semibold text-emerald-700 transition hover:text-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-300"
-        title={`Open Unit ${unit.unitNumber}`}
-      >
-        <span className="border-b-2 border-emerald-400 leading-none">
-          Unit {unit.unitNumber}
-        </span>
-      </button>
+                    <button
+                      type="button"
+                      onClick={() => openUnitPanel(unit)}
+                      className="inline-flex items-center gap-1 text-left text-sm font-semibold text-emerald-700 transition hover:text-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      title={`Open Unit ${unit.unitNumber}`}
+                    >
+                      <span className="border-b-2 border-emerald-500 leading-none">
+                        Unit {unit.unitNumber}
+                      </span>
+                    </button>
 
-                      <div className="min-w-0 truncate text-sm font-medium text-[var(--rf-text-soft)]">
-                        {unit.displayLastName}
-                      </div>
-
-                      <div className="min-w-0 text-right text-sm font-semibold tabular-nums text-[var(--rf-text)]">
-                        {vacant ? "-" : toMoney(unit.balance)}
-                      </div>
-
-                      <div className="hidden min-w-0 truncate text-right text-xs text-[var(--rf-text-muted)] sm:block">
-                        {getStatusText(unit.status, unit.daysPastDue)}
-                      </div>
+                    <div className="min-w-0 truncate text-sm font-medium text-slate-600">
+                      {unit.displayLastName}
                     </div>
+
+                    <div className="min-w-0 text-right text-sm font-semibold tabular-nums text-slate-950">
+                      {vacant ? "-" : toMoney(unit.balance)}
+                    </div>
+
+                    <div className="hidden min-w-0 truncate text-right text-xs font-medium text-slate-500 sm:block">
+                      {getStatusText(unit.status, unit.daysPastDue)}
+                    </div>
+                  </div>
                 </div>
               );
             })}
