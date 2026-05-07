@@ -7,7 +7,10 @@ import { getSession } from "@/lib/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type TierInput = {
+  id?: string;
   tierName: string;
+  unitCount: string;
+  markedForDelete?: boolean;
   baseRent: string;
   dueDay: string;
   graceDays: string;
@@ -55,10 +58,6 @@ export async function POST(
     }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.propertyTier.updateMany({
-        where: { propertyId: id },
-        data: { isActive: false },
-      });
 
       for (let i = 0; i < tiers.length; i += 1) {
         const t = tiers[i];
@@ -70,39 +69,71 @@ export async function POST(
         const lateFeeInitialCents = t.lateFeeEnabled ? toCents(t.lateFeeAmount) : 0;
         const lateFeeDailyCents = t.lateFeeEnabled ? toCents(t.lateFeeDaily) : 0;
         const maxLateFeeDays = t.lateFeeEnabled ? toInt(t.lateFeeMaxDays, 0) : 0;
+        const unitCount = Math.max(0, toInt(t.unitCount, 0));
 
-        await tx.propertyTier.upsert({
-          where: {
-            propertyId_name: {
-              propertyId: id,
-              name,
-            },
-          },
-                    update: {
-            baseRentCents,
-            rentDueDay,
-            gracePeriodDays,
-            lateFeeInitialCents,
-            lateFeeDailyCents,
-            maxLateFeeDays,
-            lateFeeType: lateFeeDailyCents > 0 ? "FLAT" : "FLAT",
-            sortOrder: i,
-            isActive: true,
-          },
-          create: {
-            propertyId: id,
-            name,
-            baseRentCents,
-            rentDueDay,
-            gracePeriodDays,
-            lateFeeInitialCents,
-            lateFeeDailyCents,
-            maxLateFeeDays,
-            lateFeeType: lateFeeDailyCents > 0 ? "FLAT" : "FLAT",
-            sortOrder: i,
-            isActive: true,
-          },
-        });
+        if (t.markedForDelete && t.id) {
+  const occupiedUnits = await tx.tenantAssignment.count({
+    where: {
+      propertyId: id,
+      isCurrent: true,
+      moveOutDate: null,
+      unit: {
+        tierId: t.id,
+      },
+    },
+  });
+
+  if (occupiedUnits > 0) {
+    throw new Error(
+      `Cannot delete tier "${name}" because units are still assigned.`
+    );
+  }
+
+  await tx.propertyTier.update({
+    where: { id: t.id },
+    data: { isActive: false },
+  });
+
+  continue;
+}
+
+if (t.id && !t.id.startsWith("new-tier-")) {
+  await tx.propertyTier.update({
+    where: { id: t.id },
+    data: {
+      name,
+      unitCount,
+      baseRentCents,
+      rentDueDay,
+      gracePeriodDays,
+      lateFeeInitialCents,
+      lateFeeDailyCents,
+      maxLateFeeDays,
+      lateFeeType: "FLAT",
+      sortOrder: i,
+      isActive: true,
+    },
+  });
+
+  continue;
+}
+
+await tx.propertyTier.create({
+  data: {
+    propertyId: id,
+    name,
+    unitCount,
+    baseRentCents,
+    rentDueDay,
+    gracePeriodDays,
+    lateFeeInitialCents,
+    lateFeeDailyCents,
+    maxLateFeeDays,
+    lateFeeType: "FLAT",
+    sortOrder: i,
+    isActive: true,
+  },
+});
       }
     });
 

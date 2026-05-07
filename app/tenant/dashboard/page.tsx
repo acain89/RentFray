@@ -11,6 +11,21 @@ type PaymentViewStatus =
   | "FAILED"
   | "REVERSED";
 
+type PaymentHistoryRow = {
+  id: string;
+  amountCents: number;
+  processingFeeCents: number;
+  totalChargedCents: number;
+  amount: number;
+  processingFee: number;
+  totalCharged: number;
+  status: PaymentViewStatus;
+  timestamp: string;
+  message: string;
+  stripePaymentIntentId?: string | null;
+  stripeSessionId?: string | null;
+};
+
 type LedgerEntry = {
   id: string;
   type: string;
@@ -53,6 +68,11 @@ type DashboardData = {
   paymentStatus?: PaymentViewStatus;
   paymentMessage?: string;
   latestPaymentTimestamp?: string | null;
+  hasPendingPayment?: boolean;
+  pendingPaymentAmount?: number;
+  processingFee?: number;
+  totalDue?: number;
+  paymentHistory?: PaymentHistoryRow[];
 };
 
 type DashboardError = {
@@ -201,6 +221,37 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
     }
   }
 
+const paymentHistory: PaymentHistoryRow[] = Array.isArray(data.paymentHistory)
+  ? data.paymentHistory
+      .filter((payment): payment is PaymentHistoryRow => {
+        if (!payment || typeof payment !== "object") return false;
+
+        const row = payment as Partial<PaymentHistoryRow>;
+
+        return (
+          typeof row.id === "string" &&
+          typeof row.amount === "number" &&
+          typeof row.processingFee === "number" &&
+          typeof row.totalCharged === "number" &&
+          typeof row.timestamp === "string"
+        );
+      })
+      .map((payment) => ({
+        id: payment.id,
+        amountCents: Number(payment.amountCents || 0),
+        processingFeeCents: Number(payment.processingFeeCents || 0),
+        totalChargedCents: Number(payment.totalChargedCents || 0),
+        amount: Number(payment.amount || 0),
+        processingFee: Number(payment.processingFee || 0),
+        totalCharged: Number(payment.totalCharged || 0),
+        status: normalizePaymentStatus(payment.status) ?? "UNPAID",
+        timestamp: payment.timestamp,
+        message: String(payment.message || ""),
+        stripePaymentIntentId: payment.stripePaymentIntentId ?? null,
+        stripeSessionId: payment.stripeSessionId ?? null,
+      }))
+  : [];
+
   return {
     ok: true,
     tenantName: data.tenantName,
@@ -227,6 +278,16 @@ function normalizeDashboardData(value: unknown): DashboardData | null {
       data.latestPaymentTimestamp === null
         ? data.latestPaymentTimestamp
         : undefined,
+    hasPendingPayment: Boolean(data.hasPendingPayment),
+pendingPaymentAmount:
+  typeof data.pendingPaymentAmount === "number"
+    ? data.pendingPaymentAmount
+    : undefined,
+processingFee:
+  typeof data.processingFee === "number" ? data.processingFee : undefined,
+totalDue:
+  typeof data.totalDue === "number" ? data.totalDue : undefined,
+paymentHistory,
   };
 }
 
@@ -466,6 +527,28 @@ export default function TenantDashboard() {
                   <div className="text-base font-semibold text-amber-800">
                     Payment in progress
                   </div>
+                   <div className="mt-2 space-y-1 text-sm text-amber-800">
+  <div className="flex justify-between gap-3">
+    <span>Payment amount</span>
+    <span className="font-semibold">
+      {money(data.paymentHistory?.[0]?.amount ?? data.balance)}
+    </span>
+  </div>
+
+  <div className="flex justify-between gap-3">
+    <span>Processing fee</span>
+    <span className="font-semibold">
+      {money(data.paymentHistory?.[0]?.processingFee ?? 0)}
+    </span>
+  </div>
+
+  <div className="flex justify-between gap-3 border-t border-amber-200 pt-1">
+    <span>Total submitted</span>
+    <span className="font-semibold">
+      {money(data.paymentHistory?.[0]?.totalCharged ?? data.pendingPaymentAmount ?? totalDue)}
+    </span>
+  </div>
+</div>
                   <div className="mt-1 text-sm text-amber-700">
                     No further action is required while your bank processes this
                     payment.

@@ -5,6 +5,9 @@ import type React from "react";
 type RentTierDraft = {
   id: string;
   tierName: string;
+  unitCount: string;
+  isNew?: boolean;
+  markedForDelete?: boolean;
   baseRent: string;
   dueDay: string;
   graceDays: string;
@@ -22,6 +25,7 @@ type Props = {
   setEditingTierId: React.Dispatch<React.SetStateAction<string | null>>;
   updateLocalTier: (tierId: string, updates: Partial<RentTierDraft>) => void;
   addLocalTier: () => void;
+  removeLocalTier: (tierId: string) => void;
   saveLocalRentSettings: () => Promise<void>;
 };
 
@@ -99,6 +103,7 @@ export default function RentPanel({
   setEditingTierId,
   updateLocalTier,
   addLocalTier,
+  removeLocalTier,
   saveLocalRentSettings,
 }: Props) {
   return (
@@ -114,7 +119,9 @@ export default function RentPanel({
           </div>
         ) : null}
 
-        {localTiers.map((tier) => {
+        {localTiers
+  .filter((tier) => !tier.markedForDelete)
+  .map((tier) => {
           const isEditing = editingTierId === tier.id;
 
           return (
@@ -132,15 +139,34 @@ export default function RentPanel({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setEditingTierId(isEditing ? null : tier.id)}
-                  disabled={!canEditRentSettings}
-                  className="rf-btn rf-btn-secondary min-h-[36px] px-3 text-xs"
-                >
-                  {isEditing ? "Done" : "Change"}
-                </button>
-              </div>
+                <div className="flex gap-2">
+  <button
+    type="button"
+    onClick={() => setEditingTierId(isEditing ? null : tier.id)}
+    disabled={!canEditRentSettings}
+    className="rf-btn rf-btn-secondary min-h-[36px] px-3 text-xs"
+  >
+    {isEditing ? "Done" : "Change"}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => {
+      const confirmed = window.confirm(
+        `Delete ${tier.tierName || "this tier"}?`
+      );
+
+      if (confirmed) {
+        removeLocalTier(tier.id);
+      }
+    }}
+    disabled={!canEditRentSettings}
+    className="rf-btn min-h-[36px] border border-red-200 bg-red-50 px-3 text-xs text-red-700 hover:bg-red-100"
+  >
+    Delete
+  </button>
+</div>
+</div>
 
               {isEditing ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -172,6 +198,20 @@ export default function RentPanel({
                     />
                   </div>
 
+                   <div>
+  <label className="rf-label">Max units</label>
+  <input
+    value={tier.unitCount}
+    onChange={(e) =>
+      updateLocalTier(tier.id, {
+        unitCount: e.target.value.replace(/\D/g, ""),
+      })
+    }
+    placeholder="0"
+    className="rf-input"
+  />
+</div>
+
                   <div>
                     <label className="rf-label">Due day</label>
                     <input
@@ -201,11 +241,17 @@ export default function RentPanel({
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <SummaryStat
                     label="Base rent"
                     value={`$${tier.baseRent || "—"}`}
                   />
+
+                   <SummaryStat
+                  label="Max units"
+                  value={tier.unitCount || "0"}
+                   />
+
                   <SummaryStat label="Due day" value={tier.dueDay || "—"} />
                   <SummaryStat
                     label="Grace days"

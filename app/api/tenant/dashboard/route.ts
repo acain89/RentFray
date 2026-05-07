@@ -253,6 +253,15 @@ const balanceCents = financialState.ledgerBalanceCents;
 const processingFeeCents = financialState.processingFeeCents;
 const totalDueCents = financialState.tenantTotalDueCents;
 const rentDates = financialState.rentDates;
+
+console.log("TENANT_RENT_DATE_DEBUG", {
+  unitNumber: unit.unitNumber,
+  tier: unit.tier,
+  propertySettings: property.settings,
+  effectiveBillingSettings: financialState.effectiveBillingSettings,
+  rentDates,
+});
+
 const billingCycle = financialState.billingCycle;
 const isDelinquent = financialState.isDelinquent;
 const unitStatus = financialState.status;
@@ -267,12 +276,12 @@ const unitStatus = financialState.status;
   }) && unitStatus.canAttemptPayment;
 
 
-    const cyclePayments = await prisma.payment.findMany({
-      where: {
-        propertyId: session.propertyId,
-        unitId: session.unitId,
-        billingCycle,
-      },
+    const tenantPayments = await prisma.payment.findMany({
+  where: {
+    propertyId: session.propertyId,
+    unitId: session.unitId,
+    tenantAssignmentId: currentAssignmentId,
+  },
       orderBy: [{ createdAt: "desc" }],
       select: {
         id: true,
@@ -289,7 +298,7 @@ const unitStatus = financialState.status;
       },
     });
 
-    const latestPayment = cyclePayments[0] ?? null;
+    const latestPayment = tenantPayments[0] ?? null;
 
 
        const ledgerEntries = await prisma.ledgerEntry.findMany({
@@ -437,38 +446,57 @@ paymentMessage: unitStatus.tenantMessage,
      latestPayment?.createdAt?.toISOString() ??
      null,
 
-      paymentHistory: cyclePayments.map(
-        (payment: (typeof cyclePayments)[number]) => ({
-          id: payment.id,
-          amountCents: payment.amountCents,
-          processingFeeCents: payment.processingFeeCents ?? 0,
-          totalChargedCents:
-            payment.amountCents + (payment.processingFeeCents ?? 0),
-          amount: centsToDollars(payment.amountCents),
-          processingFee: centsToDollars(payment.processingFeeCents ?? 0),
-          totalCharged: centsToDollars(
-            payment.amountCents + (payment.processingFeeCents ?? 0)
-          ),
-          status: normalizePaymentStatus(payment.status) ?? "UNPAID",
-          timestamp:
-            payment.paidAt?.toISOString() ??
-            payment.failedAt?.toISOString() ??
-            payment.reversedAt?.toISOString() ??
-            payment.createdAt.toISOString(),
-          message:
-            normalizePaymentStatus(payment.status) === "PENDING"
-              ? "Processing"
-              : normalizePaymentStatus(payment.status) === "PAID"
-              ? "Payment successful"
-              : normalizePaymentStatus(payment.status) === "FAILED"
-              ? "Payment failed"
-              : normalizePaymentStatus(payment.status) === "REVERSED"
-              ? "Payment reversed"
-              : "Payment required",
-          stripePaymentIntentId: payment.stripePaymentIntentId,
-          stripeSessionId: payment.stripeSessionId,
-        })
-      ),
+
+        paymentHistory: tenantPayments.map(
+  (payment: (typeof tenantPayments)[number]) => ({
+    id: payment.id,
+
+    amountCents: payment.amountCents,
+    processingFeeCents: payment.processingFeeCents ?? 0,
+
+    totalChargedCents:
+      payment.amountCents +
+      (payment.processingFeeCents ?? 0),
+
+    amount: centsToDollars(payment.amountCents),
+
+    processingFee: centsToDollars(
+      payment.processingFeeCents ?? 0
+    ),
+
+    totalCharged: centsToDollars(
+      payment.amountCents +
+      (payment.processingFeeCents ?? 0)
+    ),
+
+    status:
+      normalizePaymentStatus(payment.status) ??
+      "UNPAID",
+
+    timestamp:
+      payment.paidAt?.toISOString() ??
+      payment.failedAt?.toISOString() ??
+      payment.reversedAt?.toISOString() ??
+      payment.createdAt.toISOString(),
+
+    message:
+      normalizePaymentStatus(payment.status) === "PENDING"
+        ? "Processing"
+        : normalizePaymentStatus(payment.status) === "PAID"
+        ? "Payment successful"
+        : normalizePaymentStatus(payment.status) === "FAILED"
+        ? "Payment failed"
+        : normalizePaymentStatus(payment.status) === "REVERSED"
+        ? "Payment reversed"
+        : "Payment required",
+
+    stripePaymentIntentId:
+      payment.stripePaymentIntentId,
+
+    stripeSessionId:
+      payment.stripeSessionId,
+  })
+),
 
       dueDate: rentDates.dueDate,
       graceEndsOn: rentDates.graceEndsOn,

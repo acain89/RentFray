@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
-import { canActivateUnit } from "@/lib/propertyCapacity";
-
+import { canActivateTier, canActivateUnit } from "@/lib/propertyCapacity";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -156,6 +155,15 @@ if (!existingUnit) {
       { status: 409 }
     );
   }
+}
+
+const canActivateSelectedTier = await canActivateTier(property.id, selectedTier.id);
+
+if (!canActivateSelectedTier) {
+  return NextResponse.json(
+    { error: "This rent tier is full. Contact management for help." },
+    { status: 409 }
+  );
 }
 
 const pinHash = await hashPin(pin);

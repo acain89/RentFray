@@ -113,7 +113,10 @@ export async function POST(req: Request) {
         propertyId: session.propertyId,
         unitId: unit.id,
         isCurrent: true,
-        moveOutDate: null,
+        OR: [
+  { moveOutDate: null },
+  { moveOutDate: { gt: new Date() } },
+],
       },
       orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
       select: {

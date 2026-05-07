@@ -30,7 +30,13 @@ export async function POST(req: Request) {
       },
       include: {
         tenantAssignments: {
-          where: { isCurrent: true },
+          where: {
+          isCurrent: true,
+          OR: [
+         { moveOutDate: null },
+         { moveOutDate: { gt: new Date() } },
+            ],
+           },
           take: 1,
         },
       },

@@ -7,6 +7,20 @@ type TenantActivateClientProps = {
   propertyCode: string;
 };
 
+type Tier = {
+  id: string;
+  name: string;
+  baseRentCents: number;
+  unitCount: number;
+  occupiedUnits: number;
+  availableUnits: number;
+  isFull: boolean;
+};
+
+function formatMoney(cents: number): string {
+  return `$${(Number(cents || 0) / 100).toFixed(2)}`;
+}
+
 function inputClass(hasError: boolean) {
   return [
     "w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition",
@@ -31,12 +45,30 @@ const [loading, setLoading] = useState(false);
 
 const [recentMoveIn, setRecentMoveIn] = useState<boolean | null>(null);
 const [moveInDate, setMoveInDate] = useState<string>("");
+const [tiers, setTiers] = useState<Tier[]>([]);
+const [selectedTierId, setSelectedTierId] = useState("");
 
   useEffect(() => {
-    if (!propertyCode) {
-      router.replace("/property-code");
-    }
-  }, [propertyCode, router]);
+  if (!propertyCode) {
+    router.replace("/property-code");
+    return;
+  }
+
+  fetch("/api/property/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ propertyCode }),
+  })
+    .then((res) => res.json())
+    .then((data: { tiers?: Tier[] }) => {
+      if (Array.isArray(data.tiers)) {
+        setTiers(data.tiers);
+      }
+    })
+    .catch(() => {
+      setTiers([]);
+    });
+}, [propertyCode, router]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,6 +86,11 @@ const [moveInDate, setMoveInDate] = useState<string>("");
       setError("Missing property code.");
       return;
     }
+
+     if (!selectedTierId) {
+  setError("Select your rent tier.");
+  return;
+}
 
     if (!cleanFirstName || !cleanLastName) {
       setError("Enter your first and last name.");
@@ -102,7 +139,8 @@ if (recentMoveIn && !moveInDate) {
         credentials: "include",
         body: JSON.stringify({
   propertyCode,
-  firstName: cleanFirstName,
+tierId: selectedTierId,
+firstName: cleanFirstName,
   lastName: cleanLastName,
   unitNumber: cleanUnitNumber,
   confirmUnitNumber: cleanConfirmUnitNumber,
@@ -152,7 +190,49 @@ if (recentMoveIn && !moveInDate) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+  <div>
+    <p className="mb-2 text-sm font-medium text-slate-800">
+      Select your rent tier
+    </p>
+
+    <div className="space-y-2">
+      {tiers.map((tier) => {
+        const disabled = tier.isFull;
+
+        return (
+          <button
+            type="button"
+            key={tier.id}
+            disabled={disabled}
+            onClick={() => {
+              if (!disabled) {
+                setSelectedTierId(tier.id);
+                if (error) setError("");
+              }
+            }}
+            className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+              disabled
+                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-70"
+                : selectedTierId === tier.id
+                  ? "border-slate-900 bg-slate-100"
+                  : "border-slate-200 bg-white"
+            }`}
+          >
+            <div className="flex justify-between gap-3">
+              <span>{tier.name}</span>
+              <span>{formatMoney(tier.baseRentCents)}</span>
+            </div>
+
+            <div className="mt-1 text-xs">
+              {disabled ? "Full" : `${tier.availableUnits} available`}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+
+  <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-800">
                   First Name

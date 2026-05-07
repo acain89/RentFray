@@ -32,6 +32,9 @@ type Unit = {
   daysPastDue: number;
   tierName?: string | null;
   paymentStatus: "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+  displayStatus?: "PAID" | "PENDING" | "FAILED" | "GRACE" | "PAST_DUE" | "UNPAID";
+  statusColor?: "green" | "yellow" | "orange" | "blue" | "red";
+  statusLabel?: string;
   isActive: boolean;
   nextCycleAdjustments?: NextCycleAdjustment[];
 };
@@ -109,7 +112,14 @@ billingCycleStartDate?: string | null;
   tiers: DashboardTier[];
 };
 
-type UnitStatus = "PAID" | "GRACE" | "PENDING" | "FAILED" | "DELINQUENT" | "VACANT";
+type UnitStatus =
+  | "PAID"
+  | "GRACE"
+  | "PENDING"
+  | "FAILED"
+  | "PAST_DUE"
+  | "UNPAID"
+  | "VACANT";
 
 type PanelKey =
   | "manage"
@@ -136,6 +146,9 @@ type TierGroup = {
 type RentTierDraft = {
   id: string;
   tierName: string;
+  unitCount: string;
+  isNew?: boolean;
+  markedForDelete?: boolean;
   baseRent: string;
   dueDay: string;
   graceDays: string;
@@ -242,14 +255,24 @@ type InactiveUnitsResponse = {
 };
 
 function getStatus(unit: Unit): UnitStatus {
-  // ✅ FIRST: handle vacancy
   if (!unit.tenantName) return "VACANT";
 
-  // existing priority order
+  switch (unit.displayStatus) {
+    case "PAID":
+    case "GRACE":
+    case "PENDING":
+    case "FAILED":
+    case "PAST_DUE":
+    case "UNPAID":
+      return unit.displayStatus;
+    default:
+      break;
+  }
+
   if (unit.paymentStatus === "FAILED") return "FAILED";
   if (unit.paymentStatus === "PENDING") return "PENDING";
   if (unit.paymentStatus === "PAID") return "PAID";
-  if (unit.isDelinquent) return "DELINQUENT";
+  if (unit.isDelinquent) return "PAST_DUE";
 
   return "GRACE";
 }
@@ -264,8 +287,10 @@ function getStatusDotClass(status: UnitStatus): string {
       return "bg-yellow-400"; // yellow
     case "FAILED":
       return "bg-orange-500"; // orange
-    case "DELINQUENT":
-      return "bg-red-500"; // red
+   case "PAST_DUE":
+  return "bg-red-500"; // red
+case "UNPAID":
+  return "bg-blue-500"; // blue
     case "VACANT":
       return "bg-slate-400"; // gray
     default:
@@ -283,8 +308,10 @@ function getStatusText(status: UnitStatus, daysPastDue: number): string {
       return "Payment pending";
     case "FAILED":
       return "Payment failed";
-    case "DELINQUENT":
-      return `${daysPastDue} day${daysPastDue === 1 ? "" : "s"} past due`;
+      case "PAST_DUE":
+  return `${daysPastDue} day${daysPastDue === 1 ? "" : "s"} past due`;
+case "UNPAID":
+  return "Balance due";   
     default:
       return "—";
   }
@@ -335,17 +362,21 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
   const safeName = String(tierName || `Tier ${index + 1}`).trim();
 
   return {
-    id: `${slugifyTierName(safeName) || `tier-${index + 1}`}-${index}`,
-    tierName: safeName,
-    baseRent: "",
-    dueDay: "1",
-    graceDays: "5",
-    lateFeeEnabled: false,
-    lateFeeAmount: "",
-    lateFeeDaily: "",
-    lateFeeMaxDays: "",
-  };
+  id: `${slugifyTierName(safeName) || `tier-${index + 1}`}-${index}`,
+  tierName: safeName,
+  unitCount: "0",
+  isNew: true,
+  markedForDelete: false,
+  baseRent: "",
+  dueDay: "1",
+  graceDays: "5",
+  lateFeeEnabled: false,
+  lateFeeAmount: "",
+  lateFeeDaily: "",
+  lateFeeMaxDays: "",
+};
 }
+
 function urgencyBadgeClass(urgency: string): string {
   switch (urgency.toUpperCase()) {
     case "URGENT":
@@ -893,6 +924,7 @@ async function loadPropertyTiers(): Promise<void> {
             lateFeeDailyCents?: number;
             lateFeeMaxDays?: number;
             maxLateFeeDays?: number;
+            unitCount?: number;
           },
           index: number
         ) => {
@@ -920,6 +952,13 @@ async function loadPropertyTiers(): Promise<void> {
           return {
             id: String(tier.id || `tier-${index}`),
             tierName: String(tier.name || `Tier ${index + 1}`),
+            unitCount:
+            typeof tier.unitCount === "number"
+            ? String(tier.unitCount)
+            : "0",
+
+            isNew: false,
+            markedForDelete: false,
             baseRent:
               typeof tier.baseRent === "number" ? String(tier.baseRent) : "",
             dueDay:
@@ -1851,6 +1890,31 @@ function updateLocalTier(
   );
 }
 
+function removeLocalTier(tierId: string): void {
+  setLocalTiers((current) =>
+    current.flatMap((tier) => {
+      if (tier.id !== tierId) {
+        return [tier];
+      }
+
+      if (tier.isNew) {
+        return [];
+      }
+
+      return [
+        {
+          ...tier,
+          markedForDelete: true,
+        },
+      ];
+    })
+  );
+
+  setEditingTierId((current) =>
+    current === tierId ? null : current
+  );
+}
+
 function createChargeDraft(index = 0): AdditionalChargeDraft {
   return {
     id: `charge-${index}-${Date.now()}`,
@@ -1875,8 +1939,24 @@ function formatMonthLabel(value: string): string {
 function addLocalTier(): void {
   setLocalTiers((current) => {
     const nextIndex = current.length;
-    const newTier = createTierDraft(`Tier ${nextIndex + 1}`, nextIndex);
-    return [...current, newTier];
+
+    return [
+      ...current,
+      {
+        id: `new-tier-${Date.now()}`,
+        tierName: `Tier ${nextIndex + 1}`,
+        unitCount: "0",
+        isNew: true,
+        markedForDelete: false,
+        baseRent: "",
+        dueDay: "1",
+        graceDays: "5",
+        lateFeeEnabled: false,
+        lateFeeAmount: "",
+        lateFeeDaily: "",
+        lateFeeMaxDays: "",
+      },
+    ];
   });
 }
 
@@ -1885,7 +1965,7 @@ async function saveGpLfSettings(): Promise<void> {
 
   const targetTierIds =
     gpLfTierMode === "all"
-      ? localTiers.map((t) => t.id)
+      ? localTiers.filter((t) => !t.markedForDelete).map((t) => t.id)
       : gpLfSelectedTierIds;
 
   if (targetTierIds.length === 0) {
@@ -1898,7 +1978,7 @@ async function saveGpLfSettings(): Promise<void> {
     setGpLfSaveMessage("");
 
     const tiersToUpdate = localTiers
-      .filter((tier) => targetTierIds.includes(tier.id))
+      .filter((tier) => !tier.markedForDelete && targetTierIds.includes(tier.id))
       .map((tier) => ({
         id: tier.id,
         dueDay: gpLfSettings.dueDay,
@@ -2044,7 +2124,7 @@ useEffect(() => {
 
   const nextVisibleTierIds =
     gpLfTierMode === "all"
-      ? localTiers.map((tier) => tier.id)
+      ? localTiers.filter((tier) => !tier.markedForDelete).map((tier) => tier.id)
       : gpLfSelectedTierIds;
 
   const visibleTiers = localTiers.filter((tier) =>
@@ -2171,44 +2251,7 @@ if (error === "Unauthorized") {
 </section>
             
       
-              <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-  <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] px-4 py-4 shadow-[var(--rf-shadow-sm)]">
-    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-      Has used portal
-    </div>
-    <div className="mt-2 text-2xl font-semibold text-[var(--rf-text)]">
-      {data.summary?.occupiedUnits ?? stats.occupiedUnits}
-    </div>
-  </div>
-
-  <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] px-4 py-4 shadow-[var(--rf-shadow-sm)]">
-    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-      Total units
-    </div>
-    <div className="mt-2 text-2xl font-semibold text-[var(--rf-text)]">
-      {data.summary?.totalUnits ?? stats.totalUnits}
-    </div>
-  </div>
-
-  <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] px-4 py-4 shadow-[var(--rf-shadow-sm)]">
-    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-      Delinquent
-    </div>
-    <div className="mt-2 text-2xl font-semibold text-[var(--rf-text)]">
-      {data.summary?.delinquentUnits ?? 0}
-    </div>
-  </div>
-
-  <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] px-4 py-4 shadow-[var(--rf-shadow-sm)]">
-    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-      Tiers
-    </div>
-    <div className="mt-2 text-2xl font-semibold text-[var(--rf-text)]">
-      {stats.tiers}
-    </div>
-  </div>
-</section>
-
+              
 <section className="rounded-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] p-4 shadow-[var(--rf-shadow-md)] sm:p-5">
   <div className="flex flex-col gap-4">
     <div className="flex flex-col gap-1">
@@ -2848,7 +2891,8 @@ await loadDashboard();
     setEditingTierId={setEditingTierId}
     updateLocalTier={updateLocalTier}
     addLocalTier={addLocalTier}
-    saveLocalRentSettings={saveLocalRentSettings}
+removeLocalTier={removeLocalTier}
+saveLocalRentSettings={saveLocalRentSettings}
   />
 ) : null}
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOccupiedTierUnitCount } from "@/lib/propertyCapacity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,18 +23,18 @@ export async function POST(req: Request) {
     }
 
     const property = await prisma.property.findFirst({
-  where: {
-    propertyCode: {
-      equals: propertyCode,
-      mode: "insensitive",
-    },
-  },
-  select: {
-    id: true,
-    name: true,
-    propertyCode: true,
-  },
-});
+      where: {
+        propertyCode: {
+          equals: propertyCode,
+          mode: "insensitive",
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        propertyCode: true,
+      },
+    });
 
     if (!property) {
       return NextResponse.json(
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
       );
     }
 
-   const tiers = await prisma.propertyTier.findMany({
+    const tiers = await prisma.propertyTier.findMany({
       where: {
         propertyId: property.id,
         isActive: true,
@@ -52,8 +53,34 @@ export async function POST(req: Request) {
         id: true,
         name: true,
         baseRentCents: true,
+        unitCount: true,
       },
     });
+
+    const tiersWithAvailability = await Promise.all(
+      tiers.map(
+  async (tier: {
+    id: string;
+    name: string;
+    baseRentCents: number;
+    unitCount: number;
+  }) => {
+        const occupiedUnits = await getOccupiedTierUnitCount(property.id, tier.id);
+        const maxUnits = Math.max(0, tier.unitCount);
+        const availableUnits = Math.max(0, maxUnits - occupiedUnits);
+
+        return {
+          id: tier.id,
+          name: tier.name,
+          baseRentCents: tier.baseRentCents,
+          unitCount: maxUnits,
+          occupiedUnits,
+          availableUnits,
+           isFull: maxUnits <= 0 || availableUnits <= 0,
+      };
+    }
+  )
+);
 
     return NextResponse.json({
       ok: true,
@@ -62,11 +89,10 @@ export async function POST(req: Request) {
         name: property.name,
         propertyCode: property.propertyCode,
       },
-      tiers,
+      tiers: tiersWithAvailability,
     });
   } catch (error: unknown) {
     console.error("PROPERTY_RESOLVE_ERROR:", error);
-
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
