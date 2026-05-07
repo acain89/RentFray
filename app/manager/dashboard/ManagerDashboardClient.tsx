@@ -280,21 +280,21 @@ function getStatus(unit: Unit): UnitStatus {
 function getStatusDotClass(status: UnitStatus): string {
   switch (status) {
     case "PAID":
-      return "bg-emerald-500"; // green
+      return "bg-emerald-500 ring-2 ring-emerald-100 shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_0_10px_rgba(16,185,129,0.35)]";
     case "GRACE":
-      return "bg-blue-500"; // blue
+      return "bg-sky-500 ring-2 ring-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.25),0_0_10px_rgba(14,165,233,0.35)]";
     case "PENDING":
-      return "bg-yellow-400"; // yellow
+      return "bg-amber-400 ring-2 ring-amber-100 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_0_10px_rgba(245,158,11,0.35)]";
     case "FAILED":
-      return "bg-orange-500"; // orange
-   case "PAST_DUE":
-  return "bg-red-500"; // red
-case "UNPAID":
-  return "bg-blue-500"; // blue
+      return "bg-orange-500 ring-2 ring-orange-100 shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_0_10px_rgba(249,115,22,0.35)]";
+    case "PAST_DUE":
+      return "bg-rose-500 ring-2 ring-rose-100 shadow-[0_0_0_1px_rgba(244,63,94,0.25),0_0_10px_rgba(244,63,94,0.35)]";
+    case "UNPAID":
+      return "bg-sky-500 ring-2 ring-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.25),0_0_10px_rgba(14,165,233,0.35)]";
     case "VACANT":
-      return "bg-slate-400"; // gray
+      return "bg-slate-400 ring-2 ring-slate-100 shadow-[0_0_0_1px_rgba(148,163,184,0.25)]";
     default:
-      return "bg-slate-400";
+      return "bg-slate-400 ring-2 ring-slate-100";
   }
 }
 
@@ -2345,7 +2345,7 @@ if (error === "Unauthorized") {
   >
     <div className="grid w-full grid-cols-[auto_90px_minmax(70px,1fr)_minmax(64px,0.8fr)_minmax(90px,0.8fr)] items-center gap-3 px-3 py-3">
       <span
-        className={`h-3.5 w-3.5 shrink-0 rounded-full ${getStatusDotClass(
+          className={`h-4 w-4 shrink-0 rounded-full ${getStatusDotClass(
           unit.status
         )}`}
       />
