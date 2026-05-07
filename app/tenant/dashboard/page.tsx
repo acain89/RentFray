@@ -85,7 +85,14 @@ function money(value: number): string {
 }
 
 function fmtDate(value: string): string {
-  const date = new Date(value);
+  const raw = String(value || "").trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("en-US");
+  }
+
+  const date = new Date(raw);
 
   if (Number.isNaN(date.getTime())) {
     return "—";
