@@ -201,7 +201,10 @@ if (config.billingCycleStartDate) {
   }
 }
 
-  const graceEnds = addDays(dueDate, config.gracePeriodDays);
+const graceEnds = addDays(
+  dueDate,
+  Math.max(0, config.gracePeriodDays - 1)
+);
 
   let initialLateFeeDate: NullableDate = null;
   let dailyLateFeeStartDate: NullableDate = null;
