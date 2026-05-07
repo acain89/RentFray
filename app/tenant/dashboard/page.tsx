@@ -84,12 +84,17 @@ function money(value: number): string {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
-function fmtDate(value: string): string {
-  const raw = String(value || "").trim();
+function fmtDate(value: string | Date | null | undefined): string {
+  if (!value) return "—";
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const [year, month, day] = raw.split("-").map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString("en-US");
+  const raw =
+    value instanceof Date ? value.toISOString() : String(value).trim();
+
+  const isoDateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoDateMatch) {
+    const [, year, month, day] = isoDateMatch;
+    return `${Number(month)}/${Number(day)}/${year}`;
   }
 
   const date = new Date(raw);
@@ -98,7 +103,9 @@ function fmtDate(value: string): string {
     return "—";
   }
 
-  return date.toLocaleDateString("en-US");
+  return date.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+  });
 }
 
 function normalizePaymentStatus(value: unknown): PaymentViewStatus | undefined {
