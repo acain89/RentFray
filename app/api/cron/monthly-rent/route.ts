@@ -34,11 +34,10 @@ export async function POST(req: Request) {
       );
     }
 
-    await runMonthlyRentJob();
+    const result = await runMonthlyRentJob();
 
-    return NextResponse.json<ApiSuccess>({
-      ok: true,
-    });
+return NextResponse.json(result);
+
   } catch (error: unknown) {
     console.error("POST /api/cron/monthly-rent error:", error);
 
