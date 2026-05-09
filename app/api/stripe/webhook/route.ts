@@ -225,26 +225,45 @@ export async function POST(req: Request) {
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
+   if (event.type === "checkout.session.completed") {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const paymentId = safeString(session.metadata?.paymentId);
+  const paymentIntentId =
+    typeof session.payment_intent === "string" ? session.payment_intent : null;
 
-      if (typeof session.payment_intent === "string") {
-        const intent = await stripe.paymentIntents.retrieve(
-          session.payment_intent
-        );
+  if (paymentId) {
+    const payment = await prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        stripeSessionId: session.id,
+        ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+        status: "PENDING",
+        paymentMethod: "ACH",
+      },
+    });
 
-        const payment = await ensurePaymentFromIntent(intent, session.id);
+    emitEvent("payment:update", {
+      propertyId: payment.propertyId,
+      unitId: payment.unitId,
+    });
 
-        if (payment) {
-          emitEvent("payment:update", {
-            propertyId: payment.propertyId,
-            unitId: payment.unitId,
-          });
-        }
-      }
+    return NextResponse.json({ received: true });
+  }
 
-      return NextResponse.json({ received: true });
+  if (paymentIntentId) {
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const payment = await ensurePaymentFromIntent(intent, session.id);
+
+    if (payment) {
+      emitEvent("payment:update", {
+        propertyId: payment.propertyId,
+        unitId: payment.unitId,
+      });
     }
+  }
+
+  return NextResponse.json({ received: true });
+}
 
     if (event.type === "payment_intent.payment_failed") {
       const failedIntent = event.data.object as Stripe.PaymentIntent;
