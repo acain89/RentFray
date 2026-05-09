@@ -97,11 +97,20 @@ async function getCyclePaymentState(input: {
   (payment: (typeof payments)[number]) => String(payment.status)
 );
 
-  const hasPendingPayment = statuses.includes("PENDING");
-  const hasFailedPayment = !hasPendingPayment && statuses.includes("FAILED");
-  const hasReversedPayment =
-    !hasPendingPayment && statuses.includes("REVERSED");
-  const hasPaidPayment = !hasPendingPayment && statuses.includes("PAID");
+const hasPaidPayment = statuses.includes("PAID");
+
+const hasPendingPayment =
+  !hasPaidPayment && statuses.includes("PENDING");
+
+const hasFailedPayment =
+  !hasPaidPayment &&
+  !hasPendingPayment &&
+  statuses.includes("FAILED");
+
+const hasReversedPayment =
+  !hasPaidPayment &&
+  !hasPendingPayment &&
+  statuses.includes("REVERSED");
 
   return {
     hasPendingPayment,

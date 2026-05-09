@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { canManagerOperate } from "@/lib/liveGating";
 import { verifyManagementPassword } from "@/lib/managementAuth";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 
 export const runtime = "nodejs";
@@ -23,6 +24,20 @@ function clean(value: unknown): string {
 
 export async function POST(req: Request) {
   try {
+           const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimit = checkRateLimit(`manager-login:${ip}`, 10, 60_000);
+
+    if (!rateLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please wait a minute and try again." },
+        { status: 429 }
+      );
+    }     
+
     const body = (await req.json()) as LoginBody;
 
     const propertyCode = clean(body.propertyCode);

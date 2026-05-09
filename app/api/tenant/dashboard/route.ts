@@ -130,78 +130,7 @@ await refreshSessionCookie(session);
 
     const property = unit.property;
    
-    // 🔒 SYNC STRIPE STATUS (fix stale DB issue)
-if (property.stripeAccountId) {
-  try {
-    const stripe = new (await import("stripe")).default(
-      process.env.STRIPE_SECRET_KEY as string,
-      { apiVersion: "2026-02-25.clover" }
-    );
-
-    const account = await stripe.accounts.retrieve(property.stripeAccountId);
-
-    await prisma.property.update({
-      where: { id: property.id },
-      data: {
-        paymentStatus: {
-          upsert: {
-            create: {
-              processorConnected: true,
-              bankConnected: true,
-              chargesEnabled: Boolean(account.charges_enabled),
-              payoutsEnabled: Boolean(account.payouts_enabled),
-              onboardingComplete: Boolean(account.details_submitted),
-              requirementsDue: Boolean(
-                account.requirements?.currently_due?.length
-              ),
-              requirementsSummary:
-                account.requirements?.disabled_reason ?? null,
-              lastSyncedAt: new Date(),
-              readyForLive:
-                Boolean(account.charges_enabled) &&
-                Boolean(account.payouts_enabled),
-            },
-            update: {
-              processorConnected: true,
-              bankConnected: true,
-              chargesEnabled: Boolean(account.charges_enabled),
-              payoutsEnabled: Boolean(account.payouts_enabled),
-              onboardingComplete: Boolean(account.details_submitted),
-              requirementsDue: Boolean(
-                account.requirements?.currently_due?.length
-              ),
-              requirementsSummary:
-                account.requirements?.disabled_reason ?? null,
-              lastSyncedAt: new Date(),
-              readyForLive:
-                Boolean(account.charges_enabled) &&
-                Boolean(account.payouts_enabled),
-            },
-          },
-        },
-      },
-    });
-
-    property.paymentStatus = {
-      ...property.paymentStatus,
-      processorConnected: true,
-      bankConnected: true,
-      chargesEnabled: Boolean(account.charges_enabled),
-      payoutsEnabled: Boolean(account.payouts_enabled),
-      onboardingComplete: Boolean(account.details_submitted),
-      requirementsDue: Boolean(account.requirements?.currently_due?.length),
-      requirementsSummary: account.requirements?.disabled_reason ?? null,
-      lastSyncedAt: new Date(),
-      readyForLive:
-        Boolean(account.charges_enabled) &&
-        Boolean(account.payouts_enabled),
-    };
-  } catch (err) {
-    console.error("Stripe sync failed:", err);
-  }
-}
-
-// ✅ ADD THIS RIGHT HERE (immediately after Stripe sync)
+    // ✅ ADD THIS RIGHT HERE (immediately after Stripe sync)
 
 if (
   shouldAutoSetPropertyReady({

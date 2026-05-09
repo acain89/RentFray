@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
 
 checkPinAllowed,
@@ -16,6 +17,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
+          const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimit = checkRateLimit(`tenant-login:${ip}`, 15, 60_000);
+
+    if (!rateLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please wait a minute and try again." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
 
     const propertyCode = String(body.propertyCode || "").trim();

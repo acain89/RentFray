@@ -238,6 +238,8 @@ model TenantAssignment {
   @@index([propertyId, unitId])
   @@index([unitId, isCurrent])
   @@index([propertyId, isCurrent])
+  @@index([unitId, isCurrent, moveOutDate])
+  @@index([unitId, moveInDate, createdAt])
 }
 
 model MaintenanceUser {
@@ -322,6 +324,9 @@ model LedgerEntry {
   @@index([entryType])
   @@index([paymentId])
   @@index([billingCycle])
+  @@index([propertyId, unitId, billingCycle])
+  @@index([propertyId, billingCycle, entryType, chargeType])
+  @@index([propertyId, unitId, voidedAt])
 }
 
 model AuditLog {
@@ -403,6 +408,7 @@ model Payment {
   @@index([stripeSessionId])
   @@index([status])
   @@index([billingCycle])
+  @@index([propertyId, unitId, billingCycle, status])
 }
 
 enum PaymentStatus {

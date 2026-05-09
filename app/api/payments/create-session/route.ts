@@ -1,9 +1,11 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession, refreshSessionCookie } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { canMakePayments } from "@/lib/liveGating";
+import { checkRateLimit } from "@/lib/rateLimit";
 import { getProcessingFeeCents } from "@/lib/billingConfig";
 import {
   getRentDateSummary,
@@ -33,6 +35,20 @@ function toSafeInteger(value: unknown): number {
 export async function POST(req: Request) {
 
   try {
+        const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimit = checkRateLimit(`create-session:${ip}`, 10, 60_000);
+
+    if (!rateLimit.ok) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "Too many payment attempts. Please wait a minute and try again." },
+        { status: 429 }
+      );
+    }
+
     const secretKey = process.env.STRIPE_SECRET_KEY;
 
     if (!secretKey) {
@@ -188,39 +204,51 @@ const billingCycle = rentDates.billingCycle;
 
     const tenantAssignmentId = assignment?.id ?? null;
 
+         const createdPayment = await prisma.$transaction(
+  async (tx: Prisma.TransactionClient) => {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${`${property.id}:${unit.id}:${tenantAssignmentId ?? "none"}:${billingCycle}`}))
+    `;
+
+    const existingPayment = await tx.payment.findFirst({
+      where: {
+        propertyId: property.id,
+        unitId: unit.id,
+        tenantAssignmentId: tenantAssignmentId ?? undefined,
+        billingCycle,
+        status: {
+          in: ["PENDING", "PAID"],
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingPayment) {
+      return null;
+    }
+
+    return tx.payment.create({
+      data: {
+        propertyId: property.id,
+        unitId: unit.id,
+        tenantAssignmentId: tenantAssignmentId ?? undefined,
+        billingCycle,
+        amountCents: balanceCents,
+        processingFeeCents,
+        status: "PENDING",
+      },
+    });
+  }
+);
+
+    if (!createdPayment) {
+      return NextResponse.json(
+        { ok: false, error: "Payment already in progress." },
+        { status: 400 }
+      );
+    }
+
    
-
-   const existingPayment = await prisma.payment.findFirst({
-  where: {
-    unitId: unit.id,
-    tenantAssignmentId: tenantAssignmentId ?? undefined,
-    billingCycle,
-    status: {
-      in: ["PENDING", "PAID"],
-    },
-  },
-  select: { id: true },
-});
-
-if (existingPayment) {
-  return NextResponse.json(
-    { ok: false, error: "Payment already in progress." },
-    { status: 400 }
-  );
-}
-
-   const createdPayment = await prisma.payment.create({
-  data: {
-    propertyId: property.id,
-    unitId: unit.id,
-    tenantAssignmentId: tenantAssignmentId ?? undefined,
-    billingCycle,
-    amountCents: balanceCents,
-    processingFeeCents,
-    status: "PENDING",
-  },
-});
-
     if (!property.stripeAccountId) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Bank not connected" },
@@ -303,6 +331,19 @@ const checkoutSession = await stripe.checkout.sessions.create({
   success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
   cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
   metadata: paymentMetadata,
+});
+
+   await prisma.payment.update({
+  where: {
+    id: createdPayment.id,
+  },
+  data: {
+    stripeSessionId: checkoutSession.id,
+    stripePaymentIntentId:
+      typeof checkoutSession.payment_intent === "string"
+        ? checkoutSession.payment_intent
+        : null,
+  },
 });
 
     if (!checkoutSession.url) {

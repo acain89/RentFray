@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOccupiedTierUnitCount } from "@/lib/propertyCapacity";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,20 @@ type ResolveRequestBody = {
 
 export async function POST(req: Request) {
   try {
+        const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimit = checkRateLimit(`property-resolve:${ip}`, 20, 60_000);
+
+    if (!rateLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a minute and try again." },
+        { status: 429 }
+      );
+    }
+    
     const body = (await req.json()) as Partial<ResolveRequestBody>;
     const propertyCode = String(body.code ?? body.propertyCode ?? "").trim();
 

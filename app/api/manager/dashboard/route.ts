@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession, refreshSessionCookie } from "@/lib/session";
 import {
@@ -10,21 +9,26 @@ import { formatCentsToDollars } from "@/lib/billingConfig";
 import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import { getUnitStatus } from "@/lib/unitStatusEngine";
-import { getUnitLedgerSummary } from "@/lib/ledger";
-import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
-
+type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
 
 type ExportMonthOption = {
   value: string;
   label: string;
   year: number;
   month: number;
+};
+
+type LedgerSummary = {
+  balanceCents: number;
+  totalChargesCents: number;
+  totalCreditsCents: number;
+  totalPaidCents: number;
 };
 
 function buildExportMonths(
@@ -84,25 +88,28 @@ function toSafeInteger(value: unknown): number {
   return Math.trunc(n);
 }
 
-function toDateOnly(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 function parseDateOnly(value: string | null | undefined): Date | null {
   if (!value) return null;
-  const [year, month, day] = value.split("-").map(Number);
 
+  const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return null;
 
   const date = new Date(year, month - 1, day);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function diffDays(later: Date, earlier: Date): number {
   const msPerDay = 1000 * 60 * 60 * 24;
+
   return Math.max(
     0,
-    Math.floor((later.getTime() - earlier.getTime()) / msPerDay)
+    Math.floor(
+      (startOfDay(later).getTime() - startOfDay(earlier).getTime()) / msPerDay
+    )
   );
 }
 
@@ -119,18 +126,196 @@ function getBillingLabel(cycleKey: string): string {
   });
 }
 
+function normalizeLedgerEntryType(value: unknown): LedgerEntryType | null {
+  const type = String(value ?? "").trim().toUpperCase();
+
+  switch (type) {
+    case "CHARGE":
+    case "PAYMENT":
+    case "CREDIT":
+    case "ADJUSTMENT":
+      return type;
+    default:
+      return null;
+  }
+}
+
+function normalizePaymentStatus(value: unknown): PaymentStatus | null {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "UNPAID":
+    case "PENDING":
+    case "PAID":
+    case "FAILED":
+    case "REVERSED":
+      return status;
+    default:
+      return null;
+  }
+}
+
+function toSafeDate(value: unknown): Date | null {
+  if (!value) return null;
+
+  const date =
+    value instanceof Date ? value : new Date(value as string | number | Date);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getSignedImpactCents(input: {
+  entryType: LedgerEntryType;
+  amountCents: number;
+  paymentStatus: PaymentStatus | null;
+}): number {
+  const amountCents = Math.abs(toSafeInteger(input.amountCents));
+
+  if (input.entryType === "CHARGE") return amountCents;
+  if (input.entryType === "PAYMENT") {
+    return input.paymentStatus === "PAID" ? -amountCents : 0;
+  }
+  if (input.entryType === "CREDIT") return -amountCents;
+  if (input.entryType === "ADJUSTMENT") return toSafeInteger(input.amountCents);
+
+  return 0;
+}
+
+function buildLedgerSummary(input: {
+  entries: DashboardLedgerEntryRow[];
+  billingCycleStartDate: Date | null;
+}): LedgerSummary {
+  let balanceCents = 0;
+  let totalChargesCents = 0;
+  let totalCreditsCents = 0;
+  let totalPaidCents = 0;
+
+  for (const entry of input.entries) {
+    const entryType = normalizeLedgerEntryType(entry.entryType);
+    if (!entryType) continue;
+
+    if (entryType === "CHARGE" && input.billingCycleStartDate) {
+      const effectiveDate = toSafeDate(entry.effectiveDate);
+
+      if (effectiveDate && effectiveDate < input.billingCycleStartDate) {
+        continue;
+      }
+    }
+
+    const amountCents = toSafeInteger(entry.amountCents);
+    const paymentStatus = normalizePaymentStatus(entry.payment?.status);
+    const signedImpactCents = getSignedImpactCents({
+      entryType,
+      amountCents,
+      paymentStatus,
+    });
+
+    balanceCents += signedImpactCents;
+
+    if (entryType === "CHARGE") {
+      totalChargesCents += Math.abs(amountCents);
+    }
+
+    if (entryType === "CREDIT") {
+      totalCreditsCents += Math.abs(amountCents);
+    }
+
+    if (entryType === "PAYMENT" && paymentStatus === "PAID") {
+      totalPaidCents += Math.abs(amountCents);
+    }
+  }
+
+  return {
+    balanceCents,
+    totalChargesCents,
+    totalCreditsCents,
+    totalPaidCents,
+  };
+}
+
+function getCyclePaymentFlags(payments: DashboardPaymentRow[]): {
+  hasPendingPayment: boolean;
+  hasFailedPayment: boolean;
+  hasReversedPayment: boolean;
+  hasPaidPayment: boolean;
+} {
+  const statuses = payments.map((payment) =>
+    String(payment.status ?? "").toUpperCase()
+  );
+
+const hasPaidPayment = statuses.includes("PAID");
+
+const hasPendingPayment =
+  !hasPaidPayment && statuses.includes("PENDING");
+
+const hasFailedPayment =
+  !hasPaidPayment &&
+  !hasPendingPayment &&
+  statuses.includes("FAILED");
+
+const hasReversedPayment =
+  !hasPaidPayment &&
+  !hasPendingPayment &&
+  statuses.includes("REVERSED");
+
+  return {
+    hasPendingPayment,
+    hasFailedPayment,
+    hasReversedPayment,
+    hasPaidPayment,
+  };
+}
+
+type DashboardPaymentRow = {
+  id: string;
+  unitId: string;
+  tenantAssignmentId: string | null;
+  billingCycle: string | null;
+  amountCents: number;
+  status: unknown;
+  paymentMethod: string | null;
+};
+
+type DashboardLedgerEntryRow = {
+  id: string;
+  unitId: string;
+  tenantAssignmentId: string | null;
+  billingCycle: string;
+  entryType: unknown;
+  chargeType: unknown;
+  amountCents: number;
+  memo: string | null;
+  effectiveDate: Date;
+  createdAt: Date;
+  payment: {
+    status: unknown;
+  } | null;
+};
+
+type DashboardNextCycleEntryRow = {
+  id: string;
+  unitId: string;
+  tenantAssignmentId: string | null;
+  entryType: unknown;
+  chargeType: unknown;
+  amountCents: number;
+  memo: string | null;
+  effectiveDate: Date;
+  createdAt: Date;
+  billingCycle: string;
+};
+
 export async function GET() {
   try {
     const session = await getSession();
 
-if (!session) {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-await refreshSessionCookie(session);
+    await refreshSessionCookie(session);
 
     if (
-      !session ||
       (session.role !== "OWNER" &&
         session.role !== "MANAGER" &&
         session.role !== "STAFF") ||
@@ -174,36 +359,21 @@ await refreshSessionCookie(session);
     let bankMessage =
       "Connect your payout account to begin receiving payments.";
 
-    const secretKey = process.env.STRIPE_SECRET_KEY;
-    const stripe = secretKey
-      ? new Stripe(secretKey, {
-          apiVersion: "2026-02-25.clover",
-        })
-      : null;
+     const paymentStatus = property.paymentStatus;
 
-    if (property.stripeAccountId && stripe) {
-      try {
-        const account = await stripe.accounts.retrieve(property.stripeAccountId);
-
-        if (account.charges_enabled && account.payouts_enabled) {
-          bankStatus = "CONNECTED";
-          bankMessage =
-            "Your account has been successfully connected. Payments received will be deposited into the connected account.";
-        } else if (account.requirements?.disabled_reason) {
-          bankStatus = "RESTRICTED";
-          bankMessage =
-            "Sorry, your account could not be fully verified. Please complete all required Stripe onboarding steps.";
-        } else {
-          bankStatus = "PENDING";
-          bankMessage =
-            "Your account is pending verification. This can take anywhere from a couple of minutes to a few hours. Please check back later.";
-        }
-      } catch (err) {
-        console.error("Stripe account fetch error:", err);
-        bankStatus = "RESTRICTED";
-        bankMessage = "Unable to verify Stripe account status. Please try again.";
-      }
-    }
+if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
+  bankStatus = "CONNECTED";
+  bankMessage =
+    "Your account has been successfully connected. Payments received will be deposited into the connected account.";
+} else if (paymentStatus?.requirementsDue || paymentStatus?.requirementsSummary) {
+  bankStatus = "RESTRICTED";
+  bankMessage =
+    "Sorry, your account could not be fully verified. Please complete all required Stripe onboarding steps.";
+} else if (property.stripeAccountId || paymentStatus?.processorConnected) {
+  bankStatus = "PENDING";
+  bankMessage =
+    "Your account is pending verification. This can take anywhere from a couple of minutes to a few hours. Please check back later.";
+}   
 
     if (
       shouldAutoSetPropertyReady({
@@ -224,122 +394,159 @@ await refreshSessionCookie(session);
       property.status = "READY";
     }
 
-    const capacity = await getCapacitySnapshot(property.id);
-
-    const units = await prisma.unit.findMany({
-      where: {
-        propertyId: property.id,
-        isActive: true,
-      },
-      orderBy: { unitNumber: "asc" },
-      select: {
-        id: true,
-        unitNumber: true,
-        isActive: true,
-        tier: {
-          select: {
-            id: true,
-            name: true,
-            rentDueDay: true,
-            gracePeriodDays: true,
-            lateFeeInitialCents: true,
-            lateFeeDailyCents: true,
-            maxLateFeeDays: true,
+    const [capacity, units] = await Promise.all([
+      getCapacitySnapshot(property.id),
+      prisma.unit.findMany({
+        where: {
+          propertyId: property.id,
+          isActive: true,
+        },
+        orderBy: { unitNumber: "asc" },
+        select: {
+          id: true,
+          unitNumber: true,
+          isActive: true,
+          tier: {
+            select: {
+              id: true,
+              name: true,
+              rentDueDay: true,
+              gracePeriodDays: true,
+              lateFeeInitialCents: true,
+              lateFeeDailyCents: true,
+              maxLateFeeDays: true,
+            },
+          },
+          tenantAssignments: {
+            where: { isCurrent: true, moveOutDate: null },
+            orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+            take: 1,
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
           },
         },
-        tenantAssignments: {
-          where: { isCurrent: true, moveOutDate: null },
-          orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-          take: 1,
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+      }),
+    ]);
 
     const now = new Date();
-    const today = toDateOnly(now);
 
     const anchorUnit = units[0] ?? null;
     const anchorEffective = resolveEffectiveBillingSettings({
       tier: anchorUnit?.tier ?? null,
       propertySettings: property.settings ?? null,
     });
-   const anchorRentDates = getRentDateSummary({
-  ...anchorEffective,
-  now,
-  billingCycleStartDate: property.billingCycleStartDate,
-});
+
+    const anchorRentDates = getRentDateSummary({
+      ...anchorEffective,
+      now,
+      billingCycleStartDate: property.billingCycleStartDate,
+    });
 
     const currentBillingCycle = anchorRentDates.billingCycle;
     const nextBillingCycle = getNextCycleKey(currentBillingCycle);
     const billingLabel = getBillingLabel(currentBillingCycle);
 
-       type DashboardUnit = (typeof units)[number];
-       
-      const unitIds = units.map((unit: DashboardUnit) => unit.id);
+    type DashboardUnit = (typeof units)[number];
 
-const [payments, nextCycleEntries] =
-  unitIds.length > 0
-    ? await Promise.all([
-        prisma.payment.findMany({
-          where: {
-            propertyId: property.id,
-            unitId: { in: unitIds },
-          },
-          select: {
-            id: true,
-            unitId: true,
-            tenantAssignmentId: true,
-            billingCycle: true,
-            amountCents: true,
-            status: true,
-            paymentMethod: true,
-          },
-        }),
-        prisma.ledgerEntry.findMany({
-          where: {
-            propertyId: property.id,
-            unitId: { in: unitIds },
-            billingCycle: nextBillingCycle,
-            entryType: {
-              in: ["CHARGE", "CREDIT"],
-            },
-            voidedAt: null,
-          },
-          orderBy: [{ createdAt: "desc" }],
-          select: {
-            id: true,
-            unitId: true,
-            tenantAssignmentId: true,
-            entryType: true,
-            chargeType: true,
-            amountCents: true,
-            memo: true,
-            effectiveDate: true,
-            createdAt: true,
-            billingCycle: true,
-          },
-        }),
-      ])
-    : [[], []];
+    const unitIds = units.map((unit: DashboardUnit) => unit.id);
 
-type DashboardPaymentRow = (typeof payments)[number];
-type DashboardNextCycleEntryRow = (typeof nextCycleEntries)[number];
+    const [payments, ledgerEntries, nextCycleEntries] =
+      unitIds.length > 0
+        ? await Promise.all([
+            prisma.payment.findMany({
+              where: {
+                propertyId: property.id,
+                unitId: { in: unitIds },
+              },
+              select: {
+                id: true,
+                unitId: true,
+                tenantAssignmentId: true,
+                billingCycle: true,
+                amountCents: true,
+                status: true,
+                paymentMethod: true,
+              },
+            }),
+            prisma.ledgerEntry.findMany({
+              where: {
+                propertyId: property.id,
+                unitId: { in: unitIds },
+                voidedAt: null,
+                effectiveDate: {
+                  lte: now,
+                },
+              },
+              orderBy: [
+                { effectiveDate: "asc" },
+                { createdAt: "asc" },
+                { id: "asc" },
+              ],
+              select: {
+                id: true,
+                unitId: true,
+                tenantAssignmentId: true,
+                billingCycle: true,
+                entryType: true,
+                chargeType: true,
+                amountCents: true,
+                memo: true,
+                effectiveDate: true,
+                createdAt: true,
+                payment: {
+                  select: {
+                    status: true,
+                  },
+                },
+              },
+            }),
+            prisma.ledgerEntry.findMany({
+              where: {
+                propertyId: property.id,
+                unitId: { in: unitIds },
+                billingCycle: nextBillingCycle,
+                entryType: {
+                  in: ["CHARGE", "CREDIT"],
+                },
+                voidedAt: null,
+              },
+              orderBy: [{ createdAt: "desc" }],
+              select: {
+                id: true,
+                unitId: true,
+                tenantAssignmentId: true,
+                entryType: true,
+                chargeType: true,
+                amountCents: true,
+                memo: true,
+                effectiveDate: true,
+                createdAt: true,
+                billingCycle: true,
+              },
+            }),
+          ])
+        : [[], [], []];
 
-const paymentsByUnit = new Map<string, typeof payments>();
-const nextEntriesByUnit = new Map<string, typeof nextCycleEntries>();
+    const paymentsByUnit = new Map<string, DashboardPaymentRow[]>();
+    const ledgerEntriesByUnit = new Map<string, DashboardLedgerEntryRow[]>();
+    const nextEntriesByUnit = new Map<string, DashboardNextCycleEntryRow[]>();
 
-    for (const payment of payments) {
+    for (const payment of payments as DashboardPaymentRow[]) {
       const existing = paymentsByUnit.get(payment.unitId) ?? [];
       existing.push(payment);
       paymentsByUnit.set(payment.unitId, existing);
     }
 
-    for (const entry of nextCycleEntries) {
+    for (const entry of ledgerEntries as DashboardLedgerEntryRow[]) {
+      const existing = ledgerEntriesByUnit.get(entry.unitId) ?? [];
+      existing.push(entry);
+      ledgerEntriesByUnit.set(entry.unitId, existing);
+    }
+
+    for (const entry of nextCycleEntries as DashboardNextCycleEntryRow[]) {
       const existing = nextEntriesByUnit.get(entry.unitId) ?? [];
       existing.push(entry);
       nextEntriesByUnit.set(entry.unitId, existing);
@@ -354,139 +561,187 @@ const nextEntriesByUnit = new Map<string, typeof nextCycleEntries>();
     let manualPaidCount = 0;
     let totalPaidCount = 0;
 
-    const resolvedUnits = await Promise.all(
-  units.map(async (unit: DashboardUnit) => {
-    const assignment = unit.tenantAssignments[0] ?? null;
+    const resolvedUnits = units.map((unit: DashboardUnit) => {
+      const assignment = unit.tenantAssignments[0] ?? null;
 
-    if (!assignment) {
+      if (!assignment) {
+        return {
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+          isActive: unit.isActive === true,
+          tenantName: null,
+          balanceCents: 0,
+          balance: "0.00",
+          totalPaid: "0.00",
+          isDelinquent: false,
+          daysPastDue: 0,
+          paymentStatus: "UNPAID" as PaymentStatus,
+          displayStatus: "UNPAID",
+          statusColor: "blue",
+          statusLabel: "No tenant",
+          tenantMessage: "No active tenant.",
+          tierName: unit.tier?.name ?? "Units",
+          nextCycleAdjustments: [],
+        };
+      }
+
+      occupiedUnits++;
+
+      const effective = resolveEffectiveBillingSettings({
+        tier: unit.tier,
+        propertySettings: property.settings,
+      });
+
+      const rentDates = getRentDateSummary({
+        ...effective,
+        now,
+        billingCycleStartDate: property.billingCycleStartDate,
+      });
+
+      const unitPayments = paymentsByUnit.get(unit.id) ?? [];
+      const unitLedgerEntries = ledgerEntriesByUnit.get(unit.id) ?? [];
+      const unitNextEntries = nextEntriesByUnit.get(unit.id) ?? [];
+
+      const assignmentLedgerEntries = unitLedgerEntries.filter(
+        (entry) =>
+          !entry.tenantAssignmentId || entry.tenantAssignmentId === assignment.id
+      );
+
+      const ledger = buildLedgerSummary({
+        entries: assignmentLedgerEntries,
+        billingCycleStartDate: property.billingCycleStartDate,
+      });
+
+      const rawLedgerBalanceCents = Math.max(0, ledger.balanceCents);
+
+      const cyclePayments = unitPayments.filter(
+        (payment) =>
+          payment.tenantAssignmentId === assignment.id &&
+          payment.billingCycle === rentDates.billingCycle
+      );
+
+      const cyclePaymentFlags = getCyclePaymentFlags(cyclePayments);
+
+      const effectiveBalanceCents = cyclePaymentFlags.hasPendingPayment
+        ? 0
+        : rawLedgerBalanceCents;
+
+      const dueDate = parseDateOnly(rentDates.dueDate);
+      const graceEndsOn = parseDateOnly(rentDates.graceEndsOn);
+
+      const isPastGracePeriod =
+        !cyclePaymentFlags.hasPendingPayment &&
+        effectiveBalanceCents > 0 &&
+        rentDates.isDelinquent === true;
+
+      const isWithinGracePeriod =
+        !cyclePaymentFlags.hasPendingPayment &&
+        effectiveBalanceCents > 0 &&
+        !isPastGracePeriod;
+
+      const daysPastDue =
+        isPastGracePeriod && dueDate ? diffDays(now, dueDate) : 0;
+
+      const isDelinquent = isPastGracePeriod;
+
+      const paidCyclePayments = cyclePayments.filter(
+        (payment) => String(payment.status).toUpperCase() === "PAID"
+      );
+
+      const netExpected = ledger.totalChargesCents - ledger.totalCreditsCents;
+      totalExpectedCents += Math.max(0, netExpected);
+
+      const cyclePaidCents = paidCyclePayments.reduce(
+        (sum, payment) => sum + Math.max(0, toSafeInteger(payment.amountCents)),
+        0
+      );
+
+      totalCollectedCents += cyclePaidCents;
+
+      if (!cyclePaymentFlags.hasPendingPayment && isDelinquent) {
+        delinquentCount++;
+      }
+
+      if (cyclePaymentFlags.hasPendingPayment) {
+        // Pending = neither paid nor unpaid.
+      } else if (rawLedgerBalanceCents > 0) {
+        unpaidUnitsCount++;
+      } else {
+        totalPaidCount++;
+
+        const hasManual = paidCyclePayments.some(
+          (payment) => payment.paymentMethod === "MANUAL"
+        );
+        const hasPortal = paidCyclePayments.some(
+          (payment) => payment.paymentMethod === "ACH"
+        );
+
+        if (hasManual) {
+          manualPaidCount++;
+        } else if (hasPortal) {
+          portalPaidCount++;
+        }
+      }
+
+      const unitStatus = getUnitStatus({
+        balanceCents: effectiveBalanceCents,
+        hasPendingPayment: cyclePaymentFlags.hasPendingPayment,
+        hasFailedPayment: cyclePaymentFlags.hasFailedPayment,
+        hasReversedPayment: cyclePaymentFlags.hasReversedPayment,
+        isDelinquent,
+        isWithinGracePeriod,
+      });
+
       return {
         unitId: unit.id,
         unitNumber: unit.unitNumber,
         isActive: unit.isActive === true,
-        tenantName: null,
-        balanceCents: 0,
-        balance: "0.00",
-        totalPaid: "0.00",
-        isDelinquent: false,
-        daysPastDue: 0,
-        paymentStatus: "UNPAID" as PaymentStatus,
-        displayStatus: "UNPAID",
-        statusColor: "blue",
-        statusLabel: "No tenant",
-        tenantMessage: "No active tenant.",
+        tenantName: `${assignment.firstName ?? ""} ${
+          assignment.lastName ?? ""
+        }`.trim(),
+        balanceCents: rawLedgerBalanceCents,
+        balance: formatCentsToDollars(rawLedgerBalanceCents),
+        totalPaid: formatCentsToDollars(ledger.totalPaidCents),
+        isDelinquent,
+        daysPastDue,
+        paymentStatus: unitStatus.paymentStatus,
+        displayStatus: unitStatus.status,
+        statusColor: unitStatus.color,
+        statusLabel: unitStatus.label,
+        tenantMessage: unitStatus.tenantMessage,
         tierName: unit.tier?.name ?? "Units",
-        nextCycleAdjustments: [],
+        nextCycleAdjustments: unitNextEntries
+          .filter(
+            (entry) =>
+              !entry.tenantAssignmentId ||
+              entry.tenantAssignmentId === assignment.id
+          )
+          .map((entry) => ({
+            id: entry.id,
+            type: entry.entryType,
+            chargeType: entry.chargeType,
+            amount: entry.amountCents / 100,
+            memo: entry.memo,
+            effectiveDate: entry.effectiveDate.toISOString(),
+            createdAt: entry.createdAt.toISOString(),
+            billingCycle: entry.billingCycle,
+          })),
       };
-    }
-
-    occupiedUnits++;
-
-    const unitPayments = paymentsByUnit.get(unit.id) ?? [];
-    const unitNextEntries = nextEntriesByUnit.get(unit.id) ?? [];
-
-    const financialState = await getUnitFinancialState({
-  propertyId: property.id,
-  unitId: unit.id,
-  tenantAssignmentId: assignment.id,
-  tier: unit.tier,
-  propertySettings: property.settings,
-  billingCycleStartDate: property.billingCycleStartDate,
-  now,
-});
-
-const ledger = financialState.ledgerSummary;
-const balanceCents = financialState.ledgerBalanceCents;
-const rentDates = financialState.rentDates;
-const isDelinquent = financialState.isDelinquent;
-const daysPastDue = financialState.daysPastDue;
-
-    const cyclePayments = unitPayments.filter(
-      (payment: DashboardPaymentRow) =>
-        payment.tenantAssignmentId === assignment.id &&
-        payment.billingCycle === rentDates.billingCycle
-    );
-
-    const paidCyclePayments = cyclePayments.filter(
-      (payment: DashboardPaymentRow) => payment.status === "PAID"
-    );
-
-    const netExpected = ledger.totalChargesCents - ledger.totalCreditsCents;
-    totalExpectedCents += Math.max(0, netExpected);
-
-    const cyclePaidCents = paidCyclePayments.reduce(
-      (sum: number, payment: DashboardPaymentRow) =>
-        sum + Math.max(0, toSafeInteger(payment.amountCents)),
-      0
-    );
-
-    totalCollectedCents += cyclePaidCents;
-
-   if (!financialState.hasPendingPayment && isDelinquent) {
-  delinquentCount++;
-}
-
-    if (financialState.hasPendingPayment) {
-  // Pending = neither paid nor unpaid
-} else if (balanceCents > 0) {
-  unpaidUnitsCount++;
-} else {
-      totalPaidCount++;
-
-      const hasManual = paidCyclePayments.some(
-        (payment: DashboardPaymentRow) => payment.paymentMethod === "MANUAL"
-      );
-      const hasPortal = paidCyclePayments.some(
-        (payment: DashboardPaymentRow) => payment.paymentMethod === "ACH"
-      );
-
-      if (!financialState.hasPendingPayment) {
-  if (hasManual) manualPaidCount++;
-  else if (hasPortal) portalPaidCount++;
-}
-}
-
-const unitStatus = financialState.status;
-
-    return {
-      unitId: unit.id,
-      unitNumber: unit.unitNumber,
-      isActive: unit.isActive === true,
-      tenantName: `${assignment.firstName ?? ""} ${
-        assignment.lastName ?? ""
-      }`.trim(),
-      balanceCents,
-      balance: formatCentsToDollars(balanceCents),
-      totalPaid: formatCentsToDollars(ledger.totalPaidCents),
-      isDelinquent,
-      daysPastDue,
-      paymentStatus: unitStatus.paymentStatus,
-      displayStatus: unitStatus.status,
-      statusColor: unitStatus.color,
-      statusLabel: unitStatus.label,
-      tenantMessage: unitStatus.tenantMessage,
-      tierName: unit.tier?.name ?? "Units",
-      nextCycleAdjustments: unitNextEntries
-        .filter(
-          (entry: DashboardNextCycleEntryRow) =>
-            !entry.tenantAssignmentId || entry.tenantAssignmentId === assignment.id
-        )
-        .map((entry: DashboardNextCycleEntryRow) => ({
-          id: entry.id,
-          type: entry.entryType,
-          chargeType: entry.chargeType,
-          amount: entry.amountCents / 100,
-          memo: entry.memo,
-          effectiveDate: entry.effectiveDate.toISOString(),
-          createdAt: entry.createdAt.toISOString(),
-          billingCycle: entry.billingCycle,
-        })),
-    };
-  })
-);
+    });
 
     const totalExpected = Math.round(totalExpectedCents) / 100;
     const totalCollected = Math.round(totalCollectedCents) / 100;
     const exportMonths = buildExportMonths(property.billingCycleStartDate);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[manager-dashboard]", {
+        propertyId: property.id,
+        units: units.length,
+        payments: payments.length,
+        ledgerEntries: ledgerEntries.length,
+        nextCycleEntries: nextCycleEntries.length,
+      });
+    }
 
     return NextResponse.json({
       ok: true,
