@@ -478,35 +478,34 @@ function ManageSection({
   items: ManageSectionItem[];
   openPanel: (panel: Exclude<PanelKey, null>) => void;
 }) {
-  return (
-<section className="rounded-[26px] border border-emerald-300/60 bg-gradient-to-br from-white via-emerald-50/40 to-sky-50/30 p-4 shadow-[var(--rf-shadow-sm)]">      <div className="mb-3">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">
-          {title}
-        </h3>
-        <p className="mt-1 text-xs text-[var(--rf-text-soft)]">
-          ({helper})
-        </p>
-      </div>
+ return (
+  <section className="rounded-[26px] border border-emerald-300/60 bg-gradient-to-br from-white via-emerald-50/40 to-sky-50/30 p-4 shadow-[var(--rf-shadow-sm)]">
+    <div className="mb-3">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">
+        {title}
+      </h3>
+    </div>
 
-      <div className="space-y-2">
-        {items.map((item) => (
-          <button
-            key={`${title}-${item.label}`}
-            type="button"
-            onClick={() => openPanel(item.panel)}
-            className="flex w-full flex-col gap-1 rounded-2xl border border-emerald-200/70 bg-white/70 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-sky-50 hover:shadow-[var(--rf-shadow-sm)] sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span className="text-sm font-semibold text-emerald-800">
-              {item.label}
-            </span>
-            <span className="text-xs text-[var(--rf-text-soft)] sm:max-w-[62%] sm:text-right">
-              {item.description}
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
+    <div className="space-y-2">
+      {items.map((item) => (
+        <button
+          key={`${title}-${item.label}`}
+          type="button"
+          onClick={() => openPanel(item.panel)}
+          className="flex w-full flex-col gap-1 rounded-2xl border border-emerald-200/70 bg-white/70 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-sky-50 hover:shadow-[var(--rf-shadow-sm)] sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span className="text-sm font-semibold text-emerald-800">
+            {item.label}
+          </span>
+
+          <span className="text-xs text-[var(--rf-text-soft)] sm:max-w-[62%] sm:text-right">
+            {item.description}
+          </span>
+        </button>
+      ))}
+    </div>
+  </section>
+);
 }
 
 export default function Page() {
@@ -2788,16 +2787,13 @@ await loadDashboard();
     title="Manage"
     onClose={closePanel}
     showFooter={false}
-  >
+>
     <div className="space-y-5">
-   <div className="rounded-[26px] border border-emerald-300/70 bg-gradient-to-br from-emerald-100 via-sky-100 to-white px-4 py-4 shadow-[var(--rf-shadow-sm)]">
-        <p className="text-base font-semibold tracking-tight text-[var(--rf-text)] sm:text-lg">
-          Everything you need to manage your property — organized in one place.
-        </p>
-        <p className="mt-1 text-sm text-[var(--rf-text-soft)]">
-          Choose a section below. Most setup items only need to be completed once.
-        </p>
-      </div>
+      <div className="rounded-[26px] border border-emerald-300/70 bg-gradient-to-br from-emerald-100 via-sky-100 to-white px-4 py-4 shadow-[var(--rf-shadow-sm)]">
+  <p className="text-base font-semibold tracking-tight text-[var(--rf-text)] sm:text-lg">
+    Everything you need to manage your property- organized in one place.
+  </p>
+</div>
 
       <ManageSection
         title="Property Setup"
@@ -2833,7 +2829,7 @@ await loadDashboard();
         items={[
           {
             label: "Tiers",
-            description: "Define rent amounts for each unit type.",
+            description: "Change rent amounts for each unit type.",
             panel: "rent" as const,
           },
           {

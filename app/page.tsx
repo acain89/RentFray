@@ -759,8 +759,42 @@ export default function Home() {
     >
       See how it works
     </button>
+
+<button
+  type="button"
+  onClick={() => {
+    window.location.href = "/install";
+  }}
+  className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-base font-semibold text-emerald-800 transition hover:-translate-y-[1px] hover:bg-emerald-100"
+>
+  Get the App
+</button>
   </div>
 
+<div className="mt-8 space-y-3">
+  <p className="text-base font-semibold tracking-tight text-slate-900">
+    Questions? Call or text me directly.
+  </p>
+
+  <div className="space-y-1">
+    <a
+      href="tel:19363461538"
+      className="block text-2xl font-semibold tracking-tight text-emerald-700 transition hover:text-emerald-600"
+    >
+      (936) 346-1538
+    </a>
+
+    <p className="text-sm font-medium text-slate-600">
+      — Andrew
+    </p>
+  </div>
+
+  <div className="space-y-1 text-sm leading-relaxed text-slate-500">
+    <p>No sales department.</p>
+    <p>No phone directory maze.</p>
+    <p>Just real help if you need it.</p>
+  </div>
+</div>
 
   <div className="mt-8 grid gap-4 lg:grid-cols-3">
     <div className="relative rounded-[26px] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">

@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import {
 
-getStoredUnitCountForEffectiveTarget,
   validateUnitCapacityUpdate,
 } from "@/lib/propertyCapacity";
 
@@ -53,16 +52,11 @@ export async function PATCH(req: Request) {
       );
     }
 
-const storedUnitCount = await getStoredUnitCountForEffectiveTarget(
-  session.propertyId,
-  unitCount
-);
-
-    const updatedProperty = await prisma.property.update({
-      where: { id: session.propertyId },
-      data: {
-        unitCount: storedUnitCount,
-      },
+const updatedProperty = await prisma.property.update({
+  where: { id: session.propertyId },
+  data: {
+    unitCount,
+  },
       select: {
         id: true,
         unitCount: true,
