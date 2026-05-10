@@ -152,10 +152,10 @@ function MockGetStartedPanel() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">
-              Step 1 — Start the system
+              Step 1 — 4-Step Setup
             </div>
             <div className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Complete setup. Print Tenant Instruction sheet. Done.
+              Complete the 4-Step Setup. Print Tenant Instruction Sheet. Done.
             </div>
             <div className="mt-3 max-w-xl text-sm leading-6 text-sky-100/90">
               Create the property. Set the tiers. Save billing rules. Connect
@@ -178,7 +178,7 @@ function MockGetStartedPanel() {
             },
             {
               step: "2",
-              title: "Tap ACCT and connect payouts",
+              title: "Connect payout account",
               text: "Secure Stripe-based owner payouts with plain-English status visibility.",
             },
             {
@@ -226,7 +226,7 @@ function MockGetStartedPanel() {
 
           <div className="rounded-[22px] border border-white/10 bg-white p-4 text-[#0f172a]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              ACCT
+              Accounts
             </div>
             <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-sm font-semibold">Payout account</div>
@@ -281,10 +281,10 @@ function MockActivatePanel() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#64748b]">
-              Step 2 — Tenants activate themselves
+              Step 2 — Tenant Activation
             </div>
             <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a] sm:text-3xl">
-              Tenants onboard themselves with simple login.
+              Tenants activate their unit in minutes.
             </div>
             <div className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
               The tenant does not need direct manager-side setup. They use the
@@ -414,7 +414,7 @@ function MockControlsPanel() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {["+", "Rent", "GP&LF", "Mngr", "Accnt", "Info", "Maint"].map(
+            {["+", "Rent", "GP&LF", "Mngr", "Accounts", "Info", "Maint"].map(
               (label) => (
                 <div
                   key={label}
@@ -443,7 +443,7 @@ function MockControlsPanel() {
               ))}
             </div>
             <div className="mt-3 text-sm leading-6 text-slate-600">
-              Fast access to the handful of things the owner actually needs.
+              Simple controls for day-to-day operations.
             </div>
           </div>
 
@@ -524,7 +524,7 @@ function MockRunBusinessPanel() {
               Step 4 — See what matters
             </div>
             <div className="mt-1 text-2xl font-semibold tracking-tight text-[#0f172a] sm:text-3xl">
-              Color-coded dots let's you see what's going on instantly. 
+              Color-coded dots let you see what needs attention instantly. 
             </div>
             <div className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
               After setup, the system should feel basic, routine, and fast.
@@ -534,7 +534,7 @@ function MockRunBusinessPanel() {
           </div>
 
           <div className="rounded-2xl bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white">
-            No spreadsheets needed
+            No manual tracking
           </div>
         </div>
 
@@ -767,7 +767,7 @@ export default function Home() {
   }}
   className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-base font-semibold text-emerald-800 transition hover:-translate-y-[1px] hover:bg-emerald-100"
 >
-  Get the App
+  Install App
 </button>
   </div>
 
@@ -802,10 +802,9 @@ export default function Home() {
       <div className="pl-3">
         <div className="text-lg font-semibold text-emerald-700">Owners</div>
         <div className="mt-4 space-y-2 text-sm leading-6 text-[#334155]">
-          <div>• RentFray is completely free.</div>
+          <div>• RentFray is completely free for businesses.</div>
           <div>• Complete self-serve setup in less than 5 minutes.</div>
-          <div>• No onboarding calls or emails.</div>
-          <div>• No manual tenant onboarding.</div>
+          <div>• No onboarding calls, emails, or manual tenant setup.</div>
           <div>• Saves processing fees you may be paying now.</div>
         </div>
       </div>
@@ -850,7 +849,7 @@ export default function Home() {
               </div>
 
               <div className="mt-2 text-xl font-semibold text-[#0f172a]">
-                See exactly how it works
+                View Interactive Demo
               </div>
 
                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">
@@ -928,6 +927,29 @@ export default function Home() {
             </div>
           </section>
 
+        <div className="mt-10 rounded-[32px] border border-[#dbe4ee] bg-white px-6 py-6 shadow-sm">
+  <div className="max-w-3xl">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+      Secure by Design
+    </div>
+
+    <div className="mt-2 text-xl font-semibold tracking-tight text-[#0f172a]">
+      Payments are securely handled through Stripe.
+    </div>
+
+    <div className="mt-3 space-y-2 text-sm leading-6 text-[#475569]">
+      <p>
+        Stripe uses bank-level encryption and is trusted by millions of
+        businesses worldwide.
+      </p>
+
+      <p>
+        RentFray does not store banking information or hold tenant funds.
+      </p>
+    </div>
+  </div>
+</div>
+
           <section className="mt-6 flex justify-center">
   <div className="rounded-[20px] border border-[#d7e3ec] bg-white px-4 py-4 shadow-sm">
     <div className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
@@ -940,7 +962,7 @@ export default function Home() {
         onClick={() => router.push("/property-code")}
         className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
       >
-        Property Accounts
+        Property Portal
       </button>
 
       <button
@@ -948,7 +970,7 @@ export default function Home() {
         onClick={() => router.push("/login/admin")}
         className="rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-5 py-2.5 text-sm font-semibold text-[#0f172a] transition hover:bg-[#eef4f8]"
       >
-        Admin Access
+        Admin Portal
       </button>
     </div>
   </div>
