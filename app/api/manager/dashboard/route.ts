@@ -394,42 +394,56 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
       property.status = "READY";
     }
 
-    const [capacity, units] = await Promise.all([
-      getCapacitySnapshot(property.id),
-      prisma.unit.findMany({
-        where: {
-          propertyId: property.id,
-          isActive: true,
-        },
-        orderBy: { unitNumber: "asc" },
+  const [capacity, units, tiers] = await Promise.all([
+  getCapacitySnapshot(property.id),
+  prisma.unit.findMany({
+    where: {
+      propertyId: property.id,
+      isActive: true,
+    },
+    orderBy: { unitNumber: "asc" },
+    select: {
+      id: true,
+      unitNumber: true,
+      isActive: true,
+      tierId: true,
+      tier: {
         select: {
           id: true,
-          unitNumber: true,
-          isActive: true,
-          tier: {
-            select: {
-              id: true,
-              name: true,
-              rentDueDay: true,
-              gracePeriodDays: true,
-              lateFeeInitialCents: true,
-              lateFeeDailyCents: true,
-              maxLateFeeDays: true,
-            },
-          },
-          tenantAssignments: {
-            where: { isCurrent: true, moveOutDate: null },
-            orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-            take: 1,
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
+          name: true,
+          rentDueDay: true,
+          gracePeriodDays: true,
+          lateFeeInitialCents: true,
+          lateFeeDailyCents: true,
+          maxLateFeeDays: true,
         },
-      }),
-    ]);
+      },
+      tenantAssignments: {
+        where: { isCurrent: true, moveOutDate: null },
+        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  }),
+  prisma.propertyTier.findMany({
+    where: {
+      propertyId: property.id,
+      isActive: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      unitCount: true,
+      baseRentCents: true,
+    },
+  }),
+]);
 
     const now = new Date();
 
@@ -795,6 +809,12 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
         difference: totalCollected - totalExpected,
       },
       units: resolvedUnits,
+      tiers: tiers.map((tier: (typeof tiers)[number]) => ({
+      id: tier.id,
+      name: tier.name,
+      unitCount: tier.unitCount,
+      baseRent: tier.baseRentCents / 100,
+      })),
       exportOptions: {
         months: exportMonths,
         startYear: exportMonths[exportMonths.length - 1]?.year ?? null,

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const session = await requireRole("MANAGER");
@@ -23,71 +24,107 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const unit = await prisma.unit.findFirst({
-      where: {
-        id: unitId,
-        propertyId: session.propertyId,
-      },
-      include: {
-        tenantAssignments: {
-          where: {
-          isCurrent: true,
-          OR: [
-         { moveOutDate: null },
-         { moveOutDate: { gt: new Date() } },
-            ],
-           },
-          take: 1,
+   const result = await prisma.$transaction(
+  async (tx: Prisma.TransactionClient) => {
+      const unit = await tx.unit.findFirst({
+        where: {
+          id: unitId,
+          propertyId: session.propertyId,
         },
-      },
-    });
+        include: {
+          tenantAssignments: {
+            where: {
+              isCurrent: true,
+              OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
+            },
+            take: 1,
+          },
+          tier: {
+            select: {
+              id: true,
+              unitCount: true,
+              activeUnitCount: true,
+              isActive: true,
+            },
+          },
+        },
+      });
 
-    if (!unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-    }
+      if (!unit) {
+        throw new Error("Unit not found");
+      }
 
-    // 🚫 Prevent inactivating occupied unit
-    if (!makeActive && unit.tenantAssignments.length > 0) {
-      return NextResponse.json(
-        { error: "Cannot inactivate an occupied unit" },
-        { status: 400 }
-      );
-    }
+      if (!makeActive && unit.tenantAssignments.length > 0) {
+        throw new Error("Cannot inactivate an occupied unit");
+      }
 
-    // 🧠 TUC enforcement on reactivation
-    if (makeActive) {
-      const activeCount = await prisma.unit.count({
+      if (makeActive && unit.tierId) {
+        if (!unit.tier || !unit.tier.isActive) {
+          throw new Error("Tier does not belong to property.");
+        }
+
+        const activeTierUnitCount = await tx.unit.count({
+          where: {
+            propertyId: session.propertyId,
+            tierId: unit.tierId,
+            isActive: true,
+          },
+        });
+
+        if (activeTierUnitCount >= unit.tier.unitCount) {
+          throw new Error("Max number of units have been activated for this tier.");
+        }
+      }
+
+      const updated = await tx.unit.update({
+        where: { id: unit.id },
+        data: { isActive: makeActive },
+      });
+
+      if (unit.tierId) {
+        const activeTierUnitCount = await tx.unit.count({
+          where: {
+            propertyId: session.propertyId,
+            tierId: unit.tierId,
+            isActive: true,
+          },
+        });
+
+        await tx.propertyTier.update({
+          where: { id: unit.tierId },
+          data: { activeUnitCount: activeTierUnitCount },
+        });
+      }
+
+      const activePropertyUnitCount = await tx.unit.count({
         where: {
           propertyId: session.propertyId,
           isActive: true,
         },
       });
 
-      const property = await prisma.property.findUnique({
+      await tx.property.update({
         where: { id: session.propertyId },
-        select: { unitCount: true },
+        data: { unitCount: activePropertyUnitCount },
       });
 
-      if (!property) {
-        return NextResponse.json({ error: "Property not found" }, { status: 404 });
-      }
+          return updated;
+           }
+         );
 
-      if (activeCount >= property.unitCount) {
-        return NextResponse.json(
-          { error: "Unit capacity reached" },
-          { status: 400 }
-        );
-      }
-    }
-
-    const updated = await prisma.unit.update({
-      where: { id: unit.id },
-      data: { isActive: makeActive },
-    });
-
-    return NextResponse.json({ ok: true, unit: updated });
+    return NextResponse.json({ ok: true, unit: result });
   } catch (err) {
     console.error("toggle unit active error", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+
+    const message = err instanceof Error ? err.message : "Server error";
+
+    const status =
+      message === "Unit not found" || message === "Tier does not belong to property."
+        ? 404
+        : message === "Server error"
+          ? 500
+          : 400;
+
+    return NextResponse.json({ error: message }, { status });
   }
 }

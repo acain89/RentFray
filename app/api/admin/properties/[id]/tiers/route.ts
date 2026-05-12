@@ -98,7 +98,21 @@ export async function POST(
 }
 
 if (t.id && !t.id.startsWith("new-tier-")) {
-  await tx.propertyTier.update({
+const activeTierUnitCount = await tx.unit.count({
+  where: {
+    propertyId: id,
+    tierId: t.id,
+    isActive: true,
+  },
+});
+
+if (unitCount < activeTierUnitCount) {
+  throw new Error(
+    `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
+  );
+}
+  
+await tx.propertyTier.update({
     where: { id: t.id },
     data: {
       name,
@@ -123,6 +137,7 @@ await tx.propertyTier.create({
     propertyId: id,
     name,
     unitCount,
+    activeUnitCount: 0,
     baseRentCents,
     rentDueDay,
     gracePeriodDays,
@@ -139,10 +154,14 @@ await tx.propertyTier.create({
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    console.error("SAVE TIERS FAILED", err);
-    return NextResponse.json(
-      { error: "Failed to save tiers" },
-      { status: 500 }
-    );
-  }
+  console.error("SAVE TIERS FAILED", err);
+
+  const message =
+    err instanceof Error ? err.message : "Failed to save tiers";
+
+  return NextResponse.json(
+    { error: message },
+    { status: 400 }
+  );
+}
 }

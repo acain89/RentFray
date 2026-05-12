@@ -7,21 +7,26 @@ export async function getInactiveUnitCount(propertyId: string): Promise<number> 
 }
 
 export async function getConfiguredUnitCount(propertyId: string): Promise<number> {
-  const property = await prisma.property.findUnique({
-    where: { id: propertyId },
-    select: { unitCount: true },
+  const result = await prisma.propertyTier.aggregate({
+    where: {
+      propertyId,
+      isActive: true,
+    },
+    _sum: {
+      unitCount: true,
+    },
   });
 
-  return property?.unitCount ?? 0;
+  return result._sum.unitCount ?? 0;
 }
 
 export async function getEffectiveUnitCount(propertyId: string): Promise<number> {
-  const [configuredUnitCount, inactiveUnitCount] = await Promise.all([
-    getConfiguredUnitCount(propertyId),
-    getInactiveUnitCount(propertyId),
-  ]);
-
-  return Math.max(0, configuredUnitCount - inactiveUnitCount);
+  return prisma.unit.count({
+    where: {
+      propertyId,
+      isActive: true,
+    },
+  });
 }
 
 export async function getOccupiedUnitCount(propertyId: string): Promise<number> {
@@ -30,6 +35,22 @@ export async function getOccupiedUnitCount(propertyId: string): Promise<number> 
       propertyId,
       isCurrent: true,
       moveOutDate: null,
+      unit: {
+        isActive: true,
+      },
+    },
+  });
+}
+
+export async function getActiveTierUnitCount(
+  propertyId: string,
+  tierId: string
+): Promise<number> {
+  return prisma.unit.count({
+    where: {
+      propertyId,
+      tierId,
+      isActive: true,
     },
   });
 }
@@ -52,12 +73,12 @@ export async function getOccupiedTierUnitCount(
 }
 
 export async function canActivateUnit(propertyId: string): Promise<boolean> {
-  const [effectiveUnitCount, occupiedUnitCount] = await Promise.all([
+  const [configuredUnitCount, activeUnitCount] = await Promise.all([
+    getConfiguredUnitCount(propertyId),
     getEffectiveUnitCount(propertyId),
-    getOccupiedUnitCount(propertyId),
   ]);
 
-  return occupiedUnitCount < effectiveUnitCount;
+  return activeUnitCount < configuredUnitCount;
 }
 
 export async function canActivateTier(
@@ -75,12 +96,11 @@ export async function canActivateTier(
     },
   });
 
-  if (!tier) return false;
-  if (tier.unitCount <= 0) return false;
+  if (!tier || tier.unitCount <= 0) return false;
 
-  const occupiedTierUnitCount = await getOccupiedTierUnitCount(propertyId, tierId);
+  const activeTierUnitCount = await getActiveTierUnitCount(propertyId, tierId);
 
-  return occupiedTierUnitCount < tier.unitCount;
+  return activeTierUnitCount < tier.unitCount;
 }
 
 export async function validateTierCapacityUpdate(
@@ -92,37 +112,29 @@ export async function validateTierCapacityUpdate(
     return { valid: false, error: "Tier unit count must be 0 or higher." };
   }
 
-  const occupiedTierUnitCount = await getOccupiedTierUnitCount(propertyId, tierId);
+  const activeTierUnitCount = await getActiveTierUnitCount(propertyId, tierId);
 
-  if (nextTierUnitCount < occupiedTierUnitCount) {
+  if (nextTierUnitCount < activeTierUnitCount) {
     return {
       valid: false,
-      error: "Tier unit count cannot be lower than current occupied units.",
+      error: "Tier unit count cannot be lower than active units in this tier.",
     };
   }
 
   return { valid: true };
 }
 
-export async function getStoredUnitCountForEffectiveTarget(
-  propertyId: string,
-  desiredEffectiveUnitCount: number
-): Promise<number> {
-  const inactiveUnitCount = await getInactiveUnitCount(propertyId);
-  return desiredEffectiveUnitCount + inactiveUnitCount;
-}
-
 export async function validateUnitCapacityUpdate(
   propertyId: string,
-  nextEffectiveUnitCount: number
+  nextConfiguredUnitCount: number
 ): Promise<{ valid: boolean; error?: string }> {
-  if (!Number.isInteger(nextEffectiveUnitCount) || nextEffectiveUnitCount < 1) {
+  if (!Number.isInteger(nextConfiguredUnitCount) || nextConfiguredUnitCount < 1) {
     return { valid: false, error: "Unit count must be a positive integer." };
   }
 
   const occupiedUnitCount = await getOccupiedUnitCount(propertyId);
 
-  if (nextEffectiveUnitCount < occupiedUnitCount) {
+  if (nextConfiguredUnitCount < occupiedUnitCount) {
     return {
       valid: false,
       error: "Total units cannot be lower than occupied unit count.",
@@ -138,17 +150,18 @@ export async function getCapacitySnapshot(propertyId: string): Promise<{
   effectiveUnitCount: number;
   occupiedUnitCount: number;
 }> {
-  const [configuredUnitCount, inactiveUnitCount, occupiedUnitCount] =
+  const [configuredUnitCount, inactiveUnitCount, effectiveUnitCount, occupiedUnitCount] =
     await Promise.all([
       getConfiguredUnitCount(propertyId),
       getInactiveUnitCount(propertyId),
+      getEffectiveUnitCount(propertyId),
       getOccupiedUnitCount(propertyId),
     ]);
 
   return {
     configuredUnitCount,
     inactiveUnitCount,
-    effectiveUnitCount: Math.max(0, configuredUnitCount - inactiveUnitCount),
+    effectiveUnitCount,
     occupiedUnitCount,
   };
 }

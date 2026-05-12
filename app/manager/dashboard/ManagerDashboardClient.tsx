@@ -2574,7 +2574,7 @@ const canSubmitMoveTier =
 
 {showMoveTierModal && selectedUnit ? (
   <OverlayShell
-    title={`Move Unit ${selectedUnit.unitNumber}`}
+    title={`Move Unit ${selectedUnit.unitNumber} To Another Tier`}
     subtitle="Choose the correct tier. Pending payments are blocked. Paid current-cycle balances are not adjusted."
     onClose={() => {
       if (movingTier) return;
@@ -2732,7 +2732,7 @@ const canSubmitMoveTier =
       </div>
 
        <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-  <div className="text-sm font-semibold text-slate-950">Move Tier</div>
+   <div className="text-sm font-semibold text-slate-950">Move Unit</div>
   <div className="mt-2 text-sm leading-6 text-slate-600">
     Move this unit to a different rent tier without deleting the unit, changing tenant history, or altering past payments.
   </div>
@@ -2755,7 +2755,7 @@ const canSubmitMoveTier =
       }}
       className="mt-4 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
     >
-      Move Tier
+      Move Unit
     </button>
   )}
 </div>

@@ -79,13 +79,25 @@ export async function POST(
     const created = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         const tier = await tx.propertyTier.findFirst({
-          where: { id: tierId, propertyId },
-          select: { id: true, name: true },
+       where: { id: tierId, propertyId, isActive: true },
+       select: { id: true, name: true, unitCount: true },
         });
 
         if (!tier) {
           throw new Error("Tier does not belong to property.");
         }
+
+        const activeTierUnitCount = await tx.unit.count({
+  where: {
+    propertyId,
+    tierId,
+    isActive: true,
+  },
+});
+
+if (activeTierUnitCount >= tier.unitCount) {
+  throw new Error("Max number of units have been activated for this tier.");
+}
 
         const duplicate = await tx.unit.findFirst({
           where: { propertyId, unitNumber },
@@ -117,18 +129,23 @@ export async function POST(
         });
 
         const count = await tx.unit.count({
-          where: { propertyId, tierId },
-        });
+  where: {
+    propertyId,
+    tierId,
+    isActive: true,
+  },
+});
 
         await tx.propertyTier.update({
           where: { id: tierId },
-          data: { unitCount: count },
+          data: { activeUnitCount: count },
         });
 
         return unit;
       }
     );
 
+   
     return NextResponse.json<ApiSuccess<UnitPayload>>({
       ok: true,
       data: {
@@ -313,13 +330,17 @@ export async function DELETE(
         });
 
         if (unit.tierId) {
-          const count = await tx.unit.count({
-            where: { propertyId, tierId: unit.tierId },
-          });
+         const count = await tx.unit.count({
+  where: {
+    propertyId,
+    tierId: unit.tierId,
+    isActive: true,
+  },
+});
 
           await tx.propertyTier.update({
             where: { id: unit.tierId },
-            data: { unitCount: count },
+            data: { activeUnitCount: count },
           });
         }
 
