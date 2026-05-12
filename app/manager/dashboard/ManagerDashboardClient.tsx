@@ -2250,13 +2250,13 @@ if (error === "Unauthorized") {
     );
   }
 
-const selectedMoveTargetTier = data?.tiers.find(
+const selectedMoveTargetTier = (data?.tiers ?? []).find(
   (tier) => tier.id === targetMoveTierId
 );
 
 const selectedMoveTargetActiveCount =
-  targetMoveTierId && data?.units
-    ? data.units.filter(
+  targetMoveTierId
+    ? (data?.units ?? []).filter(
         (unit) =>
           unit.isActive &&
           unit.tierId === targetMoveTierId &&
