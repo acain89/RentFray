@@ -262,8 +262,7 @@ export default function ManagerPanel({
 ) : null}       
                       
         <SectionCard
-          title="Current users"
-          subtitle="Review existing property users and update roles."
+          title="Logged In Account"
         >
           {managersLoading ? (
             <div className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.55)] px-4 py-3 text-sm text-[var(--rf-text-soft)]">
@@ -287,13 +286,7 @@ export default function ManagerPanel({
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-[var(--rf-text)]">
-                        {user.displayName || user.username}
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--rf-text-soft)]">
-                        Username: {user.username}
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--rf-text-soft)]">
-                        Email: {user.email || "—"}
+                       {user.email || user.username}
                       </div>
                     </div>
 

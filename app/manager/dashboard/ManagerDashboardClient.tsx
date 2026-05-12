@@ -571,6 +571,31 @@ export default function Page() {
   const [savingGpLf, setSavingGpLf] = useState(false);
   const [gpLfSaveMessage, setGpLfSaveMessage] = useState("");
 
+useEffect(() => {
+  if (!data?.tiers?.length) return;
+
+  setLocalTiers((current) => {
+    if (current.length > 0) {
+      return current;
+    }
+
+    return data.tiers.map((tier, index) => ({
+      id: tier.id,
+      tierName: tier.name,
+      unitCount: String(tier.unitCount ?? 0),
+      isNew: false,
+      markedForDelete: false,
+      baseRent: String(tier.baseRent ?? ""),
+      dueDay: "1",
+      graceDays: "5",
+      lateFeeEnabled: false,
+      lateFeeAmount: "",
+      lateFeeDaily: "",
+      lateFeeMaxDays: "",
+    }));
+  });
+}, [data?.tiers]);
+
 function updateGpLf(
   updates: Partial<typeof gpLfSettings>
 ): void {
@@ -1510,21 +1535,41 @@ async function runExport(): Promise<void> {
     });
 
     if (!response.ok) {
-      alert("Export failed");
-      return;
-    }
+  let errorMessage = "Export failed.";
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `rentfray-${exportType}-${exportMonth}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
+  try {
+    const errorJson = await response.clone().json();
+
+    if (typeof errorJson?.error === "string" && errorJson.error.trim()) {
+      errorMessage = errorJson.error;
+    }
   } catch {
-    alert("Export failed");
+    try {
+      const errorText = await response.clone().text();
+
+      if (errorText.trim()) {
+        errorMessage = errorText;
+      }
+    } catch {
+      //
+    }
+  }
+
+  alert(errorMessage);
+  return;
+}
+
+const blob = await response.blob();
+const url = window.URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = `rentfray-${exportType}-${exportMonth}.csv`;
+document.body.appendChild(a);
+a.click();
+a.remove();
+window.URL.revokeObjectURL(url);
+  } catch {
+    alert("Export failed.");
   } finally {
     setExporting(false);
   }
@@ -3127,65 +3172,106 @@ saveLocalRentSettings={saveLocalRentSettings}
 {activePanel === "charges" ? (
   <OverlayShell
     title="Additional Charges"
-    subtitle="Manage recurring charges per tier"
+    subtitle="Create recurring charges that automatically apply to units within each tier."
     onClose={goBackToManage}
   >
-    <div className="space-y-4">
+    <div className="space-y-5">
       {tierCharges.map((tier) => (
-        <div key={tier.tierId} className="space-y-2">
-          <div className="font-semibold text-sm">
-            {tier.tierName}
+        <div
+          key={tier.tierId}
+          className="rounded-[26px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]"
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
+                Tier
+              </div>
+
+              <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+                {tier.tierName}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => addTierCharge(tier.tierId)}
+              className="rf-btn rf-btn-secondary px-4 text-sm"
+            >
+              Add Charge
+            </button>
           </div>
 
-          {tier.charges.map((charge) => (
-            <div key={charge.id} className="flex gap-2">
-              <input
-                value={charge.label}
-                onChange={(e) =>
-                  updateTierCharge(tier.tierId, charge.id, {
-                    label: e.target.value,
-                  })
-                }
-                placeholder="Label"
-                className="border px-2 py-1 text-sm rounded"
-              />
-
-              <input
-                value={charge.amount}
-                onChange={(e) =>
-                  updateTierCharge(tier.tierId, charge.id, {
-                    amount: e.target.value,
-                  })
-                }
-                placeholder="Amount"
-                className="border px-2 py-1 text-sm rounded w-24"
-              />
-
-              <button
-                onClick={() =>
-                  removeTierCharge(tier.tierId, charge.id)
-                }
-                className="text-red-500 text-xs"
-              >
-                X
-              </button>
+          {tier.charges.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-[var(--rf-border)] bg-[rgba(255,255,255,0.45)] px-4 py-6 text-center text-sm text-[var(--rf-text-soft)]">
+              No recurring charges added for this tier.
             </div>
-          ))}
+          ) : (
+            <div className="mt-4 space-y-3">
+              {tier.charges.map((charge) => (
+                <div
+                  key={charge.id}
+                  className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.55)] p-4"
+                >
+                  <div className="grid gap-3 sm:grid-cols-[1fr_140px_auto]">
+                    <div>
+                      <label className="rf-label">
+                        Charge Label
+                      </label>
 
-          <button
-            onClick={() => addTierCharge(tier.tierId)}
-            className="text-xs text-blue-600"
-          >
-            + Add Charge
-          </button>
+                      <input
+                        value={charge.label}
+                        onChange={(e) =>
+                          updateTierCharge(tier.tierId, charge.id, {
+                            label: e.target.value,
+                          })
+                        }
+                        placeholder="Trash Fee"
+                        className="rf-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="rf-label">
+                        Amount
+                      </label>
+
+                      <input
+                        value={charge.amount}
+                        onChange={(e) =>
+                          updateTierCharge(tier.tierId, charge.id, {
+                            amount: e.target.value.replace(/[^0-9.]/g, ""),
+                          })
+                        }
+                        placeholder="0.00"
+                        className="rf-input"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeTierCharge(tier.tierId, charge.id)
+                        }
+                        className="rf-btn border border-red-200 bg-red-50 px-4 text-sm text-red-700 hover:bg-red-100"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
 
       <button
+        type="button"
         onClick={saveTierCharges}
-        className="rf-btn rf-btn-primary"
+        className="rf-btn rf-btn-primary w-full"
       >
-        Save Charges
+        Save Additional Charges
       </button>
     </div>
   </OverlayShell>
