@@ -568,6 +568,7 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
         return {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
+          tierId: unit.tierId ?? null,
           isActive: unit.isActive === true,
           tenantName: null,
           balanceCents: 0,
@@ -695,6 +696,7 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
       return {
         unitId: unit.id,
         unitNumber: unit.unitNumber,
+        tierId: unit.tierId ?? null,
         isActive: unit.isActive === true,
         tenantName: `${assignment.firstName ?? ""} ${
           assignment.lastName ?? ""

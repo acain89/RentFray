@@ -26,6 +26,7 @@ type NextCycleAdjustment = {
 type Unit = {
   unitId: string;
   unitNumber: string;
+  tierId?: string | null;
   tenantName: string | null;
   balance: number;
   isDelinquent: boolean;
@@ -522,6 +523,10 @@ export default function Page() {
   const [showVacateConfirm, setShowVacateConfirm] = useState(false);
   const [showInactiveConfirm, setShowInactiveConfirm] = useState(false);
   const [togglingUnitActive, setTogglingUnitActive] = useState(false);
+  const [showMoveTierModal, setShowMoveTierModal] = useState(false);
+  const [targetMoveTierId, setTargetMoveTierId] = useState("");
+  const [movingTier, setMovingTier] = useState(false);
+  const [moveTierError, setMoveTierError] = useState("");
   const [vacateError, setVacateError] = useState("");
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [localTiers, setLocalTiers] = useState<RentTierDraft[]>([]);
@@ -1227,6 +1232,52 @@ await loadDashboard();
   } finally {
     setTogglingUnitActive(false);
   }
+} 
+
+ async function submitMoveTier(): Promise<void> {
+  if (!selectedUnit || movingTier || !canVacateUnit) return;
+
+  if (!targetMoveTierId) {
+    setMoveTierError("Choose a target tier.");
+    return;
+  }
+
+  try {
+    setMovingTier(true);
+    setMoveTierError("");
+
+    const res = await fetch("/api/manager/units/move-tier", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        unitId: selectedUnit.unitId,
+        targetTierId: targetMoveTierId,
+      }),
+    });
+
+    const json = (await res.json().catch(() => null)) as
+      | { ok?: boolean; error?: string }
+      | null;
+
+    if (!res.ok || !json?.ok) {
+      setMoveTierError(json?.error || "Failed to move unit.");
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 150));
+    await loadDashboard();
+
+    setShowMoveTierModal(false);
+    setTargetMoveTierId("");
+    closeUnitPanel();
+  } catch {
+    setMoveTierError("Failed to move unit.");
+  } finally {
+    setMovingTier(false);
+  }
 }
 
   async function saveMaintenancePin(): Promise<void> {
@@ -1864,6 +1915,9 @@ const gpLfComparisonSummary = useMemo(() => {
     setShowVacateConfirm(false);
     setShowInactiveConfirm(false);
     setVacateError("");
+    setShowMoveTierModal(false);
+    setTargetMoveTierId("");
+    setMoveTierError("");
     setSelectedUnit(unit);
     setManualPaymentAmount(Number(unit.balance || 0).toFixed(2));
     setShowManualPaymentConfirm(false);
@@ -2196,6 +2250,36 @@ if (error === "Unauthorized") {
     );
   }
 
+const selectedMoveTargetTier = data?.tiers.find(
+  (tier) => tier.id === targetMoveTierId
+);
+
+const selectedMoveTargetActiveCount =
+  targetMoveTierId && data?.units
+    ? data.units.filter(
+        (unit) =>
+          unit.isActive &&
+          unit.tierId === targetMoveTierId &&
+          unit.unitId !== selectedUnit?.unitId
+      ).length
+    : 0;
+
+const selectedMoveTargetCapacity = Number(
+  selectedMoveTargetTier?.unitCount ?? 0
+);
+
+const selectedMoveTargetIsFull =
+  Boolean(selectedMoveTargetTier) &&
+  selectedMoveTargetCapacity > 0 &&
+  selectedMoveTargetActiveCount >= selectedMoveTargetCapacity;
+
+const canSubmitMoveTier =
+  Boolean(selectedUnit) &&
+  Boolean(targetMoveTierId) &&
+  !selectedMoveTargetIsFull &&
+  selectedUnit?.paymentStatus !== "PENDING" &&
+  !movingTier;
+
   return (
     <>
       <main className="min-h-screen px-3 py-4 sm:px-5 sm:py-6">
@@ -2488,6 +2572,125 @@ if (error === "Unauthorized") {
   </div>
 ) : null}
 
+{showMoveTierModal && selectedUnit ? (
+  <OverlayShell
+    title={`Move Unit ${selectedUnit.unitNumber}`}
+    subtitle="Choose the correct tier. Pending payments are blocked. Paid current-cycle balances are not adjusted."
+    onClose={() => {
+      if (movingTier) return;
+      setShowMoveTierModal(false);
+      setTargetMoveTierId("");
+      setMoveTierError("");
+    }}
+  >
+    <div className="space-y-4">
+      <div className="rounded-[26px] border border-slate-200 bg-white p-4">
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Current tier
+            </div>
+            <div className="mt-1 font-semibold text-slate-950">
+              {selectedUnit.tierName ?? "Units"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Current status
+            </div>
+            <div className="mt-1 font-semibold text-slate-950">
+              {getStatusText(selectedUnit.status, selectedUnit.daysPastDue)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Target tier
+        </label>
+        <select
+          value={targetMoveTierId}
+          onChange={(event) => {
+            setTargetMoveTierId(event.target.value);
+            setMoveTierError("");
+          }}
+          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+        >
+          <option value="">Choose a tier</option>
+          {(data?.tiers ?? [])
+            .filter((tier) => tier.id !== selectedUnit.tierId)
+            .map((tier) => {
+              const activeCount = (data?.units ?? []).filter(
+                (unit) =>
+                  unit.isActive &&
+                  unit.tierId === tier.id &&
+                  unit.unitId !== selectedUnit.unitId
+              ).length;
+
+              return (
+                <option key={tier.id} value={tier.id}>
+                  {tier.name} — {activeCount}/{tier.unitCount} units
+                </option>
+              );
+            })}
+        </select>
+      </div>
+
+      {selectedMoveTargetTier ? (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            selectedMoveTargetIsFull
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          Target tier capacity: {selectedMoveTargetActiveCount}/
+          {selectedMoveTargetCapacity}.{" "}
+          {selectedMoveTargetIsFull
+            ? "This tier is full. Choose another tier or increase the tier capacity first."
+            : "This tier has room for this move."}
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+        Unpaid current-cycle balances will be adjusted to match the new tier. If this unit has already paid this cycle, the new tier applies next cycle and management can add a manual charge or credit if needed. Past payments are never changed.
+      </div>
+
+      {moveTierError ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {moveTierError}
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          disabled={movingTier}
+          onClick={() => {
+            setShowMoveTierModal(false);
+            setTargetMoveTierId("");
+            setMoveTierError("");
+          }}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          disabled={!canSubmitMoveTier}
+          onClick={submitMoveTier}
+          className="rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {movingTier ? "Moving..." : "Move Unit"}
+        </button>
+      </div>
+    </div>
+  </OverlayShell>
+) : null}
+
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="text-sm text-slate-700">
@@ -2527,6 +2730,35 @@ if (error === "Unauthorized") {
           </button>
         </div>
       </div>
+
+       <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+  <div className="text-sm font-semibold text-slate-950">Move Tier</div>
+  <div className="mt-2 text-sm leading-6 text-slate-600">
+    Move this unit to a different rent tier without deleting the unit, changing tenant history, or altering past payments.
+  </div>
+
+  {!canVacateUnit ? (
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      View only. Only owner and manager can move units.
+    </div>
+  ) : selectedUnit.paymentStatus === "PENDING" ? (
+    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      This unit has a pending payment. Wait until it succeeds or fails before moving tiers.
+    </div>
+  ) : (
+    <button
+      type="button"
+      onClick={() => {
+        setTargetMoveTierId("");
+        setMoveTierError("");
+        setShowMoveTierModal(true);
+      }}
+      className="mt-4 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+    >
+      Move Tier
+    </button>
+  )}
+</div>
 
       <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
         <div className="text-sm font-semibold text-slate-950">Manual Payment</div>

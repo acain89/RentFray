@@ -99,6 +99,7 @@ model PropertyTier {
   name                String
   baseRentCents       Int                  @default(0)
   unitCount           Int                  @default(0)
+  activeUnitCount     Int                  @default(0)
   billingFrequency    String               @default("MONTHLY")
   rentDueDay          Int                  @default(1)
   gracePeriodDays     Int                  @default(0)
