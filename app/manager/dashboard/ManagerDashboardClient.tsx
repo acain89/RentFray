@@ -580,19 +580,42 @@ useEffect(() => {
     }
 
     return data.tiers.map((tier, index) => ({
-      id: tier.id,
-      tierName: tier.name,
-      unitCount: String(tier.unitCount ?? 0),
-      isNew: false,
-      markedForDelete: false,
-      baseRent: String(tier.baseRent ?? ""),
-      dueDay: "1",
-      graceDays: "5",
-      lateFeeEnabled: false,
-      lateFeeAmount: "",
-      lateFeeDaily: "",
-      lateFeeMaxDays: "",
-    }));
+  id: tier.id,
+  tierName: tier.name,
+  unitCount: String(tier.unitCount ?? 0),
+  isNew: false,
+  markedForDelete: false,
+  baseRent: String(tier.baseRent ?? ""),
+  dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
+  graceDays: String(
+    (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
+  ),
+  lateFeeEnabled:
+    ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+      0 ||
+    ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0,
+  lateFeeAmount:
+    ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+    0
+      ? String(
+          (((tier as { lateFeeInitialCents?: number })
+            .lateFeeInitialCents ?? 0) / 100)
+        )
+      : "",
+  lateFeeDaily:
+    ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0
+      ? String(
+          (((tier as { lateFeeDailyCents?: number })
+            .lateFeeDailyCents ?? 0) / 100)
+        )
+      : "",
+  lateFeeMaxDays:
+    ((tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0) > 0
+      ? String(
+          (tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0
+        )
+      : "",
+}));
   });
 }, [data?.tiers]);
 
@@ -1568,8 +1591,12 @@ document.body.appendChild(a);
 a.click();
 a.remove();
 window.URL.revokeObjectURL(url);
-  } catch {
-    alert("Export failed.");
+  } catch (error) {
+    if (error instanceof Error && error.message.trim()) {
+      alert(error.message);
+    } else {
+      alert("Export failed.");
+    }
   } finally {
     setExporting(false);
   }
@@ -3172,7 +3199,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 {activePanel === "charges" ? (
   <OverlayShell
     title="Additional Charges"
-    subtitle="Create recurring charges that automatically apply to units within each tier."
+    subtitle="Create recurring charges for each tier. New recurring charges take effect starting next billing cycle."
     onClose={goBackToManage}
   >
     <div className="space-y-5">
