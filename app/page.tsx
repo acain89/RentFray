@@ -747,7 +747,7 @@ export default function Home() {
    <button
       type="button"
       onClick={() => router.push("/setup")}
-      className="rounded-2xl bg-[#0f172a] px-6 py-4 text-base font-semibold text-white shadow-[0_15px_35px_rgba(15,23,42,0.24)] transition hover:-translate-y-[1px] hover:bg-[#162033]"
+      className="rounded-2xl bg-gradient-to-r from-[#38bdf8] to-[#6366f1] px-6 py-4 text-base font-semibold text-white shadow-[0_15px_35px_rgba(99,102,241,0.28)] transition hover:-translate-y-[1px] hover:shadow-[0_18px_40px_rgba(99,102,241,0.35)]"
     >
       Start 4-step setup →
     </button>

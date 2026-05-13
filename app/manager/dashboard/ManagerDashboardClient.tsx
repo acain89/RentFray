@@ -54,6 +54,7 @@ type DashboardTier = {
   id: string;
   name: string;
   unitCount: number;
+  activeUnitCount?: number;
   baseRent?: number;
 };
 
@@ -482,10 +483,14 @@ function ManageSection({
  return (
   <section className="rounded-[26px] border border-emerald-300/60 bg-gradient-to-br from-white via-emerald-50/40 to-sky-50/30 p-4 shadow-[var(--rf-shadow-sm)]">
     <div className="mb-3">
-      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">
-        {title}
-      </h3>
-    </div>
+  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">
+    {title}
+  </h3>
+
+  <p className="mt-1 text-xs leading-5 text-[var(--rf-text-soft)]">
+    {helper}
+  </p>
+</div>
 
     <div className="space-y-2">
       {items.map((item) => (
@@ -2922,16 +2927,24 @@ const canSubmitMoveTier =
           </div>
         ) : null}
 
-        {!showVacateConfirm ? (
-          <button
-            type="button"
-            onClick={() => setShowVacateConfirm(true)}
-            disabled={!canVacateUnit}
-            className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-          >
-            Vacate Unit
-          </button>
-        ) : canVacateUnit ? (
+       {!selectedUnit.tenantName ? (
+  <button
+    type="button"
+    disabled
+    className="mt-4 cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
+  >
+    Currently Vacant
+  </button>
+) : !showVacateConfirm ? (
+  <button
+    type="button"
+    onClick={() => setShowVacateConfirm(true)}
+    disabled={!canVacateUnit}
+    className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+  >
+    Vacate Unit
+  </button>
+) : canVacateUnit ? (
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-sm font-semibold text-slate-950">
               Make Unit {selectedUnit.unitNumber} vacant?

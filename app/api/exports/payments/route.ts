@@ -165,6 +165,10 @@ const requestedCycle =
     const rows: CsvRow[] = payments.map((p: PaymentWithRelations) => {
       const feeCents = p.processingFeeCents ?? 0;
       const totalChargedCents = (p.amountCents ?? 0) + feeCents;
+       const normalizedStatus = normalizePaymentStatus(p.status);
+
+const settledTotalCents =
+  normalizedStatus === "PAID" ? totalChargedCents : 0;
 
       const tenantName = `${p.tenantAssignment?.firstName ?? ""} ${
         p.tenantAssignment?.lastName ?? ""
@@ -181,8 +185,8 @@ const requestedCycle =
         amountDue: formatCentsToDollars(p.amountCents ?? 0),
         feeCents,
         fee: formatCentsToDollars(feeCents),
-        totalPaidCents: totalChargedCents,
-        totalPaid: formatCentsToDollars(totalChargedCents),
+        totalPaidCents: settledTotalCents,
+        totalPaid: formatCentsToDollars(settledTotalCents),
         status: p.status ?? "",
         paymentDate: fmtDate(paymentDate),
         paymentTimestamp: fmtDateTime(paymentDate),

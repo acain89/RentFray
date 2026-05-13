@@ -109,7 +109,7 @@ export default function RentPanel({
   return (
     <OverlayShell
       title="Rent Panel"
-      subtitle="Set tier names, base rent, due day, and grace days."
+      subtitle="Configure rent amounts, max units, due dates, grace periods, and late fee settings."
       onClose={onClose}
     >
       <div className="space-y-4">
@@ -251,6 +251,13 @@ export default function RentPanel({
                   label="Max units"
                   value={tier.unitCount || "0"}
                    />
+    
+                   <SummaryStat
+                  label="Active units"
+                  value={String(
+                  localTiers.find((t) => t.id === tier.id)?.unitCount ?? "0"
+                    )}
+                  />
 
                   <SummaryStat label="Due day" value={tier.dueDay || "—"} />
                   <SummaryStat

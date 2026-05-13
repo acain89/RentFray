@@ -232,45 +232,32 @@ const propertyId = session.propertyId;
 
         const hasPaidCurrentCycle = paymentStatuses.includes("PAID");
 
-        const currentCycleEntries = await tx.ledgerEntry.findMany({
-          where: {
-            propertyId: propertyId,
-            unitId: unit.id,
-            billingCycle: rentDates.billingCycle,
-            voidedAt: null,
-            ...(activeAssignment ? { tenantAssignmentId: activeAssignment.id } : {}),
-          },
-          select: {
-            entryType: true,
-            amountCents: true,
-            payment: {
-              select: {
-                status: true,
-              },
-            },
-          },
-        });
+         const currentCycleRentCharges = await tx.ledgerEntry.findMany({
+  where: {
+    propertyId: propertyId,
+    unitId: unit.id,
+    billingCycle: rentDates.billingCycle,
+    entryType: "CHARGE",
+    chargeType: "RENT",
+    voidedAt: null,
+    ...(activeAssignment ? { tenantAssignmentId: activeAssignment.id } : {}),
+  },
+  select: {
+    amountCents: true,
+  },
+});
 
-        const currentCycleBalanceCents = Math.max(
-          0,
-          currentCycleEntries.reduce((sum, entry) => {
-            return (
-              sum +
-              getSignedLedgerImpactCents({
-                entryType: entry.entryType,
-                amountCents: entry.amountCents,
-                paymentStatus: entry.payment?.status ?? null,
-              })
-            );
-          }, 0)
-        );
-
+const currentCycleRentChargeTotal = currentCycleRentCharges.reduce(
+  (sum, entry) => sum + Math.max(0, entry.amountCents),
+  0
+);
+       
         const oldTierRentCents = Math.max(0, unit.tier?.baseRentCents ?? 0);
         const newTierRentCents = Math.max(0, targetTier.baseRentCents ?? 0);
-        const adjustmentCents =
-          !hasPaidCurrentCycle && currentCycleBalanceCents > 0
-            ? newTierRentCents - oldTierRentCents
-            : 0;
+       const adjustmentCents =
+  !hasPaidCurrentCycle && currentCycleRentChargeTotal > 0
+    ? newTierRentCents - oldTierRentCents
+    : 0;
 
         await tx.unit.update({
           where: { id: unit.id },
@@ -314,7 +301,7 @@ const propertyId = session.propertyId;
               targetTierName: targetTier.name,
               billingCycle: rentDates.billingCycle,
               hasPaidCurrentCycle,
-              currentCycleBalanceCents,
+              currentCycleRentChargeTotal,
               oldTierRentCents,
               newTierRentCents,
               adjustmentCents,

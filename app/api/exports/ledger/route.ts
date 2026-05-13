@@ -206,7 +206,7 @@ export async function GET(req: Request) {
 
     type LedgerEntryWithRelations = (typeof entries)[number];
 
-    let runningBalanceCents = 0;
+    const runningBalances = new Map<string, number>();
 
     const rows: CsvRow[] = entries.map((e: LedgerEntryWithRelations) => {
       const tenantName = `${e.tenantAssignment?.firstName ?? ""} ${
@@ -222,7 +222,10 @@ export async function GET(req: Request) {
         paymentStatus
       );
 
-      runningBalanceCents += signedImpactCents;
+      const runningBalanceCents =
+  (runningBalances.get(e.unitId ?? "") ?? 0) + signedImpactCents;
+
+runningBalances.set(e.unitId ?? "", runningBalanceCents);
 
       return {
         propertyName: e.property?.name ?? "",

@@ -6,7 +6,6 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 import { formatCentsToDollars } from "@/lib/billingConfig";
-import { getCapacitySnapshot } from "@/lib/propertyCapacity";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import { getUnitStatus } from "@/lib/unitStatusEngine";
 
@@ -394,8 +393,7 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
       property.status = "READY";
     }
 
-  const [capacity, units, tiers] = await Promise.all([
-  getCapacitySnapshot(property.id),
+const [units, tiers] = await Promise.all([
   prisma.unit.findMany({
     where: {
       propertyId: property.id,
@@ -437,10 +435,11 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     select: {
-      id: true,
-      name: true,
-      unitCount: true,
-      baseRentCents: true,
+  id: true,
+  name: true,
+  unitCount: true,
+  activeUnitCount: true,
+  baseRentCents: true,
     },
   }),
 ]);
@@ -765,7 +764,7 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
         id: property.id,
         name: property.name,
         code: property.propertyCode,
-        unitCount: capacity.effectiveUnitCount,
+        unitCount: property.unitCount,
         managementUsers: property.managementUsers,
         billingCycleStartDate: property.billingCycleStartDate
           ? property.billingCycleStartDate.toISOString()
@@ -780,9 +779,9 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
         role: session.role,
       },
       summary: {
-        totalUnits: capacity.effectiveUnitCount,
+        totalUnits: property.unitCount,
         occupiedUnits,
-        vacantUnits: Math.max(0, capacity.effectiveUnitCount - occupiedUnits),
+        vacantUnits: Math.max(0, property.unitCount - occupiedUnits),
         delinquentUnits: delinquentCount,
       },
       financials: {
@@ -795,7 +794,7 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
       },
       cycleSnapshot: {
         billingCycleLabel: billingLabel,
-        occupiedUnitsLabel: `${occupiedUnits} / ${capacity.effectiveUnitCount}`,
+        occupiedUnitsLabel: `${occupiedUnits} / ${property.unitCount}`,
         portalPaidCount,
         manualPaidCount,
         totalPaidCount,
@@ -813,6 +812,7 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
       id: tier.id,
       name: tier.name,
       unitCount: tier.unitCount,
+      activeUnitCount: tier.activeUnitCount ?? 0,
       baseRent: tier.baseRentCents / 100,
       })),
       exportOptions: {

@@ -92,8 +92,9 @@ export async function GET(req: Request) {
 
     const units = await prisma.unit.findMany({
       where: {
-        propertyId: session.propertyId,
-      },
+  propertyId: session.propertyId,
+  isActive: true,
+       },
       orderBy: { unitNumber: "asc" },
       include: {
         property: {

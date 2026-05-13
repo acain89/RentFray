@@ -26,91 +26,79 @@ export async function POST(req: Request) {
 
    const result = await prisma.$transaction(
   async (tx: Prisma.TransactionClient) => {
-      const unit = await tx.unit.findFirst({
-        where: {
-          id: unitId,
-          propertyId: session.propertyId,
-        },
-        include: {
-          tenantAssignments: {
-            where: {
-              isCurrent: true,
-              OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
-            },
-            take: 1,
-          },
-          tier: {
-            select: {
-              id: true,
-              unitCount: true,
-              activeUnitCount: true,
-              isActive: true,
-            },
-          },
-        },
-      });
-
-      if (!unit) {
-        throw new Error("Unit not found");
-      }
-
-      if (!makeActive && unit.tenantAssignments.length > 0) {
-        throw new Error("Cannot inactivate an occupied unit");
-      }
-
-      if (makeActive && unit.tierId) {
-        if (!unit.tier || !unit.tier.isActive) {
-          throw new Error("Tier does not belong to property.");
-        }
-
-        const activeTierUnitCount = await tx.unit.count({
+    const unit = await tx.unit.findFirst({
+      where: {
+        id: unitId,
+        propertyId: session.propertyId,
+      },
+      include: {
+        tenantAssignments: {
           where: {
-            propertyId: session.propertyId,
-            tierId: unit.tierId,
+            isCurrent: true,
+            OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
+          },
+          take: 1,
+        },
+        tier: {
+          select: {
+            id: true,
+            unitCount: true,
+            activeUnitCount: true,
             isActive: true,
           },
-        });
+        },
+      },
+    });
 
-        if (activeTierUnitCount >= unit.tier.unitCount) {
-          throw new Error("Max number of units have been activated for this tier.");
-        }
+    if (!unit) {
+      throw new Error("Unit not found");
+    }
+
+    if (!makeActive && unit.tenantAssignments.length > 0) {
+      throw new Error("Cannot inactivate an occupied unit");
+    }
+
+    if (makeActive && unit.tierId) {
+      if (!unit.tier || !unit.tier.isActive) {
+        throw new Error("Tier does not belong to property.");
       }
 
-      const updated = await tx.unit.update({
-        where: { id: unit.id },
-        data: { isActive: makeActive },
-      });
-
-      if (unit.tierId) {
-        const activeTierUnitCount = await tx.unit.count({
-          where: {
-            propertyId: session.propertyId,
-            tierId: unit.tierId,
-            isActive: true,
-          },
-        });
-
-        await tx.propertyTier.update({
-          where: { id: unit.tierId },
-          data: { activeUnitCount: activeTierUnitCount },
-        });
-      }
-
-      const activePropertyUnitCount = await tx.unit.count({
+      const activeTierUnitCount = await tx.unit.count({
         where: {
           propertyId: session.propertyId,
+          tierId: unit.tierId,
           isActive: true,
         },
       });
 
-      await tx.property.update({
-        where: { id: session.propertyId },
-        data: { unitCount: activePropertyUnitCount },
+      if (activeTierUnitCount >= unit.tier.unitCount) {
+        throw new Error("Max number of units have been activated for this tier.");
+      }
+    }
+
+    const updated = await tx.unit.update({
+      where: { id: unit.id },
+      data: { isActive: makeActive },
+    });
+
+    if (unit.tierId) {
+      const activeTierUnitCount = await tx.unit.count({
+        where: {
+          propertyId: session.propertyId,
+          tierId: unit.tierId,
+          isActive: true,
+        },
       });
 
-          return updated;
-           }
-         );
+      await tx.propertyTier.update({
+        where: { id: unit.tierId },
+        data: { activeUnitCount: activeTierUnitCount },
+      });
+    }
+
+    return updated;
+  }
+);
 
     return NextResponse.json({ ok: true, unit: result });
   } catch (err) {

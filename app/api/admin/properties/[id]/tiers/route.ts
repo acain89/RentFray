@@ -89,6 +89,14 @@ export async function POST(
     );
   }
 
+  const activeTierUnitCount = await tx.unit.count({
+  where: {
+    propertyId: id,
+    tierId: t.id,
+    isActive: true,
+  },
+});
+
   await tx.propertyTier.update({
     where: { id: t.id },
     data: { isActive: false },
@@ -113,21 +121,22 @@ if (unitCount < activeTierUnitCount) {
 }
   
 await tx.propertyTier.update({
-    where: { id: t.id },
-    data: {
-      name,
-      unitCount,
-      baseRentCents,
-      rentDueDay,
-      gracePeriodDays,
-      lateFeeInitialCents,
-      lateFeeDailyCents,
-      maxLateFeeDays,
-      lateFeeType: "FLAT",
-      sortOrder: i,
-      isActive: true,
-    },
-  });
+  where: { id: t.id },
+  data: {
+    name,
+    unitCount,
+    activeUnitCount: activeTierUnitCount,
+    baseRentCents,
+    rentDueDay,
+    gracePeriodDays,
+    lateFeeInitialCents,
+    lateFeeDailyCents,
+    maxLateFeeDays,
+    lateFeeType: "FLAT",
+    sortOrder: i,
+    isActive: true,
+  },
+});
 
   continue;
 }
