@@ -577,51 +577,50 @@ export default function Page() {
   const [gpLfSaveMessage, setGpLfSaveMessage] = useState("");
 
 useEffect(() => {
-  if (!data?.tiers?.length) return;
+  if (!data?.tiers?.length) {
+    setLocalTiers([]);
+    return;
+  }
 
-  setLocalTiers((current) => {
-    if (current.length > 0) {
-      return current;
-    }
-
-    return data.tiers.map((tier, index) => ({
-  id: tier.id,
-  tierName: tier.name,
-  unitCount: String(tier.unitCount ?? 0),
-  isNew: false,
-  markedForDelete: false,
-  baseRent: String(tier.baseRent ?? ""),
-  dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
-  graceDays: String(
-    (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
-  ),
-  lateFeeEnabled:
-    ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
-      0 ||
-    ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0,
-  lateFeeAmount:
-    ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
-    0
-      ? String(
-          (((tier as { lateFeeInitialCents?: number })
-            .lateFeeInitialCents ?? 0) / 100)
-        )
-      : "",
-  lateFeeDaily:
-    ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0
-      ? String(
-          (((tier as { lateFeeDailyCents?: number })
-            .lateFeeDailyCents ?? 0) / 100)
-        )
-      : "",
-  lateFeeMaxDays:
-    ((tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0) > 0
-      ? String(
-          (tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0
-        )
-      : "",
-}));
-  });
+  setLocalTiers(
+    data.tiers.map((tier, index) => ({
+      id: tier.id,
+      tierName: tier.name,
+      unitCount: String(tier.unitCount ?? 0),
+      isNew: false,
+      markedForDelete: false,
+      baseRent: String(tier.baseRent ?? ""),
+      dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
+      graceDays: String(
+        (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
+      ),
+      lateFeeEnabled:
+        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+          0 ||
+        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0,
+      lateFeeAmount:
+        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+        0
+          ? String(
+              (((tier as { lateFeeInitialCents?: number })
+                .lateFeeInitialCents ?? 0) / 100)
+            )
+          : "",
+      lateFeeDaily:
+        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0
+          ? String(
+              (((tier as { lateFeeDailyCents?: number })
+                .lateFeeDailyCents ?? 0) / 100)
+            )
+          : "",
+      lateFeeMaxDays:
+        ((tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0) > 0
+          ? String(
+              (tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0
+            )
+          : "",
+    }))
+  );
 }, [data?.tiers]);
 
 function updateGpLf(
@@ -1287,7 +1286,7 @@ await loadDashboard();
   }
 } 
 
- async function submitMoveTier(): Promise<void> {
+async function submitMoveTier(): Promise<void> {
   if (!selectedUnit || movingTier || !canVacateUnit) return;
 
   if (!targetMoveTierId) {
@@ -1320,8 +1319,8 @@ await loadDashboard();
       return;
     }
 
-    await new Promise((r) => setTimeout(r, 150));
     await loadDashboard();
+    await loadPropertyTiers();
 
     setShowMoveTierModal(false);
     setTargetMoveTierId("");
@@ -1331,7 +1330,7 @@ await loadDashboard();
   } finally {
     setMovingTier(false);
   }
-}
+} 
 
   async function saveMaintenancePin(): Promise<void> {
     if (savingMaintenancePin || !canManageMaintenance) return;
@@ -2192,19 +2191,16 @@ async function saveLocalRentSettings(): Promise<void> {
   if (!data?.property?.id) return;
 
   try {
-    const res = await fetch(
-      `/api/admin/properties/${data.property.id}/tiers`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          tiers: localTiers,
-        }),
-      }
-    );
+    const res = await fetch(`/api/admin/properties/${data.property.id}/tiers`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        tiers: localTiers,
+      }),
+    });
 
     const json = await res.json().catch(() => null);
 
@@ -2214,13 +2210,14 @@ async function saveLocalRentSettings(): Promise<void> {
     }
 
     setEditingTierId(null);
-await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
-alert("Saved");
+    await loadDashboard();
+    await loadPropertyTiers();
+    alert("Saved");
   } catch {
     alert("Save failed");
   }
 }
+
  function closeUnitPanel(): void {
   setShowAdjustModal(false);
   setShowVacateConfirm(false);

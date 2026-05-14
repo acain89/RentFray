@@ -259,12 +259,46 @@ const currentCycleRentChargeTotal = currentCycleRentCharges.reduce(
     ? newTierRentCents - oldTierRentCents
     : 0;
 
-        await tx.unit.update({
-          where: { id: unit.id },
-          data: {
-            tierId: targetTier.id,
-          },
-        });
+await tx.unit.update({
+  where: { id: unit.id },
+  data: {
+    tierId: targetTier.id,
+  },
+});
+
+const previousTierActiveUnitCount = unit.tierId
+  ? await tx.unit.count({
+      where: {
+        propertyId,
+        tierId: unit.tierId,
+        isActive: true,
+      },
+    })
+  : 0;
+
+const targetTierActiveUnitCount = await tx.unit.count({
+  where: {
+    propertyId,
+    tierId: targetTier.id,
+    isActive: true,
+  },
+});
+
+if (unit.tierId) {
+  await tx.propertyTier.update({
+    where: { id: unit.tierId },
+    data: {
+      activeUnitCount: previousTierActiveUnitCount,
+    },
+  });
+}
+
+await tx.propertyTier.update({
+  where: { id: targetTier.id },
+  data: {
+    activeUnitCount: targetTierActiveUnitCount,
+  },
+});
 
         if (adjustmentCents !== 0) {
           await tx.ledgerEntry.create({
