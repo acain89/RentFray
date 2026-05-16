@@ -402,31 +402,24 @@ export async function POST(req: Request) {
     }
 
     if (event.type === "checkout.session.async_payment_succeeded") {
-      const session = event.data.object as Stripe.Checkout.Session;
+  const session = event.data.object as Stripe.Checkout.Session;
 
-      if (typeof session.payment_intent !== "string") {
-        return NextResponse.json({ received: true });
-      }
+  // Let payment_intent.succeeded be the ONLY place that finalizes PAID + ledger.
+  // This event only ensures the existing pending payment is linked to the session/intent.
+  if (typeof session.payment_intent === "string") {
+    const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
+    const payment = await ensurePaymentFromIntent(intent, session.id);
 
-      const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
-      const payment = await ensurePaymentFromIntent(intent, session.id);
-
-      await updatePaymentStatus(intent.id, "PAID");
-
-      if (payment) {
-        emitEvent("payment:update", {
-          propertyId: payment.propertyId,
-          unitId: payment.unitId,
-        });
-
-        emitEvent("ledger:update", {
-          propertyId: payment.propertyId,
-          unitId: payment.unitId,
-        });
-      }
-
-      return NextResponse.json({ received: true });
+    if (payment) {
+      emitEvent("payment:update", {
+        propertyId: payment.propertyId,
+        unitId: payment.unitId,
+      });
     }
+  }
+
+  return NextResponse.json({ received: true });
+}
 
     if (event.type === "checkout.session.async_payment_failed") {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -547,6 +540,7 @@ if (!billingCycle) {
 }
 
       const payment = await ensurePaymentFromIntent(succeededIntent);
+      await updatePaymentStatus(succeededIntent.id, "PAID");
 
       if (!payment) {
         return NextResponse.json({ received: true });
@@ -631,7 +625,6 @@ if (!billingCycle) {
         });
       });
 
-      await updatePaymentStatus(succeededIntent.id, "PAID");
 
       emitEvent("payment:update", { propertyId, unitId });
       emitEvent("ledger:update", { propertyId, unitId });

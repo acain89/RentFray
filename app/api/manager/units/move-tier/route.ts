@@ -37,34 +37,6 @@ function isAllowedRole(role: string): role is "OWNER" | "MANAGER" {
   return role === "OWNER" || role === "MANAGER";
 }
 
-function toSafeInteger(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.trunc(n);
-}
-
-function getSignedLedgerImpactCents(input: {
-  entryType: string | null;
-  amountCents: number;
-  paymentStatus?: string | null;
-}): number {
-  const entryType = String(input.entryType ?? "").toUpperCase();
-  const paymentStatus = String(input.paymentStatus ?? "").toUpperCase();
-  const amountCents = toSafeInteger(input.amountCents);
-  const absAmountCents = Math.abs(amountCents);
-
-  if (entryType === "CHARGE") return absAmountCents;
-  if (entryType === "PAYMENT") return paymentStatus === "PAID" ? -absAmountCents : 0;
-  if (entryType === "CREDIT") return -absAmountCents;
-  if (entryType === "ADJUSTMENT") return amountCents;
-
-  return 0;
-}
-
-function formatMoney(cents: number): string {
-  const sign = cents < 0 ? "-" : "";
-  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`;
-}
 
 export async function POST(req: Request) {
   try {
@@ -232,7 +204,7 @@ const propertyId = session.propertyId;
 
         const hasPaidCurrentCycle = paymentStatuses.includes("PAID");
 
-         const currentCycleRentCharges = await tx.ledgerEntry.findMany({
+const currentCycleRentCharges = await tx.ledgerEntry.findMany({
   where: {
     propertyId: propertyId,
     unitId: unit.id,
@@ -240,9 +212,12 @@ const propertyId = session.propertyId;
     entryType: "CHARGE",
     chargeType: "RENT",
     voidedAt: null,
-    ...(activeAssignment ? { tenantAssignmentId: activeAssignment.id } : {}),
+    ...(activeAssignment
+      ? { tenantAssignmentId: activeAssignment.id }
+      : {}),
   },
   select: {
+    id: true,
     amountCents: true,
   },
 });
@@ -251,14 +226,26 @@ const currentCycleRentChargeTotal = currentCycleRentCharges.reduce(
   (sum, entry) => sum + Math.max(0, entry.amountCents),
   0
 );
-       
-        const oldTierRentCents = Math.max(0, unit.tier?.baseRentCents ?? 0);
-        const newTierRentCents = Math.max(0, targetTier.baseRentCents ?? 0);
-       const adjustmentCents =
-  !hasPaidCurrentCycle && currentCycleRentChargeTotal > 0
-    ? newTierRentCents - oldTierRentCents
-    : 0;
 
+const oldTierRentCents = Math.max(
+  0,
+  unit.tier?.baseRentCents ?? 0
+);
+
+const newTierRentCents = Math.max(
+  0,
+  targetTier.baseRentCents ?? 0
+);
+
+const shouldReplaceCurrentCycleRent =
+  !hasPaidCurrentCycle &&
+  currentCycleRentChargeTotal > 0 &&
+  currentCycleRentChargeTotal !== newTierRentCents;
+
+const adjustmentCents = shouldReplaceCurrentCycleRent
+  ? newTierRentCents - currentCycleRentChargeTotal
+  : 0;
+        
 await tx.unit.update({
   where: { id: unit.id },
   data: {
@@ -284,11 +271,22 @@ const targetTierActiveUnitCount = await tx.unit.count({
   },
 });
 
+// counts currently include moved unit already
+const correctedPreviousTierCount = Math.max(
+  0,
+  previousTierActiveUnitCount
+);
+
+const correctedTargetTierCount = Math.max(
+  0,
+  targetTierActiveUnitCount
+);
+
 if (unit.tierId) {
   await tx.propertyTier.update({
     where: { id: unit.tierId },
     data: {
-      activeUnitCount: previousTierActiveUnitCount,
+      activeUnitCount: correctedPreviousTierCount,
     },
   });
 }
@@ -296,54 +294,40 @@ if (unit.tierId) {
 await tx.propertyTier.update({
   where: { id: targetTier.id },
   data: {
-    activeUnitCount: targetTierActiveUnitCount,
+    activeUnitCount: correctedTargetTierCount,
   },
 });
 
-        if (adjustmentCents !== 0) {
-          await tx.ledgerEntry.create({
-            data: {
-              propertyId: propertyId,
-              unitId: unit.id,
-              tenantAssignmentId: activeAssignment?.id ?? null,
-              billingCycle: rentDates.billingCycle,
-              entryType: "ADJUSTMENT",
-              chargeType: "TIER_MOVE_ADJUSTMENT",
-              amountCents: adjustmentCents,
-              effectiveDate: now,
-              memo: `Tier move adjustment: ${unit.tier?.name ?? "Units"} to ${targetTier.name} (${formatMoney(adjustmentCents)})`,
-              createdByManagementUserId: session.managementUserId ?? null,
-            },
-          });
-        }
+if (shouldReplaceCurrentCycleRent) {
+  await tx.ledgerEntry.updateMany({
+    where: {
+      id: {
+        in: currentCycleRentCharges.map((e) => e.id),
+      },
+    },
+    data: {
+      voidedAt: now,
+    },
+  });
 
-        await tx.auditLog.create({
-          data: {
-            propertyId: propertyId,
-            actorType: session.role,
-            actorManagementUserId: session.managementUserId ?? null,
-            action: "UNIT_TIER_MOVED",
-            targetType: "UNIT",
-            targetId: unit.id,
-            summary: `Unit ${unit.unitNumber} moved from ${unit.tier?.name ?? "Units"} to ${targetTier.name}`,
-            metadataJson: JSON.stringify({
-              unitId: unit.id,
-              unitNumber: unit.unitNumber,
-              previousTierId: unit.tierId,
-              previousTierName: unit.tier?.name ?? "Units",
-              targetTierId: targetTier.id,
-              targetTierName: targetTier.name,
-              billingCycle: rentDates.billingCycle,
-              hasPaidCurrentCycle,
-              currentCycleRentChargeTotal,
-              oldTierRentCents,
-              newTierRentCents,
-              adjustmentCents,
-            }),
-          },
-        });
-
-        return {
+  await tx.ledgerEntry.create({
+    data: {
+      propertyId: propertyId,
+      unitId: unit.id,
+      tenantAssignmentId: activeAssignment?.id ?? null,
+      billingCycle: rentDates.billingCycle,
+      entryType: "CHARGE",
+      chargeType: "RENT",
+      amountCents: newTierRentCents,
+      effectiveDate: now,
+      memo: `Current-cycle RENT replaced after tier move. Other ledger entries were preserved. (${unit.tier?.name ?? "Units"} → ${targetTier.name})`,
+      createdByManagementUserId:
+        session.managementUserId ?? null,
+    },
+  });
+}
+        
+           return {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
           previousTierId: unit.tierId,
@@ -353,6 +337,10 @@ await tx.propertyTier.update({
           billingCycle: rentDates.billingCycle,
           adjustmentCents,
         };
+      },
+      {
+        maxWait: 10_000,
+        timeout: 20_000,
       }
     );
 

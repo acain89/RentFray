@@ -106,37 +106,61 @@ export async function POST(
 }
 
 if (t.id && !t.id.startsWith("new-tier-")) {
-const activeTierUnitCount = await tx.unit.count({
-  where: {
-    propertyId: id,
-    tierId: t.id,
-    isActive: true,
-  },
-});
+  const existingTier = await tx.propertyTier.findFirst({
+    where: {
+      id: t.id,
+      propertyId: id,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      unitCount: true,
+    },
+  });
 
-if (unitCount < activeTierUnitCount) {
-  throw new Error(
-    `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
-  );
-}
-  
-await tx.propertyTier.update({
-  where: { id: t.id },
-  data: {
-    name,
-    unitCount,
-    activeUnitCount: activeTierUnitCount,
-    baseRentCents,
-    rentDueDay,
-    gracePeriodDays,
-    lateFeeInitialCents,
-    lateFeeDailyCents,
-    maxLateFeeDays,
-    lateFeeType: "FLAT",
-    sortOrder: i,
-    isActive: true,
-  },
-});
+  if (!existingTier) {
+    throw new Error(`Tier "${name}" was not found.`);
+  }
+
+  const activeTierUnitCount = await tx.unit.count({
+    where: {
+      propertyId: id,
+      tierId: t.id,
+      isActive: true,
+    },
+  });
+
+  const submittedUnitCount = Math.max(0, toInt(t.unitCount, 0));
+
+  const nextUnitCount =
+    submittedUnitCount === activeTierUnitCount &&
+    existingTier.unitCount > activeTierUnitCount
+      ? existingTier.unitCount
+      : submittedUnitCount;
+
+  if (nextUnitCount < activeTierUnitCount) {
+    throw new Error(
+      `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
+    );
+  }
+
+  await tx.propertyTier.update({
+    where: { id: existingTier.id },
+    data: {
+      name,
+      unitCount: nextUnitCount,
+      activeUnitCount: activeTierUnitCount,
+      baseRentCents,
+      rentDueDay,
+      gracePeriodDays,
+      lateFeeInitialCents,
+      lateFeeDailyCents,
+      maxLateFeeDays,
+      lateFeeType: "FLAT",
+      sortOrder: i,
+      isActive: true,
+    },
+  });
 
   continue;
 }

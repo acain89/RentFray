@@ -53,8 +53,19 @@ type DashboardPayment = {
 type DashboardTier = {
   id: string;
   name: string;
-  unitCount: number;
-  activeUnitCount?: number;
+
+  // Max units allowed for this tier.
+  configuredUnitCount: number;
+
+  // Current active units assigned to this tier.
+  activeUnitCount: number;
+
+  // Remaining open slots.
+  availableUnitCount: number;
+
+  // Temporary compatibility for older UI code.
+  unitCount?: number;
+
   baseRent?: number;
 };
 
@@ -148,7 +159,16 @@ type TierGroup = {
 type RentTierDraft = {
   id: string;
   tierName: string;
+
+  // Configured max capacity.
   unitCount: string;
+
+  // Current assigned active units.
+  activeUnitCount: number;
+
+  // Remaining open slots.
+  availableUnitCount: number;
+
   isNew?: boolean;
   markedForDelete?: boolean;
   baseRent: string;
@@ -364,19 +384,23 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
   const safeName = String(tierName || `Tier ${index + 1}`).trim();
 
   return {
-  id: `${slugifyTierName(safeName) || `tier-${index + 1}`}-${index}`,
-  tierName: safeName,
-  unitCount: "0",
-  isNew: true,
-  markedForDelete: false,
-  baseRent: "",
-  dueDay: "1",
-  graceDays: "5",
-  lateFeeEnabled: false,
-  lateFeeAmount: "",
-  lateFeeDaily: "",
-  lateFeeMaxDays: "",
-};
+    id: `${slugifyTierName(safeName) || `tier-${index + 1}`}-${index}`,
+    tierName: safeName,
+
+    unitCount: "0",
+    activeUnitCount: 0,
+    availableUnitCount: 0,
+
+    isNew: true,
+    markedForDelete: false,
+    baseRent: "",
+    dueDay: "1",
+    graceDays: "5",
+    lateFeeEnabled: false,
+    lateFeeAmount: "",
+    lateFeeDaily: "",
+    lateFeeMaxDays: "",
+  };
 }
 
 function urgencyBadgeClass(urgency: string): string {
@@ -586,7 +610,9 @@ useEffect(() => {
     data.tiers.map((tier, index) => ({
       id: tier.id,
       tierName: tier.name,
-      unitCount: String(tier.unitCount ?? 0),
+      unitCount: String(tier.configuredUnitCount ?? tier.unitCount ?? 0),
+      activeUnitCount: tier.activeUnitCount ?? 0,
+      availableUnitCount: tier.availableUnitCount ?? 0,
       isNew: false,
       markedForDelete: false,
       baseRent: String(tier.baseRent ?? ""),
@@ -945,97 +971,50 @@ async function loadMaintenancePinStatus(): Promise<void> {
 }
 
 async function loadPropertyTiers(): Promise<void> {
-  if (!data?.property?.id) return;
-
-  try {
-    const res = await fetch(`/api/admin/properties/${data.property.id}`, {
-      credentials: "include",
-      cache: "no-store",
-    });
-
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok || !json?.ok) return;
-
-    const tiers = Array.isArray(json.tiers) ? json.tiers : [];
-
-    if (!tiers.length) {
-      setLocalTiers([createTierDraft("Tier 1", 0)]);
-      return;
-    }
-
-   
-    setLocalTiers(
-            tiers.map(
-        (
-          tier: {
-            id?: string;
-            name?: string;
-            baseRent?: number;
-            rentDueDay?: number;
-            gracePeriodDays?: number;
-            lateFeeInitial?: number;
-            lateFeeInitialCents?: number;
-            lateFeeDaily?: number;
-            lateFeeDailyCents?: number;
-            lateFeeMaxDays?: number;
-            maxLateFeeDays?: number;
-            unitCount?: number;
-          },
-          index: number
-        ) => {
-          const initialCents =
-            typeof tier.lateFeeInitialCents === "number"
-              ? tier.lateFeeInitialCents
-              : typeof tier.lateFeeInitial === "number"
-                ? Math.round(tier.lateFeeInitial * 100)
-                : 0;
-
-          const dailyCents =
-            typeof tier.lateFeeDailyCents === "number"
-              ? tier.lateFeeDailyCents
-              : typeof tier.lateFeeDaily === "number"
-                ? Math.round(tier.lateFeeDaily * 100)
-                : 0;
-
-          const maxDays =
-            typeof tier.maxLateFeeDays === "number"
-              ? tier.maxLateFeeDays
-              : typeof tier.lateFeeMaxDays === "number"
-                ? tier.lateFeeMaxDays
-                : 0;
-
-          return {
-            id: String(tier.id || `tier-${index}`),
-            tierName: String(tier.name || `Tier ${index + 1}`),
-            unitCount:
-            typeof tier.unitCount === "number"
-            ? String(tier.unitCount)
-            : "0",
-
-            isNew: false,
-            markedForDelete: false,
-            baseRent:
-              typeof tier.baseRent === "number" ? String(tier.baseRent) : "",
-            dueDay:
-              typeof tier.rentDueDay === "number"
-                ? String(tier.rentDueDay)
-                : "1",
-            graceDays:
-              typeof tier.gracePeriodDays === "number"
-                ? String(tier.gracePeriodDays)
-                : "5",
-            lateFeeEnabled: initialCents > 0 || dailyCents > 0,
-            lateFeeAmount: initialCents > 0 ? String(initialCents / 100) : "",
-            lateFeeDaily: dailyCents > 0 ? String(dailyCents / 100) : "",
-            lateFeeMaxDays: maxDays > 0 ? String(maxDays) : "",
-          };
-        }
-      )
-    );
-  } catch {
+  if (!data?.tiers?.length) {
     setLocalTiers([createTierDraft("Tier 1", 0)]);
+    return;
   }
+
+  setLocalTiers(
+    data.tiers.map((tier, index) => ({
+      id: tier.id,
+      tierName: tier.name || `Tier ${index + 1}`,
+      unitCount: String(tier.configuredUnitCount ?? tier.unitCount ?? 0),
+      activeUnitCount: tier.activeUnitCount ?? 0,
+      availableUnitCount: tier.availableUnitCount ?? 0,
+      isNew: false,
+      markedForDelete: false,
+      baseRent: typeof tier.baseRent === "number" ? String(tier.baseRent) : "",
+      dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
+      graceDays: String(
+        (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
+      ),
+      lateFeeEnabled:
+        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+          0 ||
+        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0,
+      lateFeeAmount:
+        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+        0
+          ? String(
+              ((tier as { lateFeeInitialCents?: number })
+                .lateFeeInitialCents ?? 0) / 100
+            )
+          : "",
+      lateFeeDaily:
+        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0
+          ? String(
+              ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ??
+                0) / 100
+            )
+          : "",
+      lateFeeMaxDays:
+        ((tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0) > 0
+          ? String((tier as { maxLateFeeDays?: number }).maxLateFeeDays ?? 0)
+          : "",
+    }))
+  );
 }
 
 async function loadTierCharges(): Promise<void> {
@@ -1853,12 +1832,6 @@ useEffect(() => {
   setPendingUnitCount(configuredUnitCount);
 }, [data]);
 
-useEffect(() => {
-  if (data?.property?.id) {
-    void loadPropertyTiers();
-  }
-}, [data]);
-
 
 useEffect(() => {
   if (activePanel !== "gplf") return;
@@ -2072,18 +2045,22 @@ function addLocalTier(): void {
     return [
       ...current,
       {
-        id: `new-tier-${Date.now()}`,
-        tierName: `Tier ${nextIndex + 1}`,
-        unitCount: "0",
-        isNew: true,
-        markedForDelete: false,
-        baseRent: "",
-        dueDay: "1",
-        graceDays: "5",
-        lateFeeEnabled: false,
-        lateFeeAmount: "",
-        lateFeeDaily: "",
-        lateFeeMaxDays: "",
+         id: `new-tier-${Date.now()}`,
+  tierName: `Tier ${nextIndex + 1}`,
+
+       unitCount: "0",
+       activeUnitCount: 0,
+       availableUnitCount: 0,
+
+       isNew: true,
+       markedForDelete: false,
+       baseRent: "",
+       dueDay: "1",
+       graceDays: "5",
+       lateFeeEnabled: false,
+       lateFeeAmount: "",
+       lateFeeDaily: "",
+       lateFeeMaxDays: "",
       },
     ];
   });

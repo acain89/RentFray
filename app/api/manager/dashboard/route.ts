@@ -409,6 +409,7 @@ const [units, tiers] = await Promise.all([
         select: {
           id: true,
           name: true,
+          baseRentCents: true,
           rentDueDay: true,
           gracePeriodDays: true,
           lateFeeInitialCents: true,
@@ -443,6 +444,17 @@ const [units, tiers] = await Promise.all([
     },
   }),
 ]);
+
+const activeUnitCountsByTier = new Map<string, number>();
+
+for (const unit of units) {
+  if (!unit.tierId) continue;
+
+  activeUnitCountsByTier.set(
+    unit.tierId,
+    (activeUnitCountsByTier.get(unit.tierId) ?? 0) + 1
+  );
+}
 
     const now = new Date();
 
@@ -662,8 +674,26 @@ const [units, tiers] = await Promise.all([
         (payment) => String(payment.status).toUpperCase() === "PAID"
       );
 
-      const netExpected = ledger.totalChargesCents - ledger.totalCreditsCents;
-      totalExpectedCents += Math.max(0, netExpected);
+     const currentCycleExpectedCents = assignmentLedgerEntries
+  .filter((entry) => entry.billingCycle === rentDates.billingCycle)
+  .reduce((sum, entry) => {
+    const entryType = normalizeLedgerEntryType(entry.entryType);
+
+    if (!entryType || entryType === "PAYMENT") {
+      return sum;
+    }
+
+    return (
+      sum +
+      getSignedImpactCents({
+        entryType,
+        amountCents: entry.amountCents,
+        paymentStatus: null,
+      })
+    );
+  }, 0);
+
+totalExpectedCents += Math.max(0, currentCycleExpectedCents);
 
       const cyclePaidCents = paidCyclePayments.reduce(
         (sum, payment) => sum + Math.max(0, toSafeInteger(payment.amountCents)),
@@ -808,13 +838,21 @@ const [units, tiers] = await Promise.all([
         difference: totalCollected - totalExpected,
       },
       units: resolvedUnits,
-      tiers: tiers.map((tier: (typeof tiers)[number]) => ({
-      id: tier.id,
-      name: tier.name,
-      unitCount: tier.unitCount,
-      activeUnitCount: tier.activeUnitCount ?? 0,
-      baseRent: tier.baseRentCents / 100,
-      })),
+     tiers: tiers.map((tier: (typeof tiers)[number]) => {
+  const configuredUnitCount = Number(tier.unitCount ?? 0);
+  const activeUnitCount = activeUnitCountsByTier.get(tier.id) ?? 0;
+
+  return {
+    id: tier.id,
+    name: tier.name,
+    configuredUnitCount,
+    activeUnitCount,
+    availableUnitCount: Math.max(0, configuredUnitCount - activeUnitCount),
+    unitCount: configuredUnitCount,
+    baseRent: tier.baseRentCents / 100,
+  };
+}),
+
       exportOptions: {
         months: exportMonths,
         startYear: exportMonths[exportMonths.length - 1]?.year ?? null,

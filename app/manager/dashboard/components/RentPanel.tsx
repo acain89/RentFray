@@ -5,7 +5,15 @@ import type React from "react";
 type RentTierDraft = {
   id: string;
   tierName: string;
+
+  // configured max capacity
   unitCount: string;
+
+  // actual assigned units
+  activeUnitCount: number;
+
+  // remaining open slots
+  availableUnitCount: number;
   isNew?: boolean;
   markedForDelete?: boolean;
   baseRent: string;
@@ -252,12 +260,10 @@ export default function RentPanel({
                   value={tier.unitCount || "0"}
                    />
     
-                   <SummaryStat
-                  label="Active units"
-                  value={String(
-                  localTiers.find((t) => t.id === tier.id)?.unitCount ?? "0"
-                    )}
-                  />
+                  <SummaryStat
+                   label="Active units"
+                   value={String(tier.activeUnitCount ?? 0)}
+                   />
 
                   <SummaryStat label="Due day" value={tier.dueDay || "—"} />
                   <SummaryStat
