@@ -1,23 +1,28 @@
-// app/role-select/page.tsx
-
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
+type RoleSelectPageProps = {
+  searchParams: Promise<{
+    code?: string;
+  }>;
+};
+
 export default async function RoleSelectPage({
   searchParams,
-}: {
-  searchParams: { code?: string };
-}) {
-  const code = searchParams?.code?.trim() || "";
+}: RoleSelectPageProps) {
+  const params = await searchParams;
+  const code = params.code?.trim() || "";
 
   if (!code || code.length !== 4) {
     redirect("/property-code");
   }
 
-  // ✅ HARD VALIDATION (no bypass)
-  const property = await prisma.property.findUnique({
-    where: { code },
+  // Hard validation
+  const property = await prisma.property.findFirst({
+    where: {
+      propertyCode: code,
+    },
     select: {
       id: true,
       isActive: true,
@@ -36,6 +41,7 @@ export default async function RoleSelectPage({
             <h1 className="text-3xl font-semibold tracking-tight">
               Select Role
             </h1>
+
             <p className="mt-2 text-sm text-neutral-600">
               Choose how you want to sign in.
             </p>

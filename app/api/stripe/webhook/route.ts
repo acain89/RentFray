@@ -8,7 +8,6 @@ import { prisma } from "@/lib/prisma";
 import { canMakePayments } from "@/lib/liveGating";
 import { emitEvent } from "@/lib/realtime";
 import { assertValidTransition } from "@/lib/paymentStatus";
-import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
@@ -38,17 +37,14 @@ async function updatePaymentStatus(
   if (!intentId) return;
 
   const existing = await prisma.payment.findFirst({
-  where: {
-    OR: [
-      { stripePaymentIntentId: intentId },
-      { id: intentId }, // fallback (safety)
-    ],
-  },
-  select: {
-    id: true,
-    status: true,
-  },
-});
+    where: {
+      OR: [{ stripePaymentIntentId: intentId }, { id: intentId }],
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
 
   if (!existing) return;
 
@@ -59,7 +55,7 @@ async function updatePaymentStatus(
   assertValidTransition(currentStatus, nextStatus);
 
   await prisma.payment.update({
-  where: { id: existing.id },
+    where: { id: existing.id },
     data: {
       status: nextStatus,
       ...(nextStatus === "PAID" && { paidAt: new Date() }),
@@ -67,6 +63,23 @@ async function updatePaymentStatus(
       ...(nextStatus === "REVERSED" && { reversedAt: new Date() }),
     },
   });
+}
+
+async function findCurrentTenantAssignmentId(input: {
+  propertyId: string;
+  unitId: string;
+}): Promise<string | null> {
+  const assignment = await prisma.tenantAssignment.findFirst({
+    where: {
+      propertyId: input.propertyId,
+      unitId: input.unitId,
+      isCurrent: true,
+    },
+    orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+    select: { id: true },
+  });
+
+  return assignment?.id ?? null;
 }
 
 async function ensurePaymentFromIntent(
@@ -77,47 +90,51 @@ async function ensurePaymentFromIntent(
 
   const propertyId = safeString(metadata.propertyId);
   const unitId = safeString(metadata.unitId);
-  const paymentId = safeString(metadata.paymentId); // 🔥 NEW
-  const tenantAssignmentId =
-    metadata.tenantAssignmentId && metadata.tenantAssignmentId !== ""
-      ? metadata.tenantAssignmentId
-      : null;
+  const paymentId = safeString(metadata.paymentId);
   const billingCycle = safeString(metadata.billingCycle);
   const amountCents = parseCents(metadata.ledgerBalanceCents);
   const feeCents = parseCents(metadata.processingFeeCents);
 
-  if (!propertyId || !unitId || !billingCycle) return null;
+  let tenantAssignmentId =
+    safeString(metadata.tenantAssignmentId) !== ""
+      ? safeString(metadata.tenantAssignmentId)
+      : null;
 
-  /**
-   * 🔥 PRIORITY 1: LINK TO EXISTING PAYMENT
-   */
+  if (!tenantAssignmentId && propertyId && unitId) {
+    tenantAssignmentId = await findCurrentTenantAssignmentId({
+      propertyId,
+      unitId,
+    });
+  }
+
   if (paymentId) {
     return prisma.payment.update({
       where: { id: paymentId },
       data: {
         stripePaymentIntentId: intent.id,
         stripeSessionId: stripeSessionId ?? undefined,
-        billingCycle,
-        amountCents,
+        ...(billingCycle ? { billingCycle } : {}),
+        ...(amountCents > 0 ? { amountCents } : {}),
         processingFeeCents: feeCents,
         paymentMethod: "ACH",
+        ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
       },
     });
   }
 
-  /**
-   * 🔁 FALLBACK (SHOULD RARELY HAPPEN)
-   */
+  if (!propertyId || !unitId || !billingCycle) return null;
+
   return prisma.payment.upsert({
     where: { stripePaymentIntentId: intent.id },
     update: {
       stripeSessionId: stripeSessionId ?? undefined,
       billingCycle,
-      amountCents,
+      ...(amountCents > 0 ? { amountCents } : {}),
       processingFeeCents: feeCents,
       paymentMethod: "ACH",
       failedAt: null,
       reversedAt: null,
+      ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
     },
     create: {
       propertyId,
@@ -132,6 +149,242 @@ async function ensurePaymentFromIntent(
       paymentMethod: "ACH",
     },
   });
+}
+
+async function markPaymentPaidByIntentId(
+  tx: Prisma.TransactionClient,
+  intentId: string
+): Promise<void> {
+  const payment = await tx.payment.findFirst({
+    where: {
+      OR: [{ stripePaymentIntentId: intentId }, { id: intentId }],
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (!payment) return;
+
+  const currentStatus = payment.status as PaymentStatus;
+
+  if (currentStatus === "PAID") return;
+
+  assertValidTransition(currentStatus, "PAID");
+
+  await tx.payment.update({
+    where: { id: payment.id },
+    data: {
+      status: "PAID",
+      paidAt: new Date(),
+      failedAt: null,
+      reversedAt: null,
+    },
+  });
+}
+
+async function finalizeSuccessfulIntent(input: {
+  intent: Stripe.PaymentIntent;
+  stripeSessionId?: string | null;
+}): Promise<void> {
+  const { intent, stripeSessionId } = input;
+
+  if (intent.payment_method_types?.[0] !== "us_bank_account") {
+    return;
+  }
+
+  const metadata = intent.metadata || {};
+
+  const stripeAccountId = safeString(metadata.stripeAccountId);
+  const propertyId = safeString(metadata.propertyId);
+  const unitId = safeString(metadata.unitId);
+
+  const balanceCents = parseCents(metadata.ledgerBalanceCents);
+  const feeCents = parseCents(metadata.processingFeeCents);
+  const expectedCents =
+    parseCents(metadata.totalAmountCents) || balanceCents + feeCents;
+
+  if (!propertyId || !unitId || expectedCents <= 0) {
+    console.error("PAYMENT FINALIZATION BLOCKED — MISSING REQUIRED METADATA", {
+      intentId: intent.id,
+      propertyId,
+      unitId,
+      expectedCents,
+    });
+    return;
+  }
+
+  const property = await prisma.property.findUnique({
+    where: { id: propertyId },
+    include: {
+      settings: true,
+      units: true,
+      paymentStatus: true,
+    },
+  });
+
+  if (!property || !property.isActive || !canMakePayments(property)) {
+    console.error("PAYMENT FINALIZATION BLOCKED — PROPERTY NOT PAYMENT READY", {
+      intentId: intent.id,
+      propertyId,
+    });
+    return;
+  }
+
+  if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
+    console.error("PAYMENT FINALIZATION BLOCKED — STRIPE ACCOUNT MISMATCH", {
+      intentId: intent.id,
+      metadataAccount: stripeAccountId,
+      propertyAccount: property.stripeAccountId,
+    });
+    return;
+  }
+
+  const stripeCents = intent.amount_received ?? intent.amount ?? expectedCents;
+
+  if (stripeCents <= 0 || stripeCents !== expectedCents) {
+    console.error("PAYMENT FINALIZATION BLOCKED — AMOUNT MISMATCH", {
+      intentId: intent.id,
+      stripeCents,
+      expectedCents,
+      balanceCents,
+      feeCents,
+    });
+    await ensurePaymentFromIntent(intent, stripeSessionId);
+    return;
+  }
+
+  const payment = await ensurePaymentFromIntent(intent, stripeSessionId);
+
+  if (!payment) {
+    console.error("PAYMENT FINALIZATION BLOCKED — PAYMENT RECORD NOT FOUND", {
+      intentId: intent.id,
+    });
+    return;
+  }
+
+  const billingCycle =
+    safeString(metadata.billingCycle) || safeString(payment.billingCycle);
+
+  if (!billingCycle) {
+    console.error("PAYMENT FINALIZATION BLOCKED — MISSING BILLING CYCLE", {
+      intentId: intent.id,
+      paymentId: payment.id,
+    });
+    return;
+  }
+
+  const tenantAssignmentId =
+    safeString(payment.tenantAssignmentId) ||
+    safeString(metadata.tenantAssignmentId) ||
+    (await findCurrentTenantAssignmentId({ propertyId, unitId }));
+
+  const effectiveDate = new Date();
+
+  const effective = resolveEffectiveBillingSettings({
+    tier: null,
+    propertySettings: property.settings,
+  });
+
+  getRentDateSummary({
+    ...effective,
+    now: effectiveDate,
+  });
+
+  let didWriteLedgerPayment = false;
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await markPaymentPaidByIntentId(tx, intent.id);
+
+    const existingLedgerPayment = await tx.ledgerEntry.findFirst({
+      where: {
+        referenceNumber: intent.id,
+        entryType: "PAYMENT",
+        unitId,
+      },
+      select: { id: true },
+    });
+
+    if (existingLedgerPayment) return;
+
+    if (feeCents > 0) {
+      const existingFee = await tx.ledgerEntry.findFirst({
+        where: {
+          referenceNumber: `${intent.id}:fee`,
+          entryType: "CHARGE",
+          unitId,
+        },
+        select: { id: true },
+      });
+
+      if (!existingFee) {
+        await tx.ledgerEntry.create({
+          data: {
+            propertyId,
+            unitId,
+            tenantAssignmentId: tenantAssignmentId || null,
+            entryType: "CHARGE",
+            chargeType: "PROCESSING_FEE",
+            amountCents: feeCents,
+            effectiveDate,
+            billingCycle,
+            paymentId: payment.id,
+            referenceNumber: `${intent.id}:fee`,
+            memo: "Processing fee",
+          },
+        });
+      }
+    }
+
+    await tx.ledgerEntry.create({
+      data: {
+        propertyId,
+        unitId,
+        tenantAssignmentId: tenantAssignmentId || null,
+        entryType: "PAYMENT",
+        paymentMethod: "ACH",
+        amountCents: -expectedCents,
+        effectiveDate,
+        billingCycle,
+        paymentId: payment.id,
+        referenceNumber: intent.id,
+        memo: "Stripe payment",
+      },
+    });
+
+    didWriteLedgerPayment = true;
+
+    await tx.auditLog.create({
+      data: {
+        propertyId,
+        actorType: "SYSTEM",
+        action: "PAYMENT_RECORDED",
+        targetType: "PAYMENT",
+        targetId: intent.id,
+        metadataJson: JSON.stringify({
+          stripeCents,
+          expectedCents,
+          feeCents,
+          balanceCents,
+          billingCycle,
+          tenantAssignmentId: tenantAssignmentId || null,
+          finalizedFrom: stripeSessionId ? "checkout_session" : "payment_intent",
+        }),
+      },
+    });
+  });
+
+  emitEvent("payment:update", { propertyId, unitId });
+  emitEvent("ledger:update", { propertyId, unitId });
+  emitEvent("tenant:update", { propertyId, unitId });
+
+  if (didWriteLedgerPayment && property.status === "READY") {
+    await prisma.property.update({
+      where: { id: propertyId },
+      data: { status: "LIVE" },
+    });
+  }
 }
 
 async function reverseLedgerEntries(intentId: string): Promise<void> {
@@ -194,6 +447,11 @@ async function reverseLedgerEntries(intentId: string): Promise<void> {
     propertyId: payment.propertyId,
     unitId: payment.unitId,
   });
+
+  emitEvent("tenant:update", {
+    propertyId: payment.propertyId,
+    unitId: payment.unitId,
+  });
 }
 
 export async function POST(req: Request) {
@@ -225,60 +483,122 @@ export async function POST(req: Request) {
   }
 
   try {
-   if (event.type === "checkout.session.completed") {
-  const session = event.data.object as Stripe.Checkout.Session;
-  const paymentId = safeString(session.metadata?.paymentId);
-  const paymentIntentId =
-    typeof session.payment_intent === "string" ? session.payment_intent : null;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const paymentId = safeString(session.metadata?.paymentId);
+      const paymentIntentId =
+        typeof session.payment_intent === "string" ? session.payment_intent : null;
 
-  if (paymentId) {
-    const payment = await prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        stripeSessionId: session.id,
-        ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
-        status: "PENDING",
-        paymentMethod: "ACH",
-      },
-    });
+      if (paymentId) {
+        const payment = await prisma.payment.update({
+          where: { id: paymentId },
+          data: {
+            stripeSessionId: session.id,
+            ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+            status: "PENDING",
+            paymentMethod: "ACH",
+          },
+        });
 
-    emitEvent("payment:update", {
-      propertyId: payment.propertyId,
-      unitId: payment.unitId,
-    });
+        emitEvent("payment:update", {
+          propertyId: payment.propertyId,
+          unitId: payment.unitId,
+        });
 
-    return NextResponse.json({ received: true });
-  }
+        return NextResponse.json({ received: true });
+      }
 
-  if (paymentIntentId) {
-    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    const payment = await ensurePaymentFromIntent(intent, session.id);
+      if (paymentIntentId) {
+        const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        const payment = await ensurePaymentFromIntent(intent, session.id);
 
-    if (payment) {
-      emitEvent("payment:update", {
-        propertyId: payment.propertyId,
-        unitId: payment.unitId,
-      });
-    }
-  }
+        if (payment) {
+          emitEvent("payment:update", {
+            propertyId: payment.propertyId,
+            unitId: payment.unitId,
+          });
+        }
+      }
 
-  return NextResponse.json({ received: true });
-}
-
-    if (event.type === "payment_intent.payment_failed") {
-      const failedIntent = event.data.object as Stripe.PaymentIntent;
-      await ensurePaymentFromIntent(failedIntent);
-      await updatePaymentStatus(failedIntent.id, "FAILED");
       return NextResponse.json({ received: true });
     }
 
-    if (event.type === "charge.refunded") {
-      const charge = event.data.object as Stripe.Charge;
+    if (event.type === "payment_intent.processing") {
+      const processingIntent = event.data.object as Stripe.PaymentIntent;
 
-      if (typeof charge.payment_intent === "string") {
-        await updatePaymentStatus(charge.payment_intent, "REVERSED");
-        await reverseLedgerEntries(charge.payment_intent);
+      if (
+        processingIntent.status !== "processing" ||
+        processingIntent.payment_method_types?.[0] !== "us_bank_account" ||
+        !processingIntent.payment_method ||
+        typeof processingIntent.payment_method !== "string"
+      ) {
+        return NextResponse.json({ received: true });
       }
+
+      const paymentMethod = await stripe.paymentMethods.retrieve(
+        processingIntent.payment_method
+      );
+
+      if (!paymentMethod || paymentMethod.type !== "us_bank_account") {
+        return NextResponse.json({ received: true });
+      }
+
+      const payment = await ensurePaymentFromIntent(processingIntent);
+
+      if (payment) {
+        await updatePaymentStatus(processingIntent.id, "PENDING");
+
+        emitEvent("payment:update", {
+          propertyId: payment.propertyId,
+          unitId: payment.unitId,
+        });
+      }
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "checkout.session.async_payment_succeeded") {
+      const session = event.data.object as Stripe.Checkout.Session;
+
+      if (typeof session.payment_intent === "string") {
+        const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
+        await finalizeSuccessfulIntent({
+          intent,
+          stripeSessionId: session.id,
+        });
+      }
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "payment_intent.succeeded") {
+      const succeededIntent = event.data.object as Stripe.PaymentIntent;
+
+      await finalizeSuccessfulIntent({
+        intent: succeededIntent,
+      });
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "checkout.session.async_payment_failed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+
+      if (typeof session.payment_intent === "string") {
+        const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
+
+        await ensurePaymentFromIntent(intent, session.id);
+        await updatePaymentStatus(session.payment_intent, "FAILED");
+      }
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      const failedIntent = event.data.object as Stripe.PaymentIntent;
+
+      await ensurePaymentFromIntent(failedIntent);
+      await updatePaymentStatus(failedIntent.id, "FAILED");
 
       return NextResponse.json({ received: true });
     }
@@ -289,6 +609,17 @@ export async function POST(req: Request) {
       await ensurePaymentFromIntent(canceledIntent);
       await updatePaymentStatus(canceledIntent.id, "REVERSED");
       await reverseLedgerEntries(canceledIntent.id);
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+
+      if (typeof charge.payment_intent === "string") {
+        await updatePaymentStatus(charge.payment_intent, "REVERSED");
+        await reverseLedgerEntries(charge.payment_intent);
+      }
 
       return NextResponse.json({ received: true });
     }
@@ -336,8 +667,7 @@ export async function POST(req: Request) {
                 payoutsEnabled: Boolean(account.payouts_enabled),
                 onboardingComplete: Boolean(account.details_submitted),
                 requirementsDue,
-                requirementsSummary:
-                  account.requirements?.disabled_reason ?? null,
+                requirementsSummary: account.requirements?.disabled_reason ?? null,
                 lastSyncedAt: new Date(),
                 readyForLive:
                   Boolean(account.charges_enabled) &&
@@ -350,8 +680,7 @@ export async function POST(req: Request) {
                 payoutsEnabled: Boolean(account.payouts_enabled),
                 onboardingComplete: Boolean(account.details_submitted),
                 requirementsDue,
-                requirementsSummary:
-                  account.requirements?.disabled_reason ?? null,
+                requirementsSummary: account.requirements?.disabled_reason ?? null,
                 lastSyncedAt: new Date(),
                 readyForLive:
                   Boolean(account.charges_enabled) &&
@@ -363,278 +692,6 @@ export async function POST(req: Request) {
       });
 
       emitEvent("payment:update", { propertyId: property.id });
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "payment_intent.processing") {
-      const processingIntent = event.data.object as Stripe.PaymentIntent;
-
-      if (
-        processingIntent.status !== "processing" ||
-        processingIntent.payment_method_types?.[0] !== "us_bank_account" ||
-        !processingIntent.payment_method ||
-        typeof processingIntent.payment_method !== "string"
-      ) {
-        return NextResponse.json({ received: true });
-      }
-
-      const paymentMethod = await stripe.paymentMethods.retrieve(
-        processingIntent.payment_method
-      );
-
-      if (!paymentMethod || paymentMethod.type !== "us_bank_account") {
-        return NextResponse.json({ received: true });
-      }
-
-      const payment = await ensurePaymentFromIntent(processingIntent);
-
-      if (payment) {
-        await updatePaymentStatus(processingIntent.id, "PENDING");
-
-        emitEvent("payment:update", {
-          propertyId: payment.propertyId,
-          unitId: payment.unitId,
-        });
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "checkout.session.async_payment_succeeded") {
-  const session = event.data.object as Stripe.Checkout.Session;
-
-  // Let payment_intent.succeeded be the ONLY place that finalizes PAID + ledger.
-  // This event only ensures the existing pending payment is linked to the session/intent.
-  if (typeof session.payment_intent === "string") {
-    const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
-    const payment = await ensurePaymentFromIntent(intent, session.id);
-
-    if (payment) {
-      emitEvent("payment:update", {
-        propertyId: payment.propertyId,
-        unitId: payment.unitId,
-      });
-    }
-  }
-
-  return NextResponse.json({ received: true });
-}
-
-    if (event.type === "checkout.session.async_payment_failed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-
-      if (typeof session.payment_intent === "string") {
-        const intent = await stripe.paymentIntents.retrieve(
-          session.payment_intent
-        );
-
-        await ensurePaymentFromIntent(intent, session.id);
-        await updatePaymentStatus(session.payment_intent, "FAILED");
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "payment_intent.succeeded") {
-  const succeededIntent = event.data.object as Stripe.PaymentIntent;
-
-  if (succeededIntent.payment_method_types?.[0] !== "us_bank_account") {
-    return NextResponse.json({ received: true });
-  }
-
-  const metadata = succeededIntent.metadata || {};
-
-  const stripeAccountId = safeString(metadata.stripeAccountId);
-  const propertyId = safeString(metadata.propertyId);
-  const unitId = safeString(metadata.unitId);
-  
-
-const tenantAssignmentId =
-  typeof metadata.tenantAssignmentId === "string" &&
-  metadata.tenantAssignmentId.trim() !== ""
-    ? metadata.tenantAssignmentId
-    : null;
-
-if (!tenantAssignmentId) {
-  console.error("MISSING TENANT ASSIGNMENT — BLOCKED", {
-    intentId: succeededIntent.id,
-  });
-
-  return NextResponse.json({ received: true });
-}
-  // ✅ USE SNAPSHOT FROM STRIPE (NOT LIVE LEDGER)
-  const balanceCents = parseCents(metadata.ledgerBalanceCents);
-  const feeCents = parseCents(metadata.processingFeeCents);
-  const expectedCents =
-    parseCents(metadata.totalAmountCents) || balanceCents + feeCents;
-
-  if (!propertyId || !unitId || expectedCents <= 0) {
-    return NextResponse.json({ received: true });
-  }
-
-  const property = await prisma.property.findUnique({
-    where: { id: propertyId },
-    include: {
-      settings: true,
-      units: true,
-      paymentStatus: true,
-    },
-  });
-
-  if (!property || !property.isActive || !canMakePayments(property)) {
-    return NextResponse.json({ received: true });
-  }
-
-  if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
-    console.error("STRIPE ACCOUNT MISMATCH", {
-      metadataAccount: stripeAccountId,
-      propertyAccount: property.stripeAccountId,
-    });
-
-    return NextResponse.json({ received: true });
-  }
-
-
-      const stripeCents =
-        succeededIntent.amount_received ??
-        succeededIntent.amount ??
-        balanceCents + feeCents;
-
-      if (stripeCents <= 0) {
-        return NextResponse.json({ received: true });
-      }
-
-
-      if (expectedCents !== stripeCents) {
-        console.error("PAYMENT MISMATCH — BLOCKED", {
-          expectedCents,
-          stripeCents,
-          intentId: succeededIntent.id,
-        });
-
-        await ensurePaymentFromIntent(succeededIntent);
-        return NextResponse.json({ received: true });
-      }
-
-      const effectiveDate = new Date();
-
-      const effective = resolveEffectiveBillingSettings({
-        tier: null,
-        propertySettings: property.settings,
-      });
-
-      const rentDates = getRentDateSummary({
-        ...effective,
-        now: effectiveDate,
-      });
-
-      const billingCycle = safeString(metadata.billingCycle);
-
-if (!billingCycle) {
-  console.error("MISSING BILLING CYCLE IN METADATA — BLOCKED", {
-    intentId: succeededIntent.id,
-  });
-
-  return NextResponse.json({ received: true });
-}
-
-      const payment = await ensurePaymentFromIntent(succeededIntent);
-      await updatePaymentStatus(succeededIntent.id, "PAID");
-
-      if (!payment) {
-        return NextResponse.json({ received: true });
-      }
-
-      let didWrite = false;
-
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const existingLedgerPayment = await tx.ledgerEntry.findFirst({
-          where: {
-            referenceNumber: succeededIntent.id,
-            entryType: "PAYMENT",
-            unitId,
-          },
-          select: { id: true },
-        });
-
-        if (existingLedgerPayment) return;
-
-        if (feeCents > 0) {
-          const existingFee = await tx.ledgerEntry.findFirst({
-            where: {
-              referenceNumber: `${succeededIntent.id}:fee`,
-              entryType: "CHARGE",
-              unitId,
-            },
-            select: { id: true },
-          });
-
-          if (!existingFee) {
-            await tx.ledgerEntry.create({
-              data: {
-                propertyId,
-                unitId,
-                tenantAssignmentId,
-                entryType: "CHARGE",
-                chargeType: "PROCESSING_FEE",
-                amountCents: feeCents,
-                effectiveDate,
-                billingCycle,
-                paymentId: payment.id,
-                referenceNumber: `${succeededIntent.id}:fee`,
-                memo: "Processing fee",
-              },
-            });
-          }
-        }
-
-        await tx.ledgerEntry.create({
-          data: {
-            propertyId,
-            unitId,
-            tenantAssignmentId,
-            entryType: "PAYMENT",
-            paymentMethod: "ACH",
-            amountCents: -expectedCents,
-            effectiveDate,
-            billingCycle,
-            paymentId: payment.id,
-            referenceNumber: succeededIntent.id,
-            memo: "Stripe payment",
-          },
-        });
-
-        didWrite = true;
-
-        await tx.auditLog.create({
-          data: {
-            propertyId,
-            actorType: "SYSTEM",
-            action: "PAYMENT_RECORDED",
-            targetType: "PAYMENT",
-            targetId: succeededIntent.id,
-            metadataJson: JSON.stringify({
-              stripeCents,
-              expectedCents,
-              feeCents,
-              balanceCents,
-              billingCycle,
-            }),
-          },
-        });
-      });
-
-
-      emitEvent("payment:update", { propertyId, unitId });
-      emitEvent("ledger:update", { propertyId, unitId });
-
-      if (didWrite && property.status === "READY") {
-        await prisma.property.update({
-          where: { id: propertyId },
-          data: { status: "LIVE" },
-        });
-      }
 
       return NextResponse.json({ received: true });
     }

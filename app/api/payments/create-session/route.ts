@@ -12,9 +12,9 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 type ApiSuccess<T> = {
   ok: true;
   data: T;
@@ -27,24 +27,29 @@ type ApiError = {
 
 function toSafeInteger(value: unknown): number {
   const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.trunc(n);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
-
 export async function POST(req: Request) {
-
   try {
-        const ip =
+    const ip =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
       "unknown";
 
-    const rateLimit = checkRateLimit(`create-session:${ip}`, 10, 60_000);
+    const rateLimit = checkRateLimit(
+      `create-session:${ip}`,
+      10,
+      60_000
+    );
 
     if (!rateLimit.ok) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Too many payment attempts. Please wait a minute and try again." },
+        {
+          ok: false,
+          error:
+            "Too many payment attempts. Please wait a minute and try again.",
+        },
         { status: 429 }
       );
     }
@@ -53,7 +58,10 @@ export async function POST(req: Request) {
 
     if (!secretKey) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Stripe not configured." },
+        {
+          ok: false,
+          error: "Stripe not configured.",
+        },
         { status: 400 }
       );
     }
@@ -64,89 +72,61 @@ export async function POST(req: Request) {
 
     const session = await getSession();
 
-if (
-  !session ||
-  session.role !== "TENANT" ||
-  !session.unitId ||
-  !session.propertyId
-) {
-  return NextResponse.json<ApiError>(
-    { ok: false, error: "Unauthorized" },
-    { status: 401 }
-  );
-}
+    if (
+      !session ||
+      session.role !== "TENANT" ||
+      !session.unitId ||
+      !session.propertyId
+    ) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
 
-await refreshSessionCookie(session);
+    await refreshSessionCookie(session);
 
-     const unit = await prisma.unit.findFirst({
-  where: {
-    id: session.unitId,
-    propertyId: session.propertyId,
-  },
-  include: {
-    property: {
-      include: {
-        settings: true,
-        paymentStatus: true,
-        units: true,
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
       },
-    },
-    tenantAssignments: {
-      where: { isCurrent: true },
-      take: 1,
-    },
-  },
-});
-
+      include: {
+        tier: true,
+        property: {
+          include: {
+            settings: true,
+            paymentStatus: true,
+            units: true,
+          },
+        },
+        tenantAssignments: {
+          where: {
+            isCurrent: true,
+          },
+          orderBy: [
+            { moveInDate: "desc" },
+            { createdAt: "desc" },
+          ],
+          take: 1,
+        },
+      },
+    });
 
     if (!unit) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Unit not found." },
+        {
+          ok: false,
+          error: "Unit not found.",
+        },
         { status: 404 }
       );
     }
 
     const property = unit.property;
-
-    if (property?.stripeAccountId) {
-      const stripeAccount = await stripe.accounts.retrieve(
-        property.stripeAccountId
-      );
-
-      const updatedStatus = {
-        processorConnected: true,
-        bankConnected: true,
-        chargesEnabled: Boolean(stripeAccount.charges_enabled),
-        payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
-        onboardingComplete: Boolean(stripeAccount.details_submitted),
-        requirementsDue: Boolean(
-          stripeAccount.requirements?.currently_due?.length
-        ),
-        requirementsSummary:
-          stripeAccount.requirements?.disabled_reason ?? null,
-        lastSyncedAt: new Date(),
-        readyForLive:
-          Boolean(stripeAccount.charges_enabled) &&
-          Boolean(stripeAccount.payouts_enabled),
-      };
-
-      await prisma.property.update({
-        where: { id: property.id },
-        data: {
-          paymentStatus: {
-            upsert: {
-              create: updatedStatus,
-              update: updatedStatus,
-            },
-          },
-        },
-      });
-
-      property.paymentStatus = {
-        ...property.paymentStatus,
-        ...updatedStatus,
-      };
-    }
 
     if (
       !canMakePayments({
@@ -158,219 +138,297 @@ await refreshSessionCookie(session);
       })
     ) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Payments not available." },
+        {
+          ok: false,
+          error: "Payments unavailable.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!property.stripeAccountId) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Bank account not connected.",
+        },
         { status: 400 }
       );
     }
 
     const assignment = unit.tenantAssignments[0] ?? null;
+    const tenantAssignmentId = assignment?.id ?? null;
 
-const ledger = await getUnitLedgerSummary(
-  unit.id,
-  assignment?.id ?? undefined
-);
-    const balanceCents = Math.max(0, toSafeInteger(ledger.balanceCents));
+    const ledger = await getUnitLedgerSummary(
+      unit.id,
+      tenantAssignmentId ?? undefined
+    );
+
+    const balanceCents = Math.max(
+      0,
+      toSafeInteger(ledger.balanceCents)
+    );
 
     if (balanceCents <= 0) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "No balance due." },
-        { status: 400 }
-      );
-    }
-
-    const processingFeeCents = getProcessingFeeCents(balanceCents);
-    const totalCents = balanceCents + processingFeeCents;
-    const now = new Date();
-
-const effectiveBillingSettings = resolveEffectiveBillingSettings({
-  tier: unit.tier ?? null,
-  propertySettings: property.settings ?? null,
-});
-
-const rentDates = getRentDateSummary({
-  ...effectiveBillingSettings,
-  now,
-  billingCycleStartDate: property.billingCycleStartDate,
-});
-
-const billingCycle = rentDates.billingCycle;
-
-    if (totalCents <= 0) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "Invalid payment amount." },
-        { status: 400 }
-      );
-    }
-
-    const tenantAssignmentId = assignment?.id ?? null;
-
-         const createdPayment = await prisma.$transaction(
-  async (tx: Prisma.TransactionClient) => {
-    await tx.$executeRaw`
-      SELECT pg_advisory_xact_lock(hashtext(${`${property.id}:${unit.id}:${tenantAssignmentId ?? "none"}:${billingCycle}`}))
-    `;
-
-    const existingPayment = await tx.payment.findFirst({
-      where: {
-        propertyId: property.id,
-        unitId: unit.id,
-        tenantAssignmentId: tenantAssignmentId ?? undefined,
-        billingCycle,
-        status: {
-          in: ["PENDING", "PAID"],
+        {
+          ok: false,
+          error: "No balance due.",
         },
-      },
-      select: { id: true },
-    });
-
-    if (existingPayment) {
-      return null;
+        { status: 400 }
+      );
     }
 
-    return tx.payment.create({
-      data: {
-        propertyId: property.id,
-        unitId: unit.id,
-        tenantAssignmentId: tenantAssignmentId ?? undefined,
-        billingCycle,
-        amountCents: balanceCents,
-        processingFeeCents,
-        status: "PENDING",
-      },
+    const processingFeeCents =
+      getProcessingFeeCents(balanceCents);
+
+    const totalCents =
+      balanceCents + processingFeeCents;
+
+    const effectiveBillingSettings =
+      resolveEffectiveBillingSettings({
+        tier: unit.tier,
+        propertySettings: property.settings,
+      });
+
+    const rentDates = getRentDateSummary({
+      ...effectiveBillingSettings,
+      now: new Date(),
+      billingCycleStartDate:
+        property.billingCycleStartDate,
     });
-  }
-);
+
+    const billingCycle =
+      rentDates.billingCycle;
+
+    const createdPayment =
+      await prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          await tx.$executeRaw`
+            SELECT pg_advisory_xact_lock(
+              hashtext(
+                ${`${property.id}:${unit.id}:${tenantAssignmentId ?? "none"}:${billingCycle}`}
+              )
+            )
+          `;
+
+          const existing =
+            await tx.payment.findFirst({
+              where: {
+                propertyId: property.id,
+                unitId: unit.id,
+                tenantAssignmentId:
+                  tenantAssignmentId ?? undefined,
+                billingCycle,
+                status: {
+                  in: ["PENDING", "PAID"],
+                },
+              },
+            });
+
+          if (existing) {
+            return null;
+          }
+
+          return tx.payment.create({
+            data: {
+              propertyId: property.id,
+              unitId: unit.id,
+              tenantAssignmentId:
+                tenantAssignmentId ?? undefined,
+              billingCycle,
+              amountCents: balanceCents,
+              processingFeeCents,
+              status: "PENDING",
+              paymentMethod: "ACH",
+            },
+          });
+        }
+      );
 
     if (!createdPayment) {
-      return NextResponse.json(
-        { ok: false, error: "Payment already in progress." },
-        { status: 400 }
-      );
-    }
-
-   
-    if (!property.stripeAccountId) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Bank not connected" },
+        {
+          ok: false,
+          error:
+            "A payment already exists for this billing cycle.",
+        },
         { status: 400 }
       );
     }
-
-    const tenantName =
-      assignment && (assignment.firstName || assignment.lastName)
-        ? `${assignment.firstName ?? ""} ${assignment.lastName ?? ""}`.trim()
-        : `Unit ${unit.unitNumber}`;
 
     const origin =
       req.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:10000";
 
-    
-   const paymentMetadata = {
-  paymentId: createdPayment.id,
-  propertyId: property.id,
-  unitId: unit.id,
-  stripeAccountId: property.stripeAccountId,
-  tenantAssignmentId: tenantAssignmentId ?? "",
-  ledgerBalanceCents: String(balanceCents),
-  processingFeeCents: String(processingFeeCents),
-  totalAmountCents: String(totalCents),
-  billingCycle,
-  paymentStartedAt: new Date().toISOString(),
-};
+    const paymentMetadata = {
+      paymentId: createdPayment.id,
+      propertyId: property.id,
+      unitId: unit.id,
 
-const checkoutSession = await stripe.checkout.sessions.create({
-  payment_intent_data: {
-    application_fee_amount: processingFeeCents,
-    on_behalf_of: property.stripeAccountId,
-    transfer_data: {
-      destination: property.stripeAccountId,
-    },
-    metadata: paymentMetadata,
-  },
-  mode: "payment",
-  payment_method_types: ["us_bank_account"],
-  payment_method_options: {
-    us_bank_account: {
-      verification_method: "instant",
-      financial_connections: {
-        permissions: ["payment_method"],
-      },
-    },
-  },
-  customer_creation: "if_required",
-  line_items: [
-    {
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: `${property.name} — Unit ${unit.unitNumber}`,
-          description: `Rent payment for ${property.name}`,
+      // CRITICAL FIX:
+      tenantAssignmentId:
+        tenantAssignmentId || "__NONE__",
+
+      stripeAccountId:
+        property.stripeAccountId,
+
+      ledgerBalanceCents:
+        String(balanceCents),
+
+      processingFeeCents:
+        String(processingFeeCents),
+
+      totalAmountCents:
+        String(totalCents),
+
+      billingCycle,
+
+      paymentStartedAt:
+        new Date().toISOString(),
+    };
+
+    const checkoutSession =
+      await stripe.checkout.sessions.create({
+        mode: "payment",
+
+        payment_method_types: [
+          "us_bank_account",
+        ],
+
+        customer_creation:
+          "if_required",
+
+        payment_method_options: {
+          us_bank_account: {
+            verification_method:
+              "instant",
+            financial_connections: {
+              permissions: [
+                "payment_method",
+              ],
+            },
+          },
         },
-        unit_amount: balanceCents,
-      },
-      quantity: 1,
-    },
-    ...(processingFeeCents > 0
-      ? [
+
+        payment_intent_data: {
+          application_fee_amount:
+            processingFeeCents,
+
+          on_behalf_of:
+            property.stripeAccountId,
+
+          transfer_data: {
+            destination:
+              property.stripeAccountId,
+          },
+
+          metadata:
+            paymentMetadata,
+        },
+
+        metadata:
+          paymentMetadata,
+
+        line_items: [
           {
             price_data: {
               currency: "usd",
+
               product_data: {
-                name: `${property.name} processing fee`,
-                description: `ACH processing fee for ${property.name}`,
+                name:
+                  `${property.name} Unit ${unit.unitNumber}`,
               },
-              unit_amount: processingFeeCents,
+
+              unit_amount:
+                balanceCents,
             },
+
             quantity: 1,
           },
-        ]
-      : []),
-  ],
-  success_url: `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-  cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
-  metadata: paymentMetadata,
-});
 
-   await prisma.payment.update({
-  where: {
-    id: createdPayment.id,
-  },
-  data: {
-    stripeSessionId: checkoutSession.id,
-    stripePaymentIntentId:
-      typeof checkoutSession.payment_intent === "string"
-        ? checkoutSession.payment_intent
-        : null,
-  },
-});
+          ...(processingFeeCents > 0
+            ? [
+                {
+                  price_data: {
+                    currency:
+                      "usd",
 
-    if (!checkoutSession.url) {
-  return NextResponse.json<ApiError>(
-    { ok: false, error: "No checkout URL returned." },
-    { status: 500 }
-  );
-}
+                    product_data: {
+                      name:
+                        "Processing Fee",
+                    },
 
-    return NextResponse.json<ApiSuccess<{ url: string }>>({
-      ok: true,
-      data: { url: checkoutSession.url },
+                    unit_amount:
+                      processingFeeCents,
+                  },
+
+                  quantity: 1,
+                },
+              ]
+            : []),
+        ],
+
+        success_url:
+          `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+
+        cancel_url:
+          `${origin}/tenant/pay?checkout=cancelled`,
+      });
+
+    await prisma.payment.update({
+      where: {
+        id: createdPayment.id,
+      },
+      data: {
+        stripeSessionId:
+          checkoutSession.id,
+
+        stripePaymentIntentId:
+          typeof checkoutSession.payment_intent ===
+          "string"
+            ? checkoutSession.payment_intent
+            : null,
+      },
     });
-  } catch (error: unknown) {
-   
 
-    if (error instanceof Stripe.errors.StripeError) {
+    return NextResponse.json<
+      ApiSuccess<{ url: string }>
+    >({
+      ok: true,
+      data: {
+        url:
+          checkoutSession.url!,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "create-session error:",
+      error
+    );
+
+    if (
+      error instanceof
+      Stripe.errors.StripeError
+    ) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: error.message || "Stripe error." },
+        {
+          ok: false,
+          error:
+            error.message ||
+            "Stripe error.",
+        },
         { status: 400 }
       );
     }
 
-    console.error("create-session error:", error);
-
     return NextResponse.json<ApiError>(
-      { ok: false, error: "Failed to create payment session." },
+      {
+        ok: false,
+        error:
+          "Failed to create payment session.",
+      },
       { status: 500 }
     );
   }
