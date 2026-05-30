@@ -9,6 +9,7 @@ import { canMakePayments } from "@/lib/liveGating";
 import { emitEvent } from "@/lib/realtime";
 import { assertValidTransition } from "@/lib/paymentStatus";
 import {
+  getBusinessDate,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -280,7 +281,7 @@ async function finalizeSuccessfulIntent(input: {
     safeString(metadata.tenantAssignmentId) ||
     (await findCurrentTenantAssignmentId({ propertyId, unitId }));
 
-  const effectiveDate = new Date();
+  const effectiveDate = getBusinessDate();
 
   const effective = resolveEffectiveBillingSettings({
     tier: null,

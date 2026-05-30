@@ -6,10 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
-
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 type ApiSuccess<T> = {
   ok: true;
   data: T;
@@ -32,6 +36,7 @@ type ManualPaymentEntryResponse = {
   createdAt: Date;
   paymentId: string;
   status: PaymentStatus;
+  billingCycle: string;
 };
 
 type ParsedBody = {
@@ -42,7 +47,29 @@ type ParsedBody = {
   effectiveDate: Date;
 };
 
-const MAX_PAYMENT_CENTS = 100_000_000; // $1,000,000
+type UnitForManualPayment = {
+  id: string;
+  propertyId: string;
+  unitNumber: string;
+  tier: {
+    rentDueDay: number;
+    gracePeriodDays: number;
+    lateFeeInitialCents: number;
+    lateFeeDailyCents: number;
+    maxLateFeeDays: number;
+  } | null;
+  property: {
+    billingCycleStartDate: Date | null;
+    settings: {
+      rentDueDay: number;
+      gracePeriodDays: number;
+      lateFeeEnabled: boolean;
+      lateFeeFlatCents: number | null;
+    } | null;
+  };
+};
+
+const MAX_PAYMENT_CENTS = 100_000_000;
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
@@ -131,10 +158,9 @@ export async function POST(req: Request) {
 
     const { unitId, tenantId, amountCents, memo, effectiveDate } = parsed;
 
-// Guard against accidental tiny test payments
-if (amountCents < 500) { // $5.00 threshold (adjust if needed)
-  return badRequest("Payment amount too small.");
-}
+    if (amountCents < 500) {
+      return badRequest("Payment amount too small.");
+    }
 
     const unit = await prisma.unit.findFirst({
       where: {
@@ -145,6 +171,28 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
         id: true,
         propertyId: true,
         unitNumber: true,
+        tier: {
+          select: {
+            rentDueDay: true,
+            gracePeriodDays: true,
+            lateFeeInitialCents: true,
+            lateFeeDailyCents: true,
+            maxLateFeeDays: true,
+          },
+        },
+        property: {
+          select: {
+            billingCycleStartDate: true,
+            settings: {
+              select: {
+                rentDueDay: true,
+                gracePeriodDays: true,
+                lateFeeEnabled: true,
+                lateFeeFlatCents: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -155,18 +203,16 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
       );
     }
 
-    let assignment:
-      | {
-          id: string;
-        }
-      | null = null;
+    const typedUnit = unit as UnitForManualPayment;
+
+    let assignment: { id: string } | null = null;
 
     if (tenantId) {
       assignment = await prisma.tenantAssignment.findFirst({
         where: {
           tenantId,
           unitId,
-          propertyId: unit.propertyId,
+          propertyId: typedUnit.propertyId,
           isCurrent: true,
         },
         select: { id: true },
@@ -182,7 +228,7 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
       assignment = await prisma.tenantAssignment.findFirst({
         where: {
           unitId,
-          propertyId: unit.propertyId,
+          propertyId: typedUnit.propertyId,
           isCurrent: true,
         },
         orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
@@ -190,20 +236,43 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
       });
     }
 
+    if (!assignment) {
+      return NextResponse.json<ApiError>(
+        { ok: false, error: "No active tenant assignment found for this unit." },
+        { status: 400 }
+      );
+    }
+
+    const effective = resolveEffectiveBillingSettings({
+      tier: typedUnit.tier,
+      propertySettings: typedUnit.property.settings,
+    });
+
+    const rentDates = getRentDateSummary({
+      ...effective,
+      now: effectiveDate,
+      billingCycleStartDate: typedUnit.property.billingCycleStartDate,
+    });
+
+    const billingCycle = rentDates.billingCycle;
+
     const result = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient): Promise<ManualPaymentEntryResponse> => {
-        // ✅ CREATE PAYMENT RECORD (SOURCE OF TRUTH FOR STATUS)
-                       const payment = await tx.payment.create({
+      async (
+        tx: Prisma.TransactionClient
+      ): Promise<ManualPaymentEntryResponse> => {
+        const payment = await tx.payment.create({
           data: {
-            propertyId: unit.propertyId,
-            unitId: unit.id,
-            tenantAssignmentId: assignment?.id ?? null,
+            propertyId: typedUnit.propertyId,
+            unitId: typedUnit.id,
+            tenantAssignmentId: assignment.id,
             amountCents,
             status: PaymentStatus.PAID,
             paidAt: effectiveDate,
             paymentMethod: "MANUAL",
-           stripePaymentIntentId: `manual_${unit.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-           billingCycle: new Date().toISOString().slice(0, 7),
+            stripePaymentIntentId: `manual_${typedUnit.id}_${Date.now()}_${Math.random()
+              .toString(36)
+              .slice(2)}`,
+            billingCycle,
           },
           select: {
             id: true,
@@ -212,15 +281,15 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
           },
         });
 
-        // ✅ CREATE LINKED LEDGER ENTRY
         const entry = await tx.ledgerEntry.create({
           data: {
-            propertyId: unit.propertyId,
-            unitId: unit.id,
-            tenantAssignmentId: assignment?.id ?? null,
+            propertyId: typedUnit.propertyId,
+            unitId: typedUnit.id,
+            tenantAssignmentId: assignment.id,
             entryType: "PAYMENT",
             amountCents: -amountCents,
             effectiveDate,
+            billingCycle,
             memo,
             paymentId: payment.id,
             createdByManagementUserId: session.managementUserId ?? null,
@@ -235,24 +304,26 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
             effectiveDate: true,
             memo: true,
             createdAt: true,
+            billingCycle: true,
           },
         });
 
         await tx.auditLog.create({
           data: {
-            propertyId: unit.propertyId,
+            propertyId: typedUnit.propertyId,
             actorType: "MANAGER",
             actorManagementUserId: session.managementUserId ?? null,
             action: "MANUAL_PAYMENT_POSTED",
             targetType: "LEDGER_ENTRY",
             targetId: entry.id,
-            summary: `Manual payment posted for unit ${unit.unitNumber}`,
+            summary: `Manual payment posted for unit ${typedUnit.unitNumber}`,
             metadataJson: JSON.stringify({
-              unitId: unit.id,
-              unitNumber: unit.unitNumber,
+              unitId: typedUnit.id,
+              unitNumber: typedUnit.unitNumber,
               tenantAssignmentId: entry.tenantAssignmentId,
               paymentId: payment.id,
               amountCents,
+              billingCycle,
               memo,
               effectiveDate: entry.effectiveDate.toISOString(),
             }),
@@ -271,13 +342,14 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
           createdAt: entry.createdAt,
           paymentId: payment.id,
           status: payment.status,
+          billingCycle,
         };
       }
     );
 
     emitEvent("payment:update", {
-      propertyId: unit.propertyId,
-      unitId: unit.id,
+      propertyId: typedUnit.propertyId,
+      unitId: typedUnit.id,
       tenantAssignmentId: result.tenantAssignmentId,
       entryId: result.id,
       entryType: result.entryType,
@@ -285,8 +357,8 @@ if (amountCents < 500) { // $5.00 threshold (adjust if needed)
     });
 
     emitEvent("ledger:update", {
-      propertyId: unit.propertyId,
-      unitId: unit.id,
+      propertyId: typedUnit.propertyId,
+      unitId: typedUnit.id,
       tenantAssignmentId: result.tenantAssignmentId,
       entryId: result.id,
       entryType: result.entryType,

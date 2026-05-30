@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  getBusinessDate,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -122,7 +123,7 @@ export async function runMonthlyRentJob(
     };
   }
 
-  const today = startOfDay(asOf);
+  const today = getBusinessDate(asOf);
 
   let cursorId: string | undefined;
   let processedUnits = 0;

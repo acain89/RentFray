@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getBusinessDate } from "@/lib/rentDates";
 
 export type LedgerSummary = {
   balanceCents: number;
@@ -122,8 +123,7 @@ export async function getUnitLedgerSummary(
   unitId: string,
   tenantAssignmentId?: string
 ): Promise<LedgerSummary> {
-  const now = new Date();
-
+  const now = getBusinessDate();
   const unit = await prisma.unit.findUnique({
     where: { id: unitId },
     select: {
@@ -203,6 +203,18 @@ export async function getUnitLedgerSummary(
   let hasPendingPayment = false;
   let pendingPaymentAmountCents = 0;
 
+  for (const payment of payments) {
+  const status = normalizePaymentStatus(payment.status);
+
+  if (status === "PENDING") {
+    hasPendingPayment = true;
+    pendingPaymentAmountCents += Math.max(
+      0,
+      Math.abs(toSafeInteger(payment.amountCents))
+    );
+  }
+}
+
   for (const entry of visibleEntries) {
     const entryType = normalizeLedgerEntryType(entry.entryType);
     if (!entryType) {
@@ -227,17 +239,7 @@ export async function getUnitLedgerSummary(
       totalCreditsCents += Math.abs(rawAmountCents);
     }
 
-    for (const payment of payments) {
-  const status = normalizePaymentStatus(payment.status);
-
-  if (status === "PENDING") {
-    hasPendingPayment = true;
-    pendingPaymentAmountCents += Math.max(
-      0,
-      Math.abs(toSafeInteger(payment.amountCents))
-    );
-  }
-}
+    
 
     if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {
       const paymentAbsCents = Math.abs(rawAmountCents);

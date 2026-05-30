@@ -1,9 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUnitStatus } from "@/lib/unitStatusEngine";
 import { getSession, refreshSessionCookie } from "@/lib/session";
-import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
 getProcessingFeeCents,
   formatCentsToDollars,
@@ -12,11 +10,10 @@ import { canMakePayments } from "@/lib/liveGating";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import {
-
-getRentDateSummary,
+  getBusinessDate,
+  getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
-
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -229,13 +226,16 @@ const unitStatus = financialState.status;
 
     const latestPayment = tenantPayments[0] ?? null;
 
-
+       const businessDate = getBusinessDate();
        const ledgerEntries = await prisma.ledgerEntry.findMany({
       where: {
-        propertyId: session.propertyId,
-        unitId: session.unitId,
-        tenantAssignmentId: currentAssignmentId,
-        voidedAt: null,
+       propertyId: session.propertyId,
+       unitId: session.unitId,
+       tenantAssignmentId: currentAssignmentId,
+       voidedAt: null,
+       effectiveDate: {
+       lte: businessDate,
+        },
       },
       orderBy: [
         { effectiveDate: "desc" },

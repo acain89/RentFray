@@ -3,6 +3,7 @@
 import { getProcessingFeeCents } from "@/lib/billingConfig";
 import { getUnitLedgerSummary, type LedgerSummary } from "@/lib/ledger";
 import {
+  getBusinessDate,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
   type EffectiveBillingSettings,
@@ -151,7 +152,9 @@ export type UnitFinancialState = {
 export async function getUnitFinancialState(
   input: UnitFinancialStateInput
 ): Promise<UnitFinancialState> {
-  const now = input.now ?? new Date();
+const now = getBusinessDate(
+  input.now ?? new Date()
+);
 
   const effectiveBillingSettings = resolveEffectiveBillingSettings({
     tier: input.tier,

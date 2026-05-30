@@ -1,16 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
+  getBusinessDate,
   resolveEffectiveBillingSettings,
   getRentDateSummary,
 } from "@/lib/rentDates";
 
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
 
 export async function runDelinquencyJob(asOf = new Date()) {
-  const today = startOfDay(asOf);
+  const today = getBusinessDate(asOf);
 
   const units = await prisma.unit.findMany({
     where: { isActive: true },
@@ -34,10 +32,11 @@ export async function runDelinquencyJob(asOf = new Date()) {
       propertySettings: unit.property.settings,
     });
 
-    const rentDates = getRentDateSummary({
-      ...effective,
-      now: today,
-    });
+   const rentDates = getRentDateSummary({
+  ...effective,
+  now: today,
+  billingCycleStartDate: unit.property.billingCycleStartDate,
+});
 
     if (!rentDates.isDelinquent) continue;
 

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
+import { getBusinessDate } from "@/lib/rentDates";
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -17,8 +18,8 @@ type LateFeesJobResult = {
 };
 
 export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResult> {
-  const now = asOf;
-  const effectiveDate = startOfDay(now);
+  const now = getBusinessDate(asOf);
+  const effectiveDate = now;
   const effectiveDay = isoDay(effectiveDate);
 
   const units = await prisma.unit.findMany({

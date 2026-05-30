@@ -3,14 +3,11 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getSession, refreshSessionCookie } from "@/lib/session";
-import { getUnitLedgerSummary } from "@/lib/ledger";
 import { canMakePayments } from "@/lib/liveGating";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { getProcessingFeeCents } from "@/lib/billingConfig";
-import {
-  getRentDateSummary,
-  resolveEffectiveBillingSettings,
-} from "@/lib/rentDates";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
+import { getBusinessDate } from "@/lib/rentDates";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -159,47 +156,54 @@ export async function POST(req: Request) {
     const assignment = unit.tenantAssignments[0] ?? null;
     const tenantAssignmentId = assignment?.id ?? null;
 
-    const ledger = await getUnitLedgerSummary(
-      unit.id,
-      tenantAssignmentId ?? undefined
-    );
+   const financialState =
+  await getUnitFinancialState({
+    propertyId: property.id,
+    unitId: unit.id,
+    tenantAssignmentId,
+    tier: unit.tier,
+    propertySettings: property.settings,
+    billingCycleStartDate:
+      property.billingCycleStartDate,
+    now: getBusinessDate(),
+  });
 
-    const balanceCents = Math.max(
-      0,
-      toSafeInteger(ledger.balanceCents)
-    );
+const balanceCents = Math.max(
+  0,
+  toSafeInteger(
+    financialState.ledgerBalanceCents
+  )
+);
 
-    if (balanceCents <= 0) {
-      return NextResponse.json<ApiError>(
-        {
-          ok: false,
-          error: "No balance due.",
-        },
-        { status: 400 }
-      );
-    }
+if (balanceCents <= 0) {
+  return NextResponse.json<ApiError>(
+    {
+      ok: false,
+      error: "No balance due.",
+    },
+    { status: 400 }
+  );
+}
 
-    const processingFeeCents =
-      getProcessingFeeCents(balanceCents);
+if (financialState.hasPendingPayment) {
+  return NextResponse.json<ApiError>(
+    {
+      ok: false,
+      error:
+        "A payment is already processing for this billing cycle.",
+    },
+    { status: 400 }
+  );
+}
 
-    const totalCents =
-      balanceCents + processingFeeCents;
+const processingFeeCents =
+  financialState.processingFeeCents;
 
-    const effectiveBillingSettings =
-      resolveEffectiveBillingSettings({
-        tier: unit.tier,
-        propertySettings: property.settings,
-      });
+const totalCents =
+  financialState.tenantTotalDueCents;
 
-    const rentDates = getRentDateSummary({
-      ...effectiveBillingSettings,
-      now: new Date(),
-      billingCycleStartDate:
-        property.billingCycleStartDate,
-    });
-
-    const billingCycle =
-      rentDates.billingCycle;
+const billingCycle =
+  financialState.billingCycle;
 
     const createdPayment =
       await prisma.$transaction(

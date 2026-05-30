@@ -262,6 +262,8 @@ const effective = resolveEffectiveBillingSettings({
 const rentDates = getRentDateSummary({
   ...effective,
   now: effectiveDate,
+  billingCycleStartDate:
+    unit.property.billingCycleStartDate,
 });
 
 let billingCycle = rentDates.billingCycle;

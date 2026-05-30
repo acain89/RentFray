@@ -4,11 +4,10 @@ import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import {
-
-getRentDateSummary,
+  getBusinessDate,
+  getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
-
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,8 +82,8 @@ export async function POST() {
       );
     }
 
-    const now = new Date();
-    const effectiveDate = safeDate(startOfDay(now));
+    const now = getBusinessDate();
+    const effectiveDate = now;
 
     let posted = 0;
     let skipped = 0;
@@ -103,10 +102,11 @@ export async function POST() {
           propertySettings: property.settings,
         });
 
-        const rentDates = getRentDateSummary({
-          ...effective,
-          now,
-        });
+         const rentDates = getRentDateSummary({
+         ...effective,
+         now,
+         billingCycleStartDate: property.billingCycleStartDate,
+         });
 
         const billingCycle = rentDates.billingCycle;
         const monthLabel = getMonthLabel(now);

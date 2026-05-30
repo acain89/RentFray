@@ -39,6 +39,20 @@ export type EffectiveBillingSettings = {
 
 const CHICAGO_TZ = "America/Chicago";
 
+export function getBusinessDate(now: Date = new Date()): Date {
+  const { year, month, day } = getChicagoParts(now);
+
+  return new Date(
+    year,
+    month - 1,
+    day,
+    0,
+    0,
+    0,
+    0
+  );
+}
+
 function getChicagoParts(date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: CHICAGO_TZ,
@@ -187,7 +201,10 @@ if (config.billingCycleStartDate) {
       safeStartDueDay
     );
 
-    const newGraceEnds = addDays(newDueDate, config.gracePeriodDays);
+   const newGraceEnds = addDays(
+  newDueDate,
+  Math.max(0, config.gracePeriodDays)
+);
 
     return {
       billingCycle: `${startYear}-${String(startMonth).padStart(2, "0")}`,
@@ -203,7 +220,7 @@ if (config.billingCycleStartDate) {
 
 const graceEnds = addDays(
   dueDate,
-  Math.max(0, config.gracePeriodDays - 1)
+  Math.max(0, config.gracePeriodDays)
 );
 
   let initialLateFeeDate: NullableDate = null;
@@ -230,7 +247,7 @@ const graceEnds = addDays(
     }
   }
 
-  const today = new Date(year, month - 1, day);
+  const today = getBusinessDate(now);
 
   const isDelinquent = today > graceEnds;
 

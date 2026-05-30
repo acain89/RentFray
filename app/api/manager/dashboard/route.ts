@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, refreshSessionCookie } from "@/lib/session";
 import {
+  getBusinessDate,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
+
 import { formatCentsToDollars } from "@/lib/billingConfig";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import { getUnitStatus } from "@/lib/unitStatusEngine";
@@ -42,7 +44,7 @@ function buildExportMonths(
         : fallback;
 
   const safeStart = Number.isNaN(parsed.getTime()) ? fallback : parsed;
-  const now = new Date();
+  const now = getBusinessDate();
 
   const start = new Date(safeStart.getFullYear(), safeStart.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth(), 1);

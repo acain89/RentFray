@@ -1,6 +1,9 @@
+// app/api/tenant/ledger/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { getBusinessDate } from "@/lib/rentDates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,14 +32,26 @@ export async function GET() {
       select: { id: true },
     });
 
+    if (!assignment) {
+      return NextResponse.json({
+        ok: true,
+        ledger: [],
+      });
+    }
+
+    const businessDate = getBusinessDate();
+
     const ledger = await prisma.ledgerEntry.findMany({
       where: {
         propertyId,
         unitId,
-        tenantAssignmentId: assignment?.id ?? "__NO_ACTIVE_ASSIGNMENT__",
+        tenantAssignmentId: assignment.id,
         voidedAt: null,
+        effectiveDate: {
+          lte: businessDate,
+        },
       },
-      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     });
 
     return NextResponse.json({
