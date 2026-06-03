@@ -443,7 +443,13 @@ const [units, tiers] = await Promise.all([
   unitCount: true,
   activeUnitCount: true,
   baseRentCents: true,
-    },
+
+  rentDueDay: true,
+  gracePeriodDays: true,
+  lateFeeInitialCents: true,
+  lateFeeDailyCents: true,
+  maxLateFeeDays: true,
+},
   }),
 ]);
 
@@ -847,11 +853,23 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
   return {
     id: tier.id,
     name: tier.name,
+
     configuredUnitCount,
     activeUnitCount,
-    availableUnitCount: Math.max(0, configuredUnitCount - activeUnitCount),
+    availableUnitCount: Math.max(
+      0,
+      configuredUnitCount - activeUnitCount
+    ),
+
     unitCount: configuredUnitCount,
+
     baseRent: tier.baseRentCents / 100,
+
+    rentDueDay: tier.rentDueDay,
+    gracePeriodDays: tier.gracePeriodDays,
+    lateFeeInitialCents: tier.lateFeeInitialCents,
+    lateFeeDailyCents: tier.lateFeeDailyCents,
+    maxLateFeeDays: tier.maxLateFeeDays,
   };
 }),
 

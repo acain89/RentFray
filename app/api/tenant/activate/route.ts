@@ -197,7 +197,6 @@ const savedUnit = existingUnit
       },
     });
 
-const billingCycle = new Date().toISOString().slice(0, 7);
 
 // ---------------- TENANT ----------------
 
@@ -238,6 +237,18 @@ if (recentMoveIn && moveInDate) {
 
     const dueDate = new Date(rentDates.dueDate + "T00:00:00");
 
+    // RENTFRAY MOVE-IN RULES
+//
+// No  = tenant owes current cycle
+// Yes + move-in on/before current cycle due date = owes current cycle
+// Yes + move-in after current cycle due date = first bill next cycle
+
+if (!recentMoveIn) {
+  shouldPostRent = true;
+} else {
+  shouldPostRent = moveInDate <= dueDate;
+}
+
     if (moveInDate > dueDate) {
       shouldPostRent = false;
     }
@@ -255,16 +266,19 @@ if (shouldPostRent) {
     include: { settings: true },
   });
 
-  if (propertyWithSettings?.settings) {
+  if (propertyWithSettings) {
     const effective = resolveEffectiveBillingSettings({
       tier: selectedTier,
-      propertySettings: propertyWithSettings.settings,
+      propertySettings: propertyWithSettings.settings ?? null,
     });
 
     const rentDates = getRentDateSummary({
-      ...effective,
-      now,
-    });
+  ...effective,
+  now,
+  billingCycleStartDate: propertyWithSettings.billingCycleStartDate,
+});
+
+const billingCycle = rentDates.billingCycle;
 
     const graceEnd = new Date(rentDates.graceEndsOn + "T00:00:00");
 

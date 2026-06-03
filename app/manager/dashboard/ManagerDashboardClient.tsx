@@ -1048,21 +1048,29 @@ async function loadTierCharges(): Promise<void> {
     const tiers = Array.isArray(json?.tiers) ? json.tiers : [];
 
     setTierCharges(
-      tiers.map((tier, tierIndex) => ({
-        tierId: String(tier.tierId || `tier-${tierIndex}`),
-        tierName: String(tier.tierName || `Tier ${tierIndex + 1}`),
-        charges: Array.isArray(tier.charges) && tier.charges.length > 0
-          ? tier.charges.map((charge, chargeIndex) => ({
-              id: String(charge.id || `charge-${tierIndex}-${chargeIndex}`),
-              label: String(charge.label || ""),
-              amount:
-                typeof charge.amount === "number"
-                  ? String(charge.amount)
-                  : "",
-            }))
-          : [],
-      }))
-    );
+  tiers.map((tier, tierIndex) => ({
+    tierId: String(tier.tierId || `tier-${tierIndex}`),
+    tierName: String(tier.tierName || `Tier ${tierIndex + 1}`),
+
+    charges:
+      Array.isArray(tier.charges) && tier.charges.length > 0
+        ? tier.charges.map((charge, chargeIndex) => ({
+            id: String(charge.id || `charge-${tierIndex}-${chargeIndex}`),
+            label: String(charge.label || ""),
+            amount:
+              typeof charge.amount === "number"
+                ? String(charge.amount)
+                : "",
+          }))
+        : [
+            {
+              id: `new-${tierIndex}-0`,
+              label: "",
+              amount: "",
+            },
+          ],
+  }))
+);
   } catch {
     setChargesError("Failed to load charges.");
     setTierCharges([]);
@@ -3215,16 +3223,11 @@ saveLocalRentSettings={saveLocalRentSettings}
             </button>
           </div>
 
-          {tier.charges.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-[var(--rf-border)] bg-[rgba(255,255,255,0.45)] px-4 py-6 text-center text-sm text-[var(--rf-text-soft)]">
-              No recurring charges added for this tier.
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {tier.charges.map((charge) => (
-                <div
-                  key={charge.id}
-                  className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.55)] p-4"
+          <div className="mt-4 space-y-3">
+  {tier.charges.map((charge) => (
+    <div
+      key={charge.id}
+      className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.55)] p-4"
                 >
                   <div className="grid gap-3 sm:grid-cols-[1fr_140px_auto]">
                     <div>
@@ -3276,7 +3279,6 @@ saveLocalRentSettings={saveLocalRentSettings}
                 </div>
               ))}
             </div>
-          )}
         </div>
       ))}
 
