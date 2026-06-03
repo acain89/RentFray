@@ -55,10 +55,11 @@ export async function getUnitDelinquencySummary(
     propertySettings: unit.property.settings,
   });
 
-  const rentDates = getRentDateSummary({
-    ...effective,
-    now: asOf,
-  });
+ const rentDates = getRentDateSummary({
+  ...effective,
+  now: asOf,
+  billingCycleStartDate: unit.property.billingCycleStartDate,
+});
 
   const dueDate = toDateOnly(rentDates.dueDate);
   const graceEndsOn = toDateOnly(rentDates.graceEndsOn);

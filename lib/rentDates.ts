@@ -180,43 +180,73 @@ export function getRentDateSummary(
     safeDueDay
   );
 
-   // 🔒 HARD START DATE LOCK
-if (config.billingCycleStartDate) {
-  const start = new Date(config.billingCycleStartDate);
+     // 🔒 HARD START DATE LOCK
+  // If the calculated billing cycle would begin before the property's
+  // official billing start date, move the first cycle forward to the first
+  // valid due date on or after that start date.
+  if (config.billingCycleStartDate) {
+    const start = getBusinessDate(config.billingCycleStartDate);
 
-  // If calculated cycle is BEFORE start → override everything
-  if (dueDate < start) {
-    const startYear = start.getFullYear();
-    const startMonth = start.getMonth() + 1;
+    if (dueDate < start) {
+      let startYear = start.getFullYear();
+      let startMonth = start.getMonth() + 1;
 
-    const safeStartDueDay = clampDay(
-      startYear,
-      startMonth,
-      config.dueDay
-    );
+      let safeStartDueDay = clampDay(startYear, startMonth, config.dueDay);
 
-    const newDueDate = new Date(
-      startYear,
-      startMonth - 1,
-      safeStartDueDay
-    );
+      let newDueDate = new Date(
+        startYear,
+        startMonth - 1,
+        safeStartDueDay
+      );
 
-   const newGraceEnds = addDays(
-  newDueDate,
-  Math.max(0, config.gracePeriodDays)
-);
+      if (newDueDate < start) {
+        if (startMonth === 12) {
+          startMonth = 1;
+          startYear += 1;
+        } else {
+          startMonth += 1;
+        }
 
-    return {
-      billingCycle: `${startYear}-${String(startMonth).padStart(2, "0")}`,
-      dueDate: toDateOnlyString(newDueDate),
-      graceEndsOn: toDateOnlyString(newGraceEnds),
-      initialLateFeeDate: null,
-      dailyLateFeeStartDate: null,
-      dailyLateFeeLastDate: null,
-      isDelinquent: false,
-    };
+        safeStartDueDay = clampDay(startYear, startMonth, config.dueDay);
+
+        newDueDate = new Date(
+          startYear,
+          startMonth - 1,
+          safeStartDueDay
+        );
+      }
+
+      const newGraceEnds = addDays(
+        newDueDate,
+        Math.max(0, config.gracePeriodDays)
+      );
+
+      return {
+        billingCycle: `${startYear}-${String(startMonth).padStart(2, "0")}`,
+        dueDate: toDateOnlyString(newDueDate),
+        graceEndsOn: toDateOnlyString(newGraceEnds),
+        initialLateFeeDate:
+          config.lateFeeEnabled && config.lateFeeInitialCents > 0
+            ? toDateOnlyString(addDays(newGraceEnds, 1))
+            : null,
+        dailyLateFeeStartDate:
+          config.lateFeeEnabled &&
+          config.lateFeeDailyCents > 0 &&
+          config.maxLateFeeDays > 0
+            ? toDateOnlyString(
+                addDays(
+                  config.lateFeeInitialCents > 0
+                    ? addDays(newGraceEnds, 1)
+                    : newGraceEnds,
+                  1
+                )
+              )
+            : null,
+        dailyLateFeeLastDate: null,
+        isDelinquent: false,
+      };
+    }
   }
-}
 
 const graceEnds = addDays(
   dueDate,

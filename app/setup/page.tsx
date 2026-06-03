@@ -162,7 +162,7 @@ function buildLateFeeSummary(tier: TierDraft): string {
   const lateFeeDaily = Number(tier.lateFeeDaily || 0);
   const maxLateFeeDays = Number(tier.maxLateFeeDays || 0);
 
-  const lateStartDay = dueDay > 0 ? dueDay + gracePeriodDays : 0;
+  const lateStartDay = dueDay > 0 ? dueDay + gracePeriodDays + 1 : 0;
   const dailyStartDay = lateStartDay > 0 ? lateStartDay + 1 : 0;
   const dailyEndDay =
     dailyStartDay > 0 && maxLateFeeDays > 0

@@ -1,5 +1,7 @@
 // lib/dashboard.ts
 
+import { getRentDateSummary } from "@/lib/rentDates";
+
 export type DashboardUnitStatus =
   | "PAID"
   | "GRACE"
@@ -127,31 +129,37 @@ export function getDashboardCutoffDate(now = new Date()) {
   return cutoff;
 }
 
+function parseDateOnly(value: string): Date {
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
+}
+
 export function getCycleDates(
   billingDay: number,
   now = new Date()
 ): { cycleStart: Date; cycleEnd: Date; dueDate: Date } {
-  const safeBillingDay = Math.min(Math.max(Number(billingDay || 1), 1), 28);
+  const rentDates = getRentDateSummary({
+    dueDay: billingDay,
+    gracePeriodDays: 0,
+    lateFeeEnabled: false,
+    lateFeeInitialCents: 0,
+    lateFeeDailyCents: 0,
+    maxLateFeeDays: 0,
+    now,
+  });
 
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  let cycleStart = new Date(year, month, safeBillingDay);
-
-  if (now.getDate() < safeBillingDay) {
-    cycleStart = new Date(year, month - 1, safeBillingDay);
-  }
+  const dueDate = parseDateOnly(rentDates.dueDate);
 
   const cycleEnd = new Date(
-    cycleStart.getFullYear(),
-    cycleStart.getMonth() + 1,
-    safeBillingDay
+    dueDate.getFullYear(),
+    dueDate.getMonth() + 1,
+    dueDate.getDate()
   );
 
   return {
-    cycleStart,
+    cycleStart: dueDate,
     cycleEnd,
-    dueDate: new Date(cycleStart),
+    dueDate,
   };
 }
 

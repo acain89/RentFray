@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { getBusinessDate } from "@/lib/rentDates";
 
 
 export const runtime = "nodejs";
@@ -237,6 +238,7 @@ export async function POST(req: Request) {
             status: "SETUP",
             unitCount: totalUnitCount,
             isActive: true,
+            billingCycleStartDate: getBusinessDate(),
             ownerDisplayName: email,
             contactEmail: email,
             addressLine1,
