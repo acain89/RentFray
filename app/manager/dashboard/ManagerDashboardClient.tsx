@@ -1822,7 +1822,7 @@ useEffect(() => {
 useEffect(() => {
   const raw = data?.property?.billingCycleStartDate ?? "";
   setBillingCycleStartDate(raw ? raw.slice(0, 10) : "");
-  setBillingCycleStartDateLocked(Boolean(raw));
+  setBillingCycleStartDateLocked(false);
 }, [data]);
 
 useEffect(() => {

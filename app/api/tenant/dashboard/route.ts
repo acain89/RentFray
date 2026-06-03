@@ -165,7 +165,7 @@ if (
 
     const currentAssignmentId = currentAssignment?.id ?? null;
 
-    const financialState = await getUnitFinancialState({
+   const financialState = await getUnitFinancialState({
   propertyId: session.propertyId,
   unitId: unit.id,
   tenantAssignmentId: currentAssignmentId,
@@ -231,7 +231,15 @@ const unitStatus = financialState.status;
       where: {
        propertyId: session.propertyId,
        unitId: session.unitId,
-       tenantAssignmentId: currentAssignmentId,
+       ...(currentAssignmentId
+      ? {
+          OR: [
+            { tenantAssignmentId: currentAssignmentId },
+            { tenantAssignmentId: null },
+          ],
+        }
+      : {}),
+
        voidedAt: null,
        effectiveDate: {
        lte: businessDate,

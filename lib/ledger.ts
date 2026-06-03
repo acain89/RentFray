@@ -143,7 +143,14 @@ export async function getUnitLedgerSummary(
     where: {
       unitId,
       voidedAt: null,
-      ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
+      ...(tenantAssignmentId
+  ? {
+      OR: [
+        { tenantAssignmentId },
+        { tenantAssignmentId: null },
+      ],
+    }
+  : {}),
       effectiveDate: {
         lte: now,
       },
@@ -166,7 +173,14 @@ export async function getUnitLedgerSummary(
     const payments = await prisma.payment.findMany({
   where: {
     unitId,
-    ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
+    ...(tenantAssignmentId
+  ? {
+      OR: [
+        { tenantAssignmentId },
+        { tenantAssignmentId: null },
+      ],
+    }
+  : {}),
   },
   select: {
     status: true,
