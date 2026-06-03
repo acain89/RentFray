@@ -104,12 +104,6 @@ export default function BankPanel({
             Only the account owner can manage billing cycle settings.
           </div>
         )}
-
-        {billingCycleStartDateLocked ? (
-          <div className="mt-3 text-xs text-slate-500">
-            Billing cycle start date is locked after activity.
-          </div>
-        ) : null}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

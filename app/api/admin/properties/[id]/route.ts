@@ -212,12 +212,18 @@ if (billingCycleOnlyUpdate) {
     select: { id: true },
   });
 
-  if (existing.billingCycleStartDate && hasLedgerActivity) {
-    return NextResponse.json(
-      { error: "Billing cycle start date is locked after activity." },
-      { status: 400 }
-    );
-  }
+  const currentStartTime = existing.billingCycleStartDate
+  ? new Date(existing.billingCycleStartDate).getTime()
+  : null;
+
+const requestedStartTime = billingCycleStartDate
+  ? new Date(billingCycleStartDate).getTime()
+  : null;
+
+const isChangingBillingCycleStartDate =
+  currentStartTime !== null &&
+  requestedStartTime !== null &&
+  currentStartTime !== requestedStartTime;
 
   const property = await prisma.property.update({
     where: { id },
@@ -298,18 +304,18 @@ if (
   select: { id: true },
 });
 
-if (
-  existing.billingCycleStartDate &&
-  billingCycleStartDate &&
-  hasLedgerActivity
-) {
-  return NextResponse.json(
-    {
-      error: "Billing cycle start date is locked after activity.",
-    },
-    { status: 400 }
-  );
-}
+const currentStartTime = existing.billingCycleStartDate
+  ? new Date(existing.billingCycleStartDate).getTime()
+  : null;
+
+const requestedStartTime = billingCycleStartDate
+  ? new Date(billingCycleStartDate).getTime()
+  : null;
+
+const isChangingBillingCycleStartDate =
+  currentStartTime !== null &&
+  requestedStartTime !== null &&
+  currentStartTime !== requestedStartTime;
 
     const updated = await prisma.$transaction(
   async (tx: Prisma.TransactionClient) => {

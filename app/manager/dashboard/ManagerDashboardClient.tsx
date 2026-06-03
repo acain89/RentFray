@@ -1822,7 +1822,6 @@ useEffect(() => {
 useEffect(() => {
   const raw = data?.property?.billingCycleStartDate ?? "";
   setBillingCycleStartDate(raw ? raw.slice(0, 10) : "");
-  setBillingCycleStartDateLocked(false);
 }, [data]);
 
 useEffect(() => {
@@ -2139,21 +2138,38 @@ setGpLfSaveMessage("Grace period and late fee settings saved.");
 }
 
 async function saveBillingCycleStartDate(): Promise<void> {
-  if (!data?.property?.id || !billingCycleStartDate) return;
+  if (
+    !data?.property?.id ||
+    !billingCycleStartDate ||
+    billingCycleStartDateLocked
+  ) {
+    return;
+  }
+
+ const confirmed = window.confirm(
+  `Are you sure you want to set the billing cycle start date to ${billingCycleStartDate}?\n\nThis date determines when RentFray begins tracking billing cycles for this property.`
+);
+
+  if (!confirmed) {
+    return;
+  }
 
   try {
     setSavingBillingCycleStartDate(true);
 
-    const res = await fetch(`/api/admin/properties/${data.property.id}`, {
-  method: "PATCH",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  credentials: "include",
-  body: JSON.stringify({
-    billingCycleStartDate,
-  }),
-});
+    const res = await fetch(
+      `/api/admin/properties/${data.property.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          billingCycleStartDate,
+        }),
+      }
+    );
 
     const json = await res.json().catch(() => null);
 
@@ -2162,9 +2178,15 @@ async function saveBillingCycleStartDate(): Promise<void> {
       return;
     }
 
-    setBillingCycleStartDateLocked(true);
+
+    alert(
+      `Billing cycle start date successfully locked to ${billingCycleStartDate}.`
+    );
+
     await new Promise((r) => setTimeout(r, 150));
     await loadDashboard();
+    setBillingCycleStartDateLocked(true);
+
   } catch {
     alert("Failed to save billing cycle start date.");
   } finally {
