@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import AdminSupportTools from "@/components/admin/AdminSupportTools";
 
 export const dynamic = "force-dynamic";
 
@@ -324,6 +325,11 @@ export default async function PropertyDashboard({
             </div>
           </div>
         </section>
+  
+        <AdminSupportTools
+  propertyId={property.id}
+  propertyName={property.name}
+/>
 
         <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">

@@ -2368,6 +2368,49 @@ const canSubmitMoveTier =
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-slate-50 via-emerald-50/35 to-slate-100" />
         <div className="mx-auto max-w-6xl space-y-5">
 
+       {typeof document !== "undefined" &&
+document.cookie.includes("rf_admin_session=") ? (
+  <div className="rounded-3xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="text-sm font-bold text-amber-900">
+          ADMIN IMPERSONATION ACTIVE
+        </div>
+
+        <div className="text-sm text-amber-800">
+          You are currently viewing this property as a management user.
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            const response = await fetch(
+              "/api/admin/impersonate/exit",
+              {
+                method: "POST",
+                credentials: "include",
+              }
+            );
+
+            const data = await response.json().catch(() => null);
+
+            if (data?.redirectTo) {
+              window.location.href = data.redirectTo;
+            }
+          } catch {
+            alert("Failed to exit impersonation.");
+          }
+        }}
+        className="rounded-xl bg-amber-600 px-4 py-2 font-semibold text-white"
+      >
+        Exit Impersonation
+      </button>
+    </div>
+  </div>
+) : null}
+
                        <section className="rounded-[28px] border border-emerald-200 bg-white px-4 py-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:px-5">
   <div className="flex flex-col gap-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
