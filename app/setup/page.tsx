@@ -809,7 +809,7 @@ router.push(`/setup/next-steps?code=${propertyCode}`);
             </div>
           )}
 
-          {step === 3 && (
+                    {step === 3 && (
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -820,14 +820,6 @@ router.push(`/setup/next-steps?code=${propertyCode}`);
                     Set the monthly price and unit count for each tier.
                   </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={addTier}
-                  className="shrink-0 rounded-2xl bg-[#0f172a] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                >
-                  Add tier
-                </button>
               </div>
 
               <div className="space-y-4">
@@ -908,6 +900,14 @@ router.push(`/setup/next-steps?code=${propertyCode}`);
                   );
                 })}
               </div>
+
+              <button
+                type="button"
+                onClick={addTier}
+                className="w-full rounded-2xl bg-[#cbd5e1] px-5 py-4 text-sm font-semibold text-[#0f172a] transition hover:bg-[#b8c5d6]"
+              >
+                + Add Another Tier
+              </button>
             </div>
           )}
 
