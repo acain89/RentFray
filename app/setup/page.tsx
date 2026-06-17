@@ -205,6 +205,7 @@ export default function SetupPage() {
   const [saveMessage, setSaveMessage] = useState<string>("Progress auto-saves.");
   const [submitError, setSubmitError] = useState<string>("");
   const [sameForAllLoading, setSameForAllLoading] = useState<boolean>(false);
+  const [customBillingTierIds, setCustomBillingTierIds] = useState<string[]>([]);
 
   useEffect(() => {
     try {
@@ -405,7 +406,9 @@ export default function SetupPage() {
       ),
     }));
 
-    window.setTimeout(() => {
+    setCustomBillingTierIds([]);
+
+      window.setTimeout(() => {
       setSameForAllLoading(false);
     }, 250);
   }
@@ -466,36 +469,47 @@ export default function SetupPage() {
   }
 
   function validateStep4(): boolean {
-    const nextTouched: TouchedState = { ...touched };
+  const nextTouched: TouchedState = { ...touched };
+  const firstTier = form.tiers[0];
 
-    form.tiers.forEach((tier: TierDraft) => {
-      nextTouched[`dueDay-${tier.id}`] = true;
-      nextTouched[`grace-${tier.id}`] = true;
-      nextTouched[`lateInitial-${tier.id}`] = true;
-      nextTouched[`lateDaily-${tier.id}`] = true;
-      nextTouched[`lateMax-${tier.id}`] = true;
-    });
+  form.tiers.forEach((tier: TierDraft, index: number) => {
+    const billingTier =
+      index === 0 || customBillingTierIds.includes(tier.id)
+        ? tier
+        : firstTier ?? tier;
 
-    setTouched(nextTouched);
+    nextTouched[`dueDay-${billingTier.id}`] = true;
+    nextTouched[`grace-${billingTier.id}`] = true;
+    nextTouched[`lateInitial-${billingTier.id}`] = true;
+    nextTouched[`lateDaily-${billingTier.id}`] = true;
+    nextTouched[`lateMax-${billingTier.id}`] = true;
+  });
 
-    return form.tiers.every((tier: TierDraft) => {
-      const monthlyDueValid =
-        Number(tier.dueDay) >= 1 && Number(tier.dueDay) <= 31;
+  setTouched(nextTouched);
 
-      const withinLateWindow =
-        Number(tier.gracePeriodDays) + Number(tier.maxLateFeeDays) <=
-        getMaxLateWindow(tier.billingFrequency, tier.dueDay);
+  return form.tiers.every((tier: TierDraft, index: number) => {
+    const billingTier =
+      index === 0 || customBillingTierIds.includes(tier.id)
+        ? tier
+        : firstTier ?? tier;
 
-      return (
-        monthlyDueValid &&
-        Number(tier.gracePeriodDays) >= 0 &&
-        Number(tier.lateFeeInitial) >= 0 &&
-        Number(tier.lateFeeDaily) >= 0 &&
-        Number(tier.maxLateFeeDays) >= 0 &&
-        withinLateWindow
-      );
-    });
-  }
+    const monthlyDueValid =
+      Number(billingTier.dueDay) >= 1 && Number(billingTier.dueDay) <= 31;
+
+    const withinLateWindow =
+      Number(billingTier.gracePeriodDays) + Number(billingTier.maxLateFeeDays) <=
+      getMaxLateWindow(billingTier.billingFrequency, billingTier.dueDay);
+
+    return (
+      monthlyDueValid &&
+      Number(billingTier.gracePeriodDays) >= 0 &&
+      Number(billingTier.lateFeeInitial) >= 0 &&
+      Number(billingTier.lateFeeDaily) >= 0 &&
+      Number(billingTier.maxLateFeeDays) >= 0 &&
+      withinLateWindow
+    );
+  });
+}
 
   function nextStep() {
     setSubmitError("");
@@ -533,18 +547,27 @@ export default function SetupPage() {
         zip: onlyDigits(form.zip),
         businessType: form.businessType.trim(),
       },
-      tiers: form.tiers.map((tier: TierDraft, index: number) => ({
-        name: `Tier ${index + 1}`,
-        price: Number(tier.price),
-        unitCount: Number(tier.unitCount),
-        billingFrequency: "MONTHLY" as const,
-        dueDay: Number(tier.dueDay || 1),
-        gracePeriodDays: Number(tier.gracePeriodDays || 0),
-        lateFeeType: tier.lateFeeType,
-        lateFeeInitial: Number(tier.lateFeeInitial || 0),
-        lateFeeDaily: Number(tier.lateFeeDaily || 0),
-        maxLateFeeDays: Number(tier.maxLateFeeDays || 0),
-      })),
+
+      tiers: form.tiers.map((tier: TierDraft, index: number) => {
+  const firstTier = form.tiers[0];
+  const billingTier =
+    index === 0 || customBillingTierIds.includes(tier.id)
+      ? tier
+      : firstTier ?? tier;
+
+  return {
+    name: `Tier ${index + 1}`,
+    price: Number(tier.price),
+    unitCount: Number(tier.unitCount),
+    billingFrequency: "MONTHLY" as const,
+    dueDay: Number(billingTier.dueDay || 1),
+    gracePeriodDays: Number(billingTier.gracePeriodDays || 0),
+    lateFeeType: billingTier.lateFeeType,
+    lateFeeInitial: Number(billingTier.lateFeeInitial || 0),
+    lateFeeDaily: Number(billingTier.lateFeeDaily || 0),
+    maxLateFeeDays: Number(billingTier.maxLateFeeDays || 0),
+  };
+}),
     };
 
     setSaving(true);
@@ -912,205 +935,173 @@ router.push(`/setup/next-steps?code=${propertyCode}`);
           )}
 
           {step === 4 && (
-            <div className="space-y-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight">
-                    Billing rules
-                  </h2>
-                  <p className="mt-1 text-sm text-[#64748b]">
-                    Set monthly billing per tier. You can copy the first tier to all.
-                  </p>
-                </div>
+  <div className="space-y-5">
+    <div>
+      <h2 className="text-2xl font-semibold tracking-tight">
+        Billing rules
+      </h2>
+      <p className="mt-1 text-sm text-[#64748b]">
+        Set the default billing rules. Most properties use the same billing rules for every tier.
+      </p>
+    </div>
 
-                <button
-                  type="button"
-                  onClick={copyBillingFromFirstTier}
-                  className="rounded-2xl border border-[#0f172a] bg-white px-4 py-3 text-sm font-semibold text-[#0f172a]"
-                >
-                  {sameForAllLoading ? "Applying..." : "Same for all tiers"}
-                </button>
+    <div className="space-y-4">
+      {form.tiers.map((tier: TierDraft, index: number) => {
+        const isDefaultTier = index === 0;
+        const isCustom = customBillingTierIds.includes(tier.id);
+
+        if (!isDefaultTier && !isCustom) return null;
+
+        const errors = getTierErrors(tier);
+
+        return (
+          <div
+            key={tier.id}
+            className="rounded-[24px] border border-[#dbe4ec] bg-[#f8fafc] p-4 sm:p-5"
+          >
+            <div className="mb-4">
+              <div className="text-lg font-semibold text-[#0f172a]">
+                {isDefaultTier ? "Default billing rules" : `Tier ${index + 1} custom rules`}
               </div>
-
-              <div className="space-y-4">
-                {form.tiers.map((tier: TierDraft, index: number) => {
-                  const errors = getTierErrors(tier);
-
-                  return (
-                    <div
-                      key={tier.id}
-                      className="rounded-[24px] border border-[#dbe4ec] bg-[#f8fafc] p-4 sm:p-5"
-                    >
-                      <div className="mb-4">
-                        <div className="text-lg font-semibold text-[#0f172a]">
-                          Tier {index + 1}
-                        </div>
-                        <div className="text-sm text-[#64748b]">
-                          ${Number(tier.price || 0).toFixed(2)} ·{" "}
-                          {tier.unitCount || 0} units
-                        </div>
-                      </div>
-
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
-                           label="Billing frequency"
-                           value="Monthly"
-                           error=""
-                           onBlur={() => {}}
-                           onChange={() => {}}
-                           />
-
-                        <Field
-                          label="Due day"
-                          value={tier.dueDay}
-                          error={errors.dueDay}
-                          onBlur={() =>
-                            setTouched((prev) => ({
-                              ...prev,
-                              [`dueDay-${tier.id}`]: true,
-                            }))
-                          }
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "dueDay",
-                              onlyDigits(value).slice(0, 2)
-                            )
-                          }
-                          placeholder="1 to 31"
-                          inputMode="numeric"
-                        />
-
-                        <Field
-                          label="Grace period days"
-                          value={tier.gracePeriodDays}
-                          error={errors.gracePeriodDays}
-                          onBlur={() =>
-                            setTouched((prev) => ({
-                              ...prev,
-                              [`grace-${tier.id}`]: true,
-                            }))
-                          }
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "gracePeriodDays",
-                              onlyDigits(value).slice(0, 3)
-                            )
-                          }
-                          placeholder="5"
-                          inputMode="numeric"
-                        />
-
-                        <SelectField
-                          label="Late fee type"
-                          value={tier.lateFeeType}
-                          error=""
-                          onBlur={() => {}}
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "lateFeeType",
-                              value as LateFeeType
-                            )
-                          }
-                          options={[
-                            { label: "Flat amount", value: "FLAT" },
-                            { label: "Percent", value: "PERCENT" },
-                          ]}
-                        />
-
-                        <Field
-                          label={
-                            tier.lateFeeType === "PERCENT"
-                              ? "Initial late fee percent"
-                              : "Initial late fee amount"
-                          }
-                          value={tier.lateFeeInitial}
-                          error={errors.lateFeeInitial}
-                          onBlur={() =>
-                            setTouched((prev) => ({
-                              ...prev,
-                              [`lateInitial-${tier.id}`]: true,
-                            }))
-                          }
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "lateFeeInitial",
-                              sanitizeMoney(value)
-                            )
-                          }
-                          placeholder={
-                            tier.lateFeeType === "PERCENT" ? "5.00" : "50.00"
-                          }
-                          inputMode="decimal"
-                        />
-
-                        <Field
-                          label={
-                            tier.lateFeeType === "PERCENT"
-                              ? "Daily late fee percent"
-                              : "Daily late fee amount"
-                          }
-                          value={tier.lateFeeDaily}
-                          error={errors.lateFeeDaily}
-                          onBlur={() =>
-                            setTouched((prev) => ({
-                              ...prev,
-                              [`lateDaily-${tier.id}`]: true,
-                            }))
-                          }
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "lateFeeDaily",
-                              sanitizeMoney(value)
-                            )
-                          }
-                          placeholder={
-                            tier.lateFeeType === "PERCENT" ? "1.00" : "10.00"
-                          }
-                          inputMode="decimal"
-                        />
-
-                        <Field
-                          label="Max late fee days"
-                          value={tier.maxLateFeeDays}
-                          error={errors.maxLateFeeDays}
-                          onBlur={() =>
-                            setTouched((prev) => ({
-                              ...prev,
-                              [`lateMax-${tier.id}`]: true,
-                            }))
-                          }
-                          onChange={(value) =>
-                            setTierField(
-                              tier.id,
-                              "maxLateFeeDays",
-                              onlyDigits(value).slice(0, 3)
-                            )
-                          }
-                          placeholder="30"
-                          inputMode="numeric"
-                        />
-                      </div>
-
-                      <div className="mt-4 rounded-[24px] border border-[#334155] bg-[#233143] px-5 py-5 text-white shadow-[0_20px_50px_rgba(15,23,42,0.25)]">
-                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                          Billing Summary
-                        </div>
-
-                        <p className="text-base font-medium leading-7 text-white sm:text-lg">
-                          {buildLateFeeSummary(tier)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="text-sm text-[#64748b]">
+                ${Number(tier.price || 0).toFixed(2)} · {tier.unitCount || 0} units
               </div>
             </div>
-          )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Billing frequency" value="Monthly" error="" onBlur={() => {}} onChange={() => {}} />
+
+              <Field
+                label="Due day"
+                value={tier.dueDay}
+                error={errors.dueDay}
+                onBlur={() => setTouched((prev) => ({ ...prev, [`dueDay-${tier.id}`]: true }))}
+                onChange={(value) => setTierField(tier.id, "dueDay", onlyDigits(value).slice(0, 2))}
+                placeholder="1 to 31"
+                inputMode="numeric"
+              />
+
+              <Field
+                label="Grace period days"
+                value={tier.gracePeriodDays}
+                error={errors.gracePeriodDays}
+                onBlur={() => setTouched((prev) => ({ ...prev, [`grace-${tier.id}`]: true }))}
+                onChange={(value) => setTierField(tier.id, "gracePeriodDays", onlyDigits(value).slice(0, 3))}
+                placeholder="5"
+                inputMode="numeric"
+              />
+
+              <SelectField
+                label="Late fee type"
+                value={tier.lateFeeType}
+                error=""
+                onBlur={() => {}}
+                onChange={(value) => setTierField(tier.id, "lateFeeType", value as LateFeeType)}
+                options={[
+                  { label: "Flat amount", value: "FLAT" },
+                  { label: "Percent", value: "PERCENT" },
+                ]}
+              />
+
+              <Field
+                label={tier.lateFeeType === "PERCENT" ? "Initial late fee percent" : "Initial late fee amount"}
+                value={tier.lateFeeInitial}
+                error={errors.lateFeeInitial}
+                onBlur={() => setTouched((prev) => ({ ...prev, [`lateInitial-${tier.id}`]: true }))}
+                onChange={(value) => setTierField(tier.id, "lateFeeInitial", sanitizeMoney(value))}
+                placeholder={tier.lateFeeType === "PERCENT" ? "5.00" : "50.00"}
+                inputMode="decimal"
+              />
+
+              <Field
+                label={tier.lateFeeType === "PERCENT" ? "Daily late fee percent" : "Daily late fee amount"}
+                value={tier.lateFeeDaily}
+                error={errors.lateFeeDaily}
+                onBlur={() => setTouched((prev) => ({ ...prev, [`lateDaily-${tier.id}`]: true }))}
+                onChange={(value) => setTierField(tier.id, "lateFeeDaily", sanitizeMoney(value))}
+                placeholder={tier.lateFeeType === "PERCENT" ? "1.00" : "10.00"}
+                inputMode="decimal"
+              />
+
+              <Field
+                label="Max late fee days"
+                value={tier.maxLateFeeDays}
+                error={errors.maxLateFeeDays}
+                onBlur={() => setTouched((prev) => ({ ...prev, [`lateMax-${tier.id}`]: true }))}
+                onChange={(value) => setTierField(tier.id, "maxLateFeeDays", onlyDigits(value).slice(0, 3))}
+                placeholder="30"
+                inputMode="numeric"
+              />
+            </div>
+
+            <div className="mt-4 rounded-[24px] border border-[#334155] bg-[#233143] px-5 py-5 text-white shadow-[0_20px_50px_rgba(15,23,42,0.25)]">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                Billing Summary
+              </div>
+              <p className="text-base font-medium leading-7 text-white sm:text-lg">
+                {buildLateFeeSummary(tier)}
+              </p>
+            </div>
+
+            {!isDefaultTier && (
+              <button
+                type="button"
+                onClick={() =>
+                  setCustomBillingTierIds((prev) =>
+                    prev.filter((id) => id !== tier.id)
+                  )
+                }
+                className="mt-4 w-full rounded-2xl border border-[#cbd5e1] bg-white px-5 py-4 text-sm font-semibold text-[#0f172a]"
+              >
+                Remove custom rules for Tier {index + 1}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+
+    <button
+      type="button"
+      onClick={copyBillingFromFirstTier}
+      disabled={form.tiers.length < 2 || sameForAllLoading}
+      className="w-full rounded-2xl bg-[#cbd5e1] px-5 py-4 text-sm font-semibold text-[#0f172a] transition hover:bg-[#b8c5d6] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {sameForAllLoading ? "Applying..." : "Apply these rules to all tiers"}
+    </button>
+
+    {form.tiers.length > 1 && (
+      <div className="rounded-[24px] border border-[#dbe4ec] bg-white p-4">
+        <div className="text-sm font-semibold text-[#0f172a]">
+          Need different billing rules?
+        </div>
+        <div className="mt-3 grid gap-3">
+          {form.tiers.slice(1).map((tier: TierDraft, index: number) => {
+            const realIndex = index + 1;
+            const alreadyCustom = customBillingTierIds.includes(tier.id);
+
+            if (alreadyCustom) return null;
+
+            return (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() =>
+                  setCustomBillingTierIds((prev) =>
+                    prev.includes(tier.id) ? prev : [...prev, tier.id]
+                  )
+                }
+                className="w-full rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] px-5 py-4 text-left text-sm font-semibold text-[#0f172a] transition hover:bg-[#edf2f7]"
+              >
+                Customize Tier {realIndex + 1}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
           {submitError ? (
             <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
