@@ -65,7 +65,7 @@ export async function POST() {
     } else {
       const account = await stripe.accounts.create({
         type: "express",
-        business_type: "company",
+        business_type: "individual",
         business_profile: {
           name: property.name,
           product_description: `Property management and rent collection for ${property.name}`,
