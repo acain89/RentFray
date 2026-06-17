@@ -58,7 +58,7 @@ export async function POST() {
       );
     }
 
-    const redirectUrl = `${baseUrl}/manager/bank`;
+    const redirectUrl = `${baseUrl}/manager/dashboard`;
 
     const link = await stripe.accountLinks.create({
       account: property.stripeAccountId,
