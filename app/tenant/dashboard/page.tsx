@@ -527,12 +527,14 @@ export default function TenantDashboard() {
 
               <div className="my-2 border-t border-slate-200" />
 
+              {(statement.processingFee ?? 0) > 0 && (
               <div className="flex justify-between">
-                <span>Processing Fee</span>
-                <span className="font-medium">
-                  {money(statement.processingFee ?? 0)}
-                </span>
+              <span>Processing Fee</span>
+              <span className="font-medium">
+              {money(statement.processingFee)}
+              </span>
               </div>
+                )}
 
               <div className="border-t border-slate-200 pt-3" />
 

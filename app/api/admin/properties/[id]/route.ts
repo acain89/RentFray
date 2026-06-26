@@ -207,23 +207,22 @@ if (billingCycleOnlyUpdate) {
     );
   }
 
-  const hasLedgerActivity = await prisma.ledgerEntry.findFirst({
-    where: { propertyId: id },
-    select: { id: true },
-  });
+    if (existing.billingCycleStartDate) {
+    return NextResponse.json(
+      {
+        error:
+          "Billing cycle start date has already been locked and cannot be changed.",
+      },
+      { status: 409 }
+    );
+  }
 
-  const currentStartTime = existing.billingCycleStartDate
-  ? new Date(existing.billingCycleStartDate).getTime()
-  : null;
-
-const requestedStartTime = billingCycleStartDate
-  ? new Date(billingCycleStartDate).getTime()
-  : null;
-
-const isChangingBillingCycleStartDate =
-  currentStartTime !== null &&
-  requestedStartTime !== null &&
-  currentStartTime !== requestedStartTime;
+  if (!billingCycleStartDate || Number.isNaN(billingCycleStartDate.getTime())) {
+    return NextResponse.json(
+      { error: "Invalid billing cycle start date." },
+      { status: 400 }
+    );
+  }
 
   const property = await prisma.property.update({
     where: { id },

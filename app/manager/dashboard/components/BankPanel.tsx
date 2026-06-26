@@ -78,33 +78,47 @@ export default function BankPanel({
           add them manually.
         </div>
 
-        <input
-          type="date"
-          value={billingCycleStartDate}
-          onChange={(e) => setBillingCycleStartDate(e.target.value)}
-          disabled={!isOwner || billingCycleStartDateLocked}
-          className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-        />
-
-        {isOwner ? (
-          <button
-            type="button"
-            onClick={saveBillingCycleStartDate}
-            disabled={
-              billingCycleStartDateLocked ||
-              savingBillingCycleStartDate ||
-              !billingCycleStartDate
-            }
-            className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {savingBillingCycleStartDate ? "Saving..." : "Confirm"}
-          </button>
-        ) : (
-          <div className="mt-4 text-sm text-slate-500">
-            Only the account owner can manage billing cycle settings.
+                {billingCycleStartDateLocked ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <div className="text-sm font-semibold text-emerald-800">
+              Locked: {billingCycleStartDate}
+            </div>
+            <div className="mt-1 text-xs leading-5 text-emerald-700">
+              This billing cycle start date is permanent and cannot be changed.
+            </div>
           </div>
+        ) : (
+          <input
+            type="date"
+            value={billingCycleStartDate}
+            onChange={(e) => setBillingCycleStartDate(e.target.value)}
+            disabled={!isOwner}
+            className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+          />
         )}
-      </div>
+
+        {isOwner && !billingCycleStartDateLocked ? (
+  <button
+    type="button"
+    onClick={saveBillingCycleStartDate}
+    disabled={
+      savingBillingCycleStartDate ||
+      !billingCycleStartDate
+    }
+    className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+  >
+    {savingBillingCycleStartDate ? "Saving..." : "Confirm"}
+  </button>
+) : !isOwner ? (
+  <div className="mt-4 text-sm text-slate-500">
+    Only the account owner can manage billing cycle settings.
+  </div>
+) : (
+  <div className="mt-4 text-xs font-medium text-emerald-700">
+    Billing cycle start date has been permanently locked.
+  </div>
+)}
+  </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div className={`text-lg font-semibold ${ui.color}`}>{ui.title}</div>
