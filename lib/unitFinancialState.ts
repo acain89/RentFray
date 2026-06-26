@@ -74,44 +74,57 @@ function diffDays(later: Date, earlier: Date): number {
   );
 }
 
-async function getCyclePaymentState(input: {
+async function getPaymentState(input: {
   propertyId: string;
   unitId: string;
   tenantAssignmentId: string | null;
   billingCycle: string;
 }): Promise<CyclePaymentState> {
-  const payments = await prisma.payment.findMany({
+  const scopedPayments = await prisma.payment.findMany({
     where: {
       propertyId: input.propertyId,
       unitId: input.unitId,
       ...(input.tenantAssignmentId
         ? { tenantAssignmentId: input.tenantAssignmentId }
         : {}),
-      billingCycle: input.billingCycle,
+      OR: [
+        { billingCycle: input.billingCycle },
+        { status: "PENDING" },
+      ],
     },
     select: {
       status: true,
+      billingCycle: true,
     },
   });
 
-  const statuses = payments.map(
-  (payment: (typeof payments)[number]) => String(payment.status)
-);
+    const currentCycleStatuses = scopedPayments
+    .filter(
+      (payment: (typeof scopedPayments)[number]) =>
+        payment.billingCycle === input.billingCycle
+    )
+    .map((payment: (typeof scopedPayments)[number]) =>
+      String(payment.status).toUpperCase()
+    );
 
-const hasPaidPayment = statuses.includes("PAID");
+  const hasActivePendingPayment = scopedPayments.some(
+    (payment: (typeof scopedPayments)[number]) =>
+      String(payment.status).toUpperCase() === "PENDING"
+  );
 
-const hasPendingPayment =
-  !hasPaidPayment && statuses.includes("PENDING");
+  const hasPaidPayment = currentCycleStatuses.includes("PAID");
 
-const hasFailedPayment =
-  !hasPaidPayment &&
-  !hasPendingPayment &&
-  statuses.includes("FAILED");
+  const hasPendingPayment = hasActivePendingPayment;
 
-const hasReversedPayment =
-  !hasPaidPayment &&
-  !hasPendingPayment &&
-  statuses.includes("REVERSED");
+  const hasFailedPayment =
+    !hasPaidPayment &&
+    !hasPendingPayment &&
+    currentCycleStatuses.includes("FAILED");
+
+  const hasReversedPayment =
+    !hasPaidPayment &&
+    !hasPendingPayment &&
+    currentCycleStatuses.includes("REVERSED");
 
   return {
     hasPendingPayment,
@@ -172,7 +185,7 @@ const now = getBusinessDate(
     input.tenantAssignmentId ?? undefined
   );
 
-  const cyclePaymentState = await getCyclePaymentState({
+    const cyclePaymentState = await getPaymentState({
     propertyId: input.propertyId,
     unitId: input.unitId,
     tenantAssignmentId: input.tenantAssignmentId,

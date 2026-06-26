@@ -321,6 +321,16 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
       }
     );
 
+       const hasLedgerProcessingFee = statementSourceEntries.some(
+      (entry: (typeof statementSourceEntries)[number]) =>
+        entry.entryType === "CHARGE" &&
+        String(entry.chargeType ?? "").toUpperCase() === "PROCESSING_FEE"
+    );
+
+    const displayProcessingFeeCents = hasLedgerProcessingFee
+      ? 0
+      : processingFeeCents;
+
     const subtotalCents = rentCents + recurringChargesCents + lateFeesCents;
 
     return NextResponse.json({
@@ -363,7 +373,7 @@ pendingPaymentAmount: financialState.hasPendingPayment
         rent: centsToDollars(rentCents),
         recurringCharges: centsToDollars(recurringChargesCents),
         lateFees: centsToDollars(lateFeesCents),
-        processingFee: centsToDollars(processingFeeCents),
+        processingFee: centsToDollars(displayProcessingFeeCents),
         credits: centsToDollars(creditsCents),
         subtotal: centsToDollars(subtotalCents),
         totalDue: centsToDollars(totalDueCents),

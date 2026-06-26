@@ -221,12 +221,16 @@ const billingCycle =
               where: {
                 propertyId: property.id,
                 unitId: unit.id,
-                tenantAssignmentId:
-                  tenantAssignmentId ?? undefined,
-                billingCycle,
+                ...(tenantAssignmentId
+                  ? { tenantAssignmentId }
+                  : {}),
                 status: {
                   in: ["PENDING", "PAID"],
                 },
+                OR: [
+                  { status: "PENDING" },
+                  { billingCycle },
+                ],
               },
             });
 

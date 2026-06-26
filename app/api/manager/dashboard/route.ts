@@ -711,13 +711,21 @@ for (const unit of units) {
 
       const rawLedgerBalanceCents = Math.max(0, ledger.balanceCents);
 
-      const cyclePayments = unitPayments.filter(
-        (payment) =>
-          payment.tenantAssignmentId === assignment.id &&
-          payment.billingCycle === rentDates.billingCycle
-      );
+      const assignmentPayments = unitPayments.filter(
+  (payment) => payment.tenantAssignmentId === assignment.id
+);
 
-      const cyclePaymentFlags = getCyclePaymentFlags(cyclePayments);
+const cyclePayments = assignmentPayments.filter(
+  (payment) => payment.billingCycle === rentDates.billingCycle
+);
+
+const cyclePaymentFlags = getCyclePaymentFlags(
+  assignmentPayments.filter(
+    (payment) =>
+      payment.billingCycle === rentDates.billingCycle ||
+      String(payment.status ?? "").toUpperCase() === "PENDING"
+  )
+);
 
       const effectiveBalanceCents = cyclePaymentFlags.hasPendingPayment
         ? 0
@@ -745,8 +753,12 @@ for (const unit of units) {
         (payment) => String(payment.status).toUpperCase() === "PAID"
       );
 
-     const currentCycleExpectedCents = assignmentLedgerEntries
-  .filter((entry) => entry.billingCycle === rentDates.billingCycle)
+    const currentCycleExpectedCents = assignmentLedgerEntries
+  .filter(
+    (entry) =>
+      entry.billingCycle === rentDates.billingCycle &&
+      String(entry.chargeType ?? "").toUpperCase() !== "PROCESSING_FEE"
+  )
   .reduce((sum, entry) => {
     const entryType = normalizeLedgerEntryType(entry.entryType);
 
