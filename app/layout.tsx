@@ -32,7 +32,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
        <Script
-  src="https://www.googletagmanager.com/gtag/js?id=G-PZ5HUNRTS"
+  src="https://www.googletagmanager.com/gtag/js?id=G-PZ5HJJNRTS"
   strategy="afterInteractive"
 />
 
@@ -42,7 +42,7 @@ export default function RootLayout({
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-PZ5HUNRTS');
+    gtag('config', 'G-PZ5HJJNRTS');
   `}
 </Script>
         <PwaServiceWorker />
