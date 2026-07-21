@@ -183,6 +183,74 @@ function getSignedImpactCents(input: {
   return 0;
 }
 
+function isLateFeeChargeType(value: unknown): boolean {
+  const chargeType = String(value ?? "").trim().toUpperCase();
+
+  return (
+    chargeType === "LATE_FEE" ||
+    chargeType === "LATE_FEE_INITIAL" ||
+    chargeType === "LATE_FEE_DAILY"
+  );
+}
+
+function getLateFeesCollectedCents(input: {
+  entries: DashboardLedgerEntryRow[];
+  billingCycle: string;
+  paidCents: number;
+}): number {
+  let remainingPaidCents = Math.max(0, toSafeInteger(input.paidCents));
+  let lateFeesCollectedCents = 0;
+
+  const cycleCharges = input.entries
+    .filter((entry) => {
+      const entryType = normalizeLedgerEntryType(entry.entryType);
+
+      return (
+        entry.billingCycle === input.billingCycle &&
+        entryType === "CHARGE" &&
+        toSafeInteger(entry.amountCents) > 0
+      );
+    })
+    .sort((a, b) => {
+      const effectiveDifference =
+        a.effectiveDate.getTime() - b.effectiveDate.getTime();
+
+      if (effectiveDifference !== 0) {
+        return effectiveDifference;
+      }
+
+      const createdDifference = a.createdAt.getTime() - b.createdAt.getTime();
+
+      if (createdDifference !== 0) {
+        return createdDifference;
+      }
+
+      return a.id.localeCompare(b.id);
+    });
+
+  for (const charge of cycleCharges) {
+    if (remainingPaidCents <= 0) break;
+
+    const chargeAmountCents = Math.max(
+      0,
+      toSafeInteger(charge.amountCents)
+    );
+
+    const appliedCents = Math.min(
+      chargeAmountCents,
+      remainingPaidCents
+    );
+
+    if (isLateFeeChargeType(charge.chargeType)) {
+      lateFeesCollectedCents += appliedCents;
+    }
+
+    remainingPaidCents -= appliedCents;
+  }
+
+  return lateFeesCollectedCents;
+}
+
 function buildLedgerSummary(input: {
   entries: DashboardLedgerEntryRow[];
   billingCycleStartDate: Date | null;
@@ -651,6 +719,7 @@ for (const unit of units) {
     let occupiedUnits = 0;
     let totalExpectedCents = 0;
     let totalCollectedCents = 0;
+    let totalLateFeesCollectedCents = 0;
     let delinquentCount = 0;
     let unpaidUnitsCount = 0;
     let portalPaidCount = 0;
@@ -753,28 +822,30 @@ const cyclePaymentFlags = getCyclePaymentFlags(
         (payment) => String(payment.status).toUpperCase() === "PAID"
       );
 
-    const currentCycleExpectedCents = assignmentLedgerEntries
-  .filter(
-    (entry) =>
-      entry.billingCycle === rentDates.billingCycle &&
-      String(entry.chargeType ?? "").toUpperCase() !== "PROCESSING_FEE"
-  )
-  .reduce((sum, entry) => {
-    const entryType = normalizeLedgerEntryType(entry.entryType);
-
-    if (!entryType || entryType === "PAYMENT") {
-      return sum;
+const currentCycleExpectedCents = assignmentLedgerEntries
+  .filter((entry) => {
+    if (entry.billingCycle !== rentDates.billingCycle) {
+      return false;
     }
 
+    const entryType = normalizeLedgerEntryType(entry.entryType);
+    const chargeType = String(entry.chargeType ?? "")
+      .trim()
+      .toUpperCase();
+
     return (
-      sum +
-      getSignedImpactCents({
-        entryType,
-        amountCents: entry.amountCents,
-        paymentStatus: null,
-      })
+      entryType === "CHARGE" &&
+      chargeType !== "PROCESSING_FEE" &&
+      chargeType !== "LATE_FEE" &&
+      chargeType !== "LATE_FEE_INITIAL" &&
+      chargeType !== "LATE_FEE_DAILY"
     );
-  }, 0);
+  })
+  .reduce(
+    (sum, entry) =>
+      sum + Math.max(0, toSafeInteger(entry.amountCents)),
+    0
+  );    
 
 totalExpectedCents += Math.max(0, currentCycleExpectedCents);
 
@@ -784,6 +855,12 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
       );
 
       totalCollectedCents += cyclePaidCents;
+
+      totalLateFeesCollectedCents += getLateFeesCollectedCents({
+  entries: assignmentLedgerEntries,
+  billingCycle: rentDates.billingCycle,
+  paidCents: cyclePaidCents,
+});
 
       if (!cyclePaymentFlags.hasPendingPayment && isDelinquent) {
         delinquentCount++;
@@ -859,6 +936,8 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
 
     const totalExpected = Math.round(totalExpectedCents) / 100;
     const totalCollected = Math.round(totalCollectedCents) / 100;
+    const lateFeesCollected =
+    Math.round(totalLateFeesCollectedCents) / 100;
     const exportMonths = buildExportMonths(property.billingCycleStartDate);
 
     if (process.env.NODE_ENV !== "production") {
@@ -914,6 +993,7 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
         unpaidUnitsCount,
         totalCollected,
         totalExpected,
+        lateFeesCollected,
         collectionRate:
           totalExpected > 0
             ? Number(((totalCollected / totalExpected) * 100).toFixed(1))

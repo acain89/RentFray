@@ -218,7 +218,7 @@ export function getRentDateSummary(
 
       const newGraceEnds = addDays(
         newDueDate,
-        Math.max(0, config.gracePeriodDays)
+        Math.max(0, config.gracePeriodDays - 1)
       );
 
       return {
@@ -250,7 +250,7 @@ export function getRentDateSummary(
 
 const graceEnds = addDays(
   dueDate,
-  Math.max(0, config.gracePeriodDays)
+  Math.max(0, config.gracePeriodDays - 1)
 );
 
   let initialLateFeeDate: NullableDate = null;

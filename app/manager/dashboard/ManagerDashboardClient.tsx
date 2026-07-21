@@ -117,6 +117,7 @@ billingCycleStartDate?: string | null;
     unpaidUnitsCount: number;
     totalCollected: number;
     totalExpected: number;
+    lateFeesCollected: number;
     collectionRate: number;
     difference: number;
   };
@@ -2493,22 +2494,25 @@ document.cookie.includes("rf_admin_session=") ? (
       </div>
 
      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-          Paid units
-        </div>
-        <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-          {data.cycleSnapshot?.totalPaidCount ?? 0}
-        </div>
-      </div>
+  <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+    Units
+  </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-          Unpaid
-        </div>
-        <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-          {data.cycleSnapshot?.unpaidUnitsCount ?? 0}
-        </div>
-      </div>
+  <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+    {data.cycleSnapshot?.totalPaidCount ?? 0} /{" "}
+    {data.summary?.occupiedUnits ?? 0} Paid
+  </div>
+</div>
+
+<div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+  <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+    Late Fees Collected
+  </div>
+
+  <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+    ${(data.cycleSnapshot?.lateFeesCollected ?? 0).toFixed(2)}
+  </div>
+</div>
     </div>
 
     <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4">

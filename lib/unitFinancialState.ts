@@ -165,20 +165,19 @@ export type UnitFinancialState = {
 export async function getUnitFinancialState(
   input: UnitFinancialStateInput
 ): Promise<UnitFinancialState> {
-const now = getBusinessDate(
-  input.now ?? new Date()
-);
+const rawNow = input.now ?? new Date();
+const now = getBusinessDate(rawNow);
 
   const effectiveBillingSettings = resolveEffectiveBillingSettings({
     tier: input.tier,
     propertySettings: input.propertySettings,
   });
 
-  const rentDates = getRentDateSummary({
-    ...effectiveBillingSettings,
-    now,
-    billingCycleStartDate: input.billingCycleStartDate ?? null,
-  });
+const rentDates = getRentDateSummary({
+  ...effectiveBillingSettings,
+  now: rawNow,
+  billingCycleStartDate: input.billingCycleStartDate ?? null,
+});
 
   const ledgerSummary = await getUnitLedgerSummary(
     input.unitId,

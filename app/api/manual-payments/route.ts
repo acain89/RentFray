@@ -158,9 +158,9 @@ export async function POST(req: Request) {
 
     const { unitId, tenantId, amountCents, memo, effectiveDate } = parsed;
 
-    if (amountCents < 500) {
-      return badRequest("Payment amount too small.");
-    }
+   if (amountCents < 1) {
+  return badRequest("Payment amount too small.");
+}
 
     const unit = await prisma.unit.findFirst({
       where: {

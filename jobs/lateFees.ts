@@ -10,6 +10,37 @@ function isoDay(date: Date): string {
   return startOfDay(date).toISOString().slice(0, 10);
 }
 
+function parseDateOnly(value: string | null): Date | null {
+  if (!value) return null;
+
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, day);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function isOnOrAfter(date: Date, comparisonDate: Date): boolean {
+  return startOfDay(date).getTime() >= startOfDay(comparisonDate).getTime();
+}
+
+function isOnOrBefore(date: Date, comparisonDate: Date): boolean {
+  return startOfDay(date).getTime() <= startOfDay(comparisonDate).getTime();
+}
+
 type LateFeesJobResult = {
   ok: true;
   billingCycle: string;
@@ -17,15 +48,25 @@ type LateFeesJobResult = {
   skipped: number;
 };
 
-export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResult> {
-  const now = getBusinessDate(asOf);
-  const effectiveDate = now;
-  const effectiveDay = isoDay(effectiveDate);
+export async function runLateFeesJob(
+  asOf = new Date()
+): Promise<LateFeesJobResult> {
+  // Keep the original timestamp for timezone-aware financial calculations.
+  const rawNow = asOf;
+
+  // Use the normalized business date only for ledger effective dates and memos.
+  const effectiveDate = getBusinessDate(rawNow);
 
   const units = await prisma.unit.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+    },
     include: {
-      property: { include: { settings: true } },
+      property: {
+        include: {
+          settings: true,
+        },
+      },
       tier: {
         select: {
           rentDueDay: true,
@@ -36,10 +77,22 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
         },
       },
       tenantAssignments: {
-        where: { isCurrent: true, moveOutDate: null },
-        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+        where: {
+          isCurrent: true,
+          moveOutDate: null,
+        },
+        orderBy: [
+          {
+            moveInDate: "desc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
         take: 1,
-        select: { id: true },
+        select: {
+          id: true,
+        },
       },
     },
   });
@@ -62,7 +115,7 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
       tier: unit.tier,
       propertySettings: unit.property.settings,
       billingCycleStartDate: unit.property.billingCycleStartDate,
-      now,
+      now: rawNow,
     });
 
     const effective = financialState.effectiveBillingSettings;
@@ -71,7 +124,6 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
     if (
       !effective.lateFeeEnabled ||
       !financialState.isPastGracePeriod ||
-      financialState.daysPastGrace <= 0 ||
       financialState.ledgerBalanceCents <= 0 ||
       financialState.hasPendingPayment ||
       financialState.hasPaidPayment
@@ -80,87 +132,135 @@ export async function runLateFeesJob(asOf = new Date()): Promise<LateFeesJobResu
       continue;
     }
 
-    const shouldPostInitial =
-      financialState.daysPastGrace >= 1 && effective.lateFeeInitialCents > 0;
+    const initialLateFeeDate = parseDateOnly(
+      financialState.rentDates.initialLateFeeDate
+    );
 
-    const shouldPostDaily =
-      financialState.daysPastGrace >= 2 &&
-      effective.lateFeeDailyCents > 0 &&
-      effective.maxLateFeeDays > 0 &&
-      financialState.daysPastGrace - 1 <= effective.maxLateFeeDays;
+    const dailyLateFeeStartDate = parseDateOnly(
+      financialState.rentDates.dailyLateFeeStartDate
+    );
 
-    if (shouldPostInitial) {
-      const existingInitial = await prisma.ledgerEntry.findFirst({
-        where: {
-          propertyId: unit.propertyId,
-          unitId: unit.id,
-          tenantAssignmentId: assignment.id,
-          billingCycle,
-          entryType: "CHARGE",
-          chargeType: { in: ["LATE_FEE", "LATE_FEE_INITIAL"] },
-          voidedAt: null,
-        },
-        select: { id: true },
+    const dailyLateFeeLastDate = parseDateOnly(
+      financialState.rentDates.dailyLateFeeLastDate
+    );
+
+   const existingLateFees: Array<{
+  chargeType: string | null;
+  memo: string | null;
+}> = await prisma.ledgerEntry.findMany({
+  where: {
+    propertyId: unit.propertyId,
+    unitId: unit.id,
+    tenantAssignmentId: assignment.id,
+    billingCycle,
+    entryType: "CHARGE",
+    chargeType: {
+      in: [
+        "LATE_FEE",
+        "LATE_FEE_INITIAL",
+        "LATE_FEE_DAILY",
+      ],
+    },
+    voidedAt: null,
+  },
+  select: {
+    chargeType: true,
+    memo: true,
+  },
+});
+
+    const hasExistingInitial = existingLateFees.some(
+      entry =>
+        entry.chargeType === "LATE_FEE" ||
+        entry.chargeType === "LATE_FEE_INITIAL"
+    );
+
+    const existingDailyMemos = new Set(
+      existingLateFees
+        .filter(entry => entry.chargeType === "LATE_FEE_DAILY")
+        .map(entry => entry.memo)
+        .filter((memo): memo is string => Boolean(memo))
+    );
+
+    const entriesToCreate: Array<{
+      propertyId: string;
+      unitId: string;
+      tenantAssignmentId: string;
+      entryType: string;
+      chargeType: string;
+      amountCents: number;
+      memo: string;
+      effectiveDate: Date;
+      billingCycle: string;
+      createdByManagementUserId: null;
+    }> = [];
+
+    if (
+      effective.lateFeeInitialCents > 0 &&
+      initialLateFeeDate &&
+      isOnOrAfter(effectiveDate, initialLateFeeDate) &&
+      !hasExistingInitial
+    ) {
+      entriesToCreate.push({
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        tenantAssignmentId: assignment.id,
+        entryType: "CHARGE",
+        chargeType: "LATE_FEE_INITIAL",
+        amountCents: effective.lateFeeInitialCents,
+        memo: `Initial late fee - ${billingCycle}`,
+        effectiveDate: initialLateFeeDate,
+        billingCycle,
+        createdByManagementUserId: null,
       });
-
-      if (!existingInitial) {
-        await prisma.ledgerEntry.create({
-          data: {
-            propertyId: unit.propertyId,
-            unitId: unit.id,
-            tenantAssignmentId: assignment.id,
-            entryType: "CHARGE",
-            chargeType: "LATE_FEE_INITIAL",
-            amountCents: effective.lateFeeInitialCents,
-            memo: `Initial late fee - ${billingCycle}`,
-            effectiveDate,
-            billingCycle,
-            createdByManagementUserId: null,
-          },
-        });
-
-        posted++;
-      }
     }
 
-    if (shouldPostDaily) {
-      const existingDaily = await prisma.ledgerEntry.findFirst({
-        where: {
-          propertyId: unit.propertyId,
-          unitId: unit.id,
-          tenantAssignmentId: assignment.id,
-          billingCycle,
-          entryType: "CHARGE",
-          chargeType: "LATE_FEE_DAILY",
-          memo: `Daily late fee - ${effectiveDay}`,
-          voidedAt: null,
-        },
-        select: { id: true },
-      });
+    if (
+      effective.lateFeeDailyCents > 0 &&
+      effective.maxLateFeeDays > 0 &&
+      dailyLateFeeStartDate &&
+      dailyLateFeeLastDate
+    ) {
+      let feeDate = dailyLateFeeStartDate;
 
-      if (!existingDaily) {
-        await prisma.ledgerEntry.create({
-          data: {
+      while (
+        isOnOrBefore(feeDate, effectiveDate) &&
+        isOnOrBefore(feeDate, dailyLateFeeLastDate)
+      ) {
+        const feeDay = isoDay(feeDate);
+        const memo = `Daily late fee - ${feeDay}`;
+
+        if (!existingDailyMemos.has(memo)) {
+          entriesToCreate.push({
             propertyId: unit.propertyId,
             unitId: unit.id,
             tenantAssignmentId: assignment.id,
             entryType: "CHARGE",
             chargeType: "LATE_FEE_DAILY",
             amountCents: effective.lateFeeDailyCents,
-            memo: `Daily late fee - ${effectiveDay}`,
-            effectiveDate,
+            memo,
+            effectiveDate: feeDate,
             billingCycle,
             createdByManagementUserId: null,
-          },
-        });
+          });
 
-        posted++;
+          existingDailyMemos.add(memo);
+        }
+
+        feeDate = addDays(feeDate, 1);
       }
     }
 
-    if (!shouldPostInitial && !shouldPostDaily) {
+    if (entriesToCreate.length === 0) {
       skipped++;
+      continue;
     }
+
+    const result = await prisma.ledgerEntry.createMany({
+      data: entriesToCreate,
+    });
+
+    posted += result.count;
   }
 
   return {

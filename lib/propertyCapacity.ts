@@ -98,9 +98,12 @@ export async function canActivateTier(
 
   if (!tier || tier.unitCount <= 0) return false;
 
-  const activeTierUnitCount = await getActiveTierUnitCount(propertyId, tierId);
+  const occupiedTierUnitCount = await getOccupiedTierUnitCount(
+    propertyId,
+    tierId
+  );
 
-  return activeTierUnitCount < tier.unitCount;
+  return occupiedTierUnitCount < tier.unitCount;
 }
 
 export async function validateTierCapacityUpdate(
