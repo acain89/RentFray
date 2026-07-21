@@ -2469,9 +2469,6 @@ document.cookie.includes("rf_admin_session=") ? (
       <div className="text-lg font-semibold text-slate-900">
         {data.cycleSnapshot?.billingCycleLabel || "—"}
       </div>
-      <div className="text-sm text-slate-600">
-        {data.cycleSnapshot?.occupiedUnitsLabel || ""}
-      </div>
     </div>
 
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

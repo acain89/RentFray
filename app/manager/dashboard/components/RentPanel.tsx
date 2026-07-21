@@ -117,7 +117,7 @@ export default function RentPanel({
   return (
     <OverlayShell
       title="Rent Panel"
-      subtitle="Configure rent amounts, max units, due dates, grace periods, and late fee settings."
+      subtitle="Configure rent amounts and max units for each tier."
       onClose={onClose}
     >
       <div className="space-y-4">
@@ -128,9 +128,9 @@ export default function RentPanel({
         ) : null}
 
         {localTiers
-  .filter((tier) => !tier.markedForDelete)
-  .map((tier) => {
-          const isEditing = editingTierId === tier.id;
+         .filter((tier) => !tier.markedForDelete)
+         .map((tier) => {
+         const isEditing = editingTierId === tier.id;
 
           return (
             <div
@@ -220,36 +220,11 @@ export default function RentPanel({
   />
 </div>
 
-                  <div>
-                    <label className="rf-label">Due day</label>
-                    <input
-                      value={tier.dueDay}
-                      onChange={(e) =>
-                        updateLocalTier(tier.id, {
-                          dueDay: e.target.value.replace(/\D/g, ""),
-                        })
-                      }
-                      placeholder="1"
-                      className="rf-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="rf-label">Grace days</label>
-                    <input
-                      value={tier.graceDays}
-                      onChange={(e) =>
-                        updateLocalTier(tier.id, {
-                          graceDays: e.target.value.replace(/\D/g, ""),
-                        })
-                      }
-                      placeholder="5"
-                      className="rf-input"
-                    />
-                  </div>
+                  
+                   
                 </div>
               ) : (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <SummaryStat
                     label="Base rent"
                     value={`$${tier.baseRent || "—"}`}
@@ -264,13 +239,6 @@ export default function RentPanel({
                    label="Active units"
                    value={String(tier.activeUnitCount ?? 0)}
                    />
-
-                  <SummaryStat label="Due day" value={tier.dueDay || "—"} />
-                  <SummaryStat
-                    label="Grace days"
-                    value={tier.graceDays || "—"}
-                    className="col-span-2 sm:col-span-1"
-                  />
                 </div>
               )}
             </div>
