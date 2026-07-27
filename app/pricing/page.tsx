@@ -1,4 +1,4 @@
-import MarketingPageShell from "@/components/marketing/MarketingPageShell";
+﻿import MarketingPageShell from "@/components/marketing/MarketingPageShell";
 import { CheckMark, DetailSection } from "@/components/marketing/MarketingDetails";
 import "../marketing-pages.css";
 
@@ -49,3 +49,4 @@ export default function PricingPage() {
     </MarketingPageShell>
   );
 }
+

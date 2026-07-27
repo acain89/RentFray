@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import BrandMark from "./BrandMark";
@@ -34,10 +34,11 @@ export default function MarketingFooter() {
           </div>
         </div>
         <div className="rfm-footer-bottom">
-          <span>© 2026 RentFray</span>
+          <span>(c) 2026 RentFray</span>
           <span>Payments securely processed through Stripe.</span>
         </div>
       </div>
     </footer>
   );
 }
+

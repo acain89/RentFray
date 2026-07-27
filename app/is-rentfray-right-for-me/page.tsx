@@ -1,4 +1,4 @@
-import MarketingPageShell from "@/components/marketing/MarketingPageShell";
+﻿import MarketingPageShell from "@/components/marketing/MarketingPageShell";
 import { Checklist, DetailSection } from "@/components/marketing/MarketingDetails";
 import "../marketing-pages.css";
 
@@ -38,7 +38,7 @@ export default function RightFitPage() {
         <div className="rfp-fit-panel"><Checklist items={notFit} negative /></div>
       </DetailSection>
 
-      <DetailSection eyebrow="The point" title="We intentionally do less." text="RentFray’s goal is to streamline month-to-month business needs—not become an all-encompassing, bloated management program.">
+      <DetailSection eyebrow="The point" title="We intentionally do less." text="RentFray's goal is to streamline month-to-month business needs - not become an all-encompassing, bloated management program.">
         <div className="rfp-important-note">
           <strong>That focus is the product.</strong>
           <p>RentFray concentrates on recurring charges, rent collection, late fees, tenant access, manager visibility, maintenance requests, and payment history.</p>
@@ -47,3 +47,4 @@ export default function RightFitPage() {
     </MarketingPageShell>
   );
 }
+

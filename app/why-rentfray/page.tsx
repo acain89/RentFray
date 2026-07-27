@@ -1,4 +1,4 @@
-import MarketingPageShell from "@/components/marketing/MarketingPageShell";
+﻿import MarketingPageShell from "@/components/marketing/MarketingPageShell";
 import { Checklist, DetailSection } from "@/components/marketing/MarketingDetails";
 import "../marketing-pages.css";
 
@@ -15,8 +15,8 @@ export default function WhyRentFrayPage() {
   return (
     <MarketingPageShell
       eyebrow="Why RentFray?"
-      title={<>RentFray’s simplicity is not an accident.<br />It is a deliberate design principle.</>}
-      intro="RentFray was built for businesses that need recurring payment collection—not another expensive system to manage."
+      title={<>RentFray's simplicity is not an accident.<br />It is a deliberate design principle.</>}
+      intro="RentFray was built for businesses that need recurring payment collection, not another expensive system to manage."
     >
       <DetailSection eyebrow="The difference" title="Look at the setup." text="Some software is built around sales teams, contracts, imports, training, and long onboarding. RentFray is built around getting the job done.">
         <div className="rfp-comparison">
@@ -40,13 +40,29 @@ export default function WhyRentFrayPage() {
         </div>
       </DetailSection>
 
+      <DetailSection
+        eyebrow="No invitation emails"
+        title="Tenants onboard themselves with the property code."
+        text="Traditional software often requires management to create tenant accounts, send invitation links, resend emails, and reset passwords. RentFray gives each property one unique code that tenants use to activate themselves."
+      >
+        <div className="rfp-important-note">
+          <strong>Give tenants the code. They handle the rest.</strong>
+          <p>
+            Enter property code. Select tier and unit. Create PIN. Pay.
+          </p>
+        </div>
+      </DetailSection>
       <DetailSection eyebrow="Self-serve by design" title="No phone call. No email chain. No training session." text="Create the account yourself. Configure the property yourself. Connect Stripe yourself. Tenants onboard themselves." dark />
 
       <DetailSection eyebrow="The rule" title="Every feature has to earn its place." text="Every feature has to answer one question: Does this make recurring payment collection simpler? If the answer is no, it probably does not belong.">
-        <blockquote className="rfp-quote">“Software should reduce complexity, not create it.”</blockquote>
+        <blockquote className="rfp-quote">
+  Software should reduce complexity, not create it.
+</blockquote>
       </DetailSection>
 
       <DetailSection eyebrow="Simple on purpose" title="RentFray is not trying to replace every system you use." text="It is not an accounting suite, leasing platform, CRM, screening service, or enterprise ERP. It has one goal: streamline the recurring, month-to-month business needs that otherwise waste your time." dark />
     </MarketingPageShell>
   );
 }
+
+

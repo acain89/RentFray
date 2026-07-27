@@ -1,4 +1,4 @@
-import BrandMark from "./BrandMark";
+﻿import BrandMark from "./BrandMark";
 import { CheckIcon } from "./MarketingIcons";
 
 const tiers = [
@@ -74,7 +74,7 @@ export function DashboardPreview() {
 
         <article className="rfm-difference">
           <span>Difference</span>
-          <strong>−$5,550.00</strong>
+          <strong>-$5,550.00</strong>
         </article>
       </section>
 
@@ -136,9 +136,10 @@ export function TenantPreview() {
         <span><CheckIcon /></span>
         <div>
           <strong>Payment received</strong>
-          <small>Unit 201 · $1,409.95</small>
+          <small>Unit 201  -  $1,409.95</small>
         </div>
       </div>
     </div>
   );
 }
+

@@ -246,8 +246,35 @@
   .rfm-hero-copy > p { font-size: 16px; }
   .rfm-hero-actions { align-items: flex-start; flex-direction: column; gap: 18px; }
   .rfm-proof { gap: 12px 18px; }
-  .rfm-real-dashboard { width: 980px; transform: scale(.59); transform-origin: top left; }
-  .rfm-dashboard-stage { height: 620px; overflow: hidden; }
+  .rfm-real-dashboard {
+    width: 100%;
+    transform: none;
+  }
+
+  .rfm-dashboard-stage {
+    height: auto;
+    overflow: visible;
+  }
+
+  .rfm-tier-row {
+    grid-template-columns: 10px 58px minmax(68px, 1fr) 56px;
+    gap: 6px;
+    padding: 5px 7px;
+    font-size: 8px;
+  }
+
+  .rfm-tenant-name {
+    display: none;
+  }
+
+  .rfm-tier-row strong {
+    font-size: 8px;
+  }
+
+  .rfm-row-status {
+    padding: 4px 5px;
+    font-size: 7px;
+  }
   .rfm-cycle-metrics { grid-template-columns: repeat(2,1fr); }
   .rfm-tenant-section { padding: 58px 0; }
   .rfm-tenant-grid { min-height: auto; }
@@ -264,4 +291,5 @@
   .rfm-footer-grid > div:first-child { grid-column: 1/-1; }
   .rfm-footer-bottom { flex-direction: column; gap: 8px; }
 }
+
 

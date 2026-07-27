@@ -1,4 +1,4 @@
-import MarketingPageShell from "@/components/marketing/MarketingPageShell";
+﻿import MarketingPageShell from "@/components/marketing/MarketingPageShell";
 import { DetailCard, DetailSection } from "@/components/marketing/MarketingDetails";
 import "../marketing-pages.css";
 
@@ -39,6 +39,20 @@ export default function HowItWorksPage() {
       <DetailSection eyebrow="For tenants" title="The tenant does the onboarding." text="Management provides the property code and tier information. The tenant completes the rest from a phone, tablet, or computer.">
         <div className="rfp-grid-four">{tenantSteps.map(([n,t,x]) => <DetailCard key={n} number={n} title={t} text={x} />)}</div>
       </DetailSection>
+      <DetailSection
+        eyebrow="Simple tenant access"
+        title="One property. One code."
+        text="Every RentFray property receives a unique property code. Management gives tenants that code once, and tenants use it to activate their own account."
+      >
+        <div className="rfp-important-note">
+          <strong>No invitation emails. No activation links. No manager-created tenant accounts.</strong>
+          <p>
+            Tenants enter the property code, select their tier and unit, create a private PIN, and they are ready to pay.
+          </p>
+        </div>
+      </DetailSection>
     </MarketingPageShell>
   );
 }
+
+

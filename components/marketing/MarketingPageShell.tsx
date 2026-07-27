@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -42,3 +42,4 @@ export default function MarketingPageShell({
     </main>
   );
 }
+

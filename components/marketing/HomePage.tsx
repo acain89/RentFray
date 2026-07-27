@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import MarketingFooter from "./MarketingFooter";
@@ -39,7 +39,7 @@ export default function HomePage() {
           <div className="rfm-hero-copy">
             <div className="rfm-eyebrow"><span /> Free for property owners and managers</div>
             <h1>Rent collection that makes sense.</h1>
-            <p>Collect rent, manage balances, and see exactly what needs attention—without complicated software or monthly fees.</p>
+            <p>Collect rent, manage balances, and see exactly what needs attention - without complicated software or monthly fees.</p>
 
             <div className="rfm-hero-actions">
               <button type="button" className="rfm-button" onClick={() => router.push("/setup")}>
@@ -58,7 +58,7 @@ export default function HomePage() {
 
             <div className="rfm-hero-submessage">
               <span>Know what matters</span>
-              <h2>Know who paid.<br />Know who hasn’t.<br />At a glance.</h2>
+              <h2>Know who paid.<br />Know who hasn't.<br />At a glance.</h2>
               <p>One dashboard. Everything that needs your attention.</p>
             </div>
           </div>
@@ -73,7 +73,7 @@ export default function HomePage() {
         <div className="rfm-container rfm-tenant-grid">
           <div className="rfm-section-heading rfm-section-heading-left">
             <span>Simple for tenants</span>
-            <h2>Paying rent shouldn’t be complicated.</h2>
+            <h2>Paying rent shouldn't be complicated.</h2>
             <p>Tenants activate their own account, see a clear balance, and pay from their phone. No office visit. No confusing portal.</p>
             <button type="button" className="rfm-text-link" onClick={() => router.push("/how-it-works")}>
               See the full process <ArrowIcon />
@@ -151,3 +151,4 @@ export default function HomePage() {
     </main>
   );
 }
+

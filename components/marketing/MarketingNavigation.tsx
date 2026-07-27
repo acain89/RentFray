@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import BrandMark from "./BrandMark";
@@ -33,3 +33,4 @@ export default function MarketingNavigation() {
     </header>
   );
 }
+

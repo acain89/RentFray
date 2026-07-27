@@ -1,4 +1,4 @@
-type BrandMarkProps = {
+﻿type BrandMarkProps = {
   compact?: boolean;
 };
 
@@ -10,3 +10,4 @@ export default function BrandMark({ compact = false }: BrandMarkProps) {
     </span>
   );
 }
+
