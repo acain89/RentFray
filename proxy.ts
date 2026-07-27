@@ -1,4 +1,4 @@
-// /proxy.ts
+﻿// /proxy.ts
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -10,6 +10,12 @@ function isPublicRoute(pathname: string) {
     pathname === "/" ||
     pathname === "/setup" ||
     pathname === "/offline" ||
+    pathname.startsWith("/how-it-works") ||
+    pathname.startsWith("/pricing") ||
+    pathname.startsWith("/security-payments") ||
+    pathname.startsWith("/why-rentfray") ||
+    pathname.startsWith("/is-rentfray-right-for-me") ||
+    pathname.startsWith("/faq") ||
     pathname.startsWith("/property-code") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/manager/login") ||

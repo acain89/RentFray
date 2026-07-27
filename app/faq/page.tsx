@@ -1,188 +1,37 @@
+import MarketingPageShell from "@/components/marketing/MarketingPageShell";
+import "../marketing-pages.css";
+
+const faqs = [
+  ["Is RentFray really free for businesses?", "Yes. RentFray does not charge property owners or managers a monthly software subscription, setup fee, contract fee, or cancellation fee."],
+  ["What do tenants pay?", "Tenants pay the property balance plus a clearly disclosed RentFray platform fee. The maximum platform fee is $9.95, and smaller payment totals receive smaller fees."],
+  ["Does RentFray deduct its fee from my rent?", "No. Rent, recurring charges, and late fees are directed to the business’s connected account. RentFray receives the platform fee separately."],
+  ["How are payments processed?", "Payments are securely processed through Stripe. Businesses connect their payout account through Stripe Connect."],
+  ["Does RentFray store banking information?", "RentFray does not store bank login credentials. Sensitive payment and banking information is handled through Stripe’s secure infrastructure."],
+  ["How long does setup take?", "The setup is designed to take only a few minutes: create the account, configure the property, connect Stripe, and give tenants the property code."],
+  ["Do I need a demo or onboarding call?", "No. RentFray is completely self-serve. There is no required sales call, training session, or onboarding appointment."],
+  ["How do tenants get started?", "Management gives each tenant the property code and tier information. The tenant enters the code, selects the unit, creates a PIN, and completes the first payment."],
+  ["Can RentFray charge recurring monthly items?", "Yes. Properties can include recurring charges such as water, trash, lot fees, or other monthly items alongside rent."],
+  ["Can RentFray apply late fees?", "Yes. Managers configure the grace period, initial late fee, daily late fee, and daily-fee limit during setup."],
+  ["Does RentFray support prorated rent calculations?", "No. Automatic prorated charge calculations are intentionally outside RentFray’s focused recurring-payment workflow."],
+  ["Does RentFray include tenant screening?", "No. RentFray does not provide tenant screening, credit checks, or background checks."],
+  ["Does RentFray replace accounting software?", "No. RentFray tracks property charges, payments, balances, late fees, and payment history. It is not intended to replace full accounting or bookkeeping software."],
+  ["Can I manage RentFray from my phone?", "Yes. RentFray is designed to work on phones, tablets, and desktop computers."],
+  ["Who can I contact if I need help?", "Email helpdesk@rentfray.com or call or text (936) 346-1538."],
+] as const;
+
 export default function FAQPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="mb-6 text-2xl font-bold">
-        Frequently Asked Questions
-      </h1>
-
-      <div className="space-y-6 text-sm text-slate-700">
-
-        <div>
-          <p className="font-semibold">1. How do I get started?</p>
-          <p>
-            Create your account, enter your property details, and generate your
-            property code. No banking info required upfront.
-          </p>
+    <MarketingPageShell eyebrow="FAQ" title={<>Straight answers.<br />No sales language.</>} intro="The practical questions businesses and tenants ask before using RentFray.">
+      <section className="rfp-section">
+        <div className="rfm-container rfp-faq-list">
+          {faqs.map(([question, answer]) => (
+            <details key={question}>
+              <summary>{question}<span>+</span></summary>
+              <p>{answer}</p>
+            </details>
+          ))}
         </div>
-
-        <div>
-          <p className="font-semibold">2. Do I need to connect my bank account first?</p>
-          <p>
-            No. You can fully set up your property before connecting payouts.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">3. How do tenants sign up?</p>
-          <p>
-            Tenants enter your property code, their unit number, and a PIN. No
-            invites or manual setup needed.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">4. Do I need to add tenants manually?</p>
-          <p>
-            No. Tenants self-register. Your dashboard builds automatically as
-            they join and pay.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">5. How do payments get to me?</p>
-          <p>
-            Payments are processed through Stripe and deposited directly into
-            your connected bank account.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">6. How long do payouts take?</p>
-          <p>
-            Typically 2–3 business days depending on Stripe and your bank.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">7. Are there any monthly fees?</p>
-          <p>
-            No. Businesses never pay. Tenants pay a small, single-digit processing fee per transaction.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">8. Can I still accept cash or other payments?</p>
-          <p>
-            Yes. You can record manual payments to keep your ledger accurate.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">9. What happens if a tenant pays late?</p>
-          <p>
-            The system automatically tracks delinquency and applies late fees
-            based on your settings.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">10. Can I customize late fees and grace periods?</p>
-          <p>
-            Yes. You can define due dates, grace periods, and late fees at the
-            property or tier level.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">11. Can I turn late fees off?</p>
-          <p>
-            Yes. You have full control over whether late fees are enabled.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">12. How do I know who has paid?</p>
-          <p>
-            Your dashboard shows real-time status: Green = paid, Yellow =
-            pending, Red = past due.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">13. What does “Payment Pending” mean?</p>
-          <p>
-            It means the payment is processing and will update automatically
-            once completed.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">14. Can tenants see their balance?</p>
-          <p>
-            Yes. Tenants always see their current balance and payment status in
-            their portal.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">15. Is there a limit to how many units I can have?</p>
-          <p>
-            You set your total unit count, and the system enforces it
-            automatically.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">16. Can I deactivate units?</p>
-          <p>
-            Yes. You can mark units inactive so they don’t count toward your
-            active total.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">17. What happens if a tenant moves out?</p>
-          <p>
-            You can remove or vacate tenants while keeping all historical data
-            intact.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">18. Can I export my data?</p>
-          <p>
-            Yes. Export balances, ledger entries, and payment history anytime.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">19. Is this secure?</p>
-          <p>
-            Yes. Payments are handled by Stripe with bank-level security
-            standards.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold">20. What if I need help?</p>
-          <p>
-            Email{" "}
-            <a
-              href="mailto:HelpDesk@Rentfray.com"
-              className="text-blue-600 underline"
-            >
-              HelpDesk@Rentfray.com
-            </a>
-          </p>
-        </div>
-
-        <div className="pt-6 border-t border-slate-200">
-          <p className="text-sm text-slate-800 font-medium">
-            RentFray represents a new standard for managing recurring payments.
-          </p>
-          <p className="mt-2">
-            It’s built to be simple for businesses, secure for financial data,
-            and fully self-serve from day one. Once your core settings are in
-            place, the system is designed to build itself as tenants onboard and
-            pay — with minimal oversight required.
-          </p>
-          <p className="mt-3 font-semibold">
-            It’s free. It’s simple. It’s secure. Try it. If it’s not a perfect
-            fit, there’s nothing to lose.
-          </p>
-        </div>
-
-      </div>
-    </main>
+      </section>
+    </MarketingPageShell>
   );
 }
