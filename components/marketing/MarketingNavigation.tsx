@@ -26,11 +26,31 @@ export default function MarketingNavigation() {
         </nav>
 
         <div className="rfm-nav-actions">
-          <button type="button" className="rfm-signin-button" onClick={() => router.push("/property-code")}>Sign In</button>
-          <button type="button" className="rfm-button rfm-button-small" onClick={() => router.push("/setup")}>Create Account</button>
-        </div>
-      </div>
+  <button
+    type="button"
+    className="rfm-signin-button"
+    onClick={() => router.push("/property-code")}
+  >
+    Sign In
+  </button>
+
+  <button
+    type="button"
+    className="rfm-signin-button"
+    onClick={() => router.push("/login/admin")}
+  >
+    Admin
+  </button>
+
+  <button
+    type="button"
+    className="rfm-button rfm-button-small"
+    onClick={() => router.push("/setup")}
+  >
+    Create Account
+  </button>
+</div>
+     </div>
     </header>
   );
 }
-
