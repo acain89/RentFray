@@ -22,7 +22,13 @@ export default function MarketingFooter() {
           </div>
           <div>
             <strong>About</strong>
-            <button type="button" onClick={() => router.push("/why-rentfray")}>Why RentFray</button>
+            <button
+  type="button"
+  className="rfm-footer-feature-link"
+  onClick={() => router.push("/why-rentfray")}
+>
+  Why Switch?
+</button>
             <button type="button" onClick={() => router.push("/is-rentfray-right-for-me")}>Is RentFray right for me?</button>
             <button type="button" onClick={() => router.push("/faq")}>FAQ</button>
           </div>

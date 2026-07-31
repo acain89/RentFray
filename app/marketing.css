@@ -292,4 +292,16 @@
   .rfm-footer-bottom { flex-direction: column; gap: 8px; }
 }
 
+.rfm-footer .rfm-footer-feature-link {
+  color: #2f9250;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+.rfm-footer .rfm-footer-feature-link:hover {
+  color: #23713d;
+  transform: translateX(2px);
+}
+
 
