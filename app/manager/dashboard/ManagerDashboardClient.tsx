@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import BankPanel from "./components/BankPanel";
 import ManagerPanel from "./components/ManagerPanel";
 import InfoPanel from "./components/InfoPanel";
@@ -8,6 +9,7 @@ import MaintPanel from "./components/MaintPanel";
 import RentPanel from "./components/RentPanel";
 import GpLfPanel from "./components/GpLfPanel";
 import AdjustBalanceForm from "./components/AdjustBalanceForm";
+import PropertyPanel from "./components/PropertyPanel";
 
 
 export const dynamic = "force-dynamic";
@@ -87,6 +89,14 @@ type DashboardData = {
   bankStatus?: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED";
   bankMessage?: string;
 };
+onboarding?: {
+  propertyStatus: string;
+  managerAccountComplete: boolean;
+  propertyInformationComplete: boolean;
+  pricingComplete: boolean;
+  billingComplete: boolean;
+  bankConnected: boolean;
+};
 billingCycleStartDate?: string | null;
 };
   session: {
@@ -137,11 +147,12 @@ type UnitStatus =
 
 type PanelKey =
   | "manage"
-  | "charges"
   | "rent"
+  | "charges"
   | "gplf"
   | "manager"
   | "info"
+  | "propertySetup"
   | "maint"
   | "bank"
   | "exports"
@@ -336,7 +347,7 @@ function getStatusText(status: UnitStatus, daysPastDue: number): string {
 case "UNPAID":
   return "Balance due";   
     default:
-      return "—";
+      return "â€”";
   }
 }
 
@@ -363,7 +374,7 @@ function formatDate(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "â€”";
   }
 
   return date.toLocaleDateString("en-US", {
@@ -385,7 +396,7 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
   const safeName = String(tierName || `Tier ${index + 1}`).trim();
 
   return {
-    id: `${slugifyTierName(safeName) || `tier-${index + 1}`}-${index}`,
+    id: `new-tier-${Date.now()}-${index}`,
     tierName: safeName,
 
     unitCount: "0",
@@ -540,10 +551,41 @@ function ManageSection({
 }
 
 export default function Page() {
+const searchParams = useSearchParams();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
+  const [showSetupSuccess, setShowSetupSuccess] = useState(false);
+  const [showStripeSuccess, setShowStripeSuccess] = useState(false);
+  const requestedPanel = searchParams.get("panel");
+  const stripeReturn = searchParams.get("stripeReturn");
+  const returnTo = searchParams.get("returnTo");
+
+useEffect(() => {
+  if (requestedPanel === "rent") {
+    setActivePanel("rent");
+    return;
+  }
+
+  if (requestedPanel === "gplf") {
+    setGpLfTierMode("all");
+    setGpLfSelectedTierIds([]);
+    setGpLfSaveMessage("");
+    setActivePanel("gplf");
+    return;
+  }
+
+  if (requestedPanel === "bank") {
+    setActivePanel("bank");
+    return;
+  }
+
+if (requestedPanel === "propertySetup") {
+  setActivePanel("propertySetup");
+}
+}, [requestedPanel]);
+
   const [selectedUnit, setSelectedUnit] = useState<UnitWithStatus | null>(null);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [manualPaymentAmount, setManualPaymentAmount] = useState("");
@@ -596,6 +638,38 @@ export default function Page() {
   lateFeeMaxDays: "",
 });
 
+const onboardingComplete = Boolean(
+  data?.property?.onboarding &&
+    data.property.onboarding.managerAccountComplete &&
+    data.property.onboarding.propertyInformationComplete &&
+    data.property.onboarding.pricingComplete &&
+    data.property.onboarding.billingComplete &&
+    data.property.onboarding.bankConnected
+);
+
+useEffect(() => {
+  if (!onboardingComplete || !data?.property?.id) {
+    return;
+  }
+
+  const storageKey = `rf-setup-success-${data.property.id}`;
+
+  if (window.sessionStorage.getItem(storageKey) === "shown") {
+    return;
+  }
+
+  window.sessionStorage.setItem(storageKey, "shown");
+  setShowSetupSuccess(true);
+
+  const timeout = window.setTimeout(() => {
+    setShowSetupSuccess(false);
+  }, 5000);
+
+  return () => {
+    window.clearTimeout(timeout);
+  };
+}, [onboardingComplete, data?.property?.id]);
+
  const [gpLfTierMode, setGpLfTierMode] = useState<"all" | "selected">("all");
   const [gpLfSelectedTierIds, setGpLfSelectedTierIds] = useState<string[]>([]);
   const [savingGpLf, setSavingGpLf] = useState(false);
@@ -603,7 +677,10 @@ export default function Page() {
 
 useEffect(() => {
   if (!data?.tiers?.length) {
-    setLocalTiers([]);
+    const draft = createTierDraft("Tier 1", 0);
+
+    setLocalTiers([draft]);
+    setEditingTierId(draft.id);
     return;
   }
 
@@ -733,7 +810,7 @@ function getGpLfTierSnapshot(tier: RentTierDraft): GpLfTierSnapshot {
 
 function getMixedText(values: string[]): string {
   const unique = Array.from(new Set(values.map((value) => String(value).trim())));
-  return unique.length <= 1 ? (unique[0] || "—") : "Mixed";
+  return unique.length <= 1 ? (unique[0] || "â€”") : "Mixed";
 }
 
 function getMixedBooleanText(values: boolean[]): string {
@@ -824,7 +901,7 @@ async function updateUnitCount(next: number): Promise<void> {
     }
 
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
   } catch {
     alert("Failed to update unit count.");
   } finally {
@@ -884,12 +961,20 @@ async function logout(): Promise<void> {
   }
 }
 
-  async function loadDashboard(): Promise<void> {
+  async function loadDashboard(
+  options: { silent?: boolean } = {}
+): Promise<void> {
   if (loadingDashboard) return;
+
+  const silent = options.silent === true;
 
   try {
     setLoadingDashboard(true);
-    setLoading(true);
+
+if (!silent && !data) {
+  setLoading(true);
+}
+
     setError("");
 
     const response = await fetch("/api/manager/dashboard", {
@@ -917,8 +1002,11 @@ async function logout(): Promise<void> {
     setError("Failed to load dashboard.");
     setData(null);
   } finally {
-    setLoading(false);
-    setLoadingDashboard(false);
+if (!silent) {
+  setLoading(false);
+}
+
+setLoadingDashboard(false);
   }
 }
 
@@ -973,9 +1061,12 @@ async function loadMaintenancePinStatus(): Promise<void> {
 
 async function loadPropertyTiers(): Promise<void> {
   if (!data?.tiers?.length) {
-    setLocalTiers([createTierDraft("Tier 1", 0)]);
-    return;
-  }
+  const draft = createTierDraft("Tier 1", 0);
+
+  setLocalTiers([draft]);
+  setEditingTierId(draft.id);
+  return;
+}
 
   setLocalTiers(
     data.tiers.map((tier, index) => ({
@@ -1173,7 +1264,7 @@ async function saveTierCharges(): Promise<void> {
 
     await loadTierCharges();
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
 alert("Charges saved");
   } catch {
     setChargesError("Failed to save charges.");
@@ -1264,7 +1355,7 @@ async function submitToggleUnitActive(): Promise<void> {
 
 
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
     setShowInactiveConfirm(false);
     closeUnitPanel();
   } catch {
@@ -1307,7 +1398,7 @@ async function submitMoveTier(): Promise<void> {
       return;
     }
 
-    await loadDashboard();
+    await loadDashboard({ silent: true });
     await loadPropertyTiers();
 
     setShowMoveTierModal(false);
@@ -1634,7 +1725,7 @@ const exportMonthOptions = getExportMonthOptions(
 
      
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
     } finally {
       setCreatingUser(false);
     }
@@ -1732,7 +1823,7 @@ async function reactivateInactiveUnit(unitId: string): Promise<void> {
     setConfirmReactivateUnitId("");
     await loadInactiveUnits();
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
   } catch {
     alert("Failed to reactivate unit.");
   } finally {
@@ -1765,7 +1856,7 @@ async function deleteInactiveUnit(unitId: string): Promise<void> {
    setConfirmDeleteUnitId("");
 await loadInactiveUnits();
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
   } catch {
     alert("Failed to delete inactive unit.");
   } finally {
@@ -1803,7 +1894,7 @@ await loadDashboard();
       }
 
 await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
     } catch {
       alert("Update failed");
     }
@@ -1822,7 +1913,10 @@ useEffect(() => {
 
 useEffect(() => {
   const raw = data?.property?.billingCycleStartDate ?? "";
-  setBillingCycleStartDate(raw ? raw.slice(0, 10) : "");
+  const savedDate = raw ? raw.slice(0, 10) : "";
+
+  setBillingCycleStartDate(savedDate);
+  setBillingCycleStartDateLocked(Boolean(savedDate));
 }, [data]);
 
 useEffect(() => {
@@ -1980,7 +2074,14 @@ const gpLfComparisonSummary = useMemo(() => {
     setShowManualPaymentConfirm(false);
   }
 
-function goBackToManage() {
+function closeActivePanel(): void {
+  setActivePanel(null);
+
+  if (returnTo === "setup") {
+    window.location.href = "/manager/getting-started";
+    return;
+  }
+
   setActivePanel("manage");
 }
 
@@ -2115,27 +2216,25 @@ async function saveGpLfSettings(): Promise<void> {
 
     const json = await res.json().catch(() => null);
 
-    if (!res.ok || !json?.ok) {
-      setGpLfSaveMessage(json?.error || "Failed to save GP/LF settings.");
-      return;
-    }
+if (!res.ok || !json?.ok) {
+  setGpLfSaveMessage(json?.error || "Failed to save GP/LF settings.");
+  return;
+}
 
-    await loadDashboard();
+setGpLfSaveMessage("Saved!");
+
+await loadDashboard({ silent: true });
 await loadPropertyTiers();
-setGpLfSettings({
-  dueDay: gpLfSettings.dueDay,
-  graceDays: gpLfSettings.graceDays,
-  lateFeeEnabled: gpLfSettings.lateFeeEnabled,
-  lateFeeInitial: gpLfSettings.lateFeeInitial,
-  lateFeeDaily: gpLfSettings.lateFeeDaily,
-  lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
-});
-setGpLfSaveMessage("Grace period and late fee settings saved.");
-  } catch {
-    setGpLfSaveMessage("Failed to save GP/LF settings.");
-  } finally {
-    setSavingGpLf(false);
-  }
+
+window.setTimeout(() => {
+  closeActivePanel();
+}, 900);
+
+} catch {
+  setGpLfSaveMessage("Failed to save GP/LF settings.");
+} finally {
+  setSavingGpLf(false);
+}
 }
 
 async function saveBillingCycleStartDate(): Promise<void> {
@@ -2148,7 +2247,7 @@ async function saveBillingCycleStartDate(): Promise<void> {
   }
 
  const confirmed = window.confirm(
-  `Are you sure you want to set the billing cycle start date to ${billingCycleStartDate}?\n\nThis date determines when RentFray begins tracking billing cycles for this property.`
+  `Are you sure you want RentFray to start tracking rent on ${billingCycleStartDate}?\n\nOnce confirmed, this date cannot be changed.`
 );
 
   if (!confirmed) {
@@ -2175,31 +2274,35 @@ async function saveBillingCycleStartDate(): Promise<void> {
     const json = await res.json().catch(() => null);
 
     if (!res.ok) {
-      alert(json?.error || "Failed to save billing cycle start date.");
+      alert(json?.error || "Failed to save the RentFray start date.");
       return;
     }
 
 
     alert(
-      `Billing cycle start date successfully locked to ${billingCycleStartDate}.`
+      `RentFray start date successfully set to ${billingCycleStartDate}.`
     );
 
-    await new Promise((r) => setTimeout(r, 150));
-    await loadDashboard();
     setBillingCycleStartDateLocked(true);
 
+await new Promise((r) => setTimeout(r, 150));
+await loadDashboard({ silent: true });
+
   } catch {
-    alert("Failed to save billing cycle start date.");
+    alert("Failed to save the RentFray start date.");
   } finally {
     setSavingBillingCycleStartDate(false);
   }
 }
 
 async function saveLocalRentSettings(): Promise<void> {
-  if (!data?.property?.id) return;
+  if (!data?.property?.id) {
+    throw new Error("Property information is unavailable.");
+  }
 
-  try {
-    const res = await fetch(`/api/admin/properties/${data.property.id}/tiers`, {
+  const res = await fetch(
+    `/api/admin/properties/${data.property.id}/tiers`,
+    {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2208,22 +2311,19 @@ async function saveLocalRentSettings(): Promise<void> {
       body: JSON.stringify({
         tiers: localTiers,
       }),
-    });
-
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok || !json?.ok) {
-      alert(json?.error || "Failed to save tiers");
-      return;
     }
+  );
 
-    setEditingTierId(null);
-    await loadDashboard();
-    await loadPropertyTiers();
-    alert("Saved");
-  } catch {
-    alert("Save failed");
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || "Failed to save tiers.");
   }
+
+  setEditingTierId(null);
+
+  await loadDashboard({ silent: true });
+  await loadPropertyTiers();
 }
 
  function closeUnitPanel(): void {
@@ -2253,6 +2353,34 @@ function openPanel(panel: Exclude<PanelKey, null>): void {
     setGpLfSaveMessage("");
   }
 }
+
+useEffect(() => {
+  const bankConnected =
+    data?.property?.onboarding?.bankConnected === true;
+
+  if (
+    stripeReturn !== "1" ||
+    activePanel !== "bank" ||
+    !bankConnected
+  ) {
+    return;
+  }
+
+  setShowStripeSuccess(true);
+
+  const timeout = window.setTimeout(() => {
+    setShowStripeSuccess(false);
+    closeActivePanel();
+  }, 1600);
+
+  return () => {
+    window.clearTimeout(timeout);
+  };
+}, [
+  stripeReturn,
+  activePanel,
+  data?.property?.onboarding?.bankConnected,
+]);
 
 useEffect(() => {
   if (activePanel !== "gplf") return;
@@ -2307,30 +2435,36 @@ const unitMaintenanceRequests = selectedUnit
       )
   : [];
 
-  if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-5 text-sm font-medium text-slate-600 shadow-sm">
-          Loading dashboard...
-        </div>
-      </main>
-    );
-  }
+if (loading && !data) {
+  return (
+    <main className="min-h-screen bg-[var(--rf-bg-page)] px-4 py-8">
+      <div className="mx-auto max-w-5xl animate-pulse space-y-5">
+        <div className="h-28 rounded-[28px] bg-white" />
+        <div className="h-48 rounded-[28px] bg-white" />
+        <div className="h-72 rounded-[28px] bg-white" />
+      </div>
+    </main>
+  );
+}
 
 if (error === "Unauthorized") {
   window.location.href = "/login/manager";
   return null;
 }
 
-  if (error || !data) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-        <div className="max-w-md rounded-3xl border border-red-200 bg-white px-6 py-5 text-sm text-red-700 shadow-sm">
-          {error || "Failed to load dashboard."}
-        </div>
-      </main>
-    );
-  }
+if (error && !loading) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="max-w-md rounded-3xl border border-red-200 bg-white px-6 py-5 text-sm text-red-700 shadow-sm">
+        {error || "Failed to load dashboard."}
+      </div>
+    </main>
+  );
+}
+
+if (!data) {
+  return null;
+}
 
 const selectedMoveTargetTier = (data?.tiers ?? []).find(
   (tier) => tier.id === targetMoveTierId
@@ -2460,75 +2594,202 @@ document.cookie.includes("rf_admin_session=") ? (
             
       
               
-<section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:p-5">
-  <div className="flex flex-col gap-4">
-    <div className="flex flex-col gap-1">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        Current cycle
-      </div>
-      <div className="text-lg font-semibold text-slate-900">
-        {data.cycleSnapshot?.billingCycleLabel || "—"}
-      </div>
-    </div>
+{onboardingComplete && showSetupSuccess ? (
+  <section className="rounded-[28px] border border-emerald-200 bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:p-6">
+    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xl font-bold text-white">
+          {"\u2713"}
+        </div>
 
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-          Collected
-        </div>
-        <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-          ${data.cycleSnapshot?.totalCollected?.toFixed(2) || "0.00"}
-        </div>
-      </div>
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+            Setup complete
+          </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-          Expected
-        </div>
-        <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-          ${data.cycleSnapshot?.totalExpected?.toFixed(2) || "0.00"}
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+            Your property is ready
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Your property information, rent tiers, billing rules, start date,
+            and payout account have all been configured successfully.
+          </p>
         </div>
       </div>
 
-     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-  <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-    Units
-  </div>
-
-  <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-    {data.cycleSnapshot?.totalPaidCount ?? 0} /{" "}
-    {data.summary?.occupiedUnits ?? 0} Paid
-  </div>
-</div>
-
-<div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-  <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-    Late Fees Collected
-  </div>
-
-  <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-    ${(data.cycleSnapshot?.lateFeesCollected ?? 0).toFixed(2)}
-  </div>
-</div>
-    </div>
-
-    <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4">
-      <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-        Difference
-      </div>
-      <div
-        className={`mt-1 text-xl font-semibold ${
-          (data.cycleSnapshot?.difference ?? 0) >= 0
-            ? "text-[var(--rf-success)]"
-            : "text-[var(--rf-danger)]"
-        }`}
+      <button
+        type="button"
+        onClick={() => setShowSetupSuccess(false)}
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b] sm:w-auto"
       >
-        ${(data.cycleSnapshot?.difference ?? 0).toFixed(2)}
+        View Dashboard
+      </button>
+    </div>
+  </section>
+) : !onboardingComplete ? (
+  <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:p-6">
+    <div className="flex flex-col gap-6">
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+          Getting started
+        </div>
+
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+          Welcome to RentFray
+        </h2>
+
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          Your manager account is ready. Complete the remaining items below to
+          get your property ready to collect rent.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[
+          {
+            label: "Manager Account",
+            complete: true,
+          },
+          {
+            label: "Property Information",
+            complete:
+              data.property.onboarding?.propertyInformationComplete ?? false,
+          },
+          {
+            label: "Units & Pricing",
+            complete: data.property.onboarding?.pricingComplete ?? false,
+          },
+          {
+            label: "Billing Rules",
+            complete: data.property.onboarding?.billingComplete ?? false,
+          },
+          {
+            label: "Connect Bank Account",
+            complete: data.property.onboarding?.bankConnected ?? false,
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+              item.complete
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-slate-200 bg-white text-slate-700"
+            }`}
+          >
+            <div
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                item.complete
+                  ? "bg-emerald-600 text-white"
+                  : "border border-slate-300 bg-slate-50 text-slate-400"
+              }`}
+            >
+              {item.complete ? "\u2713" : ""}
+            </div>
+
+            <span className="text-sm font-semibold">{item.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">
+            Estimated time: about 5 minutes
+          </div>
+
+          <div className="mt-1 text-xs leading-5 text-slate-500">
+            You can leave and return at any time. Your completed information
+            will remain saved.
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = "/manager/getting-started";
+          }}
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b] sm:w-auto"
+        >
+          Continue Setup
+        </button>
       </div>
     </div>
-  </div>
-</section>
+  </section>
+) : (
+  <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:p-5">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Current cycle
+        </div>
 
+        <div className="text-lg font-semibold text-slate-900">
+          {data.cycleSnapshot?.billingCycleLabel || "\u2014"}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+            Collected
+          </div>
+
+          <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+            ${data.cycleSnapshot?.totalCollected?.toFixed(2) || "0.00"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+            Expected
+          </div>
+
+          <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+            ${data.cycleSnapshot?.totalExpected?.toFixed(2) || "0.00"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+            Units
+          </div>
+
+          <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+            {data.cycleSnapshot?.totalPaidCount ?? 0} /{" "}
+            {data.summary?.occupiedUnits ?? 0} Paid
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+            Late Fees Collected
+          </div>
+
+          <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
+            ${(data.cycleSnapshot?.lateFeesCollected ?? 0).toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
+          Difference
+        </div>
+
+        <div
+          className={`mt-1 text-xl font-semibold ${
+            (data.cycleSnapshot?.difference ?? 0) >= 0
+              ? "text-[var(--rf-success)]"
+              : "text-[var(--rf-danger)]"
+          }`}
+        >
+          ${(data.cycleSnapshot?.difference ?? 0).toFixed(2)}
+        </div>
+      </div>
+    </div>
+  </section>
+)}
             <section className="rounded-[28px] border border-slate-200 bg-white px-3 py-3 shadow-[0_14px_34px_rgba(15,23,42,0.07)] sm:px-4">
   {tierGroups.length === 0 ? (
     <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
@@ -2597,7 +2858,7 @@ document.cookie.includes("rf_admin_session=") ? (
       {selectedUnit ? (
   <OverlayShell
     title={`Unit ${selectedUnit.unitNumber}`}
-    subtitle={`${selectedUnit.tenantName || "Tenant"} • ${getStatusText(
+    subtitle={`${selectedUnit.tenantName || "Tenant"} â€¢ ${getStatusText(
       selectedUnit.status,
       selectedUnit.daysPastDue
     )}`}
@@ -2756,7 +3017,7 @@ document.cookie.includes("rf_admin_session=") ? (
 
               return (
                 <option key={tier.id} value={tier.id}>
-                  {tier.name} — {activeCount}/{tier.unitCount} units
+                  {tier.name} â€” {activeCount}/{tier.unitCount} units
                 </option>
               );
             })}
@@ -2998,13 +3259,13 @@ document.cookie.includes("rf_admin_session=") ? (
               Make Unit {selectedUnit.unitNumber} vacant?
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-600">
-              • Removes tenant access
+              â€¢ Removes tenant access
               <br />
-              • Clears login credentials
+              â€¢ Clears login credentials
               <br />
-              • Marks unit as available
+              â€¢ Marks unit as available
               <br />
-              • Saves move-out record
+              â€¢ Saves move-out record
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -3073,7 +3334,7 @@ document.cookie.includes("rf_admin_session=") ? (
                   {request.description}
                 </div>
                 <div className="mt-2 text-xs text-slate-500">
-                  {request.urgency} • {request.status} •{" "}
+                  {request.urgency} â€¢ {request.status} â€¢{" "}
                   {formatDate(request.createdAt)}
                 </div>
               </div>
@@ -3129,7 +3390,7 @@ document.cookie.includes("rf_admin_session=") ? (
 {showAdjustModal && selectedUnit ? (
   <OverlayShell
     title="Adjust Balance"
-    subtitle={`Unit ${selectedUnit.unitNumber} • ${
+    subtitle={`Unit ${selectedUnit.unitNumber} â€¢ ${
       selectedUnit.tenantName || "No tenant"
     }`}
     onClose={() => setShowAdjustModal(false)}
@@ -3140,7 +3401,7 @@ document.cookie.includes("rf_admin_session=") ? (
       onClose={() => setShowAdjustModal(false)}
       onSuccess={async () => {
         await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
+await loadDashboard({ silent: true });
         closeUnitPanel();
       }}
     />
@@ -3242,10 +3503,19 @@ await loadDashboard();
   </OverlayShell>
 ) : null} 
 
+{activePanel === "propertySetup" ? (
+  <PropertyPanel
+    onClose={closeActivePanel}
+    onSaved={async () => {
+      await loadDashboard({ silent: true });
+    }}
+  />
+) : null}
+
 
 {activePanel === "rent" ? (
   <RentPanel
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
     canEditRentSettings={canEditRentSettings}
     localTiers={localTiers}
     editingTierId={editingTierId}
@@ -3261,7 +3531,7 @@ saveLocalRentSettings={saveLocalRentSettings}
   <OverlayShell
     title="Additional Charges"
     subtitle="Create recurring charges for each tier. New recurring charges take effect starting next billing cycle."
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
   >
     <div className="space-y-5">
       {tierCharges.map((tier) => (
@@ -3360,11 +3630,24 @@ saveLocalRentSettings={saveLocalRentSettings}
 ) : null}
 
 {activePanel === "bank" ? (
-  <OverlayShell
-    title="Account & Payouts"
-    subtitle="Connect and manage the payout account for this property."
-    onClose={goBackToManage}
-  >
+<OverlayShell
+  title="Rent Collection Setup"
+  subtitle="Choose when RentFray begins tracking rent and connect your payout account."
+  onClose={closeActivePanel}
+>
+
+{showStripeSuccess ? (
+  <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+    <div className="text-sm font-semibold text-emerald-800">
+      Stripe setup completed!
+    </div>
+
+    <div className="mt-1 text-xs leading-5 text-emerald-700">
+      Your payout account information has been submitted successfully.
+    </div>
+  </div>
+) : null}
+
     <BankPanel
       bankStatus={bankStatus}
       bankMessage={bankMessage}
@@ -3388,7 +3671,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 
       {activePanel === "gplf" ? (
   <GpLfPanel
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
     canEditLateFeeSettings={canEditLateFeeSettings}
     gpLfTierMode={gpLfTierMode}
     setGpLfTierMode={setGpLfTierMode}
@@ -3408,7 +3691,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 
             {activePanel === "manager" ? (
   <ManagerPanel
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
     sessionRole={sessionRole}
     canManageManagers={canManageManagers}
     managers={managers}
@@ -3454,7 +3737,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 
 {activePanel === "info" ? (
   <InfoPanel
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
     propertyName={propertyName}
     propertyCode={propertyCode}
   />
@@ -3464,7 +3747,7 @@ saveLocalRentSettings={saveLocalRentSettings}
   <OverlayShell
     title="Exports"
     subtitle="Download balances, ledger, or payments"
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
   >
     <div className="space-y-4">
 
@@ -3517,7 +3800,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 
 {activePanel === "maint" && (
   <MaintPanel
-    onClose={goBackToManage}
+    onClose={closeActivePanel}
     canManageMaintenance={canManageMaintenance}
     maintenancePin={maintenancePin}
     setMaintenancePin={setMaintenancePin}
@@ -3539,3 +3822,5 @@ saveLocalRentSettings={saveLocalRentSettings}
 </>
 );
 }
+
+

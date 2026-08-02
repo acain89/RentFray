@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 type Props = {
   bankStatus?: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED";
@@ -22,6 +22,7 @@ function getStatusUI(status?: Props["bankStatus"]) {
           "Your account is ready to receive payments. Payouts will be deposited to your connected bank account.",
         color: "text-emerald-600",
       };
+
     case "PENDING":
       return {
         title: "Setup in progress",
@@ -29,6 +30,7 @@ function getStatusUI(status?: Props["bankStatus"]) {
           "Your account setup is not complete yet. Finish onboarding to enable payouts.",
         color: "text-amber-600",
       };
+
     case "RESTRICTED":
       return {
         title: "Action required",
@@ -36,15 +38,26 @@ function getStatusUI(status?: Props["bankStatus"]) {
           "Stripe requires additional information before payouts can continue.",
         color: "text-red-600",
       };
+
     case "NOT_CONNECTED":
     default:
       return {
         title: "No payout account",
         description:
-            "Set up secure Stripe payouts so this property can receive tenant payments.",
+          "Set up secure Stripe payouts so this property can receive tenant payments.",
         color: "text-slate-600",
       };
   }
+}
+
+function formatDateOnly(value: string): string {
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${month}/${day}/${year}`;
 }
 
 export default function BankPanel({
@@ -63,96 +76,103 @@ export default function BankPanel({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="text-sm font-semibold text-slate-950">
-          Billing Cycle Start Date
+          RentFray Start Date
         </div>
 
-        <div className="mt-2 text-sm text-slate-600">
-          Select the date RentFray should begin recording tenant billing cycles
-          for this property.
+        <div className="mt-2 text-sm leading-6 text-slate-600">
+          Choose the date RentFray should begin collecting and tracking rent
+          for this property. This is usually the first day you expect tenants
+          to start paying through RentFray.
         </div>
 
-        <div className="mt-2 text-xs text-slate-500">
-          Charges before this date will not appear in tenant balances unless you
-          add them manually.
+        <div className="mt-2 text-xs leading-5 text-slate-500">
+          Charges before this date will not appear in tenant balances unless
+          you add them manually.
         </div>
 
-                {billingCycleStartDateLocked ? (
-          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <div className="text-sm font-semibold text-emerald-800">
-              Locked: {billingCycleStartDate}
+        {billingCycleStartDateLocked ? (
+          <div className="mt-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3">
+            <div className="text-sm font-semibold text-[#166534]">
+              Locked: {formatDateOnly(billingCycleStartDate)}
             </div>
-            <div className="mt-1 text-xs leading-5 text-emerald-700">
-              This billing cycle start date is permanent and cannot be changed.
+
+            <div className="mt-1 text-xs leading-5 text-[#15803d]">
+              This RentFray start date is permanent and cannot be changed.
             </div>
           </div>
-        ) : (
-          <input
-            type="date"
-            value={billingCycleStartDate}
-            onChange={(e) => setBillingCycleStartDate(e.target.value)}
-            disabled={!isOwner}
-            className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-          />
-        )}
+        ) : isOwner ? (
+          <>
+            <input
+              type="date"
+              value={billingCycleStartDate}
+              onChange={(event) =>
+                setBillingCycleStartDate(event.target.value)
+              }
+              className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-900/10"
+            />
 
-        {isOwner && !billingCycleStartDateLocked ? (
-  <button
-    type="button"
-    onClick={saveBillingCycleStartDate}
-    disabled={
-      savingBillingCycleStartDate ||
-      !billingCycleStartDate
-    }
-    className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-  >
-    {savingBillingCycleStartDate ? "Saving..." : "Confirm"}
-  </button>
-) : !isOwner ? (
-  <div className="mt-4 text-sm text-slate-500">
-    Only the account owner can manage billing cycle settings.
-  </div>
-) : (
-  <div className="mt-4 text-xs font-medium text-emerald-700">
-    Billing cycle start date has been permanently locked.
-  </div>
-)}
+            <button
+              type="button"
+              onClick={saveBillingCycleStartDate}
+              disabled={
+                savingBillingCycleStartDate || !billingCycleStartDate
+              }
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            >
+              {savingBillingCycleStartDate
+                ? "Saving..."
+                : "Confirm Start Date"}
+            </button>
+          </>
+        ) : null}
+      </section>
+
+<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+    Stripe payouts
   </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className={`text-lg font-semibold ${ui.color}`}>{ui.title}</div>
+  <div className={`mt-2 text-lg font-semibold ${ui.color}`}>
+    {ui.title}
+  </div>
 
-        <div className="mt-1 text-sm text-slate-600">
-          {bankMessage || ui.description}
-        </div>
-      </div>
+  <div className="mt-1 text-sm leading-6 text-slate-600">
+    {bankMessage || ui.description}
+  </div>
+
+  <div className="mt-2 text-xs leading-5 text-slate-500">
+    RentFray never stores your bank account information. Stripe securely
+    handles account verification and payouts.
+  </div>
+</section>
 
       {isOwner ? (
-        <div className="flex flex-wrap gap-3">
-          {bankStatus === "NOT_CONNECTED" && (
+      <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-1">
+          {bankStatus === "NOT_CONNECTED" ? (
             <button
               type="button"
               onClick={onConnect}
-              className="rf-btn rf-btn-primary px-4 text-sm"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
             >
               Connect securely through Stripe
             </button>
-          )}
+          ) : null}
 
-          {(bankStatus === "CONNECTED" ||
-            bankStatus === "PENDING" ||
-            bankStatus === "RESTRICTED") && (
+          {bankStatus === "CONNECTED" ||
+          bankStatus === "PENDING" ||
+          bankStatus === "RESTRICTED" ? (
             <button
               type="button"
               onClick={onOnboard}
-              className="rf-btn rf-btn-primary px-4 text-sm"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
             >
               {bankStatus === "CONNECTED"
-              ? "Manage secure Stripe connection"
-              : "Continue secure Stripe setup"}
+                ? "Manage secure Stripe connection"
+                : "Continue secure Stripe setup"}
             </button>
-          )}
+          ) : null}
         </div>
       ) : (
         <div className="text-sm text-slate-500">

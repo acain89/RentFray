@@ -961,11 +961,36 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
         billingCycleStartDate: property.billingCycleStartDate
           ? property.billingCycleStartDate.toISOString()
           : null,
-        paymentStatus: {
-          bankConnected: bankStatus === "CONNECTED",
-          bankStatus,
-          bankMessage,
-        },
+paymentStatus: {
+  bankConnected: Boolean(paymentStatus?.onboardingComplete),
+  bankStatus,
+  bankMessage,
+},
+
+onboarding: {
+  propertyStatus: property.status,
+  managerAccountComplete: true,
+
+  propertyInformationComplete:
+    Boolean(property.name) &&
+    property.name !== "My Property" &&
+    Boolean(property.addressLine1) &&
+    Boolean(property.city) &&
+    Boolean(property.state) &&
+    Boolean(property.zip),
+
+  pricingComplete: tiers.length > 0,
+
+  billingComplete:
+    tiers.length > 0 &&
+tiers.every(
+  (tier: (typeof tiers)[number]) =>
+    tier.rentDueDay > 0 &&
+    tier.gracePeriodDays >= 0
+),
+
+bankConnected: Boolean(paymentStatus?.onboardingComplete),
+},
       },
       session: {
         role: session.role,

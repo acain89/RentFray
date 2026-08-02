@@ -14,10 +14,13 @@ type ApiSuccess = {
   url: string;
 };
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const secretKey = process.env.STRIPE_SECRET_KEY;
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+const requestOrigin = new URL(request.url).origin;
+
+const baseUrl =
+  process.env.NEXT_PUBLIC_BASE_URL?.trim() || requestOrigin;
 
     if (!secretKey) {
       return NextResponse.json<ApiError>(
@@ -58,7 +61,8 @@ export async function POST() {
       );
     }
 
-    const redirectUrl = `${baseUrl}/manager/dashboard`;
+    const redirectUrl =
+  `${baseUrl}/manager/dashboard?panel=bank&returnTo=setup&stripeReturn=1`;
 
     const link = await stripe.accountLinks.create({
       account: property.stripeAccountId,

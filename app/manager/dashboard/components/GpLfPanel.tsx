@@ -400,36 +400,24 @@ export default function GpLfPanel({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rf-btn rf-btn-secondary px-4"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void saveGpLfSettings()}
-            disabled={!canEditLateFeeSettings || savingGpLf}
-            className="rf-btn rf-btn-primary flex-1 px-4"
-          >
-            {savingGpLf
-              ? "Saving..."
-              : gpLfTierMode === "all"
-              ? "Apply to All Tiers"
-              : selectedTierCount === 1
-              ? "Save Tier"
-              : "Apply to Selected Tiers"}
-          </button>
-        </div>
-
-        {gpLfSaveMessage ? (
-          <div className="text-sm text-[var(--rf-text-soft)]">
-            {gpLfSaveMessage}
-          </div>
-        ) : null}
+        <div className="flex justify-end border-t border-slate-200 pt-4">
+  <button
+    type="button"
+    onClick={() => void saveGpLfSettings()}
+    disabled={!canEditLateFeeSettings || savingGpLf}
+    className={`inline-flex min-h-11 min-w-[140px] items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition ${
+      gpLfSaveMessage === "Saved!"
+        ? "bg-emerald-700"
+        : "bg-[#173024] hover:bg-[#10241b]"
+    } disabled:cursor-not-allowed disabled:opacity-60`}
+  >
+    {savingGpLf
+      ? "Saving..."
+      : gpLfSaveMessage === "Saved!"
+        ? "Saved!"
+        : "Save"}
+  </button>
+</div>
       </div>
     </OverlayShell>
   );

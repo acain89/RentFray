@@ -15,11 +15,13 @@ type ApiSuccess = {
   url: string;
 };
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const secretKey = process.env.STRIPE_SECRET_KEY;
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:10000";
+const requestOrigin = new URL(request.url).origin;
 
+const baseUrl =
+  process.env.NEXT_PUBLIC_BASE_URL?.trim() || requestOrigin;
     if (!secretKey) {
       return NextResponse.json<ApiError>(
         { error: "Stripe is not configured." },
@@ -113,12 +115,19 @@ export async function POST() {
       },
     });
 
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${baseUrl}/manager/dashboard`,
-      return_url: `${baseUrl}/manager/dashboard?propertyId=${property.id}`,
-      type: "account_onboarding",
-    });
+const stripeReturnUrl =
+  `${baseUrl}/manager/dashboard?panel=bank&returnTo=setup&stripeReturn=1`;
+
+const stripeRefreshUrl =
+  `${baseUrl}/manager/dashboard?panel=bank&returnTo=setup&stripeRefresh=1`;
+
+
+ const accountLink = await stripe.accountLinks.create({
+  account: accountId,
+  refresh_url: stripeRefreshUrl,
+  return_url: stripeReturnUrl,
+  type: "account_onboarding",
+});
 
     return NextResponse.json<ApiSuccess>({
       ok: true,

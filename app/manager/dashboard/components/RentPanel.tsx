@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import { useState, type ReactNode } from "react";
 
 type RentTierDraft = {
   id: string;
@@ -46,7 +46,7 @@ function OverlayShell({
   title: string;
   subtitle?: string;
   onClose: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#173024]/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
@@ -114,6 +114,34 @@ export default function RentPanel({
   removeLocalTier,
   saveLocalRentSettings,
 }: Props) {
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+
+  async function handleSave(): Promise<void> {
+    if (saveState === "saving") {
+      return;
+    }
+
+    try {
+      setSaveState("saving");
+
+await saveLocalRentSettings();
+
+setSaveState("saved");
+
+window.setTimeout(() => {
+  onClose();
+}, 900);
+    } catch (error) {
+      console.error("Failed to save rent settings:", error);
+      setSaveState("error");
+
+      window.setTimeout(() => {
+        setSaveState("idle");
+      }, 2500);
+    }
+  }
   return (
     <OverlayShell
       title="Rent Panel"
@@ -245,7 +273,7 @@ export default function RentPanel({
           );
         })}
 
-        <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-between">
           <button
             type="button"
             onClick={addLocalTier}
@@ -256,13 +284,25 @@ export default function RentPanel({
           </button>
 
           <button
-            type="button"
-            onClick={() => void saveLocalRentSettings()}
-            disabled={!canEditRentSettings}
-            className="rf-btn rf-btn-primary flex-1 px-4"
-          >
-            Save Changes
-          </button>
+  type="button"
+  onClick={() => void handleSave()}
+  disabled={!canEditRentSettings || saveState === "saving"}
+  className={`inline-flex min-h-11 min-w-[140px] items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition ${
+    saveState === "saved"
+      ? "bg-emerald-700"
+      : saveState === "error"
+        ? "bg-red-700"
+        : "bg-[#173024] hover:bg-[#10241b]"
+  } disabled:cursor-not-allowed disabled:opacity-60`}
+>
+  {saveState === "saving"
+    ? "Saving..."
+    : saveState === "saved"
+      ? "Saved!"
+      : saveState === "error"
+        ? "Save failed"
+        : "Save"}
+</button>
         </div>
       </div>
     </OverlayShell>
