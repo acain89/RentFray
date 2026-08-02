@@ -53,34 +53,53 @@ export async function POST(
     }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      for (const tier of tiers) {
-        const tierId = String(tier.id || "").trim();
+  for (const tier of tiers) {
+    const tierId = String(tier.id || "").trim();
 
-        if (!tierId) {
-          continue;
-        }
+    if (!tierId) {
+      continue;
+    }
 
-        const rentDueDay = toInt(tier.dueDay, 1);
-        const gracePeriodDays = toInt(tier.graceDays, 0);
-        const lateFeeInitialCents = tier.lateFeeEnabled ? toCents(tier.lateFeeAmount) : 0;
-        const lateFeeDailyCents = tier.lateFeeEnabled ? toCents(tier.lateFeeDaily) : 0;
-        const maxLateFeeDays = tier.lateFeeEnabled ? toInt(tier.lateFeeMaxDays, 0) : 0;
+    const rentDueDay = toInt(tier.dueDay, 1);
+    const gracePeriodDays = toInt(tier.graceDays, 0);
+    const lateFeeInitialCents = tier.lateFeeEnabled
+      ? toCents(tier.lateFeeAmount)
+      : 0;
+    const lateFeeDailyCents = tier.lateFeeEnabled
+      ? toCents(tier.lateFeeDaily)
+      : 0;
+    const maxLateFeeDays = tier.lateFeeEnabled
+      ? toInt(tier.lateFeeMaxDays, 0)
+      : 0;
 
-        await tx.propertyTier.update({
-          where: {
-            id: tierId,
-          },
-          data: {
-            rentDueDay,
-            gracePeriodDays,
-            lateFeeInitialCents,
-            lateFeeDailyCents,
-            maxLateFeeDays,
-            lateFeeType: "FLAT",
-          },
-        });
-      }
+    await tx.propertyTier.update({
+      where: {
+        id: tierId,
+      },
+      data: {
+        rentDueDay,
+        gracePeriodDays,
+        lateFeeInitialCents,
+        lateFeeDailyCents,
+        maxLateFeeDays,
+        lateFeeType: "FLAT",
+      },
     });
+  }
+
+  await tx.propertySettings.upsert({
+    where: {
+      propertyId: id,
+    },
+    update: {
+      onboardingComplete: true,
+    },
+    create: {
+      propertyId: id,
+      onboardingComplete: true,
+    },
+  });
+});
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

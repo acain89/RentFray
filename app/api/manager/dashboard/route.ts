@@ -428,6 +428,26 @@ export async function GET() {
   const stripe = getStripeClient();
   const account = await stripe.accounts.retrieve(property.stripeAccountId);
 
+console.log("[stripe-account-status]", {
+  accountId: account.id,
+  detailsSubmitted: account.details_submitted,
+  chargesEnabled: account.charges_enabled,
+  payoutsEnabled: account.payouts_enabled,
+  disabledReason: account.requirements?.disabled_reason ?? null,
+  currentlyDue: account.requirements?.currently_due ?? [],
+  pastDue: account.requirements?.past_due ?? [],
+  pendingVerification:
+    account.requirements?.pending_verification ?? [],
+  requirementErrors:
+    account.requirements?.errors?.map((error) => ({
+      requirement: error.requirement,
+      reason: error.reason,
+      code: error.code,
+    })) ?? [],
+  futureCurrentlyDue:
+    account.future_requirements?.currently_due ?? [],
+});
+
   const requirementsDue = Boolean(
     account.requirements?.currently_due?.length ||
       account.requirements?.past_due?.length ||
@@ -486,26 +506,36 @@ export async function GET() {
   property.paymentStatus = syncedPaymentStatus;
 }
 
-    let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" =
-      "NOT_CONNECTED";
-    let bankMessage =
-      "Connect your payout account to begin receiving payments.";
+let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" =
+  "NOT_CONNECTED";
 
-     const paymentStatus = property.paymentStatus;
+let bankMessage =
+  "Connect your payout account to begin receiving payments.";
+
+const paymentStatus = property.paymentStatus;
 
 if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
   bankStatus = "CONNECTED";
   bankMessage =
     "Your account has been successfully connected. Payments received will be deposited into the connected account.";
-} else if (paymentStatus?.requirementsDue || paymentStatus?.requirementsSummary) {
+} else if (paymentStatus?.requirementsSummary === "listed") {
+  bankStatus = "PENDING";
+
+  bankMessage = paymentStatus.chargesEnabled
+    ? "Stripe is reviewing your payout account. You can continue receiving payments, but payouts to your bank remain paused until Stripe completes its review. No additional information is currently required."
+    : "Stripe is reviewing your account. No additional information is currently required while Stripe completes its review.";
+} else if (
+  paymentStatus?.requirementsDue ||
+  paymentStatus?.requirementsSummary
+) {
   bankStatus = "RESTRICTED";
   bankMessage =
-    "Sorry, your account could not be fully verified. Please complete all required Stripe onboarding steps.";
+    "Stripe requires additional verification before payouts can be enabled. Please review any requested information in Stripe.";
 } else if (property.stripeAccountId || paymentStatus?.processorConnected) {
   bankStatus = "PENDING";
   bankMessage =
-    "Your account is pending verification. This can take anywhere from a couple of minutes to a few hours. Please check back later.";
-}   
+    "Stripe has received your information and is verifying your account. This usually completes automatically.";
+}
 
     if (
       shouldAutoSetPropertyReady({
@@ -981,12 +1011,8 @@ onboarding: {
 
   pricingComplete: tiers.length > 0,
 
-  billingComplete:
-    tiers.length > 0 &&
-tiers.every(
-  (tier: (typeof tiers)[number]) =>
-    tier.rentDueDay > 0 &&
-    tier.gracePeriodDays >= 0
+billingComplete: Boolean(
+  property.settings?.onboardingComplete
 ),
 
 bankConnected: Boolean(paymentStatus?.onboardingComplete),

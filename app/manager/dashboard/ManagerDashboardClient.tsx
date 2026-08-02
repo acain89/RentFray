@@ -3651,6 +3651,9 @@ saveLocalRentSettings={saveLocalRentSettings}
     <BankPanel
       bankStatus={bankStatus}
       bankMessage={bankMessage}
+      onboardingComplete={
+  data?.property?.onboarding?.bankConnected === true
+}
       isOwner={isOwner}
       onConnect={() => {
         void connectBank();

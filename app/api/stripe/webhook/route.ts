@@ -19,6 +19,8 @@ export const dynamic = "force-dynamic";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const stripeConnectWebhookSecret =
+  process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
@@ -467,21 +469,50 @@ export async function POST(req: Request) {
     apiVersion: "2026-02-25.clover",
   });
 
-  let event: Stripe.Event;
+  const body = await req.text();
+const sig = (await headers()).get("stripe-signature");
 
+if (!sig) {
+  return NextResponse.json(
+    { error: "Missing signature" },
+    { status: 400 }
+  );
+}
+
+const webhookSecrets = [
+  stripeWebhookSecret,
+  stripeConnectWebhookSecret,
+].filter((secret): secret is string => Boolean(secret?.trim()));
+
+if (webhookSecrets.length === 0) {
+  console.error("No Stripe webhook signing secrets are configured.");
+
+  return NextResponse.json(
+    { error: "Webhook configuration error" },
+    { status: 500 }
+  );
+}
+
+let event: Stripe.Event | null = null;
+let signatureError: unknown = null;
+
+for (const secret of webhookSecrets) {
   try {
-    const body = await req.text();
-    const sig = (await headers()).get("stripe-signature");
-
-    if (!sig) {
-      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
-    }
-
-    event = stripe.webhooks.constructEvent(body, sig, stripeWebhookSecret);
+    event = stripe.webhooks.constructEvent(body, sig, secret);
+    break;
   } catch (error) {
-    console.error("Stripe signature error:", error);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    signatureError = error;
   }
+}
+
+if (!event) {
+  console.error("Stripe signature error:", signatureError);
+
+  return NextResponse.json(
+    { error: "Invalid signature" },
+    { status: 400 }
+  );
+}
 
   try {
     if (event.type === "checkout.session.completed") {
@@ -652,9 +683,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true });
       }
 
-      const requirementsDue = Boolean(
-        account.requirements?.currently_due?.length ?? 0
-      );
+ const requirementsDue = Boolean(
+  account.requirements?.currently_due?.length ||
+    account.requirements?.past_due?.length ||
+    account.requirements?.disabled_reason
+);
 
       await prisma.property.update({
         where: { id: property.id },
@@ -663,7 +696,7 @@ export async function POST(req: Request) {
             upsert: {
               create: {
                 processorConnected: true,
-                bankConnected: true,
+                bankConnected: Boolean(account.details_submitted),
                 chargesEnabled: Boolean(account.charges_enabled),
                 payoutsEnabled: Boolean(account.payouts_enabled),
                 onboardingComplete: Boolean(account.details_submitted),
@@ -671,12 +704,14 @@ export async function POST(req: Request) {
                 requirementsSummary: account.requirements?.disabled_reason ?? null,
                 lastSyncedAt: new Date(),
                 readyForLive:
-                  Boolean(account.charges_enabled) &&
-                  Boolean(account.payouts_enabled),
+                  Boolean(account.details_submitted) &&
+              Boolean(account.charges_enabled) &&
+              Boolean(account.payouts_enabled) &&
+              !requirementsDue
               },
               update: {
                 processorConnected: true,
-                bankConnected: true,
+                bankConnected: Boolean(account.details_submitted),
                 chargesEnabled: Boolean(account.charges_enabled),
                 payoutsEnabled: Boolean(account.payouts_enabled),
                 onboardingComplete: Boolean(account.details_submitted),

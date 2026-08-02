@@ -3,6 +3,7 @@
 type Props = {
   bankStatus?: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED";
   bankMessage?: string;
+  onboardingComplete: boolean;
   isOwner: boolean;
   onConnect: () => void;
   onOnboard: () => void;
@@ -13,7 +14,10 @@ type Props = {
   savingBillingCycleStartDate: boolean;
 };
 
-function getStatusUI(status?: Props["bankStatus"]) {
+function getStatusUI(
+  status: Props["bankStatus"],
+  onboardingComplete: boolean
+) {
   switch (status) {
     case "CONNECTED":
       return {
@@ -23,21 +27,39 @@ function getStatusUI(status?: Props["bankStatus"]) {
         color: "text-emerald-600",
       };
 
-    case "PENDING":
-      return {
-        title: "Setup in progress",
-        description:
-          "Your account setup is not complete yet. Finish onboarding to enable payouts.",
-        color: "text-amber-600",
-      };
+case "PENDING":
+  if (onboardingComplete) {
+    return {
+      title: "Verification in progress",
+      description:
+        "Stripe has received your information and is reviewing your account. Payments will become available automatically once verification is complete.",
+      color: "text-amber-600",
+    };
+  }
 
-    case "RESTRICTED":
-      return {
-        title: "Action required",
-        description:
-          "Stripe requires additional information before payouts can continue.",
-        color: "text-red-600",
-      };
+  return {
+    title: "Setup in progress",
+    description:
+      "Finish your Stripe onboarding to enable payouts.",
+    color: "text-amber-600",
+  };
+
+case "RESTRICTED":
+  if (onboardingComplete) {
+    return {
+      title: "Additional verification required",
+      description:
+        "Stripe requires additional information before payouts can be enabled. Open Stripe to review any requested items.",
+      color: "text-red-600",
+    };
+  }
+
+  return {
+    title: "Action required",
+    description:
+      "Complete your Stripe onboarding to continue.",
+    color: "text-red-600",
+  };
 
     case "NOT_CONNECTED":
     default:
@@ -63,6 +85,7 @@ function formatDateOnly(value: string): string {
 export default function BankPanel({
   bankStatus,
   bankMessage,
+  onboardingComplete,
   isOwner,
   onConnect,
   onOnboard,
@@ -72,8 +95,10 @@ export default function BankPanel({
   saveBillingCycleStartDate,
   savingBillingCycleStartDate,
 }: Props) {
-  const ui = getStatusUI(bankStatus);
-
+const ui = getStatusUI(
+  bankStatus,
+  onboardingComplete
+);
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -149,36 +174,53 @@ export default function BankPanel({
 </section>
 
       {isOwner ? (
-      <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-1">
-          {bankStatus === "NOT_CONNECTED" ? (
-            <button
-              type="button"
-              onClick={onConnect}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
-            >
-              Connect securely through Stripe
-            </button>
-          ) : null}
+  <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-1">
+    {bankStatus === "NOT_CONNECTED" ? (
+      <button
+        type="button"
+        onClick={onConnect}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
+      >
+        Connect securely through Stripe
+      </button>
+    ) : null}
 
-          {bankStatus === "CONNECTED" ||
-          bankStatus === "PENDING" ||
-          bankStatus === "RESTRICTED" ? (
-            <button
-              type="button"
-              onClick={onOnboard}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
-            >
-              {bankStatus === "CONNECTED"
-                ? "Manage secure Stripe connection"
-                : "Continue secure Stripe setup"}
-            </button>
-          ) : null}
-        </div>
-      ) : (
-        <div className="text-sm text-slate-500">
-          Only the account owner can manage payout settings.
-        </div>
-      )}
+    {!onboardingComplete && bankStatus === "PENDING" ? (
+      <button
+        type="button"
+        onClick={onOnboard}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
+      >
+        Continue secure Stripe setup
+      </button>
+    ) : null}
+
+    {bankStatus === "RESTRICTED" &&
+    bankMessage?.includes("additional verification") ? (
+      <button
+        type="button"
+        onClick={onOnboard}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
+      >
+        Review Stripe requirements
+      </button>
+    ) : null}
+
+    {onboardingComplete && bankStatus === "CONNECTED" ? (
+      <button
+        type="button"
+        onClick={onOnboard}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b]"
+      >
+        Manage secure Stripe connection
+      </button>
+    ) : null}
+  </div>
+) : (
+  <div className="text-sm text-slate-500">
+    Only the account owner can manage payout settings.
+  </div>
+)}
     </div>
   );
 }
