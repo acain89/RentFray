@@ -51,7 +51,10 @@ export default async function PropertyDetailPage({
 
   const unitRows = await Promise.all(
     property.units.map(async (unit: (typeof property.units)[number]) => {
-      const summary = await getUnitLedgerSummary(unit.id);
+      const summary = await getUnitLedgerSummary({
+  unitId: unit.id,
+  asOf: new Date(),
+});
       const delinquency = await getUnitDelinquencySummary(unit.id);
 
       return {

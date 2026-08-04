@@ -22,7 +22,7 @@ export async function verifyApplicationInvariants(input: {
     lateFeeEnabled: boolean;
     lateFeeFlatCents: number | null;
   } | null;
-  billingCycleStartDate: Date | null;
+  rentFrayStartDate: Date | null;
   now: Date;
 }): Promise<void> {
   const qaOutstanding = getTotalOutstandingCents(input.qaAccount);
@@ -39,7 +39,7 @@ export async function verifyApplicationInvariants(input: {
     tenantAssignmentId: input.tenantAssignmentId,
     tier: input.tier,
     propertySettings: input.propertySettings,
-    billingCycleStartDate: input.billingCycleStartDate,
+    rentFrayStartDate: input.rentFrayStartDate,
     now: input.now,
   });
 

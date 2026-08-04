@@ -243,7 +243,10 @@ export default async function UnitDetail({ params }: Props) {
     ? formatTenantName(activeAssignment.firstName, activeAssignment.lastName)
     : "Vacant";
 
-  const summary = await getUnitLedgerSummary(unit.id);
+  const summary = await getUnitLedgerSummary({
+  unitId: unit.id,
+  asOf: new Date(),
+});
   const delinquency = await getUnitDelinquencySummary(unit.id);
 
   const latestPayment: PaymentRow | null = unit.payments[0] ?? null;

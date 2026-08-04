@@ -1,29 +1,68 @@
 import { prisma } from "@/lib/prisma";
-import { getBusinessDate } from "@/lib/rentDates";
+
+export type LedgerSummaryInput = {
+  unitId: string;
+  tenantAssignmentId?: string;
+  asOf: Date;
+  billingCycle?: string;
+};
 
 export type LedgerSummary = {
   balanceCents: number;
   totalChargesCents: number;
   totalCreditsCents: number;
   totalPaidCents: number;
+  currentCycleRentChargesCents: number;
+  currentCycleLateFeeChargesCents: number;
+  currentCycleRecurringChargesCents: number;
+
+  positiveAdjustmentsCents: number;
+  negativeAdjustmentsCents: number;
+  netAdjustmentsCents: number;
+
   balance: number;
   totalCharges: number;
   totalCredits: number;
   totalPaid: number;
+  currentCycleRentCharges: number;
+  currentCycleLateFeeCharges: number;
+  currentCycleRecurringCharges: number;
+
+  positiveAdjustments: number;
+  negativeAdjustments: number;
+  netAdjustments: number;
+
   lastPaymentDate: Date | null;
   lastPaymentAmountCents: number | null;
   lastPaymentAmount: number | null;
+
   hasPendingPayment: boolean;
   pendingPaymentAmountCents: number;
+
+  hasPaidPayment: boolean;
+  hasFailedPayment: boolean;
+  hasReversedPayment: boolean;
 };
 
-type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
-type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+type LedgerEntryType =
+  | "CHARGE"
+  | "PAYMENT"
+  | "CREDIT"
+  | "ADJUSTMENT";
+
+type PaymentStatus =
+  | "UNPAID"
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REVERSED";
 
 type LedgerEntryRow = {
   id: string;
   amountCents: number;
   entryType: unknown;
+  chargeType: unknown;
+  billingCycle: string | null;
   effectiveDate: Date;
   createdAt: Date;
   payment: {
@@ -31,7 +70,9 @@ type LedgerEntryRow = {
   } | null;
 };
 
-function normalizeLedgerEntryType(value: unknown): LedgerEntryType | null {
+function normalizeLedgerEntryType(
+  value: unknown
+): LedgerEntryType | null {
   const type = String(value ?? "").trim().toUpperCase();
 
   switch (type) {
@@ -45,7 +86,9 @@ function normalizeLedgerEntryType(value: unknown): LedgerEntryType | null {
   }
 }
 
-function normalizePaymentStatus(value: unknown): PaymentStatus | null {
+function normalizePaymentStatus(
+  value: unknown
+): PaymentStatus | null {
   const status = String(value ?? "").trim().toUpperCase();
 
   switch (status) {
@@ -60,243 +103,375 @@ function normalizePaymentStatus(value: unknown): PaymentStatus | null {
   }
 }
 
-function isChargeEntry(type: LedgerEntryType): boolean {
-  return type === "CHARGE";
-}
-
-function isPaymentEntry(type: LedgerEntryType): boolean {
-  return type === "PAYMENT";
-}
-
-function isCreditEntry(type: LedgerEntryType): boolean {
-  return type === "CREDIT";
-}
-
 function centsToDollars(cents: number): number {
   return Math.round(cents) / 100;
 }
 
 function toSafeDate(value: unknown): Date | null {
   if (!value) return null;
+
   const date =
-    value instanceof Date ? value : new Date(value as string | number | Date);
+    value instanceof Date
+      ? value
+      : new Date(value as string | number);
+
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function toSafeInteger(value: unknown): number {
   const amount = Number(value);
-  if (!Number.isFinite(amount)) return 0;
+
+  if (!Number.isFinite(amount)) {
+    return 0;
+  }
+
   return Math.trunc(amount);
 }
 
-function shouldCountPaymentStatus(status: PaymentStatus | null): boolean {
-  return status === "PAID";
-}
-
-/*
-  Ledger rules:
-  - CHARGE increases balance owed
-  - PAYMENT reduces balance owed only when confirmed PAID
-  - CREDIT reduces balance owed
-  - ADJUSTMENT may be positive or negative
-  - voided entries do not count
-  - failed/reversed payments must not reduce balance
-*/
 function getSignedImpactCents(
   entryType: LedgerEntryType,
   amountCents: number,
-  paymentStatus?: PaymentStatus | null
+  paymentStatus: PaymentStatus | null
 ): number {
-  const absAmount = Math.abs(toSafeInteger(amountCents));
+  const safeAmount = toSafeInteger(amountCents);
+  const absoluteAmount = Math.abs(safeAmount);
 
-  if (entryType === "CHARGE") return absAmount;
-  if (entryType === "PAYMENT") {
-    return paymentStatus === "PAID" ? -absAmount : 0;
+  switch (entryType) {
+    case "CHARGE":
+      return absoluteAmount;
+
+    case "PAYMENT":
+      return paymentStatus === "PAID"
+        ? -absoluteAmount
+        : 0;
+
+    case "CREDIT":
+      return -absoluteAmount;
+
+    case "ADJUSTMENT":
+      return safeAmount;
+
+    default:
+      return 0;
   }
-  if (entryType === "CREDIT") return -absAmount;
-  if (entryType === "ADJUSTMENT") return toSafeInteger(amountCents);
-
-  return 0;
 }
 
+/**
+ * Sole authority for unit-level ledger math.
+ *
+ * Rules:
+ * - CHARGE increases the balance.
+ * - CREDIT reduces the balance.
+ * - Only PAID payments reduce the balance.
+ * - PENDING, FAILED, and REVERSED payments do not reduce the balance.
+ * - Positive and negative adjustments remain separately reportable.
+ * - Voided entries do not count.
+ * - Future-dated entries after `asOf` do not count.
+ * - The ledger does not silently hide invalid pre-start entries.
+ */
 export async function getUnitLedgerSummary(
-  unitId: string,
-  tenantAssignmentId?: string
+  input: LedgerSummaryInput
 ): Promise<LedgerSummary> {
-  const now = getBusinessDate();
-  const unit = await prisma.unit.findUnique({
-    where: { id: unitId },
-    select: {
-      property: {
-        select: {
-          billingCycleStartDate: true,
+  const entries: LedgerEntryRow[] =
+    await prisma.ledgerEntry.findMany({
+      where: {
+        unitId: input.unitId,
+        voidedAt: null,
+
+        ...(input.tenantAssignmentId
+          ? {
+              OR: [
+                {
+                  tenantAssignmentId:
+                    input.tenantAssignmentId,
+                },
+                {
+                  tenantAssignmentId: null,
+                },
+              ],
+            }
+          : {}),
+
+        effectiveDate: {
+          lte: input.asOf,
         },
       },
-    },
-  });
 
-  const billingStart = unit?.property?.billingCycleStartDate
-    ? new Date(unit.property.billingCycleStartDate)
-    : null;
+      orderBy: [
+        { effectiveDate: "asc" },
+        { createdAt: "asc" },
+        { id: "asc" },
+      ],
 
-  const entries: LedgerEntryRow[] = await prisma.ledgerEntry.findMany({
+      select: {
+        id: true,
+        amountCents: true,
+        entryType: true,
+        chargeType: true,
+        billingCycle: true,
+        effectiveDate: true,
+        createdAt: true,
+        payment: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
+
+  const payments = await prisma.payment.findMany({
     where: {
-      unitId,
-      voidedAt: null,
-      ...(tenantAssignmentId
-  ? {
-      OR: [
-        { tenantAssignmentId },
-        { tenantAssignmentId: null },
-      ],
-    }
-  : {}),
-      effectiveDate: {
-        lte: now,
-      },
+      unitId: input.unitId,
+
+      ...(input.tenantAssignmentId
+        ? {
+            OR: [
+              {
+                tenantAssignmentId:
+                  input.tenantAssignmentId,
+              },
+              {
+                tenantAssignmentId: null,
+              },
+            ],
+          }
+        : {}),
     },
-    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+
     select: {
-      id: true,
+      status: true,
       amountCents: true,
-      entryType: true,
-      effectiveDate: true,
-      createdAt: true,
-      payment: {
-        select: {
-          status: true,
-        },
-      },
+      billingCycle: true,
     },
   });
-
-    const payments = await prisma.payment.findMany({
-  where: {
-    unitId,
-    ...(tenantAssignmentId
-  ? {
-      OR: [
-        { tenantAssignmentId },
-        { tenantAssignmentId: null },
-      ],
-    }
-  : {}),
-  },
-  select: {
-    status: true,
-    amountCents: true,
-  },
-});
-
-  const visibleEntries: LedgerEntryRow[] = billingStart
-    ? entries.filter((entry: LedgerEntryRow) => {
-        const entryType = normalizeLedgerEntryType(entry.entryType);
-        if (!entryType) return false;
-
-        if (!isChargeEntry(entryType)) {
-          return true;
-        }
-
-        const effectiveDate = toSafeDate(entry.effectiveDate);
-        if (!effectiveDate) {
-          return true;
-        }
-
-        return effectiveDate >= billingStart;
-      })
-    : entries;
 
   let balanceCents = 0;
   let totalChargesCents = 0;
   let totalCreditsCents = 0;
   let totalPaidCents = 0;
+  let currentCycleRentChargesCents = 0;
+  let currentCycleLateFeeChargesCents = 0;
+  let currentCycleRecurringChargesCents = 0;
+  let positiveAdjustmentsCents = 0;
+  let negativeAdjustmentsCents = 0;
 
   let lastPaymentDate: Date | null = null;
   let lastPaymentCreatedAt: Date | null = null;
   let lastPaymentAmountCents: number | null = null;
+
   let hasPendingPayment = false;
   let pendingPaymentAmountCents = 0;
 
+  const currentCycleStatuses: PaymentStatus[] = [];
+
   for (const payment of payments) {
-  const status = normalizePaymentStatus(payment.status);
+    const status = normalizePaymentStatus(payment.status);
 
-  if (status === "PENDING") {
-    hasPendingPayment = true;
-    pendingPaymentAmountCents += Math.max(
-      0,
-      Math.abs(toSafeInteger(payment.amountCents))
-    );
+    if (!status) {
+      continue;
+    }
+
+    if (status === "PENDING") {
+      hasPendingPayment = true;
+
+      pendingPaymentAmountCents += Math.max(
+        0,
+        Math.abs(toSafeInteger(payment.amountCents))
+      );
+    }
+
+    if (
+      input.billingCycle &&
+      payment.billingCycle === input.billingCycle
+    ) {
+      currentCycleStatuses.push(status);
+    }
   }
-}
 
-  for (const entry of visibleEntries) {
-    const entryType = normalizeLedgerEntryType(entry.entryType);
+  const hasPaidPayment =
+    currentCycleStatuses.includes("PAID");
+
+  const hasFailedPayment =
+    !hasPaidPayment &&
+    !hasPendingPayment &&
+    currentCycleStatuses.includes("FAILED");
+
+  const hasReversedPayment =
+    !hasPaidPayment &&
+    !hasPendingPayment &&
+    currentCycleStatuses.includes("REVERSED");
+
+  for (const entry of entries) {
+    const entryType = normalizeLedgerEntryType(
+      entry.entryType
+    );
+
     if (!entryType) {
       continue;
     }
 
-    const rawAmountCents = toSafeInteger(entry.amountCents);
-    const paymentStatus = normalizePaymentStatus(entry.payment?.status);
-    const signedImpactCents = getSignedImpactCents(
+    const rawAmountCents = toSafeInteger(
+      entry.amountCents
+    );
+
+    const paymentStatus = normalizePaymentStatus(
+      entry.payment?.status
+    );
+
+    balanceCents += getSignedImpactCents(
       entryType,
       rawAmountCents,
       paymentStatus
     );
 
-    balanceCents += signedImpactCents;
+    switch (entryType) {
+     case "CHARGE": {
+  const chargeAmountCents = Math.abs(rawAmountCents);
+  totalChargesCents += chargeAmountCents;
 
-    if (isChargeEntry(entryType)) {
-      totalChargesCents += Math.abs(rawAmountCents);
-    }
+  if (
+    input.billingCycle &&
+    entry.billingCycle === input.billingCycle
+  ) {
+    const chargeType = String(
+      entry.chargeType ?? ""
+    )
+      .trim()
+      .toUpperCase();
 
-    if (isCreditEntry(entryType)) {
-      totalCreditsCents += Math.abs(rawAmountCents);
-    }
-
-    
-
-    if (isPaymentEntry(entryType) && shouldCountPaymentStatus(paymentStatus)) {
-      const paymentAbsCents = Math.abs(rawAmountCents);
-      totalPaidCents += paymentAbsCents;
-
-      const effectiveDate = toSafeDate(entry.effectiveDate);
-      const createdAt = toSafeDate(entry.createdAt);
-
-      if (!effectiveDate || !createdAt) {
-        continue;
-      }
-
-      const isLaterPayment =
-        lastPaymentDate === null ||
-        effectiveDate.getTime() > lastPaymentDate.getTime() ||
-        (effectiveDate.getTime() === lastPaymentDate.getTime() &&
-          (lastPaymentCreatedAt === null ||
-            createdAt.getTime() > lastPaymentCreatedAt.getTime()));
-
-      if (isLaterPayment) {
-        lastPaymentDate = effectiveDate;
-        lastPaymentCreatedAt = createdAt;
-        lastPaymentAmountCents = paymentAbsCents;
-      }
+    if (chargeType === "RENT") {
+      currentCycleRentChargesCents +=
+        chargeAmountCents;
+    } else if (
+      chargeType === "LATE_FEE" ||
+      chargeType === "LATE_FEE_INITIAL" ||
+      chargeType === "LATE_FEE_DAILY"
+    ) {
+      currentCycleLateFeeChargesCents +=
+        chargeAmountCents;
+    } else if (
+      chargeType === "RECURRING_FEE" ||
+      chargeType === "RECURRING_CHARGE"
+    ) {
+      currentCycleRecurringChargesCents +=
+        chargeAmountCents;
     }
   }
+
+  break;
+}
+
+      case "CREDIT":
+        totalCreditsCents += Math.abs(rawAmountCents);
+        break;
+
+      case "ADJUSTMENT":
+        if (rawAmountCents > 0) {
+          positiveAdjustmentsCents += rawAmountCents;
+        } else if (rawAmountCents < 0) {
+          negativeAdjustmentsCents += Math.abs(
+            rawAmountCents
+          );
+        }
+        break;
+
+      case "PAYMENT":
+        if (paymentStatus !== "PAID") {
+          break;
+        }
+
+        const paymentAmountCents =
+          Math.abs(rawAmountCents);
+
+        totalPaidCents += paymentAmountCents;
+
+        const effectiveDate = toSafeDate(
+          entry.effectiveDate
+        );
+
+        const createdAt = toSafeDate(entry.createdAt);
+
+        if (!effectiveDate || !createdAt) {
+          break;
+        }
+
+        const isLaterPayment =
+          lastPaymentDate === null ||
+          effectiveDate.getTime() >
+            lastPaymentDate.getTime() ||
+          (effectiveDate.getTime() ===
+            lastPaymentDate.getTime() &&
+            (lastPaymentCreatedAt === null ||
+              createdAt.getTime() >
+                lastPaymentCreatedAt.getTime()));
+
+        if (isLaterPayment) {
+          lastPaymentDate = effectiveDate;
+          lastPaymentCreatedAt = createdAt;
+          lastPaymentAmountCents =
+            paymentAmountCents;
+        }
+        break;
+    }
+  }
+
+  const netAdjustmentsCents =
+    positiveAdjustmentsCents -
+    negativeAdjustmentsCents;
 
   return {
     balanceCents,
     totalChargesCents,
     totalCreditsCents,
     totalPaidCents,
+    currentCycleRentChargesCents,
+    currentCycleLateFeeChargesCents,
+    currentCycleRecurringChargesCents,
+
+    positiveAdjustmentsCents,
+    negativeAdjustmentsCents,
+    netAdjustmentsCents,
+
     balance: centsToDollars(balanceCents),
-    totalCharges: centsToDollars(totalChargesCents),
-    totalCredits: centsToDollars(totalCreditsCents),
+    totalCharges: centsToDollars(
+      totalChargesCents
+    ),
+    totalCredits: centsToDollars(
+      totalCreditsCents
+    ),
     totalPaid: centsToDollars(totalPaidCents),
+    currentCycleRentCharges: centsToDollars(
+    currentCycleRentChargesCents
+    ),
+    currentCycleLateFeeCharges: centsToDollars(
+    currentCycleLateFeeChargesCents
+    ),
+    currentCycleRecurringCharges: centsToDollars(
+    currentCycleRecurringChargesCents
+    ),
+
+    positiveAdjustments: centsToDollars(
+      positiveAdjustmentsCents
+    ),
+    negativeAdjustments: centsToDollars(
+      negativeAdjustmentsCents
+    ),
+    netAdjustments: centsToDollars(
+      netAdjustmentsCents
+    ),
+
     lastPaymentDate,
     lastPaymentAmountCents,
     lastPaymentAmount:
       lastPaymentAmountCents === null
         ? null
         : centsToDollars(lastPaymentAmountCents),
+
     hasPendingPayment,
     pendingPaymentAmountCents,
+
+    hasPaidPayment,
+    hasFailedPayment,
+    hasReversedPayment,
   };
 }

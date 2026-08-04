@@ -163,8 +163,8 @@ export async function POST(req: Request) {
     tenantAssignmentId,
     tier: unit.tier,
     propertySettings: property.settings,
-    billingCycleStartDate:
-      property.billingCycleStartDate,
+    rentFrayStartDate:
+      property.rentFrayStartDate,
     now: getBusinessDate(),
   });
 

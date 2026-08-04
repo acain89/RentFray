@@ -6,7 +6,6 @@ import {
   getRentDateSummary,
 } from "@/lib/rentDates";
 
-
 export async function runDelinquencyJob(asOf = new Date()) {
   const today = getBusinessDate(asOf);
 
@@ -32,15 +31,21 @@ export async function runDelinquencyJob(asOf = new Date()) {
       propertySettings: unit.property.settings,
     });
 
-   const rentDates = getRentDateSummary({
-  ...effective,
-  now: today,
-  billingCycleStartDate: unit.property.billingCycleStartDate,
-});
+    const rentDates = getRentDateSummary({
+      ...effective,
+      now: today,
+      rentFrayStartDate: unit.property.rentFrayStartDate,
+    });
 
     if (!rentDates.isDelinquent) continue;
 
-    const summary = await getUnitLedgerSummary(unit.id);
+    const summary = await getUnitLedgerSummary({
+      unitId: unit.id,
+      tenantAssignmentId: assignment.id,
+      asOf: today,
+      billingCycle: rentDates.billingCycle,
+    });
+
     if (summary.balanceCents <= 0) continue;
 
     const existing = await prisma.auditLog.findFirst({

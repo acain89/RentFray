@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
@@ -97,7 +97,7 @@ onboarding?: {
   billingComplete: boolean;
   bankConnected: boolean;
 };
-billingCycleStartDate?: string | null;
+rentFrayStartDate?: string | null;
 };
   session: {
     role: "OWNER" | "MANAGER" | "STAFF";
@@ -347,7 +347,7 @@ function getStatusText(status: UnitStatus, daysPastDue: number): string {
 case "UNPAID":
   return "Balance due";   
     default:
-      return "â€”";
+      return "—";
   }
 }
 
@@ -374,7 +374,7 @@ function formatDate(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "â€”";
+    return "—";
   }
 
   return date.toLocaleDateString("en-US", {
@@ -382,6 +382,16 @@ function formatDate(value: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatDateInputForDisplay(value: string): string {
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${month}/${day}/${year}`;
 }
 
 function slugifyTierName(value: string): string {
@@ -624,9 +634,9 @@ if (requestedPanel === "propertySetup") {
   const [confirmReactivateUnitId, setConfirmReactivateUnitId] = useState("");
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState("");
   const [loadingDashboard, setLoadingDashboard] = useState(false);
-  const [billingCycleStartDate, setBillingCycleStartDate] = useState("");
-  const [billingCycleStartDateLocked, setBillingCycleStartDateLocked] = useState(false);
-  const [savingBillingCycleStartDate, setSavingBillingCycleStartDate] = useState(false);
+  const [rentFrayStartDate, setRentFrayStartDate] = useState("");
+  const [rentFrayStartDateLocked, setRentFrayStartDateLocked] = useState(false);
+  const [savingRentFrayStartDate, setSavingRentFrayStartDate] = useState(false);
 
 
   const [gpLfSettings, setGpLfSettings] = useState({
@@ -810,7 +820,7 @@ function getGpLfTierSnapshot(tier: RentTierDraft): GpLfTierSnapshot {
 
 function getMixedText(values: string[]): string {
   const unique = Array.from(new Set(values.map((value) => String(value).trim())));
-  return unique.length <= 1 ? (unique[0] || "â€”") : "Mixed";
+  return unique.length <= 1 ? (unique[0] || "—") : "Mixed";
 }
 
 function getMixedBooleanText(values: boolean[]): string {
@@ -1686,7 +1696,7 @@ window.URL.revokeObjectURL(url);
 }
 
 const exportMonthOptions = getExportMonthOptions(
-  data?.property?.billingCycleStartDate
+  data?.property?.rentFrayStartDate
 );
 
 
@@ -1912,11 +1922,11 @@ useEffect(() => {
 }, [activePanel, showInactiveUnits, sessionRole]);
 
 useEffect(() => {
-  const raw = data?.property?.billingCycleStartDate ?? "";
+  const raw = data?.property?.rentFrayStartDate ?? "";
   const savedDate = raw ? raw.slice(0, 10) : "";
 
-  setBillingCycleStartDate(savedDate);
-  setBillingCycleStartDateLocked(Boolean(savedDate));
+  setRentFrayStartDate(savedDate);
+  setRentFrayStartDateLocked(Boolean(savedDate));
 }, [data]);
 
 useEffect(() => {
@@ -2237,17 +2247,17 @@ window.setTimeout(() => {
 }
 }
 
-async function saveBillingCycleStartDate(): Promise<void> {
+async function saveRentFrayStartDate(): Promise<void> {
   if (
     !data?.property?.id ||
-    !billingCycleStartDate ||
-    billingCycleStartDateLocked
+    !rentFrayStartDate ||
+    rentFrayStartDateLocked
   ) {
     return;
   }
 
  const confirmed = window.confirm(
-  `Are you sure you want RentFray to start tracking rent on ${billingCycleStartDate}?\n\nOnce confirmed, this date cannot be changed.`
+  `Are you sure you want RentFray to begin expecting rent payments on ${formatDateInputForDisplay(rentFrayStartDate)}?\n\nThis date becomes your first billing cycle in RentFray and cannot be changed.`
 );
 
   if (!confirmed) {
@@ -2255,7 +2265,7 @@ async function saveBillingCycleStartDate(): Promise<void> {
   }
 
   try {
-    setSavingBillingCycleStartDate(true);
+    setSavingRentFrayStartDate(true);
 
     const res = await fetch(
       `/api/admin/properties/${data.property.id}`,
@@ -2266,7 +2276,7 @@ async function saveBillingCycleStartDate(): Promise<void> {
         },
         credentials: "include",
         body: JSON.stringify({
-          billingCycleStartDate,
+          rentFrayStartDate,
         }),
       }
     );
@@ -2280,10 +2290,10 @@ async function saveBillingCycleStartDate(): Promise<void> {
 
 
     alert(
-      `RentFray start date successfully set to ${billingCycleStartDate}.`
+      `RentFray start date successfully locked as ${formatDateInputForDisplay(rentFrayStartDate)}.`
     );
 
-    setBillingCycleStartDateLocked(true);
+    setRentFrayStartDateLocked(true);
 
 await new Promise((r) => setTimeout(r, 150));
 await loadDashboard({ silent: true });
@@ -2291,7 +2301,7 @@ await loadDashboard({ silent: true });
   } catch {
     alert("Failed to save the RentFray start date.");
   } finally {
-    setSavingBillingCycleStartDate(false);
+    setSavingRentFrayStartDate(false);
   }
 }
 
@@ -2858,7 +2868,7 @@ document.cookie.includes("rf_admin_session=") ? (
       {selectedUnit ? (
   <OverlayShell
     title={`Unit ${selectedUnit.unitNumber}`}
-    subtitle={`${selectedUnit.tenantName || "Tenant"} â€¢ ${getStatusText(
+    subtitle={`${selectedUnit.tenantName || "Tenant"} • ${getStatusText(
       selectedUnit.status,
       selectedUnit.daysPastDue
     )}`}
@@ -3017,7 +3027,7 @@ document.cookie.includes("rf_admin_session=") ? (
 
               return (
                 <option key={tier.id} value={tier.id}>
-                  {tier.name} â€” {activeCount}/{tier.unitCount} units
+                  {tier.name} — {activeCount}/{tier.unitCount} units
                 </option>
               );
             })}
@@ -3259,13 +3269,13 @@ document.cookie.includes("rf_admin_session=") ? (
               Make Unit {selectedUnit.unitNumber} vacant?
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-600">
-              â€¢ Removes tenant access
+              • Removes tenant access
               <br />
-              â€¢ Clears login credentials
+              • Clears login credentials
               <br />
-              â€¢ Marks unit as available
+              • Marks unit as available
               <br />
-              â€¢ Saves move-out record
+              • Saves move-out record
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -3334,7 +3344,7 @@ document.cookie.includes("rf_admin_session=") ? (
                   {request.description}
                 </div>
                 <div className="mt-2 text-xs text-slate-500">
-                  {request.urgency} â€¢ {request.status} â€¢{" "}
+                  {request.urgency} • {request.status} •{" "}
                   {formatDate(request.createdAt)}
                 </div>
               </div>
@@ -3390,7 +3400,7 @@ document.cookie.includes("rf_admin_session=") ? (
 {showAdjustModal && selectedUnit ? (
   <OverlayShell
     title="Adjust Balance"
-    subtitle={`Unit ${selectedUnit.unitNumber} â€¢ ${
+    subtitle={`Unit ${selectedUnit.unitNumber} • ${
       selectedUnit.tenantName || "No tenant"
     }`}
     onClose={() => setShowAdjustModal(false)}
@@ -3661,13 +3671,13 @@ saveLocalRentSettings={saveLocalRentSettings}
       onOnboard={() => {
         void handleOnboard();
       }}
-      billingCycleStartDate={billingCycleStartDate}
-      setBillingCycleStartDate={setBillingCycleStartDate}
-      billingCycleStartDateLocked={billingCycleStartDateLocked}
-      saveBillingCycleStartDate={() => {
-        void saveBillingCycleStartDate();
+      rentFrayStartDate={rentFrayStartDate}
+      setRentFrayStartDate={setRentFrayStartDate}
+      rentFrayStartDateLocked={rentFrayStartDateLocked}
+      saveRentFrayStartDate={() => {
+        void saveRentFrayStartDate();
       }}
-      savingBillingCycleStartDate={savingBillingCycleStartDate}
+      savingRentFrayStartDate={savingRentFrayStartDate}
     />
   </OverlayShell>
 ) : null}
@@ -3825,5 +3835,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 </>
 );
 }
+
+
 
 

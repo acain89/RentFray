@@ -32,33 +32,30 @@ export async function getUnitDelinquencySummary(
         orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
         take: 1,
       },
-      ledgerEntries: {
-       where: { voidedAt: null },
-       select: {
-       entryType: true,
-       chargeType: true,
-       amountCents: true,
-       billingCycle: true,
-      },
-     },
     },
   });
 
   if (!unit) throw new Error("Unit not found");
 
-  const ledger = await getUnitLedgerSummary(unit.id);
 
-  const activeAssignment = unit.tenantAssignments[0] ?? null;
+const activeAssignment = unit.tenantAssignments[0] ?? null;
 
-  const effective = resolveEffectiveBillingSettings({
-    tier: unit.tier,
-    propertySettings: unit.property.settings,
-  });
+const effective = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings: unit.property.settings,
+});
 
- const rentDates = getRentDateSummary({
+const rentDates = getRentDateSummary({
   ...effective,
   now: asOf,
-  billingCycleStartDate: unit.property.billingCycleStartDate,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+});
+
+const ledger = await getUnitLedgerSummary({
+  unitId: unit.id,
+  tenantAssignmentId: activeAssignment?.id,
+  asOf,
+  billingCycle: rentDates.billingCycle,
 });
 
   const dueDate = toDateOnly(rentDates.dueDate);
@@ -97,22 +94,25 @@ export async function getUnitDelinquencySummary(
     };
   }
 
-  let rentChargesCents = 0;
+const totalBalanceCents = Math.max(
+  0,
+  ledger.balanceCents
+);
 
- for (const entry of unit.ledgerEntries) {
-  if (
-    entry.entryType === "CHARGE" &&
-    entry.chargeType === "RENT" &&
-    entry.billingCycle === rentDates.billingCycle
-  ) {
-    rentChargesCents += entry.amountCents ?? 0;
-  }
-}
+const unpaidRentCents = Math.min(
+  totalBalanceCents,
+  ledger.currentCycleRentChargesCents
+);
 
-  const totalBalanceCents = ledger.balanceCents;
+const remainingAfterRentCents = Math.max(
+  0,
+  totalBalanceCents - unpaidRentCents
+);
 
-  const unpaidRentCents = Math.min(totalBalanceCents, rentChargesCents);
-  const lateFeesOwedCents = Math.max(0, totalBalanceCents - unpaidRentCents);
+const lateFeesOwedCents = Math.min(
+  remainingAfterRentCents,
+  ledger.currentCycleLateFeeChargesCents
+);
 
   const amountDueNowCents = Math.max(totalBalanceCents, 0);
 

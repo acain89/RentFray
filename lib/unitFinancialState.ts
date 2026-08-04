@@ -14,7 +14,6 @@ import {
   type PaymentStatus,
   type UnitStatusResult,
 } from "@/lib/unitStatusEngine";
-import { prisma } from "@/lib/prisma";
 
 type UnitFinancialStateTier = {
   rentDueDay: number;
@@ -37,15 +36,8 @@ type UnitFinancialStateInput = {
   tenantAssignmentId: string | null;
   tier: UnitFinancialStateTier;
   propertySettings: UnitFinancialStatePropertySettings;
-  billingCycleStartDate?: Date | null;
+  rentFrayStartDate?: Date | null;
   now?: Date;
-};
-
-type CyclePaymentState = {
-  hasPendingPayment: boolean;
-  hasFailedPayment: boolean;
-  hasReversedPayment: boolean;
-  hasPaidPayment: boolean;
 };
 
 function parseDateOnly(value: string): Date | null {
@@ -72,66 +64,6 @@ function diffDays(later: Date, earlier: Date): number {
       (startOfDay(later).getTime() - startOfDay(earlier).getTime()) / msPerDay
     )
   );
-}
-
-async function getPaymentState(input: {
-  propertyId: string;
-  unitId: string;
-  tenantAssignmentId: string | null;
-  billingCycle: string;
-}): Promise<CyclePaymentState> {
-  const scopedPayments = await prisma.payment.findMany({
-    where: {
-      propertyId: input.propertyId,
-      unitId: input.unitId,
-      ...(input.tenantAssignmentId
-        ? { tenantAssignmentId: input.tenantAssignmentId }
-        : {}),
-      OR: [
-        { billingCycle: input.billingCycle },
-        { status: "PENDING" },
-      ],
-    },
-    select: {
-      status: true,
-      billingCycle: true,
-    },
-  });
-
-    const currentCycleStatuses = scopedPayments
-    .filter(
-      (payment: (typeof scopedPayments)[number]) =>
-        payment.billingCycle === input.billingCycle
-    )
-    .map((payment: (typeof scopedPayments)[number]) =>
-      String(payment.status).toUpperCase()
-    );
-
-  const hasActivePendingPayment = scopedPayments.some(
-    (payment: (typeof scopedPayments)[number]) =>
-      String(payment.status).toUpperCase() === "PENDING"
-  );
-
-  const hasPaidPayment = currentCycleStatuses.includes("PAID");
-
-  const hasPendingPayment = hasActivePendingPayment;
-
-  const hasFailedPayment =
-    !hasPaidPayment &&
-    !hasPendingPayment &&
-    currentCycleStatuses.includes("FAILED");
-
-  const hasReversedPayment =
-    !hasPaidPayment &&
-    !hasPendingPayment &&
-    currentCycleStatuses.includes("REVERSED");
-
-  return {
-    hasPendingPayment,
-    hasFailedPayment,
-    hasReversedPayment,
-    hasPaidPayment,
-  };
 }
 
 export type UnitFinancialState = {
@@ -176,30 +108,26 @@ const now = getBusinessDate(rawNow);
 const rentDates = getRentDateSummary({
   ...effectiveBillingSettings,
   now: rawNow,
-  billingCycleStartDate: input.billingCycleStartDate ?? null,
+  rentFrayStartDate: input.rentFrayStartDate ?? null,
 });
 
-  const ledgerSummary = await getUnitLedgerSummary(
-    input.unitId,
-    input.tenantAssignmentId ?? undefined
-  );
+const ledgerSummary = await getUnitLedgerSummary({
+  unitId: input.unitId,
+  tenantAssignmentId: input.tenantAssignmentId ?? undefined,
+  asOf: now,
+  billingCycle: rentDates.billingCycle,
+});
 
-    const cyclePaymentState = await getPaymentState({
-    propertyId: input.propertyId,
-    unitId: input.unitId,
-    tenantAssignmentId: input.tenantAssignmentId,
-    billingCycle: rentDates.billingCycle,
-  });
+const rawLedgerBalanceCents = Math.max(
+  0,
+  ledgerSummary.balanceCents
+);
 
-  const rawLedgerBalanceCents = Math.max(0, ledgerSummary.balanceCents);
-
-  const hasPendingPayment = cyclePaymentState.hasPendingPayment;
-  const hasFailedPayment = cyclePaymentState.hasFailedPayment;
-  const hasReversedPayment = cyclePaymentState.hasReversedPayment;
-  const hasPaidPayment = cyclePaymentState.hasPaidPayment;
-
+const hasPendingPayment = ledgerSummary.hasPendingPayment;
+const hasFailedPayment = ledgerSummary.hasFailedPayment;
+const hasReversedPayment = ledgerSummary.hasReversedPayment;
+const hasPaidPayment = ledgerSummary.hasPaidPayment;
   const effectiveBalanceCents = hasPendingPayment ? 0 : rawLedgerBalanceCents;
-
   const processingFeeCents =
     effectiveBalanceCents > 0
       ? getProcessingFeeCents(effectiveBalanceCents)

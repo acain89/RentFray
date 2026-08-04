@@ -253,7 +253,7 @@ function getLateFeesCollectedCents(input: {
 
 function buildLedgerSummary(input: {
   entries: DashboardLedgerEntryRow[];
-  billingCycleStartDate: Date | null;
+  rentFrayStartDate: Date | null;
 }): LedgerSummary {
   let balanceCents = 0;
   let totalChargesCents = 0;
@@ -264,10 +264,10 @@ function buildLedgerSummary(input: {
     const entryType = normalizeLedgerEntryType(entry.entryType);
     if (!entryType) continue;
 
-    if (entryType === "CHARGE" && input.billingCycleStartDate) {
+    if (entryType === "CHARGE" && input.rentFrayStartDate) {
       const effectiveDate = toSafeDate(entry.effectiveDate);
 
-      if (effectiveDate && effectiveDate < input.billingCycleStartDate) {
+      if (effectiveDate && effectiveDate < input.rentFrayStartDate) {
         continue;
       }
     }
@@ -427,26 +427,6 @@ export async function GET() {
     if (property.stripeAccountId) {
   const stripe = getStripeClient();
   const account = await stripe.accounts.retrieve(property.stripeAccountId);
-
-console.log("[stripe-account-status]", {
-  accountId: account.id,
-  detailsSubmitted: account.details_submitted,
-  chargesEnabled: account.charges_enabled,
-  payoutsEnabled: account.payouts_enabled,
-  disabledReason: account.requirements?.disabled_reason ?? null,
-  currentlyDue: account.requirements?.currently_due ?? [],
-  pastDue: account.requirements?.past_due ?? [],
-  pendingVerification:
-    account.requirements?.pending_verification ?? [],
-  requirementErrors:
-    account.requirements?.errors?.map((error) => ({
-      requirement: error.requirement,
-      reason: error.reason,
-      code: error.code,
-    })) ?? [],
-  futureCurrentlyDue:
-    account.future_requirements?.currently_due ?? [],
-});
 
   const requirementsDue = Boolean(
     account.requirements?.currently_due?.length ||
@@ -636,7 +616,7 @@ for (const unit of units) {
     const anchorRentDates = getRentDateSummary({
       ...anchorEffective,
       now,
-      billingCycleStartDate: property.billingCycleStartDate,
+      rentFrayStartDate: property.rentFrayStartDate,
     });
 
     const currentBillingCycle = anchorRentDates.billingCycle;
@@ -791,7 +771,7 @@ for (const unit of units) {
       const rentDates = getRentDateSummary({
         ...effective,
         now,
-        billingCycleStartDate: property.billingCycleStartDate,
+        rentFrayStartDate: property.rentFrayStartDate,
       });
 
       const unitPayments = paymentsByUnit.get(unit.id) ?? [];
@@ -805,7 +785,7 @@ for (const unit of units) {
 
       const ledger = buildLedgerSummary({
         entries: assignmentLedgerEntries,
-        billingCycleStartDate: property.billingCycleStartDate,
+        rentFrayStartDate: property.rentFrayStartDate,
       });
 
       const rawLedgerBalanceCents = Math.max(0, ledger.balanceCents);
@@ -968,7 +948,7 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
     const totalCollected = Math.round(totalCollectedCents) / 100;
     const lateFeesCollected =
     Math.round(totalLateFeesCollectedCents) / 100;
-    const exportMonths = buildExportMonths(property.billingCycleStartDate);
+    const exportMonths = buildExportMonths(property.rentFrayStartDate);
 
     if (process.env.NODE_ENV !== "production") {
       console.log("[manager-dashboard]", {
@@ -988,8 +968,8 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
         code: property.propertyCode,
         unitCount: property.unitCount,
         managementUsers: property.managementUsers,
-        billingCycleStartDate: property.billingCycleStartDate
-          ? property.billingCycleStartDate.toISOString()
+        rentFrayStartDate: property.rentFrayStartDate
+          ? property.rentFrayStartDate.toISOString()
           : null,
 paymentStatus: {
   bankConnected: Boolean(paymentStatus?.onboardingComplete),

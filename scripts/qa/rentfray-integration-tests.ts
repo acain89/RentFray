@@ -90,7 +90,7 @@ export async function runRentFrayIntegrationTests(): Promise<void> {
       lateFeeEnabled: true,
       lateFeeFlatCents: 50,
     },
-    billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+    rentFrayStartDate: new Date("2026-01-17T00:00:00"),
     now: new Date("2026-04-17T00:00:00"),
   });
 
@@ -116,7 +116,7 @@ export async function runRentFrayIntegrationTests(): Promise<void> {
       lateFeeEnabled: true,
       lateFeeFlatCents: 50,
     },
-    billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+    rentFrayStartDate: new Date("2026-01-17T00:00:00"),
     now: new Date("2026-04-17T00:00:00"),
   });
   await verifyLedgerInvariants({
@@ -137,7 +137,19 @@ await verifyApplicationInvariants({
     lateFeeEnabled: true,
     lateFeeFlatCents: 50,
   },
-  billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+  rentFrayStartDate: new Date("2026-01-17T00:00:00"),
   now: new Date("2026-04-17T00:00:00"),
 });
+}
+
+if (require.main === module) {
+  runRentFrayIntegrationTests()
+    .then(() => {
+      console.log("RentFray integration tests passed.");
+    })
+    .catch((error: unknown) => {
+      console.error("RentFray integration tests failed.");
+      console.error(error);
+      process.exitCode = 1;
+    });
 }

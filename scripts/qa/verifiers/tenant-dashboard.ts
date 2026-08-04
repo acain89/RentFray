@@ -21,7 +21,7 @@ export async function verifyTenantDashboardEquivalent(input: {
     lateFeeEnabled: boolean;
     lateFeeFlatCents: number | null;
   } | null;
-  billingCycleStartDate: Date | null;
+  rentFrayStartDate: Date | null;
   now: Date;
 }): Promise<void> {
   const state = await getUnitFinancialState({
@@ -30,7 +30,7 @@ export async function verifyTenantDashboardEquivalent(input: {
     tenantAssignmentId: input.tenantAssignmentId,
     tier: input.tier,
     propertySettings: input.propertySettings,
-    billingCycleStartDate: input.billingCycleStartDate,
+    rentFrayStartDate: input.rentFrayStartDate,
     now: input.now,
   });
 

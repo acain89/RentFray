@@ -154,7 +154,7 @@ async function main(): Promise<void> {
       propertyType: "OTHER",
       unitCount: 10,
       isActive: true,
-      billingCycleStartDate: billingStart,
+      rentFrayStartDate: billingStart,
       settings: {
         create: {
           rentDueDay: 17,
@@ -485,7 +485,7 @@ async function main(): Promise<void> {
         lateFeeEnabled: true,
         lateFeeFlatCents: 50,
       },
-      billingCycleStartDate: billingStart,
+      rentFrayStartDate: billingStart,
       now: afterNextDueDate,
     });
 

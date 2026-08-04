@@ -235,8 +235,25 @@ const now = new Date();
 const rentDates = getRentDateSummary({
   ...effective,
   now,
-  billingCycleStartDate: propertyWithSettings.billingCycleStartDate,
+  rentFrayStartDate: propertyWithSettings.rentFrayStartDate,
 });
+
+if (!rentDates.hasStarted) {
+  const token = createSessionToken({
+    role: "TENANT",
+    propertyId: property.id,
+    unitId: savedUnit.id,
+  });
+
+  await setSessionCookie(token);
+
+  return NextResponse.json({
+    ok: true,
+    role: "TENANT",
+    propertyId: property.id,
+    unitId: savedUnit.id,
+  });
+}
 
 const billingCycle = rentDates.billingCycle;
 const dueDate = new Date(`${rentDates.dueDate}T00:00:00`);

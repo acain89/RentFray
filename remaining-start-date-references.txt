@@ -1,0 +1,92 @@
+jobs\lateFees.ts:117:      billingCycleStartDate: unit.property.billingCycleStartDate,
+jobs\delinquency.ts:38:  billingCycleStartDate: unit.property.billingCycleStartDate,
+lib\delinquency.ts:61:  billingCycleStartDate: unit.property.billingCycleStartDate,
+scripts\rentfray-qa.ts:157:      billingCycleStartDate: billingStart,
+scripts\rentfray-qa.ts:488:      billingCycleStartDate: billingStart,
+lib\ledger.ts:132:          billingCycleStartDate: true,
+lib\ledger.ts:138:  const billingStart = unit?.property?.billingCycleStartDate
+lib\ledger.ts:139:    ? new Date(unit.property.billingCycleStartDate)
+lib\rentDates.ts:24:  billingCycleStartDate?: Date | null;
+lib\rentDates.ts:173:    config.billingCycleStartDate ??
+lib\unitFinancialState.ts:40:  billingCycleStartDate?: Date | null;
+lib\unitFinancialState.ts:179:  billingCycleStartDate: input.billingCycleStartDate ?? null,
+scripts\qa\verifiers\tenant-dashboard.ts:24:  billingCycleStartDate: Date | null;
+scripts\qa\verifiers\tenant-dashboard.ts:33:    billingCycleStartDate: input.billingCycleStartDate,
+scripts\qa\verifiers\financial-state.ts:24:  billingCycleStartDate: Date | null;
+scripts\qa\verifiers\financial-state.ts:33:    billingCycleStartDate: input.billingCycleStartDate,
+scripts\qa\rentfray-integration-tests.ts:93:    billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:119:    billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:140:  billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+app\api\test\load\tenant-dashboard\route.ts:129:        billingCycleStartDate: true,
+app\api\test\load\tenant-dashboard\route.ts:189:      billingCycleStartDate: property.billingCycleStartDate,
+scripts\qa\invariants\application.ts:25:  billingCycleStartDate: Date | null;
+scripts\qa\invariants\application.ts:42:    billingCycleStartDate: input.billingCycleStartDate,
+app\api\test\load\monthly-rent-cron\route.ts:99:        billingCycleStartDate: true,
+app\api\test\load\manager-dashboard\route.ts:104:    billingCycleStartDate: true,
+app\api\test\load\manager-dashboard\route.ts:164:      billingCycleStartDate: property.billingCycleStartDate,
+scripts\cycle-rollover-test.ts:128:      billingCycleStartDate: billingStart,
+scripts\cycle-rollover-test.ts:393:      billingCycleStartDate: billingStart,
+app\api\manual-payments\route.ts:62:    billingCycleStartDate: Date | null;
+app\api\manual-payments\route.ts:185:            billingCycleStartDate: true,
+app\api\manual-payments\route.ts:254:      billingCycleStartDate: typedUnit.property.billingCycleStartDate,
+app\api\tenant\dashboard\route.ts:174:  billingCycleStartDate: property.billingCycleStartDate,
+app\api\tenant\activate\route.ts:238:  billingCycleStartDate: propertyWithSettings.billingCycleStartDate,
+app\manager\dashboard\ManagerDashboardClient.tsx:100:billingCycleStartDate?: string | null;
+app\manager\dashboard\ManagerDashboardClient.tsx:627:  const [billingCycleStartDate, setBillingCycleStartDate] = useState("");
+app\manager\dashboard\ManagerDashboardClient.tsx:628:  const [billingCycleStartDateLocked, setBillingCycleStartDateLocked] = useState(false);
+app\manager\dashboard\ManagerDashboardClient.tsx:1689:  data?.property?.billingCycleStartDate
+app\manager\dashboard\ManagerDashboardClient.tsx:1915:  const raw = data?.property?.billingCycleStartDate ?? "";
+app\manager\dashboard\ManagerDashboardClient.tsx:2243:    !billingCycleStartDate ||
+app\manager\dashboard\ManagerDashboardClient.tsx:2244:    billingCycleStartDateLocked
+app\manager\dashboard\ManagerDashboardClient.tsx:2250:  `Are you sure you want RentFray to start tracking rent on ${billingCycleStartDate}?\n\nOnce confirmed, this date cannot be changed.`
+app\manager\dashboard\ManagerDashboardClient.tsx:2269:          billingCycleStartDate,
+app\manager\dashboard\ManagerDashboardClient.tsx:2283:      `RentFray start date successfully set to ${billingCycleStartDate}.`
+app\manager\dashboard\ManagerDashboardClient.tsx:3664:      billingCycleStartDate={billingCycleStartDate}
+app\manager\dashboard\ManagerDashboardClient.tsx:3666:      billingCycleStartDateLocked={billingCycleStartDateLocked}
+app\setup\next-steps\page.tsx:54:            <strong>3. Set your billing cycle start date</strong>
+app\manager\dashboard\components\BankPanel.tsx:10:  billingCycleStartDate: string;
+app\manager\dashboard\components\BankPanel.tsx:12:  billingCycleStartDateLocked: boolean;
+app\manager\dashboard\components\BankPanel.tsx:92:  billingCycleStartDate,
+app\manager\dashboard\components\BankPanel.tsx:94:  billingCycleStartDateLocked,
+app\manager\dashboard\components\BankPanel.tsx:120:        {billingCycleStartDateLocked ? (
+app\manager\dashboard\components\BankPanel.tsx:123:              Locked: {formatDateOnly(billingCycleStartDate)}
+app\manager\dashboard\components\BankPanel.tsx:134:              value={billingCycleStartDate}
+app\manager\dashboard\components\BankPanel.tsx:145:                savingBillingCycleStartDate || !billingCycleStartDate
+app\api\payments\create-session\route.ts:166:    billingCycleStartDate:
+app\api\payments\create-session\route.ts:167:      property.billingCycleStartDate,
+app\api\ledger\post-rent\route.ts:108:         billingCycleStartDate: property.billingCycleStartDate,
+app\api\ledger\post-recurring-fees\route.ts:106:  billingCycleStartDate: property.billingCycleStartDate,
+app\api\ledger\charges\route.ts:265:  billingCycleStartDate:
+app\api\ledger\charges\route.ts:266:    unit.property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:256:  billingCycleStartDate: Date | null;
+app\api\manager\dashboard\route.ts:267:    if (entryType === "CHARGE" && input.billingCycleStartDate) {
+app\api\manager\dashboard\route.ts:270:      if (effectiveDate && effectiveDate < input.billingCycleStartDate) {
+app\api\manager\dashboard\route.ts:619:      billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:774:        billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:788:        billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:951:    const exportMonths = buildExportMonths(property.billingCycleStartDate);
+app\api\manager\dashboard\route.ts:971:        billingCycleStartDate: property.billingCycleStartDate
+app\api\manager\dashboard\route.ts:972:          ? property.billingCycleStartDate.toISOString()
+prisma\schema.prisma:38:  rentFrayStartDate   DateTime?                @map("billingCycleStartDate")
+app\api\admin\properties\[id]\route.ts:19:  billingCycleStartDate?: unknown;
+app\api\admin\properties\[id]\route.ts:95:  billingCycleStartDate: property.billingCycleStartDate,
+app\api\admin\properties\[id]\route.ts:180:    const billingCycleStartDateRaw =
+app\api\admin\properties\[id]\route.ts:181:  typeof body.billingCycleStartDate === "string"
+app\api\admin\properties\[id]\route.ts:182:    ? body.billingCycleStartDate.trim()
+app\api\admin\properties\[id]\route.ts:185:const billingCycleStartDate = billingCycleStartDateRaw
+app\api\admin\properties\[id]\route.ts:186:  ? new Date(`${billingCycleStartDateRaw}T00:00:00`)
+app\api\admin\properties\[id]\route.ts:191:  typeof body.billingCycleStartDate === "string" &&
+app\api\admin\properties\[id]\route.ts:192:  body.billingCycleStartDate.trim().length > 0;
+app\api\admin\properties\[id]\route.ts:199:      billingCycleStartDate: true,
+app\api\admin\properties\[id]\route.ts:210:    if (existing.billingCycleStartDate) {
+app\api\admin\properties\[id]\route.ts:220:  if (!billingCycleStartDate || Number.isNaN(billingCycleStartDate.getTime())) {
+app\api\admin\properties\[id]\route.ts:222:      { error: "Invalid billing cycle start date." },
+app\api\admin\properties\[id]\route.ts:230:      billingCycleStartDate,
+app\api\admin\properties\[id]\route.ts:239:      billingCycleStartDate: property.billingCycleStartDate,
+app\api\admin\properties\[id]\route.ts:287:    billingCycleStartDate: true,
+app\api\admin\properties\[id]\route.ts:306:const currentStartTime = existing.billingCycleStartDate
+app\api\admin\properties\[id]\route.ts:307:  ? new Date(existing.billingCycleStartDate).getTime()
+app\api\admin\properties\[id]\route.ts:310:const requestedStartTime = billingCycleStartDate
+app\api\admin\properties\[id]\route.ts:311:  ? new Date(billingCycleStartDate).getTime()
+app\api\admin\properties\[id]\route.ts:332:        ...(billingCycleStartDate !== undefined
+app\api\admin\properties\[id]\route.ts:333:          ? { billingCycleStartDate }

@@ -77,7 +77,7 @@ const propertyId = session.propertyId;
           where: { id: propertyId },
           select: {
             id: true,
-            billingCycleStartDate: true,
+            rentFrayStartDate: true,
             settings: true,
           },
         });
@@ -166,7 +166,7 @@ const propertyId = session.propertyId;
         const rentDates = getRentDateSummary({
           ...currentTierSettings,
           now,
-          billingCycleStartDate: property.billingCycleStartDate,
+          rentFrayStartDate: property.rentFrayStartDate,
         });
 
         const activeAssignment = await tx.tenantAssignment.findFirst({

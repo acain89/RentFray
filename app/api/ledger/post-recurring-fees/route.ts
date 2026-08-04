@@ -103,7 +103,7 @@ export async function POST() {
        const rentDates = getRentDateSummary({
   ...effective,
   now,
-  billingCycleStartDate: property.billingCycleStartDate,
+  rentFrayStartDate: property.rentFrayStartDate,
 });
 
         const billingCycle = rentDates.billingCycle;
@@ -198,3 +198,4 @@ export async function POST() {
     );
   }
 }
+

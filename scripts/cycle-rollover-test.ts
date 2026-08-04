@@ -125,7 +125,7 @@ async function main() {
       propertyType: "OTHER",
       unitCount: 10,
       isActive: true,
-      billingCycleStartDate: billingStart,
+      rentFrayStartDate: billingStart,
       settings: {
         create: {
           rentDueDay: 17,
@@ -390,7 +390,7 @@ async function main() {
         lateFeeEnabled: true,
         lateFeeFlatCents: 50,
       },
-      billingCycleStartDate: billingStart,
+      rentFrayStartDate: billingStart,
       now: new Date("2026-07-18T00:00:00"),
     });
 
@@ -423,4 +423,5 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
 

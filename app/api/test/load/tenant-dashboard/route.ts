@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         propertyCode: true,
-        billingCycleStartDate: true,
+        rentFrayStartDate: true,
         settings: true,
       },
     });
@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
     const rentDates = getRentDateSummary({
       ...effective,
       now,
-      billingCycleStartDate: property.billingCycleStartDate,
+      rentFrayStartDate: property.rentFrayStartDate,
     });
 
     const currentBillingCycle = rentDates.billingCycle;

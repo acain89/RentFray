@@ -120,7 +120,7 @@ async function createQaProperty(): Promise<{
       propertyType: "OTHER",
       unitCount: 20,
       isActive: true,
-      billingCycleStartDate: BILLING_START_DATE,
+      rentFrayStartDate: BILLING_START_DATE,
       settings: {
         create: {
           rentDueDay: 17,
@@ -242,7 +242,7 @@ async function runTwelveMonthlyRentCycles(propertyId: string): Promise<void> {
   ];
 
   for (const dueDate of dueDates) {
-  const result = await runMonthlyRentJob(dueDate);
+  const result = await runMonthlyRentJob(dueDate, propertyId);
 
 const cycleKey = `${dueDate.getFullYear()}-${String(
   dueDate.getMonth() + 1

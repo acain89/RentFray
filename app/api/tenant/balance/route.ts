@@ -24,10 +24,11 @@ export async function GET() {
   select: { id: true },
 });
 
-const summary = await getUnitLedgerSummary(
-  session.unitId,
-  assignment?.id ?? undefined
-);
+const summary = await getUnitLedgerSummary({
+  unitId: session.unitId,
+  tenantAssignmentId: assignment?.id ?? undefined,
+  asOf: new Date(),
+});
 
     return NextResponse.json({
       ok: true,

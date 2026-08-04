@@ -1,5 +1,4 @@
-
-// /lib/rentDates.ts
+// lib/rentDates.ts
 
 type NullableDate = Date | null;
 
@@ -11,12 +10,19 @@ export type RentDateConfig = {
   lateFeeDailyCents: number;
   maxLateFeeDays: number;
   now?: Date;
-  billingCycleStartDate?: Date | null;
+
+  /**
+   * Canonical property start date.
+   * This is the first scheduled rent due date RentFray recognizes.
+   */
+  rentFrayStartDate?: Date | null;
 };
 
 export type RentDateSummary = {
+  hasStarted: boolean;
   billingCycle: string;
   dueDate: string;
+  nextDueDate: string;
   graceEndsOn: string;
   initialLateFeeDate: string | null;
   dailyLateFeeStartDate: string | null;
@@ -33,71 +39,49 @@ export type EffectiveBillingSettings = {
   maxLateFeeDays: number;
 };
 
-/* -------------------- */
-/* TIMEZONE UTILITIES   */
-/* -------------------- */
+const BUSINESS_TIME_ZONE = "America/Chicago";
 
-const CHICAGO_TZ = "America/Chicago";
+type CalendarParts = {
+  year: number;
+  month: number;
+  day: number;
+};
 
 export function getBusinessDate(now: Date = new Date()): Date {
-  const { year, month, day } = getChicagoParts(now);
-
-  return new Date(
-    year,
-    month - 1,
-    day,
-    0,
-    0,
-    0,
-    0
-  );
+  const { year, month, day } = getBusinessDateParts(now);
+  return createDateOnly(year, month, day);
 }
 
-function getChicagoParts(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: CHICAGO_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
+export function formatRentFrayDate(
+  value: Date | string | null | undefined
+): string {
+  if (!value) return "—";
 
-  const map: Record<string, string> = {};
-  parts.forEach((p) => {
-    if (p.type !== "literal") map[p.type] = p.value;
-  });
+  const date =
+    value instanceof Date
+      ? getBusinessDate(value)
+      : parseDateOnly(String(value));
 
-  return {
-    year: Number(map.year),
-    month: Number(map.month),
-    day: Number(map.day),
-  };
+  if (!date) return "—";
+
+  return [
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getFullYear()),
+  ].join("/");
 }
 
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
-}
+export function parseRentFrayDate(
+  value: string | Date | null | undefined
+): Date | null {
+  if (!value) return null;
 
-function clampDay(year: number, month: number, day: number): number {
-  const max = daysInMonth(year, month);
-  return Math.max(1, Math.min(day, max));
-}
+  if (value instanceof Date) {
+    return getBusinessDate(value);
+  }
 
-function toDateOnlyString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return parseDateOnly(value);
 }
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-/* -------------------- */
-/* CONFIG RESOLUTION    */
-/* -------------------- */
 
 export function resolveEffectiveBillingSettings(input: {
   tier?: {
@@ -115,176 +99,165 @@ export function resolveEffectiveBillingSettings(input: {
   } | null;
 }): EffectiveBillingSettings {
   const tier = input.tier;
-  const ps = input.propertySettings;
+  const propertySettings = input.propertySettings;
 
   if (tier) {
     return {
-      dueDay: sanitizeInt(tier.rentDueDay, 1),
-      gracePeriodDays: sanitizeInt(tier.gracePeriodDays, 0),
+      dueDay: clampDueDay(tier.rentDueDay),
+      gracePeriodDays: sanitizeNonNegativeInt(
+        tier.gracePeriodDays,
+        0
+      ),
       lateFeeEnabled:
-        tier.lateFeeInitialCents > 0 || tier.lateFeeDailyCents > 0,
-      lateFeeInitialCents: sanitizeInt(tier.lateFeeInitialCents, 0),
-      lateFeeDailyCents: sanitizeInt(tier.lateFeeDailyCents, 0),
-      maxLateFeeDays: sanitizeInt(tier.maxLateFeeDays, 0),
+        tier.lateFeeInitialCents > 0 ||
+        tier.lateFeeDailyCents > 0,
+      lateFeeInitialCents: sanitizeNonNegativeInt(
+        tier.lateFeeInitialCents,
+        0
+      ),
+      lateFeeDailyCents: sanitizeNonNegativeInt(
+        tier.lateFeeDailyCents,
+        0
+      ),
+      maxLateFeeDays: sanitizeNonNegativeInt(
+        tier.maxLateFeeDays,
+        0
+      ),
     };
   }
 
   return {
-    dueDay: sanitizeInt(ps?.rentDueDay ?? 1, 1),
-    gracePeriodDays: sanitizeInt(ps?.gracePeriodDays ?? 0, 0),
-    lateFeeEnabled: Boolean(ps?.lateFeeEnabled),
-    lateFeeInitialCents: sanitizeInt(ps?.lateFeeFlatCents ?? 0, 0),
+    dueDay: clampDueDay(propertySettings?.rentDueDay ?? 1),
+    gracePeriodDays: sanitizeNonNegativeInt(
+      propertySettings?.gracePeriodDays ?? 0,
+      0
+    ),
+    lateFeeEnabled: Boolean(propertySettings?.lateFeeEnabled),
+    lateFeeInitialCents: sanitizeNonNegativeInt(
+      propertySettings?.lateFeeFlatCents ?? 0,
+      0
+    ),
     lateFeeDailyCents: 0,
     maxLateFeeDays: 0,
   };
 }
 
-function sanitizeInt(value: unknown, fallback: number): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(0, Math.floor(n));
-}
-
-/* -------------------- */
-/* CORE AUTHORITY       */
-/* -------------------- */
-
+/**
+ * Sole authority for RentFray recurring financial dates.
+ *
+ * rentFrayStartDate:
+ * - is the first scheduled rent due date RentFray recognizes;
+ * - must match the property's configured due day;
+ * - permanently excludes every earlier cycle.
+ */
 export function getRentDateSummary(
   config: RentDateConfig
 ): RentDateSummary {
-  const now = config.now ?? new Date();
+  const rawNow = config.now ?? new Date();
+  const today = getBusinessDate(rawNow);
 
-  const { year, month, day } = getChicagoParts(now);
-
-  // Determine correct billing cycle based on due date
-  const isBeforeDueDay = day < config.dueDay;
-
-  const cycleMonth = isBeforeDueDay
-    ? month === 1
-      ? 12
-      : month - 1
-    : month;
-
-  const cycleYear =
-    isBeforeDueDay && month === 1 ? year - 1 : year;
-
-  const safeDueDay = clampDay(
-    cycleYear,
-    cycleMonth,
-    config.dueDay
+  const dueDay = clampDueDay(config.dueDay);
+  const gracePeriodDays = sanitizeNonNegativeInt(
+    config.gracePeriodDays,
+    0
   );
 
-  const dueDate = new Date(
-    cycleYear,
-    cycleMonth - 1,
-    safeDueDay
-  );
+const configuredStart =
+  config.rentFrayStartDate ?? null;
 
-     // 🔒 HARD START DATE LOCK
-  // If the calculated billing cycle would begin before the property's
-  // official billing start date, move the first cycle forward to the first
-  // valid due date on or after that start date.
-  if (config.billingCycleStartDate) {
-    const start = getBusinessDate(config.billingCycleStartDate);
+  const startDate = configuredStart
+  ? createDateOnly(
+      configuredStart.getUTCFullYear(),
+      configuredStart.getUTCMonth() + 1,
+      configuredStart.getUTCDate()
+    )
+  : null;
 
-    if (dueDate < start) {
-      let startYear = start.getFullYear();
-      let startMonth = start.getMonth() + 1;
+  if (startDate && startDate.getDate() !== clampDay(
+    startDate.getFullYear(),
+    startDate.getMonth() + 1,
+    dueDay
+  )) {
+throw new Error(
+  [
+    "rentFrayStartDate must match the configured property due day.",
+    `start=${toDateOnlyString(startDate)}`,
+    `startDay=${startDate.getDate()}`,
+    `dueDay=${dueDay}`,
+    `expectedDay=${clampDay(
+      startDate.getFullYear(),
+      startDate.getMonth() + 1,
+      dueDay
+    )}`,
+  ].join(" ")
+);
+  }
 
-      let safeStartDueDay = clampDay(startYear, startMonth, config.dueDay);
+  const hasStarted = startDate === null || today >= startDate;
 
-      let newDueDate = new Date(
-        startYear,
-        startMonth - 1,
-        safeStartDueDay
-      );
+  let dueDate: Date;
 
-      if (newDueDate < start) {
-        if (startMonth === 12) {
-          startMonth = 1;
-          startYear += 1;
-        } else {
-          startMonth += 1;
-        }
+  if (startDate && !hasStarted) {
+    dueDate = startDate;
+  } else {
+    dueDate = getCurrentCycleDueDate(today, dueDay);
 
-        safeStartDueDay = clampDay(startYear, startMonth, config.dueDay);
-
-        newDueDate = new Date(
-          startYear,
-          startMonth - 1,
-          safeStartDueDay
-        );
-      }
-
-      const newGraceEnds = addDays(
-        newDueDate,
-        Math.max(0, config.gracePeriodDays - 1)
-      );
-
-      return {
-        billingCycle: `${startYear}-${String(startMonth).padStart(2, "0")}`,
-        dueDate: toDateOnlyString(newDueDate),
-        graceEndsOn: toDateOnlyString(newGraceEnds),
-        initialLateFeeDate:
-          config.lateFeeEnabled && config.lateFeeInitialCents > 0
-            ? toDateOnlyString(addDays(newGraceEnds, 1))
-            : null,
-        dailyLateFeeStartDate:
-          config.lateFeeEnabled &&
-          config.lateFeeDailyCents > 0 &&
-          config.maxLateFeeDays > 0
-            ? toDateOnlyString(
-                addDays(
-                  config.lateFeeInitialCents > 0
-                    ? addDays(newGraceEnds, 1)
-                    : newGraceEnds,
-                  1
-                )
-              )
-            : null,
-        dailyLateFeeLastDate: null,
-        isDelinquent: false,
-      };
+    if (startDate && dueDate < startDate) {
+      dueDate = startDate;
     }
   }
 
-const graceEnds = addDays(
-  dueDate,
-  Math.max(0, config.gracePeriodDays - 1)
-);
+  const nextDueDate = getNextScheduledDueDate(dueDate, dueDay);
 
-  let initialLateFeeDate: NullableDate = null;
+  const graceEndsOn = addDays(
+    dueDate,
+    Math.max(0, gracePeriodDays - 1)
+  );
+
+  const initialLateFeeDate =
+    config.lateFeeEnabled &&
+    sanitizeNonNegativeInt(config.lateFeeInitialCents, 0) > 0
+      ? addDays(graceEndsOn, 1)
+      : null;
+
   let dailyLateFeeStartDate: NullableDate = null;
   let dailyLateFeeLastDate: NullableDate = null;
 
-  if (config.lateFeeEnabled) {
-    if (config.lateFeeInitialCents > 0) {
-      initialLateFeeDate = addDays(graceEnds, 1);
-    }
+  const dailyLateFeeCents = sanitizeNonNegativeInt(
+    config.lateFeeDailyCents,
+    0
+  );
 
-    if (
-      config.lateFeeDailyCents > 0 &&
-      config.maxLateFeeDays > 0
-    ) {
-      const start =
-        initialLateFeeDate ?? addDays(graceEnds, 1);
+  const maxLateFeeDays = sanitizeNonNegativeInt(
+    config.maxLateFeeDays,
+    0
+  );
 
-      dailyLateFeeStartDate = addDays(start, 1);
-      dailyLateFeeLastDate = addDays(
-        dailyLateFeeStartDate,
-        config.maxLateFeeDays - 1
-      );
-    }
+  if (
+    config.lateFeeEnabled &&
+    dailyLateFeeCents > 0 &&
+    maxLateFeeDays > 0
+  ) {
+    dailyLateFeeStartDate = addDays(
+      initialLateFeeDate ?? graceEndsOn,
+      1
+    );
+
+    dailyLateFeeLastDate = addDays(
+      dailyLateFeeStartDate,
+      maxLateFeeDays - 1
+    );
   }
 
-  const today = getBusinessDate(now);
-
-  const isDelinquent = today > graceEnds;
+  const isDelinquent =
+    hasStarted && today > graceEndsOn;
 
   return {
-    billingCycle: `${cycleYear}-${String(cycleMonth).padStart(2, "0")}`,
+    hasStarted,
+    billingCycle: getBillingCycleKey(dueDate),
     dueDate: toDateOnlyString(dueDate),
-    graceEndsOn: toDateOnlyString(graceEnds),
+    nextDueDate: toDateOnlyString(nextDueDate),
+    graceEndsOn: toDateOnlyString(graceEndsOn),
     initialLateFeeDate: initialLateFeeDate
       ? toDateOnlyString(initialLateFeeDate)
       : null,
@@ -296,4 +269,213 @@ const graceEnds = addDays(
       : null,
     isDelinquent,
   };
+}
+
+export function getBillingCycleKey(date: Date): string {
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}`;
+}
+
+export function getNextBillingCycleKey(
+  billingCycle: string
+): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(
+    String(billingCycle).trim()
+  );
+
+  if (!match) {
+    throw new Error(`Invalid billing cycle: ${billingCycle}`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid billing cycle: ${billingCycle}`);
+  }
+
+  return month === 12
+    ? `${year + 1}-01`
+    : `${year}-${String(month + 1).padStart(2, "0")}`;
+}
+
+function getCurrentCycleDueDate(
+  today: Date,
+  dueDay: number
+): Date {
+  let year = today.getFullYear();
+  let month = today.getMonth() + 1;
+
+  const thisMonthDueDate = createDateOnly(
+    year,
+    month,
+    clampDay(year, month, dueDay)
+  );
+
+  if (today >= thisMonthDueDate) {
+    return thisMonthDueDate;
+  }
+
+  if (month === 1) {
+    year -= 1;
+    month = 12;
+  } else {
+    month -= 1;
+  }
+
+  return createDateOnly(
+    year,
+    month,
+    clampDay(year, month, dueDay)
+  );
+}
+
+function getNextScheduledDueDate(
+  currentDueDate: Date,
+  dueDay: number
+): Date {
+  let year = currentDueDate.getFullYear();
+  let month = currentDueDate.getMonth() + 2;
+
+  if (month === 13) {
+    month = 1;
+    year += 1;
+  }
+
+  return createDateOnly(
+    year,
+    month,
+    clampDay(year, month, dueDay)
+  );
+}
+
+function getBusinessDateParts(date: Date): CalendarParts {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values: Record<string, string> = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+  };
+}
+
+function parseDateOnly(value: string): Date | null {
+  const raw = String(value).trim();
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+
+  if (isoMatch) {
+    return createValidatedDate(
+      Number(isoMatch[1]),
+      Number(isoMatch[2]),
+      Number(isoMatch[3])
+    );
+  }
+
+  const usMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
+
+  if (usMatch) {
+    return createValidatedDate(
+      Number(usMatch[3]),
+      Number(usMatch[1]),
+      Number(usMatch[2])
+    );
+  }
+
+  const parsed = new Date(raw);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return getBusinessDate(parsed);
+}
+
+function createValidatedDate(
+  year: number,
+  month: number,
+  day: number
+): Date | null {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth(year, month)
+  ) {
+    return null;
+  }
+
+  return createDateOnly(year, month, day);
+}
+
+function createDateOnly(
+  year: number,
+  month: number,
+  day: number
+): Date {
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+function clampDay(
+  year: number,
+  month: number,
+  day: number
+): number {
+  return Math.max(
+    1,
+    Math.min(clampDueDay(day), daysInMonth(year, month))
+  );
+}
+
+function clampDueDay(value: unknown): number {
+  const day = sanitizeNonNegativeInt(value, 1);
+  return Math.max(1, Math.min(day, 31));
+}
+
+function sanitizeNonNegativeInt(
+  value: unknown,
+  fallback: number
+): number {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.trunc(number));
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function toDateOnlyString(date: Date): string {
+  return [
+    String(date.getFullYear()),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
 }

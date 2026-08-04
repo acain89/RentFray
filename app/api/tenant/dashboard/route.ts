@@ -171,7 +171,7 @@ if (
   tenantAssignmentId: currentAssignmentId,
   tier: unit.tier,
   propertySettings: property.settings,
-  billingCycleStartDate: property.billingCycleStartDate,
+  rentFrayStartDate: property.rentFrayStartDate,
 });
 
 const ledgerSummary = financialState.ledgerSummary;
@@ -474,4 +474,5 @@ paymentMessage: unitStatus.tenantMessage,
     );
   }
 }
+
 

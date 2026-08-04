@@ -49,7 +49,8 @@ type LateFeesJobResult = {
 };
 
 export async function runLateFeesJob(
-  asOf = new Date()
+  asOf = new Date(),
+  propertyId?: string
 ): Promise<LateFeesJobResult> {
   // Keep the original timestamp for timezone-aware financial calculations.
   const rawNow = asOf;
@@ -58,9 +59,10 @@ export async function runLateFeesJob(
   const effectiveDate = getBusinessDate(rawNow);
 
   const units = await prisma.unit.findMany({
-    where: {
-      isActive: true,
-    },
+where: {
+  isActive: true,
+  ...(propertyId ? { propertyId } : {}),
+},
     include: {
       property: {
         include: {
@@ -108,15 +110,20 @@ export async function runLateFeesJob(
       continue;
     }
 
-    const financialState = await getUnitFinancialState({
-      propertyId: unit.propertyId,
-      unitId: unit.id,
-      tenantAssignmentId: assignment.id,
-      tier: unit.tier,
-      propertySettings: unit.property.settings,
-      billingCycleStartDate: unit.property.billingCycleStartDate,
-      now: rawNow,
-    });
+const financialState = await getUnitFinancialState({
+  propertyId: unit.propertyId,
+  unitId: unit.id,
+  tenantAssignmentId: assignment.id,
+  tier: unit.tier,
+  propertySettings: unit.property.settings,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+  now: rawNow,
+});
+
+if (!financialState.rentDates.hasStarted) {
+  skipped++;
+  continue;
+}
 
     const effective = financialState.effectiveBillingSettings;
     const billingCycle = financialState.billingCycle;

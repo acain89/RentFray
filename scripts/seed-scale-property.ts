@@ -63,7 +63,7 @@ async function main() {
       contactEmail: OWNER_EMAIL,
       isActive: true,
       unitCount: UNIT_COUNT,
-      billingCycleStartDate: DUE_DATE,
+      rentFrayStartDate: DUE_DATE,
       settings: {
         create: {
           rentDueDay: 1,

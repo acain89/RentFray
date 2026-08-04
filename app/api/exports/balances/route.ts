@@ -144,10 +144,11 @@ export async function GET(req: Request) {
     })
   : [];
 
-        const summary = await getUnitLedgerSummary(
-  unit.id,
-  currentAssignment?.id
-);
+const summary = await getUnitLedgerSummary({
+  unitId: unit.id,
+  tenantAssignmentId: currentAssignment?.id,
+  asOf: new Date(),
+});
 
 let cycleChargesCents = summary.totalChargesCents;
 let cyclePaidCents = summary.totalPaidCents;

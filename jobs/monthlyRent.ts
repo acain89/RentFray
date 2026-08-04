@@ -105,7 +105,8 @@ async function createLedgerEntriesInChunks(
 }
 
 export async function runMonthlyRentJob(
-  asOf = new Date()
+  asOf = new Date(),
+  propertyId?: string
 ): Promise<MonthlyRentJobResult> {
   const lockAcquired = await acquireMonthlyRentLock(prisma);
 
@@ -138,7 +139,10 @@ export async function runMonthlyRentJob(
   try {
     while (true) {
       const units: MonthlyRentUnit[] = await prisma.unit.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+         ...(propertyId ? { propertyId } : {}),
+            },
         orderBy: { id: "asc" },
         take: UNIT_CHUNK_SIZE,
         ...(cursorId
@@ -192,8 +196,13 @@ export async function runMonthlyRentJob(
           const rentDates = getRentDateSummary({
             ...effective,
             now: today,
-            billingCycleStartDate: unit.property.billingCycleStartDate,
+            rentFrayStartDate: unit.property.rentFrayStartDate,
           });
+
+           if (!rentDates.hasStarted) {
+           skippedNotDue++;
+           return acc;
+           } 
 
           const dueDate = parseDateOnly(rentDates.dueDate);
 

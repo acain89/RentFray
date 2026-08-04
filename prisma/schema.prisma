@@ -17,39 +17,39 @@ model AdminAccess {
 }
 
 model Property {
-  id                    String                   @id @default(cuid())
-  name                  String
-  propertyCode          String                   @unique
-  status                String                   @default("SETUP")
-  addressLine1          String?
-  addressLine2          String?
-  city                  String?
-  state                 String?
-  zip                   String?
-  propertyType          String?
-  ownerDisplayName      String?
-  contactPhone          String?
-  contactEmail          String?
-  isActive              Boolean                  @default(true)
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  stripeAccountId       String?
-  unitCount             Int                      @default(0)
-  billingCycleStartDate DateTime?
-  auditLogs             AuditLog[]
-  ledgerEntries         LedgerEntry[]
-  maintenanceRequests   MaintenanceRequest[]
-  maintenanceUsers      MaintenanceUser[]
-  managementUsers       ManagementUser[]
-  payments              Payment[]
-  paymentStatus         PaymentConnectionStatus?
-  settings              PropertySettings?
-  tiers                 PropertyTier[]
-  tierCharges           PropertyTierCharge[]
-  tenantAssignments     TenantAssignment[]
-  units                 Unit[]
-  unitNotes             UnitNote[]
-  recurringFees         UnitRecurringFee[]
+  id                  String                   @id @default(cuid())
+  name                String
+  propertyCode        String                   @unique
+  status              String                   @default("SETUP")
+  addressLine1        String?
+  addressLine2        String?
+  city                String?
+  state               String?
+  zip                 String?
+  propertyType        String?
+  ownerDisplayName    String?
+  contactPhone        String?
+  contactEmail        String?
+  isActive            Boolean                  @default(true)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  stripeAccountId     String?
+  unitCount           Int                      @default(0)
+  rentFrayStartDate   DateTime?                @map("billingCycleStartDate")
+  auditLogs           AuditLog[]
+  ledgerEntries       LedgerEntry[]
+  maintenanceRequests MaintenanceRequest[]
+  maintenanceUsers    MaintenanceUser[]
+  managementUsers     ManagementUser[]
+  payments            Payment[]
+  paymentStatus       PaymentConnectionStatus?
+  settings            PropertySettings?
+  tiers               PropertyTier[]
+  tierCharges         PropertyTierCharge[]
+  tenantAssignments   TenantAssignment[]
+  units               Unit[]
+  unitNotes           UnitNote[]
+  recurringFees       UnitRecurringFee[]
 
   @@index([status])
   @@index([isActive])

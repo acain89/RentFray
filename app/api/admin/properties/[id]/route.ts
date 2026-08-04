@@ -16,7 +16,7 @@ type PatchBody = {
   lateFeeFlat?: unknown;
   convenienceFeeEnabled?: unknown;
   convenienceFeeAmount?: unknown;
-  billingCycleStartDate?: unknown;
+  rentFrayStartDate?: unknown;
 };
 
 function safeString(value: unknown): string {
@@ -92,7 +92,7 @@ export async function GET(
   type: property.propertyType,
   isActive: property.isActive,
   address: property.addressLine1,
-  billingCycleStartDate: property.billingCycleStartDate,
+  rentFrayStartDate: property.rentFrayStartDate,
 },
       settings: property.settings,
       tiers: property.tiers.map((t: (typeof property.tiers)[number]) => ({
@@ -177,26 +177,43 @@ export async function PATCH(
       toNumber(body.convenienceFeeAmount, 0) * 100
     );
 
-    const billingCycleStartDateRaw =
-  typeof body.billingCycleStartDate === "string"
-    ? body.billingCycleStartDate.trim()
+    const rentFrayStartDateRaw =
+  typeof body.rentFrayStartDate === "string"
+    ? body.rentFrayStartDate.trim()
     : "";
 
-const billingCycleStartDate = billingCycleStartDateRaw
-  ? new Date(`${billingCycleStartDateRaw}T00:00:00`)
+const rentFrayStartDate = rentFrayStartDateRaw
+  ? new Date(`${rentFrayStartDateRaw}T00:00:00`)
   : undefined;
 
-  const billingCycleOnlyUpdate =
+  const rentFrayStartDateOnlyUpdate =
   Object.keys(body).length === 1 &&
-  typeof body.billingCycleStartDate === "string" &&
-  body.billingCycleStartDate.trim().length > 0;
+  typeof body.rentFrayStartDate === "string" &&
+  body.rentFrayStartDate.trim().length > 0;
 
-if (billingCycleOnlyUpdate) {
+if (rentFrayStartDateOnlyUpdate) {
   const existing = await prisma.property.findUnique({
     where: { id },
     select: {
       id: true,
-      billingCycleStartDate: true,
+      rentFrayStartDate: true,
+      settings: {
+        select: {
+          rentDueDay: true,
+        },
+      },
+      tiers: {
+        where: {
+          isActive: true,
+        },
+        orderBy: [
+          { sortOrder: "asc" },
+          { id: "asc" },
+        ],
+        select: {
+          rentDueDay: true,
+        },
+      },
     },
   });
 
@@ -207,19 +224,52 @@ if (billingCycleOnlyUpdate) {
     );
   }
 
-    if (existing.billingCycleStartDate) {
+  if (existing.rentFrayStartDate) {
     return NextResponse.json(
       {
         error:
-          "Billing cycle start date has already been locked and cannot be changed.",
+          "RentFray Start Date has already been permanently locked and cannot be changed.",
       },
       { status: 409 }
     );
   }
 
-  if (!billingCycleStartDate || Number.isNaN(billingCycleStartDate.getTime())) {
+  if (
+    !rentFrayStartDate ||
+    Number.isNaN(rentFrayStartDate.getTime())
+  ) {
     return NextResponse.json(
-      { error: "Invalid billing cycle start date." },
+      { error: "Invalid RentFray Start Date." },
+      { status: 400 }
+    );
+  }
+
+  const configuredDueDay =
+    existing.settings?.rentDueDay ??
+    existing.tiers[0]?.rentDueDay ??
+    null;
+
+  if (
+    !configuredDueDay ||
+    !Number.isInteger(configuredDueDay) ||
+    configuredDueDay < 1 ||
+    configuredDueDay > 31
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Set the property's rent due day before locking the RentFray Start Date.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (rentFrayStartDate.getDate() !== configuredDueDay) {
+    return NextResponse.json(
+      {
+        error:
+          `RentFray Start Date must fall on the property's rent due day: day ${configuredDueDay}.`,
+      },
       { status: 400 }
     );
   }
@@ -227,7 +277,7 @@ if (billingCycleOnlyUpdate) {
   const property = await prisma.property.update({
     where: { id },
     data: {
-      billingCycleStartDate,
+      rentFrayStartDate,
     },
   });
 
@@ -236,19 +286,19 @@ if (billingCycleOnlyUpdate) {
     property: {
       id: property.id,
       name: property.name,
-      billingCycleStartDate: property.billingCycleStartDate,
+      rentFrayStartDate: property.rentFrayStartDate,
     },
   });
 }
 
-if (!billingCycleOnlyUpdate && !name) {
+if (!rentFrayStartDateOnlyUpdate && !name) {
   return NextResponse.json(
     { error: "Property name is required." },
     { status: 400 }
   );
 }
 
-if (!billingCycleOnlyUpdate && !address) {
+if (!rentFrayStartDateOnlyUpdate && !address) {
   return NextResponse.json(
     { error: "Property address is required." },
     { status: 400 }
@@ -256,7 +306,7 @@ if (!billingCycleOnlyUpdate && !address) {
 }
 
 if (
-  !billingCycleOnlyUpdate &&
+  !rentFrayStartDateOnlyUpdate &&
   (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31)
 ) {
   return NextResponse.json(
@@ -266,7 +316,7 @@ if (
 }
 
 if (
-  !billingCycleOnlyUpdate &&
+  !rentFrayStartDateOnlyUpdate &&
   (
     !Number.isInteger(gracePeriodDays) ||
     gracePeriodDays < 0 ||
@@ -284,7 +334,7 @@ if (
   where: { id },
   select: {
     id: true,
-    billingCycleStartDate: true,
+    rentFrayStartDate: true,
     settings: { select: { id: true } },
   },
 });
@@ -296,32 +346,12 @@ if (
       );
     }
 
-    const hasLedgerActivity = await prisma.ledgerEntry.findFirst({
-  where: {
-    propertyId: id,
-  },
-  select: { id: true },
-});
-
-const currentStartTime = existing.billingCycleStartDate
-  ? new Date(existing.billingCycleStartDate).getTime()
-  : null;
-
-const requestedStartTime = billingCycleStartDate
-  ? new Date(billingCycleStartDate).getTime()
-  : null;
-
-const isChangingBillingCycleStartDate =
-  currentStartTime !== null &&
-  requestedStartTime !== null &&
-  currentStartTime !== requestedStartTime;
-
     const updated = await prisma.$transaction(
   async (tx: Prisma.TransactionClient) => {
     const property = await tx.property.update({
       where: { id },
       data: {
-        ...(billingCycleOnlyUpdate
+        ...(rentFrayStartDateOnlyUpdate
           ? {}
           : {
               name,
@@ -329,13 +359,13 @@ const isChangingBillingCycleStartDate =
               propertyType,
               isActive,
             }),
-        ...(billingCycleStartDate !== undefined
-          ? { billingCycleStartDate }
+        ...(rentFrayStartDate !== undefined
+          ? { rentFrayStartDate }
           : {}),
       },
     });
 
-    const settings = billingCycleOnlyUpdate
+    const settings = rentFrayStartDateOnlyUpdate
       ? existing.settings
         ? await tx.propertySettings.findUnique({
             where: { propertyId: id },

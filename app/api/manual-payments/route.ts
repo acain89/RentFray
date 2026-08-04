@@ -59,7 +59,7 @@ type UnitForManualPayment = {
     maxLateFeeDays: number;
   } | null;
   property: {
-    billingCycleStartDate: Date | null;
+    rentFrayStartDate: Date | null;
     settings: {
       rentDueDay: number;
       gracePeriodDays: number;
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
         },
         property: {
           select: {
-            billingCycleStartDate: true,
+            rentFrayStartDate: true,
             settings: {
               select: {
                 rentDueDay: true,
@@ -251,7 +251,7 @@ export async function POST(req: Request) {
     const rentDates = getRentDateSummary({
       ...effective,
       now: effectiveDate,
-      billingCycleStartDate: typedUnit.property.billingCycleStartDate,
+      rentFrayStartDate: typedUnit.property.rentFrayStartDate,
     });
 
     const billingCycle = rentDates.billingCycle;

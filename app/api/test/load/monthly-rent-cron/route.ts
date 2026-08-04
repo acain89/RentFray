@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         propertyCode: true,
-        billingCycleStartDate: true,
+        rentFrayStartDate: true,
         settings: true,
       },
     });

@@ -262,8 +262,8 @@ const effective = resolveEffectiveBillingSettings({
 const rentDates = getRentDateSummary({
   ...effective,
   now: effectiveDate,
-  billingCycleStartDate:
-    unit.property.billingCycleStartDate,
+  rentFrayStartDate:
+    unit.property.rentFrayStartDate,
 });
 
 let billingCycle = rentDates.billingCycle;
@@ -379,3 +379,4 @@ if (hasPending) {
     );
   }
 }
+

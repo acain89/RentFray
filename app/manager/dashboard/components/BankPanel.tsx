@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 type Props = {
   bankStatus?: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED";
@@ -7,11 +7,11 @@ type Props = {
   isOwner: boolean;
   onConnect: () => void;
   onOnboard: () => void;
-  billingCycleStartDate: string;
-  setBillingCycleStartDate: (value: string) => void;
-  billingCycleStartDateLocked: boolean;
-  saveBillingCycleStartDate: () => void;
-  savingBillingCycleStartDate: boolean;
+  rentFrayStartDate: string;
+  setRentFrayStartDate: (value: string) => void;
+  rentFrayStartDateLocked: boolean;
+  saveRentFrayStartDate: () => void;
+  savingRentFrayStartDate: boolean;
 };
 
 function getStatusUI(
@@ -89,11 +89,11 @@ export default function BankPanel({
   isOwner,
   onConnect,
   onOnboard,
-  billingCycleStartDate,
-  setBillingCycleStartDate,
-  billingCycleStartDateLocked,
-  saveBillingCycleStartDate,
-  savingBillingCycleStartDate,
+  rentFrayStartDate,
+  setRentFrayStartDate,
+  rentFrayStartDateLocked,
+  saveRentFrayStartDate,
+  savingRentFrayStartDate,
 }: Props) {
 const ui = getStatusUI(
   bankStatus,
@@ -117,10 +117,10 @@ const ui = getStatusUI(
           you add them manually.
         </div>
 
-        {billingCycleStartDateLocked ? (
+        {rentFrayStartDateLocked ? (
           <div className="mt-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3">
             <div className="text-sm font-semibold text-[#166534]">
-              Locked: {formatDateOnly(billingCycleStartDate)}
+              Locked: {formatDateOnly(rentFrayStartDate)}
             </div>
 
             <div className="mt-1 text-xs leading-5 text-[#15803d]">
@@ -131,24 +131,24 @@ const ui = getStatusUI(
           <>
             <input
               type="date"
-              value={billingCycleStartDate}
+              value={rentFrayStartDate}
               onChange={(event) =>
-                setBillingCycleStartDate(event.target.value)
+                setRentFrayStartDate(event.target.value)
               }
               className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-900/10"
             />
 
             <button
               type="button"
-              onClick={saveBillingCycleStartDate}
+              onClick={saveRentFrayStartDate}
               disabled={
-                savingBillingCycleStartDate || !billingCycleStartDate
+                savingRentFrayStartDate || !rentFrayStartDate
               }
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             >
-              {savingBillingCycleStartDate
+              {savingRentFrayStartDate
                 ? "Saving..."
-                : "Confirm Start Date"}
+                : "Lock RentFray Start Date"}
             </button>
           </>
         ) : null}
@@ -224,3 +224,4 @@ const ui = getStatusUI(
     </div>
   );
 }
+

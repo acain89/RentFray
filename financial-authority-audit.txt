@@ -1,0 +1,2367 @@
+jobs\monthlyRent.ts:11:const MONTHLY_RENT_JOB_LOCK_ID = 91024001;
+jobs\monthlyRent.ts:41:  billingCycle: string;
+jobs\monthlyRent.ts:42:  dueDate: Date;
+jobs\monthlyRent.ts:46:  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+jobs\monthlyRent.ts:55:  return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
+jobs\monthlyRent.ts:58:function rentKey(unitId: string, billingCycle: string): string {
+jobs\monthlyRent.ts:59:  return `${unitId}|${billingCycle}|RENT`;
+jobs\monthlyRent.ts:62:function feeKey(unitId: string, billingCycle: string, memo: string): string {
+jobs\monthlyRent.ts:63:  return `${unitId}|${billingCycle}|RECURRING_FEE|${memo}`;
+jobs\monthlyRent.ts:69:      SELECT pg_try_advisory_lock(${MONTHLY_RENT_JOB_LOCK_ID}) AS locked
+jobs\monthlyRent.ts:81:      SELECT pg_advisory_unlock(${MONTHLY_RENT_JOB_LOCK_ID})
+jobs\monthlyRent.ts:108:  asOf = new Date()
+jobs\monthlyRent.ts:195:            billingCycleStartDate: unit.property.billingCycleStartDate,
+jobs\monthlyRent.ts:198:          const dueDate = parseDateOnly(rentDates.dueDate);
+jobs\monthlyRent.ts:200:          if (!sameDay(today, dueDate)) {
+jobs\monthlyRent.ts:207:            startOfDay(assignment.moveInDate).getTime() > dueDate.getTime()
+jobs\monthlyRent.ts:218:            billingCycle: rentDates.billingCycle,
+jobs\monthlyRent.ts:219:            dueDate,
+jobs\monthlyRent.ts:233:      const billingCycles = Array.from(
+jobs\monthlyRent.ts:235:          dueUnitPayloads.map((item: DueUnitPayload) => item.billingCycle)
+jobs\monthlyRent.ts:242:          billingCycle: { in: billingCycles },
+jobs\monthlyRent.ts:244:          chargeType: { in: ["RENT", "RECURRING_FEE"] },
+jobs\monthlyRent.ts:249:          billingCycle: true,
+jobs\monthlyRent.ts:261:        if (chargeType === "RENT") {
+jobs\monthlyRent.ts:262:          existingRentKeys.add(rentKey(entry.unitId, entry.billingCycle));
+jobs\monthlyRent.ts:268:            feeKey(entry.unitId, entry.billingCycle, entry.memo ?? "")
+jobs\monthlyRent.ts:277:        const { unit, assignment, billingCycle, dueDate } = item;
+jobs\monthlyRent.ts:282:          const key = rentKey(unit.id, billingCycle);
+jobs\monthlyRent.ts:294:              chargeType: "RENT",
+jobs\monthlyRent.ts:295:              amountCents: baseRentCents,
+jobs\monthlyRent.ts:296:              billingCycle,
+jobs\monthlyRent.ts:297:              effectiveDate: dueDate,
+jobs\monthlyRent.ts:304:          const amountCents = Math.max(0, fee.amountCents);
+jobs\monthlyRent.ts:305:          if (amountCents <= 0) continue;
+jobs\monthlyRent.ts:308:          const key = feeKey(unit.id, billingCycle, memo);
+jobs\monthlyRent.ts:323:            amountCents,
+jobs\monthlyRent.ts:324:            billingCycle,
+jobs\monthlyRent.ts:325:            effectiveDate: dueDate,
+scripts\seed-scale-property.ts:16:const BASE_RENT_CENTS = 100000;
+scripts\seed-scale-property.ts:21:const DUE_DATE = new Date("2026-05-01T12:00:00.000Z");
+scripts\seed-scale-property.ts:22:const PAID_DATE = new Date("2026-05-02T12:00:00.000Z");
+scripts\seed-scale-property.ts:66:      billingCycleStartDate: DUE_DATE,
+scripts\seed-scale-property.ts:69:          rentDueDay: 1,
+scripts\seed-scale-property.ts:70:          gracePeriodDays: 5,
+scripts\seed-scale-property.ts:71:          lateFeeFlatCents: 5000,
+scripts\seed-scale-property.ts:72:          lateFeePercentBps: null,
+scripts\seed-scale-property.ts:73:          lateFeeEnabled: true,
+scripts\seed-scale-property.ts:94:          lastSyncedAt: new Date(),
+scripts\seed-scale-property.ts:117:      baseRentCents: BASE_RENT_CENTS,
+scripts\seed-scale-property.ts:120:      rentDueDay: 1,
+scripts\seed-scale-property.ts:121:      gracePeriodDays: 5,
+scripts\seed-scale-property.ts:122:      lateFeeType: "FLAT",
+scripts\seed-scale-property.ts:123:      lateFeeInitialCents: 5000,
+scripts\seed-scale-property.ts:124:      lateFeeDailyCents: 1000,
+scripts\seed-scale-property.ts:126:      processingFeeCents: 495,
+scripts\seed-scale-property.ts:148:        baseRentCents: BASE_RENT_CENTS,
+scripts\seed-scale-property.ts:154:        activatedAt: new Date(),
+scripts\seed-scale-property.ts:167:        moveInDate: new Date("2026-04-15T12:00:00.000Z"),
+scripts\seed-scale-property.ts:179:          amountCents: TRASH_FEE_CENTS,
+scripts\seed-scale-property.ts:187:          amountCents: WATER_FEE_CENTS,
+scripts\seed-scale-property.ts:195:      BASE_RENT_CENTS + TRASH_FEE_CENTS + WATER_FEE_CENTS;
+scripts\seed-scale-property.ts:203:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:205:          chargeType: "RENT",
+scripts\seed-scale-property.ts:206:          amountCents: BASE_RENT_CENTS,
+scripts\seed-scale-property.ts:207:          effectiveDate: DUE_DATE,
+scripts\seed-scale-property.ts:215:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:218:          amountCents: TRASH_FEE_CENTS,
+scripts\seed-scale-property.ts:219:          effectiveDate: DUE_DATE,
+scripts\seed-scale-property.ts:227:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:230:          amountCents: WATER_FEE_CENTS,
+scripts\seed-scale-property.ts:231:          effectiveDate: DUE_DATE,
+scripts\seed-scale-property.ts:244:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:245:          amountCents: totalChargeCents,
+scripts\seed-scale-property.ts:246:          processingFeeCents: 495,
+scripts\seed-scale-property.ts:249:          paidAt: PAID_DATE,
+scripts\seed-scale-property.ts:261:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:262:          entryType: "PAYMENT",
+scripts\seed-scale-property.ts:264:          amountCents: totalChargeCents,
+scripts\seed-scale-property.ts:265:          effectiveDate: PAID_DATE,
+scripts\seed-scale-property.ts:278:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:279:          amountCents: totalChargeCents,
+scripts\seed-scale-property.ts:280:          processingFeeCents: 495,
+scripts\seed-scale-property.ts:295:          billingCycle: BILLING_CYCLE,
+scripts\seed-scale-property.ts:296:          amountCents: totalChargeCents,
+scripts\seed-scale-property.ts:297:          processingFeeCents: 495,
+scripts\seed-scale-property.ts:300:          failedAt: new Date("2026-05-03T12:00:00.000Z"),
+jobs\lateFees.ts:6:  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+jobs\lateFees.ts:10:  return startOfDay(date).toISOString().slice(0, 10);
+jobs\lateFees.ts:25:  const date = new Date(year, month - 1, day);
+jobs\lateFees.ts:31:  const result = new Date(date);
+jobs\lateFees.ts:32:  result.setDate(result.getDate() + days);
+jobs\lateFees.ts:46:  billingCycle: string;
+jobs\lateFees.ts:52:  asOf = new Date()
+jobs\lateFees.ts:58:  const effectiveDate = getBusinessDate(rawNow);
+jobs\lateFees.ts:72:          rentDueDay: true,
+jobs\lateFees.ts:73:          gracePeriodDays: true,
+jobs\lateFees.ts:74:          lateFeeInitialCents: true,
+jobs\lateFees.ts:75:          lateFeeDailyCents: true,
+jobs\lateFees.ts:117:      billingCycleStartDate: unit.property.billingCycleStartDate,
+jobs\lateFees.ts:122:    const billingCycle = financialState.billingCycle;
+jobs\lateFees.ts:125:      !effective.lateFeeEnabled ||
+jobs\lateFees.ts:155:    billingCycle,
+jobs\lateFees.ts:191:      amountCents: number;
+jobs\lateFees.ts:193:      effectiveDate: Date;
+jobs\lateFees.ts:194:      billingCycle: string;
+jobs\lateFees.ts:199:      effective.lateFeeInitialCents > 0 &&
+jobs\lateFees.ts:201:      isOnOrAfter(effectiveDate, initialLateFeeDate) &&
+jobs\lateFees.ts:210:        amountCents: effective.lateFeeInitialCents,
+jobs\lateFees.ts:211:        memo: `Initial late fee - ${billingCycle}`,
+jobs\lateFees.ts:212:        effectiveDate: initialLateFeeDate,
+jobs\lateFees.ts:213:        billingCycle,
+jobs\lateFees.ts:219:      effective.lateFeeDailyCents > 0 &&
+jobs\lateFees.ts:227:        isOnOrBefore(feeDate, effectiveDate) &&
+jobs\lateFees.ts:240:            amountCents: effective.lateFeeDailyCents,
+jobs\lateFees.ts:242:            effectiveDate: feeDate,
+jobs\lateFees.ts:243:            billingCycle,
+jobs\lateFees.ts:268:    billingCycle: "per-unit",
+scripts\rentfray-qa.ts:6:import { runLateFeesJob } from "../jobs/lateFees";
+scripts\rentfray-qa.ts:14:const billingStart = new Date("2026-06-17T00:00:00");
+scripts\rentfray-qa.ts:15:const oldDueDate = new Date("2026-06-17T00:00:00");
+scripts\rentfray-qa.ts:16:const nextDueDate = new Date("2026-07-17T00:00:00");
+scripts\rentfray-qa.ts:17:const afterNextDueDate = new Date("2026-07-18T00:00:00");
+scripts\rentfray-qa.ts:66:  billingCycle: string;
+scripts\rentfray-qa.ts:67:  amountCents: number;
+scripts\rentfray-qa.ts:68:  processingFeeCents?: number;
+scripts\rentfray-qa.ts:72:  effectiveDate: Date;
+scripts\rentfray-qa.ts:74:  const unique = `${input.intentSuffix}_${Date.now()}_${Math.random()
+scripts\rentfray-qa.ts:83:      billingCycle: input.billingCycle,
+scripts\rentfray-qa.ts:84:      amountCents: input.amountCents,
+scripts\rentfray-qa.ts:85:      processingFeeCents: input.processingFeeCents ?? 0,
+scripts\rentfray-qa.ts:90:      paidAt: input.status === PaymentStatus.PAID ? input.effectiveDate : null,
+scripts\rentfray-qa.ts:91:      failedAt:
+scripts\rentfray-qa.ts:92:        input.status === PaymentStatus.FAILED ? input.effectiveDate : null,
+scripts\rentfray-qa.ts:93:      reversedAt:
+scripts\rentfray-qa.ts:94:        input.status === PaymentStatus.REVERSED ? input.effectiveDate : null,
+scripts\rentfray-qa.ts:98:  if (input.processingFeeCents && input.status === PaymentStatus.PAID) {
+scripts\rentfray-qa.ts:105:        billingCycle: input.billingCycle,
+scripts\rentfray-qa.ts:108:        amountCents: input.processingFeeCents,
+scripts\rentfray-qa.ts:109:        effectiveDate: input.effectiveDate,
+scripts\rentfray-qa.ts:123:        billingCycle: input.billingCycle,
+scripts\rentfray-qa.ts:124:        entryType: "PAYMENT",
+scripts\rentfray-qa.ts:126:        amountCents: -(input.amountCents + (input.processingFeeCents ?? 0)),
+scripts\rentfray-qa.ts:127:        effectiveDate: input.effectiveDate,
+scripts\rentfray-qa.ts:157:      billingCycleStartDate: billingStart,
+scripts\rentfray-qa.ts:160:          rentDueDay: 17,
+scripts\rentfray-qa.ts:161:          gracePeriodDays: 0,
+scripts\rentfray-qa.ts:162:          lateFeeEnabled: true,
+scripts\rentfray-qa.ts:163:          lateFeeFlatCents: 50,
+scripts\rentfray-qa.ts:180:          lastSyncedAt: new Date(),
+scripts\rentfray-qa.ts:195:      rentDueDay: 17,
+scripts\rentfray-qa.ts:196:      gracePeriodDays: 0,
+scripts\rentfray-qa.ts:197:      lateFeeInitialCents: 50,
+scripts\rentfray-qa.ts:198:      lateFeeDailyCents: 25,
+scripts\rentfray-qa.ts:254:              ? new Date("2026-06-18T00:00:00")
+scripts\rentfray-qa.ts:255:              : new Date("2026-06-01T00:00:00"),
+scripts\rentfray-qa.ts:288:        billingCycle: oldCycle,
+scripts\rentfray-qa.ts:290:        chargeType: "RENT",
+scripts\rentfray-qa.ts:291:        amountCents: 100,
+scripts\rentfray-qa.ts:292:        effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:306:    billingCycle: oldCycle,
+scripts\rentfray-qa.ts:307:    amountCents: 100,
+scripts\rentfray-qa.ts:308:    processingFeeCents: 295,
+scripts\rentfray-qa.ts:312:    effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:319:    billingCycle: oldCycle,
+scripts\rentfray-qa.ts:320:    amountCents: 100,
+scripts\rentfray-qa.ts:321:    processingFeeCents: 295,
+scripts\rentfray-qa.ts:325:    effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:332:    billingCycle: oldCycle,
+scripts\rentfray-qa.ts:333:    amountCents: 100,
+scripts\rentfray-qa.ts:337:    effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:345:      billingCycle: oldCycle,
+scripts\rentfray-qa.ts:348:      amountCents: 50,
+scripts\rentfray-qa.ts:349:      effectiveDate: new Date("2026-06-18T00:00:00"),
+scripts\rentfray-qa.ts:359:      billingCycle: oldCycle,
+scripts\rentfray-qa.ts:362:      amountCents: 25,
+scripts\rentfray-qa.ts:363:      effectiveDate: new Date("2026-06-19T00:00:00"),
+scripts\rentfray-qa.ts:372:    billingCycle: oldCycle,
+scripts\rentfray-qa.ts:373:    amountCents: 50,
+scripts\rentfray-qa.ts:377:    effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:384:    billingCycle: oldCycle,
+scripts\rentfray-qa.ts:385:    amountCents: 100,
+scripts\rentfray-qa.ts:386:    processingFeeCents: 295,
+scripts\rentfray-qa.ts:390:    effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:397:    billingCycle: oldCycle,
+scripts\rentfray-qa.ts:398:    amountCents: 100,
+scripts\rentfray-qa.ts:399:    processingFeeCents: 295,
+scripts\rentfray-qa.ts:403:    effectiveDate: oldDueDate,
+scripts\rentfray-qa.ts:419:      billingCycle: nextCycle,
+scripts\rentfray-qa.ts:421:      chargeType: "RENT",
+scripts\rentfray-qa.ts:432:      billingCycle: oldCycle,
+scripts\rentfray-qa.ts:434:      chargeType: "RENT",
+scripts\rentfray-qa.ts:449:      billingCycle: nextCycle,
+scripts\rentfray-qa.ts:451:      chargeType: "RENT",
+scripts\rentfray-qa.ts:462:  const lateFeeResult = await runLateFeesJob(afterNextDueDate);
+scripts\rentfray-qa.ts:466:    lateFeeResult.ok === true,
+scripts\rentfray-qa.ts:467:    JSON.stringify(lateFeeResult)
+scripts\rentfray-qa.ts:483:        rentDueDay: 17,
+scripts\rentfray-qa.ts:484:        gracePeriodDays: 0,
+scripts\rentfray-qa.ts:485:        lateFeeEnabled: true,
+scripts\rentfray-qa.ts:486:        lateFeeFlatCents: 50,
+scripts\rentfray-qa.ts:488:      billingCycleStartDate: billingStart,
+scripts\rentfray-qa.ts:495:      )} | cycle ${state.billingCycle} | pending ${state.hasPendingPayment}`
+scripts\rentfray-qa.ts:515:        state.ledgerBalanceCents > 0 && state.billingCycle === nextCycle
+scripts\rentfray-qa.ts:537:      billingCycle: nextCycle,
+jobs\delinquency.ts:10:export async function runDelinquencyJob(asOf = new Date()) {
+jobs\delinquency.ts:38:  billingCycleStartDate: unit.property.billingCycleStartDate,
+jobs\delinquency.ts:44:    if (summary.balanceCents <= 0) continue;
+jobs\delinquency.ts:64:          balanceCents: summary.balanceCents,
+jobs\delinquency.ts:66:          billingCycle: rentDates.billingCycle,
+scripts\rentfray-financial-regression.ts:13:const BILLING_START_DATE = new Date("2026-01-17T00:00:00");
+scripts\rentfray-financial-regression.ts:14:const BASE_RENT_CENTS = 100;
+scripts\rentfray-financial-regression.ts:123:      billingCycleStartDate: BILLING_START_DATE,
+scripts\rentfray-financial-regression.ts:126:          rentDueDay: 17,
+scripts\rentfray-financial-regression.ts:127:          gracePeriodDays: 0,
+scripts\rentfray-financial-regression.ts:128:          lateFeeEnabled: true,
+scripts\rentfray-financial-regression.ts:129:          lateFeeFlatCents: 50,
+scripts\rentfray-financial-regression.ts:146:          lastSyncedAt: new Date(),
+scripts\rentfray-financial-regression.ts:156:      baseRentCents: BASE_RENT_CENTS,
+scripts\rentfray-financial-regression.ts:159:      rentDueDay: 17,
+scripts\rentfray-financial-regression.ts:160:      gracePeriodDays: 0,
+scripts\rentfray-financial-regression.ts:161:      lateFeeInitialCents: 50,
+scripts\rentfray-financial-regression.ts:162:      lateFeeDailyCents: 25,
+scripts\rentfray-financial-regression.ts:189:        baseRentCents: BASE_RENT_CENTS,
+scripts\rentfray-financial-regression.ts:225:  return new Date(year, monthIndexZeroBased, 17, 0, 0, 0, 0);
+scripts\rentfray-financial-regression.ts:229:  const dueDates = [
+scripts\rentfray-financial-regression.ts:244:  for (const dueDate of dueDates) {
+scripts\rentfray-financial-regression.ts:245:  const result = await runMonthlyRentJob(dueDate);
+scripts\rentfray-financial-regression.ts:247:const cycleKey = `${dueDate.getFullYear()}-${String(
+scripts\rentfray-financial-regression.ts:248:  dueDate.getMonth() + 1
+scripts\rentfray-financial-regression.ts:254:    billingCycle: cycleKey,
+scripts\rentfray-financial-regression.ts:256:    chargeType: "RENT",
+scripts\rentfray-financial-regression.ts:272:      chargeType: "RENT",
+scripts\rentfray-financial-regression.ts:284:    by: ["unitId", "billingCycle", "chargeType"],
+scripts\rentfray-financial-regression.ts:288:      chargeType: "RENT",
+lib\ledger.ts:5:  balanceCents: number;
+lib\ledger.ts:20:type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
+lib\ledger.ts:25:  amountCents: number;
+lib\ledger.ts:27:  effectiveDate: Date;
+lib\ledger.ts:39:    case "PAYMENT":
+lib\ledger.ts:40:    case "CREDIT":
+lib\ledger.ts:41:    case "ADJUSTMENT":
+lib\ledger.ts:68:  return type === "PAYMENT";
+lib\ledger.ts:72:  return type === "CREDIT";
+lib\ledger.ts:82:    value instanceof Date ? value : new Date(value as string | number | Date);
+lib\ledger.ts:99:  - PAYMENT reduces balance owed only when confirmed PAID
+lib\ledger.ts:100:  - CREDIT reduces balance owed
+lib\ledger.ts:101:  - ADJUSTMENT may be positive or negative
+lib\ledger.ts:107:  amountCents: number,
+lib\ledger.ts:110:  const absAmount = Math.abs(toSafeInteger(amountCents));
+lib\ledger.ts:113:  if (entryType === "PAYMENT") {
+lib\ledger.ts:116:  if (entryType === "CREDIT") return -absAmount;
+lib\ledger.ts:117:  if (entryType === "ADJUSTMENT") return toSafeInteger(amountCents);
+lib\ledger.ts:132:          billingCycleStartDate: true,
+lib\ledger.ts:138:  const billingStart = unit?.property?.billingCycleStartDate
+lib\ledger.ts:139:    ? new Date(unit.property.billingCycleStartDate)
+lib\ledger.ts:154:      effectiveDate: {
+lib\ledger.ts:158:    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+lib\ledger.ts:161:      amountCents: true,
+lib\ledger.ts:163:      effectiveDate: true,
+lib\ledger.ts:187:    amountCents: true,
+lib\ledger.ts:200:        const effectiveDate = toSafeDate(entry.effectiveDate);
+lib\ledger.ts:201:        if (!effectiveDate) {
+lib\ledger.ts:205:        return effectiveDate >= billingStart;
+lib\ledger.ts:209:  let balanceCents = 0;
+lib\ledger.ts:227:      Math.abs(toSafeInteger(payment.amountCents))
+lib\ledger.ts:238:    const rawAmountCents = toSafeInteger(entry.amountCents);
+lib\ledger.ts:246:    balanceCents += signedImpactCents;
+lib\ledger.ts:262:      const effectiveDate = toSafeDate(entry.effectiveDate);
+lib\ledger.ts:265:      if (!effectiveDate || !createdAt) {
+lib\ledger.ts:271:        effectiveDate.getTime() > lastPaymentDate.getTime() ||
+lib\ledger.ts:272:        (effectiveDate.getTime() === lastPaymentDate.getTime() &&
+lib\ledger.ts:277:        lastPaymentDate = effectiveDate;
+lib\ledger.ts:285:    balanceCents,
+lib\ledger.ts:289:    balance: centsToDollars(balanceCents),
+lib\unitStatusEngine.ts:19:  balanceCents: number;
+lib\unitStatusEngine.ts:37:  const balanceCents = Math.max(0, Math.trunc(Number(input.balanceCents) || 0));
+lib\unitStatusEngine.ts:59:      canAttemptPayment: balanceCents > 0,
+lib\unitStatusEngine.ts:63:  if (balanceCents <= 0) {
+app\tenant\payment-history\page.tsx:38:    value instanceof Date ? value.toISOString() : String(value).trim();
+app\tenant\payment-history\page.tsx:47:  const date = new Date(raw);
+app\tenant\payment-history\page.tsx:146:            RENTFRAY
+lib\lateFees.ts:2:  balanceCents: number;
+lib\lateFees.ts:5:    lateFeeType: "FLAT" | "PERCENT";
+lib\lateFees.ts:6:    lateFeeFlatCents?: number | null;
+lib\lateFees.ts:7:    lateFeePercentBps?: number | null; // basis points (100 = 1%)
+lib\lateFees.ts:28:  const balanceCents = toSafeCents(input.balanceCents);
+lib\lateFees.ts:30:  if (!input.isDelinquent || balanceCents <= 0) {
+lib\lateFees.ts:35:      basedOnBalanceCents: balanceCents,
+lib\lateFees.ts:36:      evaluatedAt: new Date(),
+lib\lateFees.ts:42:  if (input.settings.lateFeeType === "PERCENT") {
+lib\lateFees.ts:43:    const bps = toSafeCents(input.settings.lateFeePercentBps ?? 0);
+lib\lateFees.ts:44:    feeCents = Math.trunc((balanceCents * bps) / 10_000);
+lib\lateFees.ts:46:    feeCents = toSafeCents(input.settings.lateFeeFlatCents ?? 0);
+lib\lateFees.ts:53:    basedOnBalanceCents: balanceCents,
+lib\lateFees.ts:54:    evaluatedAt: new Date(),
+scripts\qa\verifiers\tenant-dashboard.ts:12:    rentDueDay: number;
+scripts\qa\verifiers\tenant-dashboard.ts:13:    gracePeriodDays: number;
+scripts\qa\verifiers\tenant-dashboard.ts:14:    lateFeeInitialCents: number;
+scripts\qa\verifiers\tenant-dashboard.ts:15:    lateFeeDailyCents: number;
+scripts\qa\verifiers\tenant-dashboard.ts:19:    rentDueDay: number;
+scripts\qa\verifiers\tenant-dashboard.ts:20:    gracePeriodDays: number;
+scripts\qa\verifiers\tenant-dashboard.ts:21:    lateFeeEnabled: boolean;
+scripts\qa\verifiers\tenant-dashboard.ts:22:    lateFeeFlatCents: number | null;
+scripts\qa\verifiers\tenant-dashboard.ts:24:  billingCycleStartDate: Date | null;
+scripts\qa\verifiers\tenant-dashboard.ts:33:    billingCycleStartDate: input.billingCycleStartDate,
+scripts\qa\verifiers\manager-dashboard-readonly.ts:23:  billingCycle: string;
+scripts\qa\verifiers\manager-dashboard-readonly.ts:30:      billingCycle: input.billingCycle,
+scripts\qa\verifiers\manager-dashboard-readonly.ts:36:      amountCents: true,
+scripts\qa\verifiers\manager-dashboard-readonly.ts:50:    if (entryType === "PAYMENT") return sum;
+scripts\qa\verifiers\manager-dashboard-readonly.ts:52:    if (entryType === "CHARGE") return sum + Math.abs(entry.amountCents);
+scripts\qa\verifiers\manager-dashboard-readonly.ts:53:    if (entryType === "CREDIT") return sum - Math.abs(entry.amountCents);
+scripts\qa\verifiers\manager-dashboard-readonly.ts:54:    if (entryType === "ADJUSTMENT") return sum + entry.amountCents;
+scripts\qa\verifiers\manager-dashboard-readonly.ts:63:    if (entryType !== "PAYMENT") return sum;
+scripts\qa\verifiers\manager-dashboard-readonly.ts:66:    return sum + Math.abs(entry.amountCents);
+scripts\qa\verifiers\manager-dashboard-readonly.ts:71:    input.billingCycle
+scripts\qa\verifiers\manager-dashboard-readonly.ts:76:    input.billingCycle
+lib\delinquency.ts:18:  return new Date(y, m - 1, d);
+lib\delinquency.ts:23:  asOf = new Date()
+lib\delinquency.ts:40:       amountCents: true,
+lib\delinquency.ts:41:       billingCycle: true,
+lib\delinquency.ts:61:  billingCycleStartDate: unit.property.billingCycleStartDate,
+lib\delinquency.ts:64:  const dueDate = toDateOnly(rentDates.dueDate);
+lib\delinquency.ts:65:  const graceEndsOn = toDateOnly(rentDates.graceEndsOn);
+lib\delinquency.ts:77:      billingDay: effective.dueDay,
+lib\delinquency.ts:78:      gracePeriodDays: effective.gracePeriodDays,
+lib\delinquency.ts:79:      dueDate: null,
+lib\delinquency.ts:80:      graceEndsOn: null,
+lib\delinquency.ts:90:      lateFeesOwedCents: 0,
+lib\delinquency.ts:105:    entry.chargeType === "RENT" &&
+lib\delinquency.ts:106:    entry.billingCycle === rentDates.billingCycle
+lib\delinquency.ts:108:    rentChargesCents += entry.amountCents ?? 0;
+lib\delinquency.ts:112:  const totalBalanceCents = ledger.balanceCents;
+lib\delinquency.ts:115:  const lateFeesOwedCents = Math.max(0, totalBalanceCents - unpaidRentCents);
+lib\delinquency.ts:122:  const today = new Date(
+lib\delinquency.ts:123:    asOf.getFullYear(),
+lib\delinquency.ts:124:    asOf.getMonth(),
+lib\delinquency.ts:125:    asOf.getDate()
+lib\delinquency.ts:128:  const daysPastDue = isDelinquent ? diffDays(today, dueDate) : 0;
+lib\delinquency.ts:133:    let projectedInitial = effective.lateFeeInitialCents;
+lib\delinquency.ts:139:      effective.lateFeeDailyCents > 0
+lib\delinquency.ts:143:      projectedDaily = effective.lateFeeDailyCents * allowedDays;
+lib\delinquency.ts:152:    billingDay: effective.dueDay,
+lib\delinquency.ts:153:    gracePeriodDays: effective.gracePeriodDays,
+lib\delinquency.ts:154:    dueDate,
+lib\delinquency.ts:155:    graceEndsOn,
+lib\delinquency.ts:165:    lateFeesOwedCents,
+lib\delinquency.ts:175:          rentDueDay: unit.tier.rentDueDay,
+lib\delinquency.ts:176:          gracePeriodDays: unit.tier.gracePeriodDays,
+lib\delinquency.ts:177:          lateFeeInitial: unit.tier.lateFeeInitialCents,
+lib\delinquency.ts:178:          lateFeeDaily: unit.tier.lateFeeDailyCents,
+lib\delinquency.ts:179:          lateFeeMaxDays: unit.tier.maxLateFeeDays,
+lib\unitFinancialState.ts:20:  rentDueDay: number;
+lib\unitFinancialState.ts:21:  gracePeriodDays: number;
+lib\unitFinancialState.ts:22:  lateFeeInitialCents: number;
+lib\unitFinancialState.ts:23:  lateFeeDailyCents: number;
+lib\unitFinancialState.ts:28:  rentDueDay: number;
+lib\unitFinancialState.ts:29:  gracePeriodDays: number;
+lib\unitFinancialState.ts:30:  lateFeeEnabled: boolean;
+lib\unitFinancialState.ts:31:  lateFeeFlatCents?: number | null;
+lib\unitFinancialState.ts:40:  billingCycleStartDate?: Date | null;
+lib\unitFinancialState.ts:59:  const date = new Date(year, month - 1, day);
+lib\unitFinancialState.ts:64:  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+lib\unitFinancialState.ts:81:  billingCycle: string;
+lib\unitFinancialState.ts:91:        { billingCycle: input.billingCycle },
+lib\unitFinancialState.ts:97:      billingCycle: true,
+lib\unitFinancialState.ts:104:        payment.billingCycle === input.billingCycle
+lib\unitFinancialState.ts:143:  processingFeeCents: number;
+lib\unitFinancialState.ts:146:  billingCycle: string;
+lib\unitFinancialState.ts:147:  dueDate: string;
+lib\unitFinancialState.ts:148:  graceEndsOn: string;
+lib\unitFinancialState.ts:168:const rawNow = input.now ?? new Date();
+lib\unitFinancialState.ts:179:  billingCycleStartDate: input.billingCycleStartDate ?? null,
+lib\unitFinancialState.ts:191:    billingCycle: rentDates.billingCycle,
+lib\unitFinancialState.ts:194:  const rawLedgerBalanceCents = Math.max(0, ledgerSummary.balanceCents);
+lib\unitFinancialState.ts:203:  const processingFeeCents =
+lib\unitFinancialState.ts:210:      ? effectiveBalanceCents + processingFeeCents
+lib\unitFinancialState.ts:213:  const dueDate = parseDateOnly(rentDates.dueDate);
+lib\unitFinancialState.ts:214:  const graceEndsOn = parseDateOnly(rentDates.graceEndsOn);
+lib\unitFinancialState.ts:224:  const daysPastDue = isPastGracePeriod && dueDate ? diffDays(now, dueDate) : 0;
+lib\unitFinancialState.ts:227:    isPastGracePeriod && graceEndsOn ? diffDays(now, graceEndsOn) : 0;
+lib\unitFinancialState.ts:230:    balanceCents: effectiveBalanceCents,
+lib\unitFinancialState.ts:244:    processingFeeCents,
+lib\unitFinancialState.ts:247:    billingCycle: rentDates.billingCycle,
+lib\unitFinancialState.ts:248:    dueDate: rentDates.dueDate,
+lib\unitFinancialState.ts:249:    graceEndsOn: rentDates.graceEndsOn,
+scripts\qa\verifiers\financial-state.ts:12:    rentDueDay: number;
+scripts\qa\verifiers\financial-state.ts:13:    gracePeriodDays: number;
+scripts\qa\verifiers\financial-state.ts:14:    lateFeeInitialCents: number;
+scripts\qa\verifiers\financial-state.ts:15:    lateFeeDailyCents: number;
+scripts\qa\verifiers\financial-state.ts:19:    rentDueDay: number;
+scripts\qa\verifiers\financial-state.ts:20:    gracePeriodDays: number;
+scripts\qa\verifiers\financial-state.ts:21:    lateFeeEnabled: boolean;
+scripts\qa\verifiers\financial-state.ts:22:    lateFeeFlatCents: number | null;
+scripts\qa\verifiers\financial-state.ts:24:  billingCycleStartDate: Date | null;
+scripts\qa\verifiers\financial-state.ts:33:    billingCycleStartDate: input.billingCycleStartDate,
+app\tenant\maintenance\page.tsx:30:  const date = new Date(value);
+lib\dashboard.ts:47:    | "PAYMENT"
+lib\dashboard.ts:109:  const d = value instanceof Date ? value : new Date(value);
+lib\dashboard.ts:110:  return Number.isNaN(d.getTime()) ? new Date(0) : d;
+lib\dashboard.ts:119:export function getDashboardCutoffDate(now = new Date()) {
+lib\dashboard.ts:120:  const cutoff = new Date(now);
+lib\dashboard.ts:125:  if (day === 1) cutoff.setDate(cutoff.getDate() - 3);
+lib\dashboard.ts:126:  else if (day === 0) cutoff.setDate(cutoff.getDate() - 2);
+lib\dashboard.ts:127:  else cutoff.setDate(cutoff.getDate() - 1);
+lib\dashboard.ts:134:  return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
+lib\dashboard.ts:139:  now = new Date()
+lib\dashboard.ts:140:): { cycleStart: Date; cycleEnd: Date; dueDate: Date } {
+lib\dashboard.ts:142:    dueDay: billingDay,
+lib\dashboard.ts:143:    gracePeriodDays: 0,
+lib\dashboard.ts:144:    lateFeeEnabled: false,
+lib\dashboard.ts:145:    lateFeeInitialCents: 0,
+lib\dashboard.ts:146:    lateFeeDailyCents: 0,
+lib\dashboard.ts:151:  const dueDate = parseDateOnly(rentDates.dueDate);
+lib\dashboard.ts:153:  const cycleEnd = new Date(
+lib\dashboard.ts:154:    dueDate.getFullYear(),
+lib\dashboard.ts:155:    dueDate.getMonth() + 1,
+lib\dashboard.ts:156:    dueDate.getDate()
+lib\dashboard.ts:160:    cycleStart: dueDate,
+lib\dashboard.ts:162:    dueDate,
+lib\dashboard.ts:170:  dueDate: Date;
+lib\dashboard.ts:171:  gracePeriodDays: number;
+lib\dashboard.ts:178:    dueDate,
+lib\dashboard.ts:179:    gracePeriodDays,
+lib\dashboard.ts:182:  const now = input.now ?? new Date();
+lib\dashboard.ts:187:  const lateDate = new Date(dueDate);
+lib\dashboard.ts:188:  lateDate.setDate(lateDate.getDate() + gracePeriodDays + 1);
+lib\dashboard.ts:247:    if (type === "PAYMENT" || amount < 0) {
+lib\dashboard.ts:316:    if (type === "PAYMENT" || amount < 0) {
+lib\dashboard.ts:318:        type: "PAYMENT",
+lib\billingConfig.ts:24:amountCents < maxAmountCents => feeCents
+lib\billingConfig.ts:52:export function getProcessingFeeCents(amountCents: number): number {
+lib\billingConfig.ts:53:  assertValidCents(amountCents, "amountCents");
+lib\billingConfig.ts:56:    if (amountCents < tier.maxAmountCents) {
+lib\billingConfig.ts:70:export function getTotalWithFeeCents(amountCents: number): {
+lib\billingConfig.ts:71:  amountCents: number;
+lib\billingConfig.ts:75:  assertValidCents(amountCents, "amountCents");
+lib\billingConfig.ts:77:  const feeCents = getProcessingFeeCents(amountCents);
+lib\billingConfig.ts:78:  const totalCents = amountCents + feeCents;
+lib\billingConfig.ts:83:    amountCents,
+lib\billingConfig.ts:105:export function formatBillingCycleLabel(billingCycle: string): string {
+lib\billingConfig.ts:106:  const trimmed = String(billingCycle ?? "").trim();
+lib\billingConfig.ts:120:  const date = new Date(year, month - 1, 1);
+lib\allocatePayment.ts:3:  amountCents: number;
+lib\allocatePayment.ts:5:  effectiveDate?: Date | string;
+lib\allocatePayment.ts:23:  | "PAYMENT"
+lib\allocatePayment.ts:24:  | "CREDIT"
+lib\allocatePayment.ts:25:  | "ADJUSTMENT";
+lib\allocatePayment.ts:40:    case "PAYMENT":
+lib\allocatePayment.ts:41:    case "CREDIT":
+lib\allocatePayment.ts:42:    case "ADJUSTMENT":
+lib\allocatePayment.ts:50:  const date = value instanceof Date ? value : new Date(String(value ?? ""));
+lib\allocatePayment.ts:66:      const amount = Math.max(0, toSafeInteger(e.amountCents));
+lib\allocatePayment.ts:78:        effectiveDateMs: toDateMs(e.effectiveDate),
+lib\allocatePayment.ts:82:    .sort((a, b) => a.effectiveDateMs - b.effectiveDateMs);
+lib\stats.ts:24:  now: Date = new Date()
+lib\stats.ts:35:  now: Date = new Date()
+lib\stats.ts:57:  now: Date = new Date()
+lib\stats.ts:64:  const targetMonthlyCents = baselineProperties * 185000; // about $1,850 per property
+lib\stats.ts:84:  const seededCents = Math.round(targetMonthlyCents * pct) + monthVariation;
+prisma\seed.ts:53:          rentDueDay: 1,
+prisma\seed.ts:54:          gracePeriodDays: 5,
+prisma\seed.ts:55:          lateFeeFlatCents: 5000, // $50
+prisma\seed.ts:56:          lateFeePercentBps: null,
+prisma\seed.ts:57:          lateFeeEnabled: true,
+prisma\seed.ts:145:        amountCents: 2500,
+prisma\seed.ts:153:        amountCents: 3500,
+prisma\seed.ts:161:        amountCents: 2500,
+prisma\seed.ts:176:      moveInDate: new Date("2026-03-01"),
+prisma\seed.ts:213:        chargeType: "RENT",
+prisma\seed.ts:214:        amountCents: 100000,
+prisma\seed.ts:215:        effectiveDate: new Date("2026-03-01"),
+prisma\seed.ts:224:        amountCents: 2500,
+prisma\seed.ts:225:        effectiveDate: new Date("2026-03-01"),
+prisma\seed.ts:232:        entryType: "PAYMENT",
+prisma\seed.ts:234:        amountCents: -50000,
+prisma\seed.ts:235:        effectiveDate: new Date("2026-03-05"),
+lib\session.ts:172:  const now = Math.floor(Date.now() / 1000);
+lib\session.ts:249:    const now = Math.floor(Date.now() / 1000);
+scripts\qa\scenario-tests.ts:4:  lateFeesThenPays,
+scripts\qa\scenario-tests.ts:176:    events: lateFeesThenPays,
+app\tenant\dashboard\page.tsx:16:  amountCents: number;
+app\tenant\dashboard\page.tsx:17:  processingFeeCents: number;
+app\tenant\dashboard\page.tsx:33:  effectiveDate: string;
+app\tenant\dashboard\page.tsx:45:  lateFees: number;
+app\tenant\dashboard\page.tsx:59:  dueDate?: string;
+app\tenant\dashboard\page.tsx:60:  graceEndsOn?: string;
+app\tenant\dashboard\page.tsx:91:    value instanceof Date ? value.toISOString() : String(value).trim();
+app\tenant\dashboard\page.tsx:100:  const date = new Date(raw);
+app\tenant\dashboard\page.tsx:179:            typeof candidate.effectiveDate === "string"
+app\tenant\dashboard\page.tsx:186:          effectiveDate: entry.effectiveDate,
+app\tenant\dashboard\page.tsx:219:      typeof candidate.lateFees === "number" &&
+app\tenant\dashboard\page.tsx:228:        lateFees: candidate.lateFees,
+app\tenant\dashboard\page.tsx:255:        amountCents: Number(payment.amountCents || 0),
+app\tenant\dashboard\page.tsx:256:        processingFeeCents: Number(payment.processingFeeCents || 0),
+app\tenant\dashboard\page.tsx:276:    dueDate: typeof data.dueDate === "string" ? data.dueDate : undefined,
+app\tenant\dashboard\page.tsx:277:    graceEndsOn:
+app\tenant\dashboard\page.tsx:278:      typeof data.graceEndsOn === "string" ? data.graceEndsOn : undefined,
+app\tenant\dashboard\page.tsx:427:            RENTFRAY
+app\tenant\dashboard\page.tsx:583:                      {data.dueDate ? ` on ${fmtDate(data.dueDate)}` : ""}
+app\tenant\dashboard\page.tsx:588:                  {data.graceEndsOn ? (
+app\tenant\dashboard\page.tsx:590:                      Grace period ends {fmtDate(data.graceEndsOn)}.
+app\tenant\dashboard\page.tsx:673:                    {fmtDate(entry.effectiveDate)}
+prisma\schema.prisma:38:  billingCycleStartDate DateTime?
+prisma\schema.prisma:61:  rentDueDay                Int      @default(1)
+prisma\schema.prisma:62:  gracePeriodDays           Int      @default(0)
+prisma\schema.prisma:63:  lateFeeFlatCents          Int?
+prisma\schema.prisma:64:  lateFeePercentBps         Int?
+prisma\schema.prisma:65:  lateFeeEnabled            Boolean  @default(false)
+prisma\schema.prisma:104:  rentDueDay          Int                  @default(1)
+prisma\schema.prisma:105:  gracePeriodDays     Int                  @default(0)
+prisma\schema.prisma:106:  lateFeeType         String               @default("FLAT")
+prisma\schema.prisma:107:  lateFeeInitialCents Int                  @default(0)
+prisma\schema.prisma:108:  lateFeeDailyCents   Int                  @default(0)
+prisma\schema.prisma:110:  processingFeeCents  Int                  @default(0)
+prisma\schema.prisma:129:  amountCents   Int
+prisma\schema.prisma:130:  effectiveDate DateTime
+prisma\schema.prisma:139:  @@index([tierId, effectiveDate])
+prisma\schema.prisma:206:  amountCents  Int
+prisma\schema.prisma:300:  billingCycle              String?
+prisma\schema.prisma:304:  amountCents               Int
+prisma\schema.prisma:305:  effectiveDate             DateTime
+prisma\schema.prisma:322:  @@index([propertyId, unitId, effectiveDate])
+prisma\schema.prisma:323:  @@index([unitId, effectiveDate])
+prisma\schema.prisma:327:  @@index([billingCycle])
+prisma\schema.prisma:328:  @@index([propertyId, unitId, billingCycle])
+prisma\schema.prisma:329:  @@index([propertyId, billingCycle, entryType, chargeType])
+prisma\schema.prisma:392:  billingCycle          String?
+prisma\schema.prisma:393:  amountCents           Int
+prisma\schema.prisma:394:  processingFeeCents    Int?
+prisma\schema.prisma:397:  paidAt                DateTime?
+prisma\schema.prisma:398:  failedAt              DateTime?
+prisma\schema.prisma:399:  reversedAt            DateTime?
+prisma\schema.prisma:411:  @@index([billingCycle])
+prisma\schema.prisma:412:  @@index([propertyId, unitId, billingCycle, status])
+lib\rentPreview.ts:8:    effectiveDate: Date | string;
+lib\rentPreview.ts:14:  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+lib\rentPreview.ts:19:  return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
+lib\rentPreview.ts:24:    currentDueDate.getMonth() === 11
+lib\rentPreview.ts:25:      ? currentDueDate.getFullYear() + 1
+lib\rentPreview.ts:26:      : currentDueDate.getFullYear();
+lib\rentPreview.ts:29:    currentDueDate.getMonth() === 11 ? 0 : currentDueDate.getMonth() + 1;
+lib\rentPreview.ts:31:  const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+lib\rentPreview.ts:34:  return toDateOnly(new Date(nextYear, nextMonth, safeDay));
+lib\rentPreview.ts:42:  const today = toDateOnly(new Date());
+lib\rentPreview.ts:45:    dueDay: billingDay,
+lib\rentPreview.ts:46:    gracePeriodDays: 0,
+lib\rentPreview.ts:47:    lateFeeEnabled: false,
+lib\rentPreview.ts:48:    lateFeeInitialCents: 0,
+lib\rentPreview.ts:49:    lateFeeDailyCents: 0,
+lib\rentPreview.ts:54:  const cycleStart = parseDateOnly(rentDates.dueDate);
+lib\rentPreview.ts:58:    if (entry.type !== "RENT_CHARGE") return false;
+lib\rentPreview.ts:60:    const d = toDateOnly(new Date(entry.effectiveDate));
+lib\rentPreview.ts:67:        type: "RENT_CHARGE",
+lib\rentPreview.ts:69:        effectiveDate: nextBillingDate,
+app\tenant\balance\page.tsx:41:    lateFeesOwed: number;
+app\tenant\balance\page.tsx:52:  return new Date(value).toLocaleDateString("en-US");
+app\tenant\balance\page.tsx:201:                {data.delinquency.isDelinquent ? "DELINQUENT" : "CURRENT"}
+app\tenant\balance\page.tsx:213:                {money(data.delinquency.lateFeesOwed)}
+lib\rentDates.ts:7:  dueDay: number;
+lib\rentDates.ts:8:  gracePeriodDays: number;
+lib\rentDates.ts:9:  lateFeeEnabled: boolean;
+lib\rentDates.ts:10:  lateFeeInitialCents: number;
+lib\rentDates.ts:11:  lateFeeDailyCents: number;
+lib\rentDates.ts:14:  billingCycleStartDate?: Date | null;
+lib\rentDates.ts:18:  billingCycle: string;
+lib\rentDates.ts:19:  dueDate: string;
+lib\rentDates.ts:20:  graceEndsOn: string;
+lib\rentDates.ts:28:  dueDay: number;
+lib\rentDates.ts:29:  gracePeriodDays: number;
+lib\rentDates.ts:30:  lateFeeEnabled: boolean;
+lib\rentDates.ts:31:  lateFeeInitialCents: number;
+lib\rentDates.ts:32:  lateFeeDailyCents: number;
+lib\rentDates.ts:42:export function getBusinessDate(now: Date = new Date()): Date {
+lib\rentDates.ts:45:  return new Date(
+lib\rentDates.ts:77:  return new Date(year, month, 0).getDate();
+lib\rentDates.ts:86:  const y = date.getFullYear();
+lib\rentDates.ts:87:  const m = String(date.getMonth() + 1).padStart(2, "0");
+lib\rentDates.ts:88:  const d = String(date.getDate()).padStart(2, "0");
+lib\rentDates.ts:93:  const d = new Date(date);
+lib\rentDates.ts:94:  d.setDate(d.getDate() + days);
+lib\rentDates.ts:104:    rentDueDay: number;
+lib\rentDates.ts:105:    gracePeriodDays: number;
+lib\rentDates.ts:106:    lateFeeInitialCents: number;
+lib\rentDates.ts:107:    lateFeeDailyCents: number;
+lib\rentDates.ts:111:    rentDueDay: number;
+lib\rentDates.ts:112:    gracePeriodDays: number;
+lib\rentDates.ts:113:    lateFeeEnabled: boolean;
+lib\rentDates.ts:114:    lateFeeFlatCents?: number | null;
+lib\rentDates.ts:122:      dueDay: sanitizeInt(tier.rentDueDay, 1),
+lib\rentDates.ts:123:      gracePeriodDays: sanitizeInt(tier.gracePeriodDays, 0),
+lib\rentDates.ts:124:      lateFeeEnabled:
+lib\rentDates.ts:125:        tier.lateFeeInitialCents > 0 || tier.lateFeeDailyCents > 0,
+lib\rentDates.ts:126:      lateFeeInitialCents: sanitizeInt(tier.lateFeeInitialCents, 0),
+lib\rentDates.ts:127:      lateFeeDailyCents: sanitizeInt(tier.lateFeeDailyCents, 0),
+lib\rentDates.ts:133:    dueDay: sanitizeInt(ps?.rentDueDay ?? 1, 1),
+lib\rentDates.ts:134:    gracePeriodDays: sanitizeInt(ps?.gracePeriodDays ?? 0, 0),
+lib\rentDates.ts:135:    lateFeeEnabled: Boolean(ps?.lateFeeEnabled),
+lib\rentDates.ts:136:    lateFeeInitialCents: sanitizeInt(ps?.lateFeeFlatCents ?? 0, 0),
+lib\rentDates.ts:137:    lateFeeDailyCents: 0,
+lib\rentDates.ts:155:  const now = config.now ?? new Date();
+lib\rentDates.ts:160:  const isBeforeDueDay = day < config.dueDay;
+lib\rentDates.ts:174:    config.dueDay
+lib\rentDates.ts:177:  const dueDate = new Date(
+lib\rentDates.ts:187:  if (config.billingCycleStartDate) {
+lib\rentDates.ts:188:    const start = getBusinessDate(config.billingCycleStartDate);
+lib\rentDates.ts:190:    if (dueDate < start) {
+lib\rentDates.ts:191:      let startYear = start.getFullYear();
+lib\rentDates.ts:192:      let startMonth = start.getMonth() + 1;
+lib\rentDates.ts:194:      let safeStartDueDay = clampDay(startYear, startMonth, config.dueDay);
+lib\rentDates.ts:196:      let newDueDate = new Date(
+lib\rentDates.ts:210:        safeStartDueDay = clampDay(startYear, startMonth, config.dueDay);
+lib\rentDates.ts:212:        newDueDate = new Date(
+lib\rentDates.ts:221:        Math.max(0, config.gracePeriodDays - 1)
+lib\rentDates.ts:225:        billingCycle: `${startYear}-${String(startMonth).padStart(2, "0")}`,
+lib\rentDates.ts:226:        dueDate: toDateOnlyString(newDueDate),
+lib\rentDates.ts:227:        graceEndsOn: toDateOnlyString(newGraceEnds),
+lib\rentDates.ts:229:          config.lateFeeEnabled && config.lateFeeInitialCents > 0
+lib\rentDates.ts:233:          config.lateFeeEnabled &&
+lib\rentDates.ts:234:          config.lateFeeDailyCents > 0 &&
+lib\rentDates.ts:238:                  config.lateFeeInitialCents > 0
+lib\rentDates.ts:251:const graceEnds = addDays(
+lib\rentDates.ts:252:  dueDate,
+lib\rentDates.ts:253:  Math.max(0, config.gracePeriodDays - 1)
+lib\rentDates.ts:260:  if (config.lateFeeEnabled) {
+lib\rentDates.ts:261:    if (config.lateFeeInitialCents > 0) {
+lib\rentDates.ts:262:      initialLateFeeDate = addDays(graceEnds, 1);
+lib\rentDates.ts:266:      config.lateFeeDailyCents > 0 &&
+lib\rentDates.ts:270:        initialLateFeeDate ?? addDays(graceEnds, 1);
+lib\rentDates.ts:282:  const isDelinquent = today > graceEnds;
+lib\rentDates.ts:285:    billingCycle: `${cycleYear}-${String(cycleMonth).padStart(2, "0")}`,
+lib\rentDates.ts:286:    dueDate: toDateOnlyString(dueDate),
+lib\rentDates.ts:287:    graceEndsOn: toDateOnlyString(graceEnds),
+scripts\qa\replay-engine.ts:17:    case "POST_RENT":
+scripts\qa\replay-engine.ts:18:      return postCycleRent(account, event.cycle, event.amountCents);
+scripts\qa\replay-engine.ts:21:      return postCycleLateFee(account, event.cycle, event.amountCents);
+scripts\qa\replay-engine.ts:27:    amountCents: event.amountCents,
+scripts\qa\replay-engine.ts:31:    case "PAYMENT_STARTED":
+scripts\qa\replay-engine.ts:32:      return startCyclePendingPayment(account, event.cycle, event.amountCents);
+scripts\qa\replay-engine.ts:34:    case "PAYMENT_SETTLED":
+scripts\qa\replay-engine.ts:35:    case "MANUAL_PAYMENT":
+scripts\qa\replay-engine.ts:36:      return postCyclePayment(account, event.cycle, event.amountCents);
+scripts\qa\replay-engine.ts:38:    case "PAYMENT_FAILED":
+scripts\qa\replay-engine.ts:39:      return failCyclePayment(account, event.cycle, event.amountCents);
+scripts\qa\replay-engine.ts:41:    case "POST_CREDIT":
+scripts\qa\replay-engine.ts:44:        kind: "CREDIT",
+scripts\qa\replay-engine.ts:45:        amountCents: -Math.abs(event.amountCents),
+scripts\qa\replay-engine.ts:49:    case "POST_ADJUSTMENT":
+scripts\qa\replay-engine.ts:52:        kind: "ADJUSTMENT",
+scripts\qa\replay-engine.ts:53:        amountCents: event.amountCents,
+lib\pinLockout.ts:20:  if (entry.lockedUntil && Date.now() < entry.lockedUntil) {
+lib\pinLockout.ts:24:      remainingMs: entry.lockedUntil - Date.now(),
+lib\pinLockout.ts:32:  const now = Date.now();
+app\tenant\activate\TenantActivateClient.tsx:175:          RENTFRAY
+lib\realtime.ts:49:    timestamp: Date.now(),
+scripts\qa\rentfray-integration-tests.ts:88:      rentDueDay: 17,
+scripts\qa\rentfray-integration-tests.ts:89:      gracePeriodDays: 0,
+scripts\qa\rentfray-integration-tests.ts:90:      lateFeeEnabled: true,
+scripts\qa\rentfray-integration-tests.ts:91:      lateFeeFlatCents: 50,
+scripts\qa\rentfray-integration-tests.ts:93:    billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:94:    now: new Date("2026-04-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:103:    billingCycle: "2026-03",
+scripts\qa\rentfray-integration-tests.ts:114:      rentDueDay: 17,
+scripts\qa\rentfray-integration-tests.ts:115:      gracePeriodDays: 0,
+scripts\qa\rentfray-integration-tests.ts:116:      lateFeeEnabled: true,
+scripts\qa\rentfray-integration-tests.ts:117:      lateFeeFlatCents: 50,
+scripts\qa\rentfray-integration-tests.ts:119:    billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:120:    now: new Date("2026-04-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:135:    rentDueDay: 17,
+scripts\qa\rentfray-integration-tests.ts:136:    gracePeriodDays: 0,
+scripts\qa\rentfray-integration-tests.ts:137:    lateFeeEnabled: true,
+scripts\qa\rentfray-integration-tests.ts:138:    lateFeeFlatCents: 50,
+scripts\qa\rentfray-integration-tests.ts:140:  billingCycleStartDate: new Date("2026-01-17T00:00:00"),
+scripts\qa\rentfray-integration-tests.ts:141:  now: new Date("2026-04-17T00:00:00"),
+lib\rateLimit.ts:15:  const now = Date.now();
+lib\paymentStatus.ts:5:PAYMENT STATUS AUTHORITY (SINGLE SOURCE OF TRUTH)
+lib\paymentStatus.ts:107:PAYMENT SYSTEM READINESS
+lib\paymentAllocation.ts:3:  amountCents: number;
+lib\paymentAllocation.ts:5:  effectiveDate: Date | string;
+lib\paymentAllocation.ts:23:  | "PAYMENT"
+lib\paymentAllocation.ts:24:  | "CREDIT"
+lib\paymentAllocation.ts:25:  | "ADJUSTMENT";
+lib\paymentAllocation.ts:40:    case "PAYMENT":
+lib\paymentAllocation.ts:41:    case "CREDIT":
+lib\paymentAllocation.ts:42:    case "ADJUSTMENT":
+lib\paymentAllocation.ts:50:  const date = value instanceof Date ? value : new Date(String(value ?? ""));
+lib\paymentAllocation.ts:66:      const amount = Math.max(0, toSafeInteger(c.amountCents));
+lib\paymentAllocation.ts:78:        effectiveDateMs: toDateMs(c.effectiveDate),
+lib\paymentAllocation.ts:82:    .sort((a, b) => a.effectiveDateMs - b.effectiveDateMs);
+app\setup\page.tsx:142:            RENTFRAY
+scripts\qa\model.ts:14:  lateFeeCents: number;
+scripts\qa\model.ts:16:  processingFeeCents: number;
+scripts\qa\model.ts:40:    lateFeeCents: 0,
+scripts\qa\model.ts:42:    processingFeeCents: 0,
+scripts\qa\model.ts:60:  amountCents: number,
+scripts\qa\model.ts:63:  const nextOutstanding = model.outstandingCents + amountCents;
+scripts\qa\model.ts:67:    rentCents: model.rentCents + amountCents,
+scripts\qa\model.ts:80:  amountCents: number,
+scripts\qa\model.ts:83:  const nextOutstanding = model.outstandingCents + amountCents;
+scripts\qa\model.ts:87:    lateFeeCents: model.lateFeeCents + amountCents,
+scripts\qa\model.ts:100:  amountCents: number,
+scripts\qa\model.ts:103:  const nextOutstanding = model.outstandingCents + amountCents;
+scripts\qa\model.ts:107:    recurringChargeCents: model.recurringChargeCents + amountCents,
+scripts\qa\model.ts:120:  amountCents: number,
+scripts\qa\model.ts:123:  const nextOutstanding = Math.max(0, model.outstandingCents - amountCents);
+scripts\qa\model.ts:127:    creditCents: model.creditCents + amountCents,
+scripts\qa\model.ts:140:  amountCents: number,
+scripts\qa\model.ts:143:  const nextOutstanding = Math.max(0, model.outstandingCents - amountCents);
+scripts\qa\model.ts:147:    paymentCents: model.paymentCents + amountCents,
+lib\proration.ts:12:  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+lib\proration.ts:19:  const year = moveInDate.getFullYear();
+lib\proration.ts:20:  const month = moveInDate.getMonth();
+lib\proration.ts:24:  const moveInDay = moveInDate.getDate();
+lib\propertySettings.ts:5:  rentDueDay: number;
+lib\propertySettings.ts:6:  gracePeriodDays: number;
+lib\propertySettings.ts:7:  lateFeeFlatCents?: number | null;
+lib\propertySettings.ts:8:  lateFeeEnabled?: boolean;
+lib\propertySettings.ts:20:  rentDueDay: number;
+lib\propertySettings.ts:21:  gracePeriodDays: number;
+lib\propertySettings.ts:22:  lateFeeFlatCents: number | null;
+lib\propertySettings.ts:23:  lateFeeEnabled: boolean;
+lib\propertySettings.ts:35:  rentDueDay: 1,
+lib\propertySettings.ts:36:  gracePeriodDays: 5,
+lib\propertySettings.ts:37:  lateFeeFlatCents: null,
+lib\propertySettings.ts:38:  lateFeeEnabled: false,
+lib\propertySettings.ts:61:  const lateFeeFlatCents =
+lib\propertySettings.ts:62:    data.lateFeeFlatCents == null
+lib\propertySettings.ts:64:      : toNonNegativeInt(data.lateFeeFlatCents, 0);
+lib\propertySettings.ts:68:    rentDueDay: toDueDay(data.rentDueDay),
+lib\propertySettings.ts:69:    gracePeriodDays: toNonNegativeInt(data.gracePeriodDays, 0),
+lib\propertySettings.ts:70:    lateFeeFlatCents,
+lib\propertySettings.ts:71:    lateFeeEnabled:
+lib\propertySettings.ts:72:      data.lateFeeEnabled ?? (lateFeeFlatCents !== null && lateFeeFlatCents > 0),
+lib\propertySettings.ts:93:      rentDueDay: true,
+lib\propertySettings.ts:94:      gracePeriodDays: true,
+lib\propertySettings.ts:95:      lateFeeFlatCents: true,
+lib\propertySettings.ts:96:      lateFeeEnabled: true,
+lib\propertySettings.ts:128:      rentDueDay: normalized.rentDueDay,
+lib\propertySettings.ts:129:      gracePeriodDays: normalized.gracePeriodDays,
+lib\propertySettings.ts:130:      lateFeeFlatCents: normalized.lateFeeFlatCents,
+lib\propertySettings.ts:131:      lateFeeEnabled: normalized.lateFeeEnabled,
+scripts\qa\ledger-writer.ts:11:  return new Date(`${cycle}-17T00:00:00`);
+scripts\qa\ledger-writer.ts:18:  const effectiveDate = cycleDate(event.cycle);
+scripts\qa\ledger-writer.ts:20:  if (event.type === "POST_RENT") {
+scripts\qa\ledger-writer.ts:26:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:28:        chargeType: "RENT",
+scripts\qa\ledger-writer.ts:29:        amountCents: event.amountCents,
+scripts\qa\ledger-writer.ts:30:        effectiveDate,
+scripts\qa\ledger-writer.ts:43:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:46:        amountCents: event.amountCents,
+scripts\qa\ledger-writer.ts:47:        effectiveDate,
+scripts\qa\ledger-writer.ts:60:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:63:        amountCents: event.amountCents,
+scripts\qa\ledger-writer.ts:64:        effectiveDate,
+scripts\qa\ledger-writer.ts:71:  if (event.type === "PAYMENT_SETTLED" || event.type === "MANUAL_PAYMENT") {
+scripts\qa\ledger-writer.ts:77:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:78:        amountCents: event.amountCents,
+scripts\qa\ledger-writer.ts:79:        processingFeeCents: 0,
+scripts\qa\ledger-writer.ts:81:        paymentMethod: event.type === "MANUAL_PAYMENT" ? "MANUAL" : "ACH",
+scripts\qa\ledger-writer.ts:82:        paidAt: effectiveDate,
+scripts\qa\ledger-writer.ts:83:        stripePaymentIntentId: `qa_${event.unitNumber}_${event.cycle}_${Date.now()}_${Math.random()
+scripts\qa\ledger-writer.ts:94:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:95:        entryType: "PAYMENT",
+scripts\qa\ledger-writer.ts:96:        paymentMethod: event.type === "MANUAL_PAYMENT" ? "MANUAL" : "ACH",
+scripts\qa\ledger-writer.ts:97:        amountCents: -Math.abs(event.amountCents),
+scripts\qa\ledger-writer.ts:98:        effectiveDate,
+scripts\qa\ledger-writer.ts:107:  if (event.type === "POST_CREDIT") {
+scripts\qa\ledger-writer.ts:113:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:114:        entryType: "CREDIT",
+scripts\qa\ledger-writer.ts:115:        amountCents: -Math.abs(event.amountCents),
+scripts\qa\ledger-writer.ts:116:        effectiveDate,
+scripts\qa\ledger-writer.ts:123:  if (event.type === "PAYMENT_STARTED") {
+scripts\qa\ledger-writer.ts:129:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:130:        amountCents: event.amountCents,
+scripts\qa\ledger-writer.ts:131:        processingFeeCents: 0,
+scripts\qa\ledger-writer.ts:134:        stripePaymentIntentId: `qa_pending_${event.unitNumber}_${event.cycle}_${Date.now()}_${Math.random()
+scripts\qa\ledger-writer.ts:142:  if (event.type === "PAYMENT_FAILED") {
+scripts\qa\ledger-writer.ts:148:        billingCycle: event.cycle,
+scripts\qa\ledger-writer.ts:149:        amountCents: event.amountCents,
+scripts\qa\ledger-writer.ts:150:        processingFeeCents: 0,
+scripts\qa\ledger-writer.ts:153:        failedAt: effectiveDate,
+scripts\qa\ledger-writer.ts:154:        stripePaymentIntentId: `qa_failed_${event.unitNumber}_${event.cycle}_${Date.now()}_${Math.random()
+app\layout.tsx:41:            gtag('js', new Date());
+app\property-code\role\RoleSelectClient.tsx:60:          RENTFRAY
+app\marketing-pages.css:39:   WHY RENTFRAY / WHY SWITCH
+scripts\qa\ledger-verifier.ts:17:      amountCents: true,
+scripts\qa\ledger-verifier.ts:29:    if (entryType === "CHARGE") return sum + Math.abs(entry.amountCents);
+scripts\qa\ledger-verifier.ts:30:    if (entryType === "CREDIT") return sum - Math.abs(entry.amountCents);
+scripts\qa\ledger-verifier.ts:31:    if (entryType === "ADJUSTMENT") return sum + entry.amountCents;
+scripts\qa\ledger-verifier.ts:33:    if (entryType === "PAYMENT") {
+scripts\qa\ledger-verifier.ts:35:      return status === "PAID" ? sum - Math.abs(entry.amountCents) : sum;
+scripts\qa\invariants\ledger.ts:9:    by: ["unitId", "tenantAssignmentId", "billingCycle", "chargeType"],
+scripts\qa\invariants\ledger.ts:13:      chargeType: "RENT",
+scripts\qa\invariants\ledger.ts:35:      entryType: "PAYMENT",
+scripts\qa\invariants\ledger.ts:67:      amountCents: 0,
+scripts\qa\invariants\application.ts:13:    rentDueDay: number;
+scripts\qa\invariants\application.ts:14:    gracePeriodDays: number;
+scripts\qa\invariants\application.ts:15:    lateFeeInitialCents: number;
+scripts\qa\invariants\application.ts:16:    lateFeeDailyCents: number;
+scripts\qa\invariants\application.ts:20:    rentDueDay: number;
+scripts\qa\invariants\application.ts:21:    gracePeriodDays: number;
+scripts\qa\invariants\application.ts:22:    lateFeeEnabled: boolean;
+scripts\qa\invariants\application.ts:23:    lateFeeFlatCents: number | null;
+scripts\qa\invariants\application.ts:25:  billingCycleStartDate: Date | null;
+scripts\qa\invariants\application.ts:42:    billingCycleStartDate: input.billingCycleStartDate,
+scripts\qa\events.ts:3:      type: "POST_RENT";
+scripts\qa\events.ts:6:      amountCents: number;
+scripts\qa\events.ts:12:      amountCents: number;
+scripts\qa\events.ts:18:      amountCents: number;
+scripts\qa\events.ts:22:      type: "PAYMENT_STARTED";
+scripts\qa\events.ts:25:      amountCents: number;
+scripts\qa\events.ts:28:      type: "PAYMENT_SETTLED";
+scripts\qa\events.ts:31:      amountCents: number;
+scripts\qa\events.ts:34:      type: "PAYMENT_FAILED";
+scripts\qa\events.ts:37:      amountCents: number;
+scripts\qa\events.ts:40:      type: "MANUAL_PAYMENT";
+scripts\qa\events.ts:43:      amountCents: number;
+scripts\qa\events.ts:46:      type: "POST_CREDIT";
+scripts\qa\events.ts:49:      amountCents: number;
+scripts\qa\events.ts:53:      type: "POST_ADJUSTMENT";
+scripts\qa\events.ts:56:      amountCents: number;
+scripts\qa\event-scenarios.ts:4:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "101", amountCents: 100 },
+scripts\qa\event-scenarios.ts:5:  { type: "PAYMENT_SETTLED", cycle: "2026-01", unitNumber: "101", amountCents: 100 },
+scripts\qa\event-scenarios.ts:6:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "101", amountCents: 100 },
+scripts\qa\event-scenarios.ts:7:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "101", amountCents: 100 },
+scripts\qa\event-scenarios.ts:11:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "103", amountCents: 100 },
+scripts\qa\event-scenarios.ts:12:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "103", amountCents: 100 },
+scripts\qa\event-scenarios.ts:13:  { type: "POST_RENT", cycle: "2026-03", unitNumber: "103", amountCents: 100 },
+scripts\qa\event-scenarios.ts:14:  { type: "PAYMENT_SETTLED", cycle: "2026-04", unitNumber: "103", amountCents: 300 },
+scripts\qa\event-scenarios.ts:18:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "104", amountCents: 100 },
+scripts\qa\event-scenarios.ts:19:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "104", amountCents: 100 },
+scripts\qa\event-scenarios.ts:20:  { type: "POST_RENT", cycle: "2026-03", unitNumber: "104", amountCents: 100 },
+scripts\qa\event-scenarios.ts:21:  { type: "POST_RENT", cycle: "2026-04", unitNumber: "104", amountCents: 100 },
+scripts\qa\event-scenarios.ts:22:  { type: "PAYMENT_SETTLED", cycle: "2026-05", unitNumber: "104", amountCents: 400 },
+scripts\qa\event-scenarios.ts:26:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "107", amountCents: 100 },
+scripts\qa\event-scenarios.ts:27:  { type: "PAYMENT_STARTED", cycle: "2026-01", unitNumber: "107", amountCents: 100 },
+scripts\qa\event-scenarios.ts:28:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "107", amountCents: 100 },
+scripts\qa\event-scenarios.ts:32:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "105", amountCents: 100 },
+scripts\qa\event-scenarios.ts:33:  { type: "PAYMENT_SETTLED", cycle: "2026-01", unitNumber: "105", amountCents: 50 },
+scripts\qa\event-scenarios.ts:34:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "105", amountCents: 100 },
+scripts\qa\event-scenarios.ts:35:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "105", amountCents: 50 },
+scripts\qa\event-scenarios.ts:39:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "106", amountCents: 100 },
+scripts\qa\event-scenarios.ts:40:  { type: "PAYMENT_STARTED", cycle: "2026-01", unitNumber: "106", amountCents: 100 },
+scripts\qa\event-scenarios.ts:41:  { type: "PAYMENT_FAILED", cycle: "2026-01", unitNumber: "106", amountCents: 100 },
+scripts\qa\event-scenarios.ts:42:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "106", amountCents: 100 },
+scripts\qa\event-scenarios.ts:45:export const lateFeesThenPays: QaEvent[] = [
+scripts\qa\event-scenarios.ts:46:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "109", amountCents: 100 },
+scripts\qa\event-scenarios.ts:47:  { type: "POST_LATE_FEE", cycle: "2026-01", unitNumber: "109", amountCents: 50 },
+scripts\qa\event-scenarios.ts:48:  { type: "POST_LATE_FEE", cycle: "2026-01", unitNumber: "109", amountCents: 25 },
+scripts\qa\event-scenarios.ts:49:  { type: "POST_LATE_FEE", cycle: "2026-01", unitNumber: "109", amountCents: 25 },
+scripts\qa\event-scenarios.ts:50:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "109", amountCents: 200 },
+scripts\qa\event-scenarios.ts:54:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "108", amountCents: 100 },
+scripts\qa\event-scenarios.ts:55:  { type: "MANUAL_PAYMENT", cycle: "2026-01", unitNumber: "108", amountCents: 100 },
+scripts\qa\event-scenarios.ts:56:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "108", amountCents: 100 },
+scripts\qa\event-scenarios.ts:57:  { type: "MANUAL_PAYMENT", cycle: "2026-02", unitNumber: "108", amountCents: 100 },
+scripts\qa\event-scenarios.ts:61:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "121", amountCents: 100 },
+scripts\qa\event-scenarios.ts:62:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "121", amountCents: 100 },
+scripts\qa\event-scenarios.ts:63:  { type: "POST_RENT", cycle: "2026-03", unitNumber: "121", amountCents: 100 },
+scripts\qa\event-scenarios.ts:64:  { type: "POST_RENT", cycle: "2026-04", unitNumber: "121", amountCents: 100 },
+scripts\qa\event-scenarios.ts:65:  { type: "POST_RENT", cycle: "2026-05", unitNumber: "121", amountCents: 100 },
+scripts\qa\event-scenarios.ts:66:  { type: "POST_RENT", cycle: "2026-06", unitNumber: "121", amountCents: 100 },
+scripts\qa\event-scenarios.ts:68:    type: "PAYMENT_SETTLED",
+scripts\qa\event-scenarios.ts:71:    amountCents: 600,
+scripts\qa\event-scenarios.ts:76:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:77:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:78:  { type: "POST_RENT", cycle: "2026-03", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:79:  { type: "POST_RENT", cycle: "2026-04", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:80:  { type: "POST_RENT", cycle: "2026-05", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:81:  { type: "POST_RENT", cycle: "2026-06", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:82:  { type: "POST_RENT", cycle: "2026-07", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:83:  { type: "POST_RENT", cycle: "2026-08", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:84:  { type: "POST_RENT", cycle: "2026-09", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:85:  { type: "POST_RENT", cycle: "2026-10", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:86:  { type: "POST_RENT", cycle: "2026-11", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:87:  { type: "POST_RENT", cycle: "2026-12", unitNumber: "122", amountCents: 100 },
+scripts\qa\event-scenarios.ts:89:    type: "PAYMENT_SETTLED",
+scripts\qa\event-scenarios.ts:92:    amountCents: 1200,
+scripts\qa\event-scenarios.ts:99:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "123", amountCents: 100 },
+scripts\qa\event-scenarios.ts:100:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "123", amountCents: 100 },
+scripts\qa\event-scenarios.ts:104:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "124", amountCents: 100 },
+scripts\qa\event-scenarios.ts:105:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "124", amountCents: 100 },
+scripts\qa\event-scenarios.ts:109:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "125", amountCents: 100 },
+scripts\qa\event-scenarios.ts:110:  { type: "PAYMENT_SETTLED", cycle: "2026-01", unitNumber: "125", amountCents: 100 },
+scripts\qa\event-scenarios.ts:111:  { type: "POST_RENT", cycle: "2026-02", unitNumber: "125", amountCents: 125 },
+scripts\qa\event-scenarios.ts:112:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "125", amountCents: 125 },
+scripts\qa\event-scenarios.ts:116:  { type: "POST_RENT", cycle: "2026-01", unitNumber: "126", amountCents: 100 },
+scripts\qa\event-scenarios.ts:121:    amountCents: 25,
+scripts\qa\event-scenarios.ts:124:  { type: "POST_LATE_FEE", cycle: "2026-01", unitNumber: "126", amountCents: 50 },
+scripts\qa\event-scenarios.ts:126:    type: "POST_CREDIT",
+scripts\qa\event-scenarios.ts:129:    amountCents: 25,
+scripts\qa\event-scenarios.ts:132:  { type: "PAYMENT_SETTLED", cycle: "2026-02", unitNumber: "126", amountCents: 150 },
+app\property-code\page.tsx:70:          RENTFRAY
+app\components\UnitNotes.tsx:8:  noteType: "GENERAL" | "PAYMENT" | "SYSTEM";
+app\components\UnitNotes.tsx:66:    if (type === "PAYMENT") return "bg-green-100 text-green-700";
+app\components\UnitNotes.tsx:167:              {new Date(n.createdAt).toLocaleString()}
+scripts\qa\config.ts:6:export const BILLING_START_DATE = new Date("2026-01-17T00:00:00");
+scripts\qa\config.ts:7:export const BASE_RENT_CENTS = 100;
+app\components\RentFrayFlowDiagram.tsx:29:              title="RENTFRAY"
+app\components\RentFrayFlowDiagram.tsx:160:                    RENTFRAY
+scripts\qa\behavior.ts:26:      type: "POST_RENT",
+scripts\qa\behavior.ts:29:      amountCents: context.rentCents,
+scripts\qa\behavior.ts:38:          type: "PAYMENT_SETTLED",
+scripts\qa\behavior.ts:41:          amountCents: context.rentCents,
+scripts\qa\behavior.ts:53:              type: "PAYMENT_SETTLED",
+scripts\qa\behavior.ts:56:              amountCents: context.rentCents * 4,
+scripts\qa\behavior.ts:66:              type: "PAYMENT_SETTLED",
+scripts\qa\behavior.ts:69:              amountCents: context.rentCents * 5,
+scripts\qa\behavior.ts:78:          type: "PAYMENT_SETTLED",
+scripts\qa\behavior.ts:81:          amountCents: Math.floor(context.rentCents / 2),
+scripts\qa\behavior.ts:90:              type: "PAYMENT_STARTED",
+scripts\qa\behavior.ts:93:              amountCents: context.rentCents,
+scripts\qa\behavior.ts:96:              type: "PAYMENT_FAILED",
+scripts\qa\behavior.ts:99:              amountCents: context.rentCents,
+scripts\qa\behavior.ts:105:              type: "PAYMENT_SETTLED",
+scripts\qa\behavior.ts:108:              amountCents: context.rentCents * 2,
+scripts\qa\behavior.ts:117:              type: "PAYMENT_STARTED",
+scripts\qa\behavior.ts:120:              amountCents: context.rentCents,
+scripts\qa\behavior.ts:129:          type: "MANUAL_PAYMENT",
+scripts\qa\behavior.ts:132:          amountCents: context.rentCents,
+app\components\PayNowButton.tsx:20:  const amountCents = Math.max(0, Math.round(Number(amount) * 100));
+app\components\PayNowButton.tsx:21:  const isDisabled = disabled || loading || amountCents <= 0;
+scripts\qa\audit-output.ts:24:    generatedAt: new Date().toISOString(),
+scripts\qa\account-model.ts:2:  | "RENT"
+scripts\qa\account-model.ts:6:  | "PAYMENT"
+scripts\qa\account-model.ts:7:  | "CREDIT"
+scripts\qa\account-model.ts:8:  | "ADJUSTMENT";
+scripts\qa\account-model.ts:13:  amountCents: number;
+scripts\qa\account-model.ts:20:  lateFeeCents: number;
+scripts\qa\account-model.ts:22:  processingFeeCents: number;
+scripts\qa\account-model.ts:76:  amountCents: number
+scripts\qa\account-model.ts:80:    kind: "RENT",
+scripts\qa\account-model.ts:81:    amountCents,
+scripts\qa\account-model.ts:89:  amountCents: number
+scripts\qa\account-model.ts:94:    amountCents,
+scripts\qa\account-model.ts:102:  amountCents: number
+scripts\qa\account-model.ts:107:      kind: "PAYMENT",
+scripts\qa\account-model.ts:108:      amountCents: -Math.abs(amountCents),
+scripts\qa\account-model.ts:119:  amountCents: number
+scripts\qa\account-model.ts:123:    pendingPaymentCents: amountCents,
+scripts\qa\account-model.ts:131:  amountCents: number
+scripts\qa\account-model.ts:136:    failedPaymentCents: amountCents,
+scripts\qa\account-model.ts:149:        case "RENT":
+scripts\qa\account-model.ts:150:          summary.rentCents += entry.amountCents;
+scripts\qa\account-model.ts:153:          summary.lateFeeCents += entry.amountCents;
+scripts\qa\account-model.ts:156:          summary.recurringChargeCents += entry.amountCents;
+scripts\qa\account-model.ts:159:          summary.processingFeeCents += entry.amountCents;
+scripts\qa\account-model.ts:161:        case "PAYMENT":
+scripts\qa\account-model.ts:162:          summary.paymentCents += Math.abs(entry.amountCents);
+scripts\qa\account-model.ts:164:        case "CREDIT":
+scripts\qa\account-model.ts:165:          summary.creditCents += Math.abs(entry.amountCents);
+scripts\qa\account-model.ts:167:        case "ADJUSTMENT":
+scripts\qa\account-model.ts:168:          summary.adjustmentCents += entry.amountCents;
+scripts\qa\account-model.ts:177:      lateFeeCents: 0,
+scripts\qa\account-model.ts:179:      processingFeeCents: 0,
+scripts\qa\account-model.ts:196:      summary.lateFeeCents +
+scripts\qa\account-model.ts:224:    account.ledger.reduce((sum, entry) => sum + entry.amountCents, 0)
+app\property-code\activate\TenantActivateClient.tsx:175:          RENTFRAY
+app\manager\units\[id]\tenants\page.tsx:9:  return new Date(value).toLocaleDateString("en-US");
+scripts\fix-billing-cycle.ts:10:      billingCycle: null,
+scripts\fix-billing-cycle.ts:23:        billingCycle: payment.createdAt.toISOString().slice(0, 7),
+app\components\manager\SimpleDashboard.tsx:42:  const date = new Date(value);
+app\components\manager\SimpleDashboard.tsx:55:function getMonthStart(date: Date): Date {
+app\components\manager\SimpleDashboard.tsx:56:  return new Date(date.getFullYear(), date.getMonth(), 1);
+app\components\manager\SimpleDashboard.tsx:60:  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
+app\components\manager\SimpleDashboard.tsx:64:  const start = getMonthStart(date);
+app\components\manager\SimpleDashboard.tsx:65:  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+app\components\manager\SimpleDashboard.tsx:89:  const now = new Date();
+app\components\manager\SimpleDashboard.tsx:90:  const monthStart = getMonthStart(now);
+app\components\manager\SimpleDashboard.tsx:93:  const billingCyclePayments = payments
+app\components\manager\SimpleDashboard.tsx:95:      const createdAt = new Date(payment.createdAt);
+app\components\manager\SimpleDashboard.tsx:105:        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+app\components\manager\SimpleDashboard.tsx:108:  const totalCollected = billingCyclePayments.reduce(
+app\components\manager\SimpleDashboard.tsx:114:    billingCyclePayments.map((payment) => payment.unitNumber)
+app\components\manager\SimpleDashboard.tsx:120:    payments: billingCyclePayments.filter(
+app\components\manager\SimpleDashboard.tsx:125:  const uncategorizedPayments = billingCyclePayments.filter(
+app\components\manager\SimpleDashboard.tsx:179:            {billingCyclePayments.length}
+app\components\manager\FullDashboard.tsx:12:      {/* MOVE YOUR CURRENT DASHBOARD JSX HERE */}
+scripts\cycle-rollover-test.ts:5:import { runLateFeesJob } from "../jobs/lateFees";
+scripts\cycle-rollover-test.ts:15:const billingStart = new Date("2026-06-17T00:00:00");
+scripts\cycle-rollover-test.ts:16:const oldDueDate = new Date("2026-06-17T00:00:00");
+scripts\cycle-rollover-test.ts:17:const nextDueDate = new Date("2026-07-17T00:00:00");
+scripts\cycle-rollover-test.ts:43:  billingCycle: string;
+scripts\cycle-rollover-test.ts:44:  amountCents: number;
+scripts\cycle-rollover-test.ts:45:  processingFeeCents?: number;
+scripts\cycle-rollover-test.ts:49:  effectiveDate: Date;
+scripts\cycle-rollover-test.ts:56:      billingCycle: input.billingCycle,
+scripts\cycle-rollover-test.ts:57:      amountCents: input.amountCents,
+scripts\cycle-rollover-test.ts:58:      processingFeeCents: input.processingFeeCents ?? 0,
+scripts\cycle-rollover-test.ts:61:      stripePaymentIntentId: `test_${input.intentSuffix}_${Date.now()}`,
+scripts\cycle-rollover-test.ts:62:      stripeSessionId: `test_session_${input.intentSuffix}_${Date.now()}`,
+scripts\cycle-rollover-test.ts:63:      paidAt: input.status === PaymentStatus.PAID ? input.effectiveDate : null,
+scripts\cycle-rollover-test.ts:64:      failedAt:
+scripts\cycle-rollover-test.ts:65:        input.status === PaymentStatus.FAILED ? input.effectiveDate : null,
+scripts\cycle-rollover-test.ts:66:      reversedAt:
+scripts\cycle-rollover-test.ts:67:        input.status === PaymentStatus.REVERSED ? input.effectiveDate : null,
+scripts\cycle-rollover-test.ts:71:  if (input.processingFeeCents && input.status === PaymentStatus.PAID) {
+scripts\cycle-rollover-test.ts:78:        billingCycle: input.billingCycle,
+scripts\cycle-rollover-test.ts:81:        amountCents: input.processingFeeCents,
+scripts\cycle-rollover-test.ts:82:        effectiveDate: input.effectiveDate,
+scripts\cycle-rollover-test.ts:96:        billingCycle: input.billingCycle,
+scripts\cycle-rollover-test.ts:97:        entryType: "PAYMENT",
+scripts\cycle-rollover-test.ts:99:        amountCents: -(
+scripts\cycle-rollover-test.ts:100:          input.amountCents + (input.processingFeeCents ?? 0)
+scripts\cycle-rollover-test.ts:102:        effectiveDate: input.effectiveDate,
+scripts\cycle-rollover-test.ts:128:      billingCycleStartDate: billingStart,
+scripts\cycle-rollover-test.ts:131:          rentDueDay: 17,
+scripts\cycle-rollover-test.ts:132:          gracePeriodDays: 0,
+scripts\cycle-rollover-test.ts:133:          lateFeeEnabled: true,
+scripts\cycle-rollover-test.ts:134:          lateFeeFlatCents: 50,
+scripts\cycle-rollover-test.ts:151:          lastSyncedAt: new Date(),
+scripts\cycle-rollover-test.ts:164:      rentDueDay: 17,
+scripts\cycle-rollover-test.ts:165:      gracePeriodDays: 0,
+scripts\cycle-rollover-test.ts:166:      lateFeeInitialCents: 50,
+scripts\cycle-rollover-test.ts:167:      lateFeeDailyCents: 25,
+scripts\cycle-rollover-test.ts:224:              ? new Date("2026-06-18T00:00:00")
+scripts\cycle-rollover-test.ts:225:              : new Date("2026-06-01T00:00:00"),
+scripts\cycle-rollover-test.ts:248:        billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:250:        chargeType: "RENT",
+scripts\cycle-rollover-test.ts:251:        amountCents: 100,
+scripts\cycle-rollover-test.ts:252:        effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:264:    billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:265:    amountCents: 100,
+scripts\cycle-rollover-test.ts:266:    processingFeeCents: 295,
+scripts\cycle-rollover-test.ts:270:    effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:277:    billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:278:    amountCents: 100,
+scripts\cycle-rollover-test.ts:279:    processingFeeCents: 295,
+scripts\cycle-rollover-test.ts:283:    effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:290:    billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:291:    amountCents: 100,
+scripts\cycle-rollover-test.ts:295:    effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:303:      billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:306:      amountCents: 50,
+scripts\cycle-rollover-test.ts:307:      effectiveDate: new Date("2026-06-18T00:00:00"),
+scripts\cycle-rollover-test.ts:317:      billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:320:      amountCents: 25,
+scripts\cycle-rollover-test.ts:321:      effectiveDate: new Date("2026-06-19T00:00:00"),
+scripts\cycle-rollover-test.ts:330:    billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:331:    amountCents: 50,
+scripts\cycle-rollover-test.ts:335:    effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:342:    billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:343:    amountCents: 100,
+scripts\cycle-rollover-test.ts:344:    processingFeeCents: 295,
+scripts\cycle-rollover-test.ts:348:    effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:355:    billingCycle: oldCycle,
+scripts\cycle-rollover-test.ts:356:    amountCents: 100,
+scripts\cycle-rollover-test.ts:357:    processingFeeCents: 295,
+scripts\cycle-rollover-test.ts:361:    effectiveDate: oldDueDate,
+scripts\cycle-rollover-test.ts:370:  const lateFeeResult = await runLateFeesJob(new Date("2026-07-18T00:00:00"));
+scripts\cycle-rollover-test.ts:373:  console.log("Late fee rollover result:", lateFeeResult);
+scripts\cycle-rollover-test.ts:388:        rentDueDay: 17,
+scripts\cycle-rollover-test.ts:389:        gracePeriodDays: 0,
+scripts\cycle-rollover-test.ts:390:        lateFeeEnabled: true,
+scripts\cycle-rollover-test.ts:391:        lateFeeFlatCents: 50,
+scripts\cycle-rollover-test.ts:393:      billingCycleStartDate: billingStart,
+scripts\cycle-rollover-test.ts:394:      now: new Date("2026-07-18T00:00:00"),
+scripts\cycle-rollover-test.ts:400:      )} | cycle ${state.billingCycle} | pending ${state.hasPendingPayment}`
+app\manager\maintenance\page.tsx:25:  return new Date(value).toLocaleDateString("en-US");
+app\manager\units\[id]\history\page.tsx:5:  return new Date(value).toLocaleDateString("en-US");
+app\manager\units\[id]\page.tsx:23:  return new Date(value).toLocaleDateString("en-US");
+app\manager\units\[id]\page.tsx:116:  const currentMonthStart = new Date(
+app\manager\units\[id]\page.tsx:117:    now.getFullYear(),
+app\manager\units\[id]\page.tsx:118:    now.getMonth(),
+app\manager\units\[id]\page.tsx:126:  if (now.getDate() >= safeBillingDay) {
+app\manager\units\[id]\page.tsx:130:  return new Date(
+app\manager\units\[id]\page.tsx:131:    now.getFullYear(),
+app\manager\units\[id]\page.tsx:132:    now.getMonth() - 1,
+app\manager\units\[id]\page.tsx:142:  return new Date(
+app\manager\units\[id]\page.tsx:143:    cycleStart.getFullYear(),
+app\manager\units\[id]\page.tsx:144:    cycleStart.getMonth() + 1,
+app\manager\units\[id]\page.tsx:145:    cycleStart.getDate(),
+app\manager\units\[id]\page.tsx:189:        orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
+app\manager\units\[id]\page.tsx:252:  const balanceDollars = centsToDollars(summary.balanceCents);
+app\manager\units\[id]\page.tsx:257:  const hasBalance = Number(summary.balanceCents || 0) > 0;
+app\manager\units\[id]\page.tsx:268:        const entryDate = new Date(entry.effectiveDate).getTime();
+app\manager\units\[id]\page.tsx:270:          ? new Date(activeAssignment.moveInDate).getTime()
+app\manager\units\[id]\page.tsx:282:    runningBalanceCents += Number(entry.amountCents || 0);
+app\manager\units\[id]\page.tsx:289:  const rentDueDay = Number(unit.tier?.rentDueDay ?? propertySettings?.rentDueDay ?? 1);
+app\manager\units\[id]\page.tsx:290:  const gracePeriodDays = Number(
+app\manager\units\[id]\page.tsx:291:    unit.tier?.gracePeriodDays ?? propertySettings?.gracePeriodDays ?? 0
+app\manager\units\[id]\page.tsx:294:  const lateFeeType = unit.tier?.lateFeeType ?? "FLAT";
+app\manager\units\[id]\page.tsx:295:  const lateFeeInitialCents = Number(unit.tier?.lateFeeInitialCents ?? 0);
+app\manager\units\[id]\page.tsx:296:  const lateFeeDailyCents = Number(unit.tier?.lateFeeDailyCents ?? 0);
+app\manager\units\[id]\page.tsx:298:  const processingFeeCents = Number(unit.tier?.processingFeeCents ?? 0);
+app\manager\units\[id]\page.tsx:300:  const today = new Date();
+app\manager\units\[id]\page.tsx:301:  const cycleStart = getCycleStart(today, rentDueDay);
+app\manager\units\[id]\page.tsx:305:    const effectiveDate = new Date(entry.effectiveDate);
+app\manager\units\[id]\page.tsx:308:      entry.chargeType === "RENT" &&
+app\manager\units\[id]\page.tsx:309:      effectiveDate >= cycleStart &&
+app\manager\units\[id]\page.tsx:310:      effectiveDate < nextBillingDate
+app\manager\units\[id]\page.tsx:318:        effectiveDate: nextBillingDate,
+app\manager\units\[id]\page.tsx:322:    ? lateFeeInitialCents +
+app\manager\units\[id]\page.tsx:323:      Math.max(0, Math.min(daysPastDue - 1, maxLateFeeDays)) * lateFeeDailyCents
+app\manager\units\[id]\page.tsx:326:  const lateFeeEligible =
+app\manager\units\[id]\page.tsx:327:    Boolean(activeAssignment) && delinquency.isDelinquent && Number(summary.balanceCents || 0) > 0;
+app\manager\units\[id]\page.tsx:329:  const lastPaymentAmount = latestPayment ? centsToDollars(latestPayment.amountCents) : null;
+app\manager\units\[id]\page.tsx:331:    latestPayment?.paidAt ??
+app\manager\units\[id]\page.tsx:332:    latestPayment?.reversedAt ??
+app\manager\units\[id]\page.tsx:333:    latestPayment?.failedAt ??
+app\manager\units\[id]\page.tsx:550:                        {lateFeeEligible ? "Eligible to post late fee" : "Not currently eligible"}
+app\manager\units\[id]\page.tsx:611:                      {moneyFromCents(latestPayment.amountCents)}
+app\manager\units\[id]\page.tsx:634:                      {moneyFromCents(latestPayment.processingFeeCents)}
+app\manager\units\[id]\page.tsx:652:                      {fmtDate(latestPayment.paidAt)}
+app\manager\units\[id]\page.tsx:666:                {(latestPayment.failedAt || latestPayment.reversedAt) && (
+app\manager\units\[id]\page.tsx:673:                        {fmtDate(latestPayment.failedAt)}
+app\manager\units\[id]\page.tsx:682:                        {fmtDate(latestPayment.reversedAt)}
+app\manager\units\[id]\page.tsx:827:                        const entryAmountDollars = centsToDollars(entry.amountCents);
+app\manager\units\[id]\page.tsx:847:                                    {fmtDate(entry.effectiveDate)}
+app\manager\units\[id]\page.tsx:900:                    {fmtDate(delinquency.dueDate)}
+app\manager\units\[id]\page.tsx:909:                    {fmtDate(delinquency.graceEndsOn)}
+app\manager\units\[id]\page.tsx:947:                  <div className="mt-2 text-lg font-semibold text-slate-950">{rentDueDay}</div>
+app\manager\units\[id]\page.tsx:986:                          upcomingCharge.effectiveDate
+app\manager\units\[id]\page.tsx:1007:                  <div className="mt-2 text-lg font-semibold text-slate-950">{lateFeeType}</div>
+app\manager\units\[id]\page.tsx:1015:                    {gracePeriodDays}
+app\manager\units\[id]\page.tsx:1024:                    {moneyFromCents(lateFeeInitialCents)}
+app\manager\units\[id]\page.tsx:1033:                    {moneyFromCents(lateFeeDailyCents)}
+app\manager\units\[id]\page.tsx:1051:                    {moneyFromCents(processingFeeCents)}
+app\manager\units\[id]\page.tsx:1062:                    {lateFeeEligible
+app\manager\units\[id]\actions.ts:8:  if (!raw) return new Date();
+app\manager\units\[id]\actions.ts:9:  const d = new Date(`${raw}T00:00:00`);
+app\manager\units\[id]\actions.ts:10:  return Number.isNaN(d.getTime()) ? new Date() : d;
+app\manager\units\[id]\actions.ts:20:  const effectiveDate = parseDateInput(formData.get("effectiveDate"));
+app\manager\units\[id]\actions.ts:43:      type: "MANUAL_PAYMENT",
+app\manager\units\[id]\actions.ts:45:      effectiveDate,
+app\manager\units\[id]\actions.ts:59:  const effectiveDate = parseDateInput(formData.get("effectiveDate"));
+app\manager\units\[id]\actions.ts:61:  const allowedTypes = new Set(["RENT_CHARGE", "LATE_FEE", "OTHER_FEE"]);
+app\manager\units\[id]\actions.ts:86:      effectiveDate,
+app\api\test\load\tenant-dashboard\route.ts:36:  billingCycle: string | null;
+app\api\test\load\tenant-dashboard\route.ts:37:  amountCents: number;
+app\api\test\load\tenant-dashboard\route.ts:46:  amountCents: number;
+app\api\test\load\tenant-dashboard\route.ts:47:  billingCycle: string | null;
+app\api\test\load\tenant-dashboard\route.ts:67:      return total + entry.amountCents;
+app\api\test\load\tenant-dashboard\route.ts:70:    if (entry.entryType === "CREDIT" || entry.entryType === "PAYMENT") {
+app\api\test\load\tenant-dashboard\route.ts:71:      return total - Math.abs(entry.amountCents);
+app\api\test\load\tenant-dashboard\route.ts:79:  balanceCents: number;
+app\api\test\load\tenant-dashboard\route.ts:88:  if (input.balanceCents <= 0) {
+app\api\test\load\tenant-dashboard\route.ts:129:        billingCycleStartDate: true,
+app\api\test\load\tenant-dashboard\route.ts:180:    const now = new Date();
+app\api\test\load\tenant-dashboard\route.ts:189:      billingCycleStartDate: property.billingCycleStartDate,
+app\api\test\load\tenant-dashboard\route.ts:192:    const currentBillingCycle = rentDates.billingCycle;
+app\api\test\load\tenant-dashboard\route.ts:218:        billingCycle: true,
+app\api\test\load\tenant-dashboard\route.ts:219:        amountCents: true,
+app\api\test\load\tenant-dashboard\route.ts:245:          amountCents: true,
+app\api\test\load\tenant-dashboard\route.ts:246:          billingCycle: true,
+app\api\test\load\tenant-dashboard\route.ts:272:      const balanceCents = resolveBalanceCents(unitLedgerEntries);
+app\api\test\load\tenant-dashboard\route.ts:278:        balanceCents,
+app\api\test\load\tenant-dashboard\route.ts:280:          balanceCents,
+app\manager\login\ManagerLoginClient.tsx:90:          RENTFRAY
+app\manager\units\[id]\move-out\page.tsx:13:  const d = new Date(value);
+app\manager\units\[id]\move-out\page.tsx:14:  return d.toISOString().split("T")[0];
+app\manager\units\[id]\move-out\page.tsx:53:  const moveOut = moveOutRaw ? new Date(`${moveOutRaw}T00:00:00`) : new Date();
+app\manager\units\[id]\move-out\page.tsx:84:        effectiveDate: moveOut,
+app\manager\units\[id]\move-out\page.tsx:197:              defaultValue={fmtDate(new Date())}
+app\manager\units\[id]\ManualPaymentForm.tsx:29:  const [effectiveDate, setEffectiveDate] = useState(
+app\manager\units\[id]\ManualPaymentForm.tsx:30:    new Date().toISOString().slice(0, 10)
+app\manager\units\[id]\ManualPaymentForm.tsx:54:    if (!effectiveDate) {
+app\manager\units\[id]\ManualPaymentForm.tsx:73:          effectiveDate,
+app\manager\units\[id]\ManualPaymentForm.tsx:102:      setEffectiveDate(new Date().toISOString().slice(0, 10));
+app\manager\units\[id]\ManualPaymentForm.tsx:132:        value={effectiveDate}
+app\manager\units\[id]\ManualPaymentForm.tsx:164:      {/* CREDIT */}
+app\manager\units\[id]\ManualChargeForm.tsx:13:type ChargeType = "RENT_CHARGE" | "LATE_FEE" | "OTHER_FEE";
+app\manager\units\[id]\ManualChargeForm.tsx:25:    case "RENT_CHARGE":
+app\manager\units\[id]\ManualChargeForm.tsx:44:  const [type, setType] = useState<ChargeType>("RENT_CHARGE");
+app\manager\units\[id]\ManualChargeForm.tsx:51:  const [effectiveDate, setEffectiveDate] = useState(
+app\manager\units\[id]\ManualChargeForm.tsx:52:    new Date().toISOString().slice(0, 10)
+app\manager\units\[id]\ManualChargeForm.tsx:59:    if (type === "RENT_CHARGE") return "March rent";
+app\manager\units\[id]\ManualChargeForm.tsx:69:    if (nextType === "RENT_CHARGE") {
+app\manager\units\[id]\ManualChargeForm.tsx:108:    if (!effectiveDate) {
+app\manager\units\[id]\ManualChargeForm.tsx:128:          effectiveDate,
+app\manager\units\[id]\ManualChargeForm.tsx:150:      if (type === "RENT_CHARGE") {
+app\manager\units\[id]\ManualChargeForm.tsx:162:      setEffectiveDate(new Date().toISOString().slice(0, 10));
+app\manager\units\[id]\ManualChargeForm.tsx:186:          <option value="RENT_CHARGE">Rent Charge</option>
+app\manager\units\[id]\ManualChargeForm.tsx:213:          value={effectiveDate}
+app\manager\units\[id]\ManualChargeForm.tsx:233:    const today = new Date().toISOString().slice(0, 10);
+app\manager\units\[id]\ManualChargeForm.tsx:235:    if (effectiveDate > today) {
+app\manager\units\[id]\ManualChargeForm.tsx:264:      const today = new Date().toISOString().slice(0, 10);
+app\manager\units\[id]\ManualChargeForm.tsx:266:      if (effectiveDate > today) {
+app\api\test\load\payment-session-preflight\route.ts:41:  amountCents: number;
+app\api\test\load\payment-session-preflight\route.ts:59:      return total + entry.amountCents;
+app\api\test\load\payment-session-preflight\route.ts:62:    if (entry.entryType === "CREDIT" || entry.entryType === "PAYMENT") {
+app\api\test\load\payment-session-preflight\route.ts:63:      return total - Math.abs(entry.amountCents);
+app\api\test\load\payment-session-preflight\route.ts:197:          amountCents: true,
+app\api\test\load\payment-session-preflight\route.ts:250:      const balanceCents = resolveBalanceCents(ledgerByUnit.get(unit.id) ?? []);
+app\api\test\load\payment-session-preflight\route.ts:252:      if (balanceCents <= 0) {
+app\manager\properties\[id]\tenants\remove\page.tsx:16:  if (!raw) return new Date();
+app\manager\properties\[id]\tenants\remove\page.tsx:18:  const parsed = new Date(`${raw}T00:00:00`);
+app\manager\properties\[id]\tenants\remove\page.tsx:19:  if (Number.isNaN(parsed.getTime())) return new Date();
+app\manager\properties\[id]\tenants\remove\page.tsx:263:                defaultValue={new Date().toISOString().slice(0, 10)}
+app\api\manual-payments\route.ts:32:  entryType: "PAYMENT";
+app\api\manual-payments\route.ts:33:  amountCents: number;
+app\api\manual-payments\route.ts:35:  effectiveDate: Date;
+app\api\manual-payments\route.ts:39:  billingCycle: string;
+app\api\manual-payments\route.ts:45:  amountCents: number;
+app\api\manual-payments\route.ts:47:  effectiveDate: Date;
+app\api\manual-payments\route.ts:55:    rentDueDay: number;
+app\api\manual-payments\route.ts:56:    gracePeriodDays: number;
+app\api\manual-payments\route.ts:57:    lateFeeInitialCents: number;
+app\api\manual-payments\route.ts:58:    lateFeeDailyCents: number;
+app\api\manual-payments\route.ts:62:    billingCycleStartDate: Date | null;
+app\api\manual-payments\route.ts:64:      rentDueDay: number;
+app\api\manual-payments\route.ts:65:      gracePeriodDays: number;
+app\api\manual-payments\route.ts:66:      lateFeeEnabled: boolean;
+app\api\manual-payments\route.ts:67:      lateFeeFlatCents: number | null;
+app\api\manual-payments\route.ts:72:const MAX_PAYMENT_CENTS = 100_000_000;
+app\api\manual-payments\route.ts:88:  if (cents <= 0 || cents > MAX_PAYMENT_CENTS) return null;
+app\api\manual-payments\route.ts:97:  const date = new Date(`${raw}T00:00:00`);
+app\api\manual-payments\route.ts:112:  const amountCents = parseMoneyToCents(body.amount);
+app\api\manual-payments\route.ts:114:  const effectiveDate = parseEffectiveDate(body.effectiveDate);
+app\api\manual-payments\route.ts:117:  if (amountCents === null) return null;
+app\api\manual-payments\route.ts:118:  if (!effectiveDate) return null;
+app\api\manual-payments\route.ts:123:    amountCents,
+app\api\manual-payments\route.ts:125:    effectiveDate,
+app\api\manual-payments\route.ts:159:    const { unitId, tenantId, amountCents, memo, effectiveDate } = parsed;
+app\api\manual-payments\route.ts:161:   if (amountCents < 1) {
+app\api\manual-payments\route.ts:176:            rentDueDay: true,
+app\api\manual-payments\route.ts:177:            gracePeriodDays: true,
+app\api\manual-payments\route.ts:178:            lateFeeInitialCents: true,
+app\api\manual-payments\route.ts:179:            lateFeeDailyCents: true,
+app\api\manual-payments\route.ts:185:            billingCycleStartDate: true,
+app\api\manual-payments\route.ts:188:                rentDueDay: true,
+app\api\manual-payments\route.ts:189:                gracePeriodDays: true,
+app\api\manual-payments\route.ts:190:                lateFeeEnabled: true,
+app\api\manual-payments\route.ts:191:                lateFeeFlatCents: true,
+app\api\manual-payments\route.ts:253:      now: effectiveDate,
+app\api\manual-payments\route.ts:254:      billingCycleStartDate: typedUnit.property.billingCycleStartDate,
+app\api\manual-payments\route.ts:257:    const billingCycle = rentDates.billingCycle;
+app\api\manual-payments\route.ts:268:            amountCents,
+app\api\manual-payments\route.ts:270:            paidAt: effectiveDate,
+app\api\manual-payments\route.ts:272:            stripePaymentIntentId: `manual_${typedUnit.id}_${Date.now()}_${Math.random()
+app\api\manual-payments\route.ts:275:            billingCycle,
+app\api\manual-payments\route.ts:280:            paidAt: true,
+app\api\manual-payments\route.ts:289:            entryType: "PAYMENT",
+app\api\manual-payments\route.ts:290:            amountCents: -amountCents,
+app\api\manual-payments\route.ts:291:            effectiveDate,
+app\api\manual-payments\route.ts:292:            billingCycle,
+app\api\manual-payments\route.ts:303:            amountCents: true,
+app\api\manual-payments\route.ts:304:            effectiveDate: true,
+app\api\manual-payments\route.ts:307:            billingCycle: true,
+app\api\manual-payments\route.ts:316:            action: "MANUAL_PAYMENT_POSTED",
+app\api\manual-payments\route.ts:325:              amountCents,
+app\api\manual-payments\route.ts:326:              billingCycle,
+app\api\manual-payments\route.ts:328:              effectiveDate: entry.effectiveDate.toISOString(),
+app\api\manual-payments\route.ts:338:          entryType: "PAYMENT",
+app\api\manual-payments\route.ts:339:          amountCents: Math.abs(entry.amountCents),
+app\api\manual-payments\route.ts:341:          effectiveDate: entry.effectiveDate,
+app\api\manual-payments\route.ts:345:          billingCycle,
+app\api\manual-payments\route.ts:356:      source: "MANUAL_PAYMENT",
+app\api\manual-payments\route.ts:365:      source: "MANUAL_PAYMENT",
+app\manager\properties\[id]\tenants\new\page.tsx:17:  if (!raw) return new Date();
+app\manager\properties\[id]\tenants\new\page.tsx:19:  const parsed = new Date(`${raw}T00:00:00`);
+app\manager\properties\[id]\tenants\new\page.tsx:20:  if (Number.isNaN(parsed.getTime())) return new Date();
+app\manager\properties\[id]\tenants\new\page.tsx:119:        activatedAt: activateNow ? new Date() : null,
+app\manager\properties\[id]\tenants\new\page.tsx:251:                defaultValue={new Date().toISOString().slice(0, 10)}
+app\api\test\load\monthly-rent-cron\route.ts:41:  amountCents: number;
+app\api\test\load\monthly-rent-cron\route.ts:65:function getCurrentCycleKey(now = new Date()): string {
+app\api\test\load\monthly-rent-cron\route.ts:66:  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+app\api\test\load\monthly-rent-cron\route.ts:99:        billingCycleStartDate: true,
+app\api\test\load\monthly-rent-cron\route.ts:169:          billingCycle: cycleKey,
+app\api\test\load\monthly-rent-cron\route.ts:171:          chargeType: "RENT",
+app\api\test\load\monthly-rent-cron\route.ts:178:          amountCents: true,
+app\api\test\load\monthly-rent-cron\route.ts:226:      billingCycle: cycleKey,
+app\manager\dashboard\ManagerDashboardClient.tsx:19:  type: "CHARGE" | "CREDIT";
+app\manager\dashboard\ManagerDashboardClient.tsx:23:  effectiveDate: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:25:  billingCycle: string | null;
+app\manager\dashboard\ManagerDashboardClient.tsx:100:billingCycleStartDate?: string | null;
+app\manager\dashboard\ManagerDashboardClient.tsx:122:    billingCycleLabel: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:130:    lateFeesCollected: number;
+app\manager\dashboard\ManagerDashboardClient.tsx:187:  dueDay: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:189:  lateFeeEnabled: boolean;
+app\manager\dashboard\ManagerDashboardClient.tsx:190:  lateFeeAmount: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:191:  lateFeeDaily: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:192:  lateFeeMaxDays: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:211:  effectiveDate?: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:220:      effectiveDate?: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:374:  const date = new Date(value);
+app\manager\dashboard\ManagerDashboardClient.tsx:399:    id: `new-tier-${Date.now()}-${index}`,
+app\manager\dashboard\ManagerDashboardClient.tsx:409:    dueDay: "1",
+app\manager\dashboard\ManagerDashboardClient.tsx:411:    lateFeeEnabled: false,
+app\manager\dashboard\ManagerDashboardClient.tsx:412:    lateFeeAmount: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:413:    lateFeeDaily: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:414:    lateFeeMaxDays: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:495:function getMonthRange() {
+app\manager\dashboard\ManagerDashboardClient.tsx:496:  const now = new Date();
+app\manager\dashboard\ManagerDashboardClient.tsx:497:  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+app\manager\dashboard\ManagerDashboardClient.tsx:498:  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+app\manager\dashboard\ManagerDashboardClient.tsx:627:  const [billingCycleStartDate, setBillingCycleStartDate] = useState("");
+app\manager\dashboard\ManagerDashboardClient.tsx:628:  const [billingCycleStartDateLocked, setBillingCycleStartDateLocked] = useState(false);
+app\manager\dashboard\ManagerDashboardClient.tsx:633:  dueDay: "1",
+app\manager\dashboard\ManagerDashboardClient.tsx:635:  lateFeeEnabled: false,
+app\manager\dashboard\ManagerDashboardClient.tsx:636:  lateFeeInitial: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:637:  lateFeeDaily: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:638:  lateFeeMaxDays: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:697:      dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
+app\manager\dashboard\ManagerDashboardClient.tsx:699:        (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
+app\manager\dashboard\ManagerDashboardClient.tsx:701:      lateFeeEnabled:
+app\manager\dashboard\ManagerDashboardClient.tsx:702:        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+app\manager\dashboard\ManagerDashboardClient.tsx:704:        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0,
+app\manager\dashboard\ManagerDashboardClient.tsx:705:      lateFeeAmount:
+app\manager\dashboard\ManagerDashboardClient.tsx:706:        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+app\manager\dashboard\ManagerDashboardClient.tsx:709:              (((tier as { lateFeeInitialCents?: number })
+app\manager\dashboard\ManagerDashboardClient.tsx:710:                .lateFeeInitialCents ?? 0) / 100)
+app\manager\dashboard\ManagerDashboardClient.tsx:713:      lateFeeDaily:
+app\manager\dashboard\ManagerDashboardClient.tsx:714:        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0
+app\manager\dashboard\ManagerDashboardClient.tsx:716:              (((tier as { lateFeeDailyCents?: number })
+app\manager\dashboard\ManagerDashboardClient.tsx:717:                .lateFeeDailyCents ?? 0) / 100)
+app\manager\dashboard\ManagerDashboardClient.tsx:720:      lateFeeMaxDays:
+app\manager\dashboard\ManagerDashboardClient.tsx:752:        t.lateFeeEnabled ||
+app\manager\dashboard\ManagerDashboardClient.tsx:753:        Number(t.lateFeeAmount || 0) > 0 ||
+app\manager\dashboard\ManagerDashboardClient.tsx:754:        Number(t.lateFeeDaily || 0) > 0 ||
+app\manager\dashboard\ManagerDashboardClient.tsx:755:        Number(t.lateFeeMaxDays || 0) > 0
+app\manager\dashboard\ManagerDashboardClient.tsx:760:      dueDay: "1",
+app\manager\dashboard\ManagerDashboardClient.tsx:762:      lateFeeEnabled: false,
+app\manager\dashboard\ManagerDashboardClient.tsx:763:      lateFeeInitial: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:764:      lateFeeDaily: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:765:      lateFeeMaxDays: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:770:    dueDay: source.dueDay || "1",
+app\manager\dashboard\ManagerDashboardClient.tsx:772:    lateFeeEnabled:
+app\manager\dashboard\ManagerDashboardClient.tsx:773:      source.lateFeeEnabled ||
+app\manager\dashboard\ManagerDashboardClient.tsx:774:      Number(source.lateFeeAmount || 0) > 0 ||
+app\manager\dashboard\ManagerDashboardClient.tsx:775:      Number(source.lateFeeDaily || 0) > 0,
+app\manager\dashboard\ManagerDashboardClient.tsx:776:    lateFeeInitial: source.lateFeeAmount || "",
+app\manager\dashboard\ManagerDashboardClient.tsx:777:    lateFeeDaily: source.lateFeeDaily || "",
+app\manager\dashboard\ManagerDashboardClient.tsx:778:    lateFeeMaxDays: source.lateFeeMaxDays || "",
+app\manager\dashboard\ManagerDashboardClient.tsx:785:  dueDay: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:787:  lateFeeEnabled: boolean;
+app\manager\dashboard\ManagerDashboardClient.tsx:788:  lateFeeInitial: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:789:  lateFeeDaily: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:790:  lateFeeMaxDays: string;
+app\manager\dashboard\ManagerDashboardClient.tsx:802:    dueDay: tier.dueDay || "1",
+app\manager\dashboard\ManagerDashboardClient.tsx:804:    lateFeeEnabled: Boolean(tier.lateFeeEnabled),
+app\manager\dashboard\ManagerDashboardClient.tsx:805:    lateFeeInitial: tier.lateFeeAmount || "0",
+app\manager\dashboard\ManagerDashboardClient.tsx:806:    lateFeeDaily: tier.lateFeeDaily || "0",
+app\manager\dashboard\ManagerDashboardClient.tsx:807:    lateFeeMaxDays: tier.lateFeeMaxDays || "0",
+app\manager\dashboard\ManagerDashboardClient.tsx:1081:      dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
+app\manager\dashboard\ManagerDashboardClient.tsx:1083:        (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
+app\manager\dashboard\ManagerDashboardClient.tsx:1085:      lateFeeEnabled:
+app\manager\dashboard\ManagerDashboardClient.tsx:1086:        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+app\manager\dashboard\ManagerDashboardClient.tsx:1088:        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0,
+app\manager\dashboard\ManagerDashboardClient.tsx:1089:      lateFeeAmount:
+app\manager\dashboard\ManagerDashboardClient.tsx:1090:        ((tier as { lateFeeInitialCents?: number }).lateFeeInitialCents ?? 0) >
+app\manager\dashboard\ManagerDashboardClient.tsx:1093:              ((tier as { lateFeeInitialCents?: number })
+app\manager\dashboard\ManagerDashboardClient.tsx:1094:                .lateFeeInitialCents ?? 0) / 100
+app\manager\dashboard\ManagerDashboardClient.tsx:1097:      lateFeeDaily:
+app\manager\dashboard\ManagerDashboardClient.tsx:1098:        ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ?? 0) > 0
+app\manager\dashboard\ManagerDashboardClient.tsx:1100:              ((tier as { lateFeeDailyCents?: number }).lateFeeDailyCents ??
+app\manager\dashboard\ManagerDashboardClient.tsx:1104:      lateFeeMaxDays:
+app\manager\dashboard\ManagerDashboardClient.tsx:1261:    if (typeof json.effectiveDate === "string") {
+app\manager\dashboard\ManagerDashboardClient.tsx:1262:      setChargesEffectiveMonth(json.effectiveDate);
+app\manager\dashboard\ManagerDashboardClient.tsx:1487:          effectiveDate: new Date().toISOString().slice(0, 10),
+app\manager\dashboard\ManagerDashboardClient.tsx:1580:                updatedAt: new Date().toISOString(),
+app\manager\dashboard\ManagerDashboardClient.tsx:1597:  const startDate = new Date(startDateString);
+app\manager\dashboard\ManagerDashboardClient.tsx:1600:  const now = new Date();
+app\manager\dashboard\ManagerDashboardClient.tsx:1602:  const start = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+app\manager\dashboard\ManagerDashboardClient.tsx:1603:  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+app\manager\dashboard\ManagerDashboardClient.tsx:1607:  let cursor = new Date(start);
+app\manager\dashboard\ManagerDashboardClient.tsx:1610:    const year = cursor.getFullYear();
+app\manager\dashboard\ManagerDashboardClient.tsx:1611:    const month = cursor.getMonth() + 1;
+app\manager\dashboard\ManagerDashboardClient.tsx:1621:    cursor.setMonth(cursor.getMonth() + 1);
+app\manager\dashboard\ManagerDashboardClient.tsx:1689:  data?.property?.billingCycleStartDate
+app\manager\dashboard\ManagerDashboardClient.tsx:1915:  const raw = data?.property?.billingCycleStartDate ?? "";
+app\manager\dashboard\ManagerDashboardClient.tsx:2012:      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+app\manager\dashboard\ManagerDashboardClient.tsx:2048:    dueDay: getMixedText(gpLfVisibleTiers.map((tier) => tier.dueDay)),
+app\manager\dashboard\ManagerDashboardClient.tsx:2050:    lateFeeStatus: getMixedBooleanText(
+app\manager\dashboard\ManagerDashboardClient.tsx:2051:      gpLfVisibleTiers.map((tier) => tier.lateFeeEnabled)
+app\manager\dashboard\ManagerDashboardClient.tsx:2053:    lateFeeInitial: getMixedText(
+app\manager\dashboard\ManagerDashboardClient.tsx:2054:      gpLfVisibleTiers.map((tier) => tier.lateFeeInitial)
+app\manager\dashboard\ManagerDashboardClient.tsx:2056:    lateFeeDaily: getMixedText(
+app\manager\dashboard\ManagerDashboardClient.tsx:2057:      gpLfVisibleTiers.map((tier) => tier.lateFeeDaily)
+app\manager\dashboard\ManagerDashboardClient.tsx:2059:    lateFeeMaxDays: getMixedText(
+app\manager\dashboard\ManagerDashboardClient.tsx:2060:      gpLfVisibleTiers.map((tier) => tier.lateFeeMaxDays)
+app\manager\dashboard\ManagerDashboardClient.tsx:2131:    id: `charge-${index}-${Date.now()}`,
+app\manager\dashboard\ManagerDashboardClient.tsx:2138:  const date = new Date(value);
+app\manager\dashboard\ManagerDashboardClient.tsx:2157:         id: `new-tier-${Date.now()}`,
+app\manager\dashboard\ManagerDashboardClient.tsx:2167:       dueDay: "1",
+app\manager\dashboard\ManagerDashboardClient.tsx:2169:       lateFeeEnabled: false,
+app\manager\dashboard\ManagerDashboardClient.tsx:2170:       lateFeeAmount: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2171:       lateFeeDaily: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2172:       lateFeeMaxDays: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2199:        dueDay: gpLfSettings.dueDay,
+app\manager\dashboard\ManagerDashboardClient.tsx:2201:        lateFeeEnabled: gpLfSettings.lateFeeEnabled,
+app\manager\dashboard\ManagerDashboardClient.tsx:2202:        lateFeeAmount: gpLfSettings.lateFeeInitial,
+app\manager\dashboard\ManagerDashboardClient.tsx:2203:        lateFeeDaily: gpLfSettings.lateFeeDaily,
+app\manager\dashboard\ManagerDashboardClient.tsx:2204:        lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
+app\manager\dashboard\ManagerDashboardClient.tsx:2243:    !billingCycleStartDate ||
+app\manager\dashboard\ManagerDashboardClient.tsx:2244:    billingCycleStartDateLocked
+app\manager\dashboard\ManagerDashboardClient.tsx:2250:  `Are you sure you want RentFray to start tracking rent on ${billingCycleStartDate}?\n\nOnce confirmed, this date cannot be changed.`
+app\manager\dashboard\ManagerDashboardClient.tsx:2269:          billingCycleStartDate,
+app\manager\dashboard\ManagerDashboardClient.tsx:2283:      `RentFray start date successfully set to ${billingCycleStartDate}.`
+app\manager\dashboard\ManagerDashboardClient.tsx:2346:      dueDay: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2348:      lateFeeEnabled: false,
+app\manager\dashboard\ManagerDashboardClient.tsx:2349:      lateFeeInitial: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2350:      lateFeeDaily: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2351:      lateFeeMaxDays: "",
+app\manager\dashboard\ManagerDashboardClient.tsx:2434:          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+app\manager\dashboard\ManagerDashboardClient.tsx:2728:          {data.cycleSnapshot?.billingCycleLabel || "\u2014"}
+app\manager\dashboard\ManagerDashboardClient.tsx:2770:            ${(data.cycleSnapshot?.lateFeesCollected ?? 0).toFixed(2)}
+app\manager\dashboard\ManagerDashboardClient.tsx:2930:              {item.type === "CREDIT" ? "Credit" : "Charge"}
+app\manager\dashboard\ManagerDashboardClient.tsx:2935:                item.type === "CREDIT" ? "text-emerald-700" : "text-slate-950"
+app\manager\dashboard\ManagerDashboardClient.tsx:2938:              {item.type === "CREDIT" ? "-" : "+"}
+app\manager\dashboard\ManagerDashboardClient.tsx:2948:            Added: {new Date(item.createdAt).toLocaleString()}
+app\manager\dashboard\ManagerDashboardClient.tsx:2952:            Takes effect: {item.billingCycle || "Next billing cycle"}{" "}
+app\manager\dashboard\ManagerDashboardClient.tsx:2953:            ({new Date(item.effectiveDate).toLocaleDateString()})
+app\manager\dashboard\ManagerDashboardClient.tsx:3664:      billingCycleStartDate={billingCycleStartDate}
+app\manager\dashboard\ManagerDashboardClient.tsx:3666:      billingCycleStartDateLocked={billingCycleStartDateLocked}
+app\manager\properties\[id]\tenants\new\AssignmentFields.tsx:16:  return new Date(year, monthIndexZeroBased + 1, 0).getDate();
+app\manager\properties\[id]\tenants\new\AssignmentFields.tsx:22:  const moveIn = new Date(`${moveInRaw}T00:00:00`);
+app\manager\properties\[id]\tenants\new\AssignmentFields.tsx:25:  const totalDays = getDaysInMonth(moveIn.getFullYear(), moveIn.getMonth());
+app\manager\properties\[id]\tenants\new\AssignmentFields.tsx:26:  const occupiedDays = totalDays - moveIn.getDate() + 1;
+app\manager\properties\[id]\tenants\new\AssignmentFields.tsx:106:            If enabled, the system will post a RENT_CHARGE for the remainder of the move-in month.
+app\api\test\load\manager-dashboard\route.ts:33:  billingCycle: string | null;
+app\api\test\load\manager-dashboard\route.ts:41:  amountCents: number;
+app\api\test\load\manager-dashboard\route.ts:42:  billingCycle: string | null;
+app\api\test\load\manager-dashboard\route.ts:104:    billingCycleStartDate: true,
+app\api\test\load\manager-dashboard\route.ts:153:    const now = new Date();
+app\api\test\load\manager-dashboard\route.ts:164:      billingCycleStartDate: property.billingCycleStartDate,
+app\api\test\load\manager-dashboard\route.ts:167:    const currentBillingCycle = rentDates.billingCycle;
+app\api\test\load\manager-dashboard\route.ts:187:        billingCycle: true,
+app\api\test\load\manager-dashboard\route.ts:209:          amountCents: true,
+app\api\test\load\manager-dashboard\route.ts:210:          billingCycle: true,
+app\api\test\load\manager-dashboard\route.ts:225:          billingCycle: nextBillingCycle,
+app\api\test\load\manager-dashboard\route.ts:227:            in: ["CHARGE", "CREDIT"],
+app\api\test\load\manager-dashboard\route.ts:236:          amountCents: true,
+app\api\test\load\manager-dashboard\route.ts:237:          billingCycle: true,
+app\api\manager\units\vacate\route.ts:41:    const now = new Date();
+app\api\manager\units\vacate\route.ts:42:    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+app\api\manager\units\vacate\route.ts:45:  const parsed = new Date(`${raw}T00:00:00`);
+app\api\manager\units\vacate\route.ts:48:    const now = new Date();
+app\api\manager\units\vacate\route.ts:49:    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+app\api\manager\units\vacate\route.ts:56:  return date.toISOString().slice(0, 10);
+app\api\manager\units\vacate\route.ts:118:  { moveOutDate: { gt: new Date() } },
+app\manager\properties\[id]\settings\page.tsx:51:  const rentDueDay = clampInt(formData.get("billingDay"), 1, 1, 31);
+app\manager\properties\[id]\settings\page.tsx:52:  const gracePeriodDays = clampInt(formData.get("gracePeriodDays"), 5, 0, 31);
+app\manager\properties\[id]\settings\page.tsx:54:  const lateFeeFlatCents = Math.round(
+app\manager\properties\[id]\settings\page.tsx:55:    clampFloat(formData.get("lateFeeValue"), 50, 0, 100000) * 100
+app\manager\properties\[id]\settings\page.tsx:61:    rentDueDay,
+app\manager\properties\[id]\settings\page.tsx:62:    gracePeriodDays,
+app\manager\properties\[id]\settings\page.tsx:63:    lateFeeFlatCents,
+app\manager\properties\[id]\settings\page.tsx:64:    lateFeeEnabled: lateFeeFlatCents > 0,
+app\manager\properties\[id]\settings\page.tsx:133:            defaultValue={settings.rentDueDay}
+app\manager\properties\[id]\settings\page.tsx:141:            name="gracePeriodDays"
+app\manager\properties\[id]\settings\page.tsx:145:            defaultValue={settings.gracePeriodDays}
+app\manager\properties\[id]\settings\page.tsx:153:            name="lateFeeValue"
+app\manager\properties\[id]\settings\page.tsx:157:            defaultValue={(settings.lateFeeFlatCents ?? 0) / 100}
+app\manager\dashboard\components\RentPanel.tsx:20:  dueDay: string;
+app\manager\dashboard\components\RentPanel.tsx:22:  lateFeeEnabled: boolean;
+app\manager\dashboard\components\RentPanel.tsx:23:  lateFeeAmount: string;
+app\manager\dashboard\components\RentPanel.tsx:24:  lateFeeDaily: string;
+app\manager\dashboard\components\RentPanel.tsx:25:  lateFeeMaxDays: string;
+app\manager\dashboard\components\ManagerPanel.tsx:118:  const date = new Date(value);
+app\manager\properties\[id]\page.tsx:11:  return new Date(value).toLocaleString("en-US", {
+app\manager\properties\[id]\page.tsx:344:                  <div>{row.isDelinquent ? "DELINQUENT" : "CURRENT"}</div>
+app\manager\dashboard\components\MaintPanel.tsx:114:  const date = new Date(value);
+app\manager\dashboard\components\MaintPanel.tsx:188:      new Date(b.createdAt).getTime() -
+app\manager\dashboard\components\MaintPanel.tsx:189:      new Date(a.createdAt).getTime()
+app\manager\dashboard\components\GpLfPanel.tsx:13:  dueDay: string;
+app\manager\dashboard\components\GpLfPanel.tsx:15:  lateFeeEnabled: boolean;
+app\manager\dashboard\components\GpLfPanel.tsx:16:  lateFeeInitial: string;
+app\manager\dashboard\components\GpLfPanel.tsx:17:  lateFeeDaily: string;
+app\manager\dashboard\components\GpLfPanel.tsx:18:  lateFeeMaxDays: string;
+app\manager\dashboard\components\GpLfPanel.tsx:22:  dueDay: string;
+app\manager\dashboard\components\GpLfPanel.tsx:24:  lateFeeEnabled: boolean;
+app\manager\dashboard\components\GpLfPanel.tsx:25:  lateFeeInitial: string;
+app\manager\dashboard\components\GpLfPanel.tsx:26:  lateFeeDaily: string;
+app\manager\dashboard\components\GpLfPanel.tsx:27:  lateFeeMaxDays: string;
+app\manager\dashboard\components\GpLfPanel.tsx:31:  dueDay: string;
+app\manager\dashboard\components\GpLfPanel.tsx:33:  lateFeeStatus: string;
+app\manager\dashboard\components\GpLfPanel.tsx:34:  lateFeeInitial: string;
+app\manager\dashboard\components\GpLfPanel.tsx:35:  lateFeeDaily: string;
+app\manager\dashboard\components\GpLfPanel.tsx:36:  lateFeeMaxDays: string;
+app\manager\dashboard\components\GpLfPanel.tsx:237:                  value={gpLfComparisonSummary.dueDay || "G현"}
+app\manager\dashboard\components\GpLfPanel.tsx:245:                  value={gpLfComparisonSummary.lateFeeStatus || "G현"}
+app\manager\dashboard\components\GpLfPanel.tsx:250:                    gpLfComparisonSummary.lateFeeInitial === "Mixed"
+app\manager\dashboard\components\GpLfPanel.tsx:253:                          gpLfComparisonSummary.lateFeeInitial || "0"
+app\manager\dashboard\components\GpLfPanel.tsx:260:                    gpLfComparisonSummary.lateFeeDaily === "Mixed"
+app\manager\dashboard\components\GpLfPanel.tsx:263:                          gpLfComparisonSummary.lateFeeDaily || "0"
+app\manager\dashboard\components\GpLfPanel.tsx:269:                  value={gpLfComparisonSummary.lateFeeMaxDays || "G현"}
+app\manager\dashboard\components\GpLfPanel.tsx:294:                value={gpLfSettings.dueDay}
+app\manager\dashboard\components\GpLfPanel.tsx:297:                    dueDay: e.target.value.replace(/\D/g, ""),
+app\manager\dashboard\components\GpLfPanel.tsx:327:                checked={gpLfSettings.lateFeeEnabled}
+app\manager\dashboard\components\GpLfPanel.tsx:329:                  updateGpLf({ lateFeeEnabled: e.target.checked })
+app\manager\dashboard\components\GpLfPanel.tsx:342:            {gpLfSettings.lateFeeEnabled ? (
+app\manager\dashboard\components\GpLfPanel.tsx:347:                    value={gpLfSettings.lateFeeInitial}
+app\manager\dashboard\components\GpLfPanel.tsx:350:                        lateFeeInitial: e.target.value.replace(/[^0-9.]/g, ""),
+app\manager\dashboard\components\GpLfPanel.tsx:362:                    value={gpLfSettings.lateFeeDaily}
+app\manager\dashboard\components\GpLfPanel.tsx:365:                        lateFeeDaily: e.target.value.replace(/[^0-9.]/g, ""),
+app\manager\dashboard\components\GpLfPanel.tsx:377:                    value={gpLfSettings.lateFeeMaxDays}
+app\manager\dashboard\components\GpLfPanel.tsx:380:                        lateFeeMaxDays: e.target.value.replace(/\D/g, ""),
+app\manager\properties\[id]\maintenance\page.tsx:32:  return new Date(value).toLocaleString("en-US");
+app\api\manager\units\toggle-active\route.ts:38:            OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
+app\api\tenant\payment-receipts\route.ts:13:  amountCents: number;
+app\api\tenant\payment-receipts\route.ts:14:  billingCycle: string | null;
+app\api\tenant\payment-receipts\route.ts:19:  paidAt: Date | null;
+app\api\tenant\payment-receipts\route.ts:44:      orderBy: [{ createdAt: "desc" }, { paidAt: "desc" }],
+app\api\tenant\payment-receipts\route.ts:48:        amountCents: true,
+app\api\tenant\payment-receipts\route.ts:49:        billingCycle: true,
+app\api\tenant\payment-receipts\route.ts:54:        paidAt: true,
+app\api\tenant\payment-receipts\route.ts:62:        amountCents: p.amountCents,
+app\api\tenant\payment-receipts\route.ts:63:        billingCycle: p.billingCycle,
+app\api\tenant\payment-receipts\route.ts:68:        paidAt: p.paidAt ?? null,
+app\manager\dashboard\components\BankPanel.tsx:10:  billingCycleStartDate: string;
+app\manager\dashboard\components\BankPanel.tsx:12:  billingCycleStartDateLocked: boolean;
+app\manager\dashboard\components\BankPanel.tsx:92:  billingCycleStartDate,
+app\manager\dashboard\components\BankPanel.tsx:94:  billingCycleStartDateLocked,
+app\manager\dashboard\components\BankPanel.tsx:120:        {billingCycleStartDateLocked ? (
+app\manager\dashboard\components\BankPanel.tsx:123:              Locked: {formatDateOnly(billingCycleStartDate)}
+app\manager\dashboard\components\BankPanel.tsx:134:              value={billingCycleStartDate}
+app\manager\dashboard\components\BankPanel.tsx:145:                savingBillingCycleStartDate || !billingCycleStartDate
+app\manager\properties\page.tsx:29:  return new Date(value).toLocaleString("en-US");
+app\api\tenant\payment-history\route.ts:12:  amountCents: number;
+app\api\tenant\payment-history\route.ts:16:  billingCycle: string | null;
+app\api\tenant\payment-history\route.ts:17:  effectiveDate: Date;
+app\api\tenant\payment-history\route.ts:19:  paidAt: Date | null;
+app\api\tenant\payment-history\route.ts:35:        entryType: "PAYMENT",
+app\api\tenant\payment-history\route.ts:50:            paidAt: true,
+app\api\tenant\payment-history\route.ts:52:            billingCycle: true,
+app\api\tenant\payment-history\route.ts:53:            amountCents: true,
+app\api\tenant\payment-history\route.ts:57:      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
+app\api\tenant\payment-history\route.ts:62:      .filter((entry: (typeof entries)[number]) => entry.amountCents < 0)
+app\api\tenant\payment-history\route.ts:69:          amountCents: Math.abs(entry.amountCents),
+app\api\tenant\payment-history\route.ts:78:          billingCycle: payment?.billingCycle ?? entry.billingCycle ?? null,
+app\api\tenant\payment-history\route.ts:79:          effectiveDate: entry.effectiveDate,
+app\api\tenant\payment-history\route.ts:81:          paidAt: payment?.paidAt ?? null,
+app\api\manager\units\move-tier\route.ts:26:        billingCycle: string | null;
+app\api\manager\units\move-tier\route.ts:72:    const now = new Date();
+app\api\manager\units\move-tier\route.ts:80:            billingCycleStartDate: true,
+app\api\manager\units\move-tier\route.ts:105:                rentDueDay: true,
+app\api\manager\units\move-tier\route.ts:106:                gracePeriodDays: true,
+app\api\manager\units\move-tier\route.ts:107:                lateFeeInitialCents: true,
+app\api\manager\units\move-tier\route.ts:108:                lateFeeDailyCents: true,
+app\api\manager\units\move-tier\route.ts:134:            rentDueDay: true,
+app\api\manager\units\move-tier\route.ts:135:            gracePeriodDays: true,
+app\api\manager\units\move-tier\route.ts:136:            lateFeeInitialCents: true,
+app\api\manager\units\move-tier\route.ts:137:            lateFeeDailyCents: true,
+app\api\manager\units\move-tier\route.ts:169:          billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\units\move-tier\route.ts:189:            billingCycle: rentDates.billingCycle,
+app\api\manager\units\move-tier\route.ts:202:          throw new Error("PENDING_PAYMENT");
+app\api\manager\units\move-tier\route.ts:211:    billingCycle: rentDates.billingCycle,
+app\api\manager\units\move-tier\route.ts:213:    chargeType: "RENT",
+app\api\manager\units\move-tier\route.ts:221:    amountCents: true,
+app\api\manager\units\move-tier\route.ts:226:  (sum, entry) => sum + Math.max(0, entry.amountCents),
+app\api\manager\units\move-tier\route.ts:318:      billingCycle: rentDates.billingCycle,
+app\api\manager\units\move-tier\route.ts:320:      chargeType: "RENT",
+app\api\manager\units\move-tier\route.ts:321:      amountCents: newTierRentCents,
+app\api\manager\units\move-tier\route.ts:322:      effectiveDate: now,
+app\api\manager\units\move-tier\route.ts:323:      memo: `Current-cycle RENT replaced after tier move. Other ledger entries were preserved. (${unit.tier?.name ?? "Units"} G樣 ${targetTier.name})`,
+app\api\manager\units\move-tier\route.ts:337:          billingCycle: rentDates.billingCycle,
+app\api\manager\units\move-tier\route.ts:401:    if (message === "PENDING_PAYMENT") {
+app\manager\dashboard\components\AdjustBalanceForm.tsx:5:type AdjustType = "PRORATION" | "CHARGE" | "CREDIT";
+app\manager\dashboard\components\AdjustBalanceForm.tsx:24:  const year = date.getFullYear();
+app\manager\dashboard\components\AdjustBalanceForm.tsx:25:  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+app\manager\dashboard\components\AdjustBalanceForm.tsx:26:  const day = `${date.getDate()}`.padStart(2, "0");
+app\manager\dashboard\components\AdjustBalanceForm.tsx:33:  const moveInDate = new Date(`${moveInDateValue}T12:00:00`);
+app\manager\dashboard\components\AdjustBalanceForm.tsx:36:  const moveInDay = moveInDate.getDate();
+app\manager\dashboard\components\AdjustBalanceForm.tsx:52:  const [moveInDate, setMoveInDate] = useState(toInputDateValue(new Date()));
+app\manager\dashboard\components\AdjustBalanceForm.tsx:233:          onClick={() => setType("CREDIT")}
+app\manager\dashboard\components\AdjustBalanceForm.tsx:236:            type === "CREDIT" ? selectedButtonClass : unselectedButtonClass
+app\manager\properties\new\page.tsx:19:  const gracePeriodDays = Math.min(
+app\manager\properties\new\page.tsx:21:    Math.max(0, Number(formData.get("gracePeriodDays") || 5))
+app\manager\properties\new\page.tsx:23:  const rawLateFeeType = clean(formData.get("lateFeeType")).toUpperCase();
+app\manager\properties\new\page.tsx:24:  const lateFeeType = rawLateFeeType === "PERCENT" ? "PERCENT" : "FLAT";
+app\manager\properties\new\page.tsx:25:  const lateFeeValue = Math.max(0, Number(formData.get("lateFeeValue") || 50));
+app\manager\properties\new\page.tsx:48:          gracePeriodDays,
+app\manager\properties\new\page.tsx:49:          lateFeeType,
+app\manager\properties\new\page.tsx:50:          lateFeeValue,
+app\manager\properties\new\page.tsx:152:              name="gracePeriodDays"
+app\manager\properties\new\page.tsx:166:              name="lateFeeType"
+app\manager\properties\new\page.tsx:178:              name="lateFeeValue"
+app\maintenance\page.tsx:34:  const date = new Date(value);
+app\maintenance\page.tsx:129:        new Date(b.createdAt).getTime() -
+app\maintenance\page.tsx:130:        new Date(a.createdAt).getTime()
+app\maintenance\page.tsx:173:                updatedAt: new Date().toISOString(),
+app\api\manager\session\route.ts:123:      data: { lastLoginAt: new Date() },
+app\api\manager\retry\route.ts:55:        updatedAt: new Date(),
+app\api\maintenance\session\route.ts:138:        lastLoginAt: new Date(),
+app\api\tenant\ledger\route.ts:50:        effectiveDate: {
+app\api\tenant\ledger\route.ts:54:      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+app\api\manager\proration\route.ts:31:    const moveInDate = new Date(`${moveInRaw}T00:00:00`);
+app\api\tenant\dashboard\route.ts:60:  if (entry.entryType === "PAYMENT") return "Payment";
+app\api\tenant\dashboard\route.ts:61:  if (entry.entryType === "CREDIT") return "Credit";
+app\api\tenant\dashboard\route.ts:62:  if (entry.entryType === "ADJUSTMENT") return "Adjustment";
+app\api\tenant\dashboard\route.ts:65:    case "RENT":
+app\api\tenant\dashboard\route.ts:107:            rentDueDay: true,
+app\api\tenant\dashboard\route.ts:108:            gracePeriodDays: true,
+app\api\tenant\dashboard\route.ts:109:            lateFeeInitialCents: true,
+app\api\tenant\dashboard\route.ts:110:            lateFeeDailyCents: true,
+app\api\tenant\dashboard\route.ts:174:  billingCycleStartDate: property.billingCycleStartDate,
+app\api\tenant\dashboard\route.ts:178:const balanceCents = financialState.ledgerBalanceCents;
+app\api\tenant\dashboard\route.ts:179:const processingFeeCents = financialState.processingFeeCents;
+app\api\tenant\dashboard\route.ts:180:const totalDueCents = financialState.tenantTotalDueCents;
+app\api\tenant\dashboard\route.ts:183:console.log("TENANT_RENT_DATE_DEBUG", {
+app\api\tenant\dashboard\route.ts:191:const billingCycle = financialState.billingCycle;
+app\api\tenant\dashboard\route.ts:214:        amountCents: true,
+app\api\tenant\dashboard\route.ts:215:        processingFeeCents: true,
+app\api\tenant\dashboard\route.ts:219:        paidAt: true,
+app\api\tenant\dashboard\route.ts:220:        failedAt: true,
+app\api\tenant\dashboard\route.ts:221:        reversedAt: true,
+app\api\tenant\dashboard\route.ts:244:       effectiveDate: {
+app\api\tenant\dashboard\route.ts:249:        { effectiveDate: "desc" },
+app\api\tenant\dashboard\route.ts:257:        billingCycle: true,
+app\api\tenant\dashboard\route.ts:258:        amountCents: true,
+app\api\tenant\dashboard\route.ts:259:        effectiveDate: true,
+app\api\tenant\dashboard\route.ts:265:            paidAt: true,
+app\api\tenant\dashboard\route.ts:266:            failedAt: true,
+app\api\tenant\dashboard\route.ts:267:            reversedAt: true,
+app\api\tenant\dashboard\route.ts:276:        if (entry.entryType !== "PAYMENT") return true;
+app\api\tenant\dashboard\route.ts:284:    entry.billingCycle === billingCycle
+app\api\tenant\dashboard\route.ts:289:    let lateFeesCents = 0;
+app\api\tenant\dashboard\route.ts:295:          entry.entryType === "PAYMENT" ||
+app\api\tenant\dashboard\route.ts:296:          entry.entryType === "CREDIT" ||
+app\api\tenant\dashboard\route.ts:297:          entry.entryType === "ADJUSTMENT";
+app\api\tenant\dashboard\route.ts:300:  if (entry.chargeType === "RENT") {
+app\api\tenant\dashboard\route.ts:301:    rentCents += entry.amountCents;
+app\api\tenant\dashboard\route.ts:307:    lateFeesCents += entry.amountCents;
+app\api\tenant\dashboard\route.ts:309:    recurringChargesCents += entry.amountCents;
+app\api\tenant\dashboard\route.ts:312:  creditsCents += Math.abs(entry.amountCents);
+app\api\tenant\dashboard\route.ts:318:            isCreditLike ? -Math.abs(entry.amountCents) : entry.amountCents
+app\api\tenant\dashboard\route.ts:332:      : processingFeeCents;
+app\api\tenant\dashboard\route.ts:334:    const subtotalCents = rentCents + recurringChargesCents + lateFeesCents;
+app\api\tenant\dashboard\route.ts:350:      billingCycle,
+app\api\tenant\dashboard\route.ts:352:      balanceCents,
+app\api\tenant\dashboard\route.ts:353:      processingFeeCents,
+app\api\tenant\dashboard\route.ts:354:      totalDueCents,
+app\api\tenant\dashboard\route.ts:358:  ? totalDueCents
+app\api\tenant\dashboard\route.ts:361:  ? totalDueCents / 100
+app\api\tenant\dashboard\route.ts:364:      balance: balanceCents / 100,
+app\api\tenant\dashboard\route.ts:365:      processingFee: formatCentsToDollars(processingFeeCents),
+app\api\tenant\dashboard\route.ts:366:      totalDue: formatCentsToDollars(totalDueCents),
+app\api\tenant\dashboard\route.ts:375:        lateFees: centsToDollars(lateFeesCents),
+app\api\tenant\dashboard\route.ts:379:        totalDue: centsToDollars(totalDueCents),
+app\api\tenant\dashboard\route.ts:390:     latestPayment?.paidAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:391:     latestPayment?.failedAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:392:     latestPayment?.reversedAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:393:     latestPayment?.createdAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:401:    amountCents: payment.amountCents,
+app\api\tenant\dashboard\route.ts:402:    processingFeeCents: payment.processingFeeCents ?? 0,
+app\api\tenant\dashboard\route.ts:405:      payment.amountCents +
+app\api\tenant\dashboard\route.ts:406:      (payment.processingFeeCents ?? 0),
+app\api\tenant\dashboard\route.ts:408:    amount: centsToDollars(payment.amountCents),
+app\api\tenant\dashboard\route.ts:411:      payment.processingFeeCents ?? 0
+app\api\tenant\dashboard\route.ts:415:      payment.amountCents +
+app\api\tenant\dashboard\route.ts:416:      (payment.processingFeeCents ?? 0)
+app\api\tenant\dashboard\route.ts:424:      payment.paidAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:425:      payment.failedAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:426:      payment.reversedAt?.toISOString() ??
+app\api\tenant\dashboard\route.ts:427:      payment.createdAt.toISOString(),
+app\api\tenant\dashboard\route.ts:448:      dueDate: rentDates.dueDate,
+app\api\tenant\dashboard\route.ts:449:      graceEndsOn: rentDates.graceEndsOn,
+app\api\tenant\dashboard\route.ts:459:          billingCycle: entry.billingCycle ?? null,
+app\api\tenant\dashboard\route.ts:460:          amountCents: entry.amountCents,
+app\api\tenant\dashboard\route.ts:461:          amount: formatCentsToDollars(entry.amountCents),
+app\api\tenant\dashboard\route.ts:462:          effectiveDate: entry.effectiveDate.toISOString(),
+app\api\ledger\post-rent\route.ts:25:  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+app\api\ledger\post-rent\route.ts:28:function getMonthLabel(date: Date): string {
+app\api\ledger\post-rent\route.ts:36:  return Number.isNaN(d.getTime()) ? new Date() : d;
+app\api\ledger\post-rent\route.ts:60:                rentDueDay: true,
+app\api\ledger\post-rent\route.ts:61:                gracePeriodDays: true,
+app\api\ledger\post-rent\route.ts:62:                lateFeeInitialCents: true,
+app\api\ledger\post-rent\route.ts:63:                lateFeeDailyCents: true,
+app\api\ledger\post-rent\route.ts:86:    const effectiveDate = now;
+app\api\ledger\post-rent\route.ts:108:         billingCycleStartDate: property.billingCycleStartDate,
+app\api\ledger\post-rent\route.ts:111:        const billingCycle = rentDates.billingCycle;
+app\api\ledger\post-rent\route.ts:112:        const monthLabel = getMonthLabel(now);
+app\api\ledger\post-rent\route.ts:114:        const amountCents = unit.tier?.baseRentCents ?? 0;
+app\api\ledger\post-rent\route.ts:116:        if (amountCents <= 0) {
+app\api\ledger\post-rent\route.ts:127:            chargeType: "RENT",
+app\api\ledger\post-rent\route.ts:128:            billingCycle,
+app\api\ledger\post-rent\route.ts:145:            chargeType: "RENT",
+app\api\ledger\post-rent\route.ts:146:            amountCents,
+app\api\ledger\post-rent\route.ts:148:            effectiveDate,
+app\api\ledger\post-rent\route.ts:149:            billingCycle,
+app\api\ledger\post-rent\route.ts:162:          action: "RENT_POSTED",
+app\api\ledger\post-rent\route.ts:165:          summary: `Rent posted on ${getMonthLabel(now)}`,
+app\api\ledger\post-rent\route.ts:169:            triggeredAt: effectiveDate.toISOString(),
+app\api\manager\property\set-payment-status\route.ts:78:        lastSyncedAt: new Date(),
+app\api\manager\property\set-payment-status\route.ts:90:        lastSyncedAt: new Date(),
+app\api\manager\property\set-payment-status\route.ts:98:        action: "PAYMENT_STATUS_UPDATED",
+app\api\tenant\balance\route.ts:34:      balanceCents: summary.balanceCents,
+app\api\ledger\post-recurring-fees\route.ts:25:  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+app\api\ledger\post-recurring-fees\route.ts:28:function getMonthLabel(date: Date): string {
+app\api\ledger\post-recurring-fees\route.ts:40:  return Number.isNaN(date.getTime()) ? new Date() : date;
+app\api\ledger\post-recurring-fees\route.ts:73:                amountCents: true,
+app\api\ledger\post-recurring-fees\route.ts:89:    const effectiveDate = now;
+app\api\ledger\post-recurring-fees\route.ts:106:  billingCycleStartDate: property.billingCycleStartDate,
+app\api\ledger\post-recurring-fees\route.ts:109:        const billingCycle = rentDates.billingCycle;
+app\api\ledger\post-recurring-fees\route.ts:110:        const monthLabel = getMonthLabel(now);
+app\api\ledger\post-recurring-fees\route.ts:118:          const amountCents = fee.amountCents ?? 0;
+app\api\ledger\post-recurring-fees\route.ts:121:          if (!label || amountCents <= 0) {
+app\api\ledger\post-recurring-fees\route.ts:136:              billingCycle,
+app\api\ledger\post-recurring-fees\route.ts:154:              amountCents,
+app\api\ledger\post-recurring-fees\route.ts:155:              effectiveDate,
+app\api\ledger\post-recurring-fees\route.ts:156:              billingCycle,
+app\api\ledger\post-recurring-fees\route.ts:175:          summary: `Recurring fees posted on ${getMonthLabel(now)}`,
+app\api\ledger\post-recurring-fees\route.ts:179:            triggeredAt: effectiveDate.toISOString(),
+app\api\admin\session\route.ts:77:      data: { lastUsedAt: new Date() },
+app\api\ledger\charges\route.ts:28:type AllowedChargeType = "RENT_CHARGE" | "LATE_FEE" | "OTHER_FEE";
+app\api\ledger\charges\route.ts:29:type LedgerChargeType = "RENT" | "LATE_FEE" | "OTHER_FEE";
+app\api\ledger\charges\route.ts:36:  amountCents: number;
+app\api\ledger\charges\route.ts:38:  effectiveDate: Date;
+app\api\ledger\charges\route.ts:49:  "RENT_CHARGE",
+app\api\ledger\charges\route.ts:79:  const parsed = new Date(`${raw}T00:00:00`);
+app\api\ledger\charges\route.ts:91:    case "RENT_CHARGE":
+app\api\ledger\charges\route.ts:92:      return "RENT";
+app\api\ledger\charges\route.ts:114:  const amountCents = toCents(body.amount);
+app\api\ledger\charges\route.ts:116:  const effectiveDate = parseEffectiveDate(body.effectiveDate);
+app\api\ledger\charges\route.ts:121:  if (amountCents === null) return null;
+app\api\ledger\charges\route.ts:122:  if (!effectiveDate) return null;
+app\api\ledger\charges\route.ts:129:    amountCents,
+app\api\ledger\charges\route.ts:131:    effectiveDate,
+app\api\ledger\charges\route.ts:175:      amountCents,
+app\api\ledger\charges\route.ts:177:      effectiveDate,
+app\api\ledger\charges\route.ts:264:  now: effectiveDate,
+app\api\ledger\charges\route.ts:265:  billingCycleStartDate:
+app\api\ledger\charges\route.ts:266:    unit.property.billingCycleStartDate,
+app\api\ledger\charges\route.ts:269:let billingCycle = rentDates.billingCycle;
+app\api\ledger\charges\route.ts:277:    billingCycle,
+app\api\ledger\charges\route.ts:284:  const [year, month] = billingCycle.split("-").map(Number);
+app\api\ledger\charges\route.ts:289:  billingCycle = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+app\api\ledger\charges\route.ts:302:    amountCents,
+app\api\ledger\charges\route.ts:303:    effectiveDate,
+app\api\ledger\charges\route.ts:304:    billingCycle, // G｀ CRITICAL FIX
+app\api\ledger\charges\route.ts:328:              amountCents: entry.amountCents,
+app\api\ledger\charges\route.ts:330:              effectiveDate: entry.effectiveDate.toISOString(),
+app\api\ledger\charges\route.ts:359:          amountCents: number;
+app\api\ledger\charges\route.ts:360:          effectiveDate: Date;
+app\api\tenant\activate\route.ts:43:  ? new Date(moveInDateRaw + "T00:00:00")
+app\api\tenant\activate\route.ts:104:        rentDueDay: true,
+app\api\tenant\activate\route.ts:105:        lateFeeInitialCents: true,
+app\api\tenant\activate\route.ts:106:        lateFeeDailyCents: true,
+app\api\tenant\activate\route.ts:108:        gracePeriodDays: true,
+app\api\tenant\activate\route.ts:170:const activatedAt = new Date();
+app\api\tenant\activate\route.ts:214:// ---------------- RENT LOGIC ----------------
+app\api\tenant\activate\route.ts:233:const now = new Date();
+app\api\tenant\activate\route.ts:238:  billingCycleStartDate: propertyWithSettings.billingCycleStartDate,
+app\api\tenant\activate\route.ts:241:const billingCycle = rentDates.billingCycle;
+app\api\tenant\activate\route.ts:242:const dueDate = new Date(`${rentDates.dueDate}T00:00:00`);
+app\api\tenant\activate\route.ts:246:// RENTFRAY MOVE-IN RULES:
+app\api\tenant\activate\route.ts:251:  shouldPostRent = moveInDate <= dueDate;
+app\api\tenant\activate\route.ts:260:      billingCycle,
+app\api\tenant\activate\route.ts:262:      chargeType: "RENT",
+app\api\tenant\activate\route.ts:275:        chargeType: "RENT",
+app\api\tenant\activate\route.ts:276:        amountCents: selectedTier.baseRentCents,
+app\api\tenant\activate\route.ts:277:        effectiveDate: dueDate,
+app\api\tenant\activate\route.ts:278:        billingCycle,
+app\api\admin\requests\list\route.ts:64:        createdAt: request.createdAt.toISOString(),
+app\api\ledger\adjust\route.ts:9:type AdjustType = "PRORATION" | "CHARGE" | "CREDIT";
+app\api\ledger\adjust\route.ts:12:  return value === "PRORATION" || value === "CHARGE" || value === "CREDIT";
+app\api\ledger\adjust\route.ts:36:    return getCycleKey(new Date());
+app\api\ledger\adjust\route.ts:116:      const effectiveDate = new Date(moveInDateStr);
+app\api\ledger\adjust\route.ts:118:      if (Number.isNaN(effectiveDate.getTime())) {
+app\api\ledger\adjust\route.ts:132:      const cycleKey = getCycleKey(effectiveDate);
+app\api\ledger\adjust\route.ts:139:          chargeType: "RENT",
+app\api\ledger\adjust\route.ts:143:          effectiveDate: true,
+app\api\ledger\adjust\route.ts:148:        const existingCycle = getCycleKey(existingRent.effectiveDate);
+app\api\ledger\adjust\route.ts:164:        chargeType: "RENT" | "RECURRING_FEE" | "OTHER_FEE";
+app\api\ledger\adjust\route.ts:165:        amountCents: number;
+app\api\ledger\adjust\route.ts:172:          chargeType: "RENT",
+app\api\ledger\adjust\route.ts:173:          amountCents: rentCents,
+app\api\ledger\adjust\route.ts:182:          amountCents: recurringCents,
+app\api\ledger\adjust\route.ts:191:          amountCents: depositCents,
+app\api\ledger\adjust\route.ts:205:              amountCents: entry.amountCents,
+app\api\ledger\adjust\route.ts:207:              effectiveDate,
+app\api\ledger\adjust\route.ts:219:    // STANDARD ADJUSTMENTS
+app\api\ledger\adjust\route.ts:228:    const amountCents = Math.round(amount * 100);
+app\api\ledger\adjust\route.ts:230:    let entryType: "CHARGE" | "CREDIT";
+app\api\ledger\adjust\route.ts:231:    let chargeType: "RENT" | "RECURRING_FEE" | "OTHER_FEE" | null;
+app\api\ledger\adjust\route.ts:239:      entryType = "CREDIT";
+app\api\ledger\adjust\route.ts:244:    const currentEffectiveDate = new Date();
+app\api\ledger\adjust\route.ts:252:    billingCycle: currentBillingCycle,
+app\api\ledger\adjust\route.ts:263:  ? new Date(`${finalBillingCycle}-01T00:00:00`)
+app\api\ledger\adjust\route.ts:273:    amountCents,
+app\api\ledger\adjust\route.ts:277:    effectiveDate: finalEffectiveDate,
+app\api\ledger\adjust\route.ts:278:    billingCycle: finalBillingCycle,
+app\api\stripe\webhook\route.ts:64:      ...(nextStatus === "PAID" && { paidAt: new Date() }),
+app\api\stripe\webhook\route.ts:65:      ...(nextStatus === "FAILED" && { failedAt: new Date() }),
+app\api\stripe\webhook\route.ts:66:      ...(nextStatus === "REVERSED" && { reversedAt: new Date() }),
+app\api\stripe\webhook\route.ts:97:  const billingCycle = safeString(metadata.billingCycle);
+app\api\stripe\webhook\route.ts:98:  const amountCents = parseCents(metadata.ledgerBalanceCents);
+app\api\stripe\webhook\route.ts:99:  const feeCents = parseCents(metadata.processingFeeCents);
+app\api\stripe\webhook\route.ts:119:        ...(billingCycle ? { billingCycle } : {}),
+app\api\stripe\webhook\route.ts:120:        ...(amountCents > 0 ? { amountCents } : {}),
+app\api\stripe\webhook\route.ts:121:        processingFeeCents: feeCents,
+app\api\stripe\webhook\route.ts:128:  if (!propertyId || !unitId || !billingCycle) return null;
+app\api\stripe\webhook\route.ts:134:      billingCycle,
+app\api\stripe\webhook\route.ts:135:      ...(amountCents > 0 ? { amountCents } : {}),
+app\api\stripe\webhook\route.ts:136:      processingFeeCents: feeCents,
+app\api\stripe\webhook\route.ts:138:      failedAt: null,
+app\api\stripe\webhook\route.ts:139:      reversedAt: null,
+app\api\stripe\webhook\route.ts:148:      billingCycle,
+app\api\stripe\webhook\route.ts:149:      amountCents,
+app\api\stripe\webhook\route.ts:150:      processingFeeCents: feeCents,
+app\api\stripe\webhook\route.ts:183:      paidAt: new Date(),
+app\api\stripe\webhook\route.ts:184:      failedAt: null,
+app\api\stripe\webhook\route.ts:185:      reversedAt: null,
+app\api\stripe\webhook\route.ts:206:  const balanceCents = parseCents(metadata.ledgerBalanceCents);
+app\api\stripe\webhook\route.ts:207:  const feeCents = parseCents(metadata.processingFeeCents);
+app\api\stripe\webhook\route.ts:209:    parseCents(metadata.totalAmountCents) || balanceCents + feeCents;
+app\api\stripe\webhook\route.ts:212:    console.error("PAYMENT FINALIZATION BLOCKED G현 MISSING REQUIRED METADATA", {
+app\api\stripe\webhook\route.ts:231:    console.error("PAYMENT FINALIZATION BLOCKED G현 PROPERTY NOT PAYMENT READY", {
+app\api\stripe\webhook\route.ts:239:    console.error("PAYMENT FINALIZATION BLOCKED G현 STRIPE ACCOUNT MISMATCH", {
+app\api\stripe\webhook\route.ts:250:    console.error("PAYMENT FINALIZATION BLOCKED G현 AMOUNT MISMATCH", {
+app\api\stripe\webhook\route.ts:254:      balanceCents,
+app\api\stripe\webhook\route.ts:264:    console.error("PAYMENT FINALIZATION BLOCKED G현 PAYMENT RECORD NOT FOUND", {
+app\api\stripe\webhook\route.ts:270:  const billingCycle =
+app\api\stripe\webhook\route.ts:271:    safeString(metadata.billingCycle) || safeString(payment.billingCycle);
+app\api\stripe\webhook\route.ts:273:  if (!billingCycle) {
+app\api\stripe\webhook\route.ts:274:    console.error("PAYMENT FINALIZATION BLOCKED G현 MISSING BILLING CYCLE", {
+app\api\stripe\webhook\route.ts:286:  const effectiveDate = getBusinessDate();
+app\api\stripe\webhook\route.ts:295:    now: effectiveDate,
+app\api\stripe\webhook\route.ts:306:        entryType: "PAYMENT",
+app\api\stripe\webhook\route.ts:332:            amountCents: feeCents,
+app\api\stripe\webhook\route.ts:333:            effectiveDate,
+app\api\stripe\webhook\route.ts:334:            billingCycle,
+app\api\stripe\webhook\route.ts:348:        entryType: "PAYMENT",
+app\api\stripe\webhook\route.ts:350:        amountCents: -expectedCents,
+app\api\stripe\webhook\route.ts:351:        effectiveDate,
+app\api\stripe\webhook\route.ts:352:        billingCycle,
+app\api\stripe\webhook\route.ts:365:        action: "PAYMENT_RECORDED",
+app\api\stripe\webhook\route.ts:366:        targetType: "PAYMENT",
+app\api\stripe\webhook\route.ts:372:          balanceCents,
+app\api\stripe\webhook\route.ts:373:          billingCycle,
+app\api\stripe\webhook\route.ts:404:      entryType: "ADJUSTMENT",
+app\api\stripe\webhook\route.ts:411:  const entries = payment.ledgerEntries as { amountCents: number }[];
+app\api\stripe\webhook\route.ts:414:    (sum, entry) => sum + entry.amountCents,
+app\api\stripe\webhook\route.ts:425:      entryType: "ADJUSTMENT",
+app\api\stripe\webhook\route.ts:426:      amountCents: -totalReversal,
+app\api\stripe\webhook\route.ts:427:      effectiveDate: new Date(),
+app\api\stripe\webhook\route.ts:438:      action: "PAYMENT_REVERSED",
+app\api\stripe\webhook\route.ts:439:      targetType: "PAYMENT",
+app\api\stripe\webhook\route.ts:705:                lastSyncedAt: new Date(),
+app\api\stripe\webhook\route.ts:720:                lastSyncedAt: new Date(),
+app\api\manager\maintenance\update\route.ts:182:        completedAt: status === "COMPLETE" ? new Date() : null,
+app\api\exports\payments\route.ts:40:  const date = value instanceof Date ? value : new Date(value);
+app\api\exports\payments\route.ts:43:    : date.toISOString().split("T")[0] ?? "";
+app\api\exports\payments\route.ts:48:  const date = value instanceof Date ? value : new Date(value);
+app\api\exports\payments\route.ts:49:  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+app\api\exports\payments\route.ts:105:  searchParams.get("billingCycle") ??
+app\api\exports\payments\route.ts:122:    const billingCycle = parseBillingCycleInput(requestedCycle);
+app\api\exports\payments\route.ts:124:    if (requestedCycle && !billingCycle) {
+app\api\exports\payments\route.ts:126:        { error: "Invalid billingCycle. Use YYYY-MM or MM/YYYY." },
+app\api\exports\payments\route.ts:135:  ...(billingCycle ? { billingCycle } : {}),
+app\api\exports\payments\route.ts:166:      const feeCents = p.processingFeeCents ?? 0;
+app\api\exports\payments\route.ts:167:      const totalChargedCents = (p.amountCents ?? 0) + feeCents;
+app\api\exports\payments\route.ts:178:        p.paidAt ?? p.failedAt ?? p.reversedAt ?? p.createdAt;
+app\api\exports\payments\route.ts:181:        billingCycle: p.billingCycle ?? "",
+app\api\exports\payments\route.ts:184:        amountDueCents: p.amountCents ?? 0,
+app\api\exports\payments\route.ts:185:        amountDue: formatCentsToDollars(p.amountCents ?? 0),
+app\api\exports\payments\route.ts:200:    const cycleLabel = billingCycle ?? "all-cycles";
+app\api\exports\ledger\route.ts:13:type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
+app\api\exports\ledger\route.ts:39:  const date = value instanceof Date ? value : new Date(value);
+app\api\exports\ledger\route.ts:42:    : date.toISOString().split("T")[0] ?? "";
+app\api\exports\ledger\route.ts:47:  const date = value instanceof Date ? value : new Date(value);
+app\api\exports\ledger\route.ts:48:  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+app\api\exports\ledger\route.ts:71:    case "PAYMENT":
+app\api\exports\ledger\route.ts:72:    case "CREDIT":
+app\api\exports\ledger\route.ts:73:    case "ADJUSTMENT":
+app\api\exports\ledger\route.ts:99:  amountCents: number,
+app\api\exports\ledger\route.ts:102:  const absAmount = Math.abs(amountCents);
+app\api\exports\ledger\route.ts:105:  if (entryType === "CREDIT") return -absAmount;
+app\api\exports\ledger\route.ts:106:  if (entryType === "ADJUSTMENT") return amountCents;
+app\api\exports\ledger\route.ts:108:  if (entryType === "PAYMENT") {
+app\api\exports\ledger\route.ts:135:  searchParams.get("billingCycle") ??
+app\api\exports\ledger\route.ts:142:    const billingCycle = parseBillingCycleInput(requestedCycle);
+app\api\exports\ledger\route.ts:144:    if (requestedCycle && !billingCycle) {
+app\api\exports\ledger\route.ts:146:        { error: "Invalid billingCycle. Use YYYY-MM or MM/YYYY." },
+app\api\exports\ledger\route.ts:167:  ...(billingCycle ? { billingCycle } : {}),
+app\api\exports\ledger\route.ts:172:        { effectiveDate: "asc" },
+app\api\exports\ledger\route.ts:199:            paidAt: true,
+app\api\exports\ledger\route.ts:200:            failedAt: true,
+app\api\exports\ledger\route.ts:201:            reversedAt: true,
+app\api\exports\ledger\route.ts:221:        e.amountCents,
+app\api\exports\ledger\route.ts:233:        billingCycle: e.billingCycle ?? "",
+app\api\exports\ledger\route.ts:239:        amountCents: e.amountCents ?? 0,
+app\api\exports\ledger\route.ts:240:        amount: formatCentsToDollars(e.amountCents ?? 0),
+app\api\exports\ledger\route.ts:246:        effectiveDate: fmtDate(e.effectiveDate),
+app\api\exports\ledger\route.ts:252:        paidAt: fmtDateTime(e.payment?.paidAt),
+app\api\exports\ledger\route.ts:253:        failedAt: fmtDateTime(e.payment?.failedAt),
+app\api\exports\ledger\route.ts:254:        reversedAt: fmtDateTime(e.payment?.reversedAt),
+app\api\exports\ledger\route.ts:258:    const cycleLabel = billingCycle ?? "all-cycles";
+app\api\admin\properties\[id]\tiers\route.ts:15:  dueDay: string;
+app\api\admin\properties\[id]\tiers\route.ts:17:  lateFeeEnabled: boolean;
+app\api\admin\properties\[id]\tiers\route.ts:18:  lateFeeAmount: string;
+app\api\admin\properties\[id]\tiers\route.ts:19:  lateFeeDaily?: string;
+app\api\admin\properties\[id]\tiers\route.ts:20:  lateFeeMaxDays?: string;
+app\api\admin\properties\[id]\tiers\route.ts:67:        const rentDueDay = toInt(t.dueDay, 1);
+app\api\admin\properties\[id]\tiers\route.ts:68:        const gracePeriodDays = toInt(t.graceDays, 0);
+app\api\admin\properties\[id]\tiers\route.ts:69:        const lateFeeInitialCents = t.lateFeeEnabled ? toCents(t.lateFeeAmount) : 0;
+app\api\admin\properties\[id]\tiers\route.ts:70:        const lateFeeDailyCents = t.lateFeeEnabled ? toCents(t.lateFeeDaily) : 0;
+app\api\admin\properties\[id]\tiers\route.ts:71:        const maxLateFeeDays = t.lateFeeEnabled ? toInt(t.lateFeeMaxDays, 0) : 0;
+app\api\admin\properties\[id]\tiers\route.ts:154:      rentDueDay,
+app\api\admin\properties\[id]\tiers\route.ts:155:      gracePeriodDays,
+app\api\admin\properties\[id]\tiers\route.ts:156:      lateFeeInitialCents,
+app\api\admin\properties\[id]\tiers\route.ts:157:      lateFeeDailyCents,
+app\api\admin\properties\[id]\tiers\route.ts:159:      lateFeeType: "FLAT",
+app\api\admin\properties\[id]\tiers\route.ts:175:    rentDueDay,
+app\api\admin\properties\[id]\tiers\route.ts:176:    gracePeriodDays,
+app\api\admin\properties\[id]\tiers\route.ts:177:    lateFeeInitialCents,
+app\api\admin\properties\[id]\tiers\route.ts:178:    lateFeeDailyCents,
+app\api\admin\properties\[id]\tiers\route.ts:180:    lateFeeType: "FLAT",
+app\api\stripe\connect\route.ts:100:      lastSyncedAt: new Date(),
+app\api\manager\logout\route.ts:11:    expires: new Date(0),
+app\api\exports\balances\route.ts:38:  const date = value instanceof Date ? value : new Date(value);
+app\api\exports\balances\route.ts:41:    : date.toISOString().split("T")[0] ?? "";
+app\api\exports\balances\route.ts:78:      searchParams.get("billingCycle") ?? searchParams.get("cycle");
+app\api\exports\balances\route.ts:84:    const billingCycle = parseBillingCycleInput(requestedCycle);
+app\api\exports\balances\route.ts:86:    if (requestedCycle && !billingCycle) {
+app\api\exports\balances\route.ts:88:        { error: "Invalid billingCycle. Use YYYY-MM or MM/YYYY." },
+app\api\exports\balances\route.ts:135:        const cycleEntries = billingCycle
+app\api\exports\balances\route.ts:141:        billingCycle,
+app\api\exports\balances\route.ts:154:let cycleBalanceCents = summary.balanceCents;
+app\api\exports\balances\route.ts:156:if (billingCycle) {
+app\api\exports\balances\route.ts:163:      cycleChargesCents += entry.amountCents;
+app\api\exports\balances\route.ts:164:      cycleBalanceCents += entry.amountCents;
+app\api\exports\balances\route.ts:168:      entry.entryType === "PAYMENT" &&
+app\api\exports\balances\route.ts:172:      cyclePaidCents += Math.abs(entry.amountCents);
+app\api\exports\balances\route.ts:173:      cycleBalanceCents -= Math.abs(entry.amountCents);
+app\api\exports\balances\route.ts:176:    if (entry.entryType === "CREDIT") {
+app\api\exports\balances\route.ts:177:      cycleBalanceCents -= Math.abs(entry.amountCents);
+app\api\exports\balances\route.ts:194:          billingCycle: billingCycle ?? "",
+app\api\exports\balances\route.ts:217:          dueDate: fmtDate(delinquency.dueDate),
+app\api\exports\balances\route.ts:218:          graceEndsOn: fmtDate(delinquency.graceEndsOn),
+app\api\exports\balances\route.ts:226:    const cycleLabel = billingCycle ?? "all-cycles";
+app\api\admin\properties\[id]\stripe-sync\route.ts:84:          lastSyncedAt: new Date(),
+app\api\admin\properties\[id]\stripe-sync\route.ts:96:          lastSyncedAt: new Date(),
+app\api\admin\properties\[id]\stripe-sync\route.ts:142:        lastSyncedAt: new Date(),
+app\api\admin\properties\[id]\stripe-sync\route.ts:154:        lastSyncedAt: new Date(),
+app\api\manager\dashboard\route.ts:20:type LedgerEntryType = "CHARGE" | "PAYMENT" | "CREDIT" | "ADJUSTMENT";
+app\api\manager\dashboard\route.ts:30:  balanceCents: number;
+app\api\manager\dashboard\route.ts:39:  const fallback = new Date();
+app\api\manager\dashboard\route.ts:44:        ? new Date(startDateValue)
+app\api\manager\dashboard\route.ts:50:  const start = new Date(safeStart.getFullYear(), safeStart.getMonth(), 1);
+app\api\manager\dashboard\route.ts:51:  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+app\api\manager\dashboard\route.ts:54:  const cursor = new Date(start);
+app\api\manager\dashboard\route.ts:57:    const year = cursor.getFullYear();
+app\api\manager\dashboard\route.ts:58:    const month = cursor.getMonth() + 1;
+app\api\manager\dashboard\route.ts:70:    cursor.setMonth(cursor.getMonth() + 1);
+app\api\manager\dashboard\route.ts:99:  const date = new Date(year, month - 1, day);
+app\api\manager\dashboard\route.ts:104:  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+app\api\manager\dashboard\route.ts:125:  return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+app\api\manager\dashboard\route.ts:136:    case "PAYMENT":
+app\api\manager\dashboard\route.ts:137:    case "CREDIT":
+app\api\manager\dashboard\route.ts:138:    case "ADJUSTMENT":
+app\api\manager\dashboard\route.ts:164:    value instanceof Date ? value : new Date(value as string | number | Date);
+app\api\manager\dashboard\route.ts:171:  amountCents: number;
+app\api\manager\dashboard\route.ts:174:  const amountCents = Math.abs(toSafeInteger(input.amountCents));
+app\api\manager\dashboard\route.ts:176:  if (input.entryType === "CHARGE") return amountCents;
+app\api\manager\dashboard\route.ts:177:  if (input.entryType === "PAYMENT") {
+app\api\manager\dashboard\route.ts:178:    return input.paymentStatus === "PAID" ? -amountCents : 0;
+app\api\manager\dashboard\route.ts:180:  if (input.entryType === "CREDIT") return -amountCents;
+app\api\manager\dashboard\route.ts:181:  if (input.entryType === "ADJUSTMENT") return toSafeInteger(input.amountCents);
+app\api\manager\dashboard\route.ts:198:  billingCycle: string;
+app\api\manager\dashboard\route.ts:202:  let lateFeesCollectedCents = 0;
+app\api\manager\dashboard\route.ts:209:        entry.billingCycle === input.billingCycle &&
+app\api\manager\dashboard\route.ts:211:        toSafeInteger(entry.amountCents) > 0
+app\api\manager\dashboard\route.ts:216:        a.effectiveDate.getTime() - b.effectiveDate.getTime();
+app\api\manager\dashboard\route.ts:236:      toSafeInteger(charge.amountCents)
+app\api\manager\dashboard\route.ts:245:      lateFeesCollectedCents += appliedCents;
+app\api\manager\dashboard\route.ts:251:  return lateFeesCollectedCents;
+app\api\manager\dashboard\route.ts:256:  billingCycleStartDate: Date | null;
+app\api\manager\dashboard\route.ts:258:  let balanceCents = 0;
+app\api\manager\dashboard\route.ts:267:    if (entryType === "CHARGE" && input.billingCycleStartDate) {
+app\api\manager\dashboard\route.ts:268:      const effectiveDate = toSafeDate(entry.effectiveDate);
+app\api\manager\dashboard\route.ts:270:      if (effectiveDate && effectiveDate < input.billingCycleStartDate) {
+app\api\manager\dashboard\route.ts:275:    const amountCents = toSafeInteger(entry.amountCents);
+app\api\manager\dashboard\route.ts:279:      amountCents,
+app\api\manager\dashboard\route.ts:283:    balanceCents += signedImpactCents;
+app\api\manager\dashboard\route.ts:286:      totalChargesCents += Math.abs(amountCents);
+app\api\manager\dashboard\route.ts:289:    if (entryType === "CREDIT") {
+app\api\manager\dashboard\route.ts:290:      totalCreditsCents += Math.abs(amountCents);
+app\api\manager\dashboard\route.ts:293:    if (entryType === "PAYMENT" && paymentStatus === "PAID") {
+app\api\manager\dashboard\route.ts:294:      totalPaidCents += Math.abs(amountCents);
+app\api\manager\dashboard\route.ts:299:    balanceCents,
+app\api\manager\dashboard\route.ts:343:  billingCycle: string | null;
+app\api\manager\dashboard\route.ts:344:  amountCents: number;
+app\api\manager\dashboard\route.ts:353:  billingCycle: string;
+app\api\manager\dashboard\route.ts:356:  amountCents: number;
+app\api\manager\dashboard\route.ts:358:  effectiveDate: Date;
+app\api\manager\dashboard\route.ts:371:  amountCents: number;
+app\api\manager\dashboard\route.ts:373:  effectiveDate: Date;
+app\api\manager\dashboard\route.ts:375:  billingCycle: string;
+app\api\manager\dashboard\route.ts:470:      lastSyncedAt: new Date(),
+app\api\manager\dashboard\route.ts:482:      lastSyncedAt: new Date(),
+app\api\manager\dashboard\route.ts:556:          rentDueDay: true,
+app\api\manager\dashboard\route.ts:557:          gracePeriodDays: true,
+app\api\manager\dashboard\route.ts:558:          lateFeeInitialCents: true,
+app\api\manager\dashboard\route.ts:559:          lateFeeDailyCents: true,
+app\api\manager\dashboard\route.ts:588:  rentDueDay: true,
+app\api\manager\dashboard\route.ts:589:  gracePeriodDays: true,
+app\api\manager\dashboard\route.ts:590:  lateFeeInitialCents: true,
+app\api\manager\dashboard\route.ts:591:  lateFeeDailyCents: true,
+app\api\manager\dashboard\route.ts:608:    const now = new Date();
+app\api\manager\dashboard\route.ts:619:      billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:622:    const currentBillingCycle = anchorRentDates.billingCycle;
+app\api\manager\dashboard\route.ts:642:                billingCycle: true,
+app\api\manager\dashboard\route.ts:643:                amountCents: true,
+app\api\manager\dashboard\route.ts:653:                effectiveDate: {
+app\api\manager\dashboard\route.ts:658:                { effectiveDate: "asc" },
+app\api\manager\dashboard\route.ts:666:                billingCycle: true,
+app\api\manager\dashboard\route.ts:669:                amountCents: true,
+app\api\manager\dashboard\route.ts:671:                effectiveDate: true,
+app\api\manager\dashboard\route.ts:684:                billingCycle: nextBillingCycle,
+app\api\manager\dashboard\route.ts:686:                  in: ["CHARGE", "CREDIT"],
+app\api\manager\dashboard\route.ts:697:                amountCents: true,
+app\api\manager\dashboard\route.ts:699:                effectiveDate: true,
+app\api\manager\dashboard\route.ts:701:                billingCycle: true,
+app\api\manager\dashboard\route.ts:749:          balanceCents: 0,
+app\api\manager\dashboard\route.ts:774:        billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:788:        billingCycleStartDate: property.billingCycleStartDate,
+app\api\manager\dashboard\route.ts:791:      const rawLedgerBalanceCents = Math.max(0, ledger.balanceCents);
+app\api\manager\dashboard\route.ts:798:  (payment) => payment.billingCycle === rentDates.billingCycle
+app\api\manager\dashboard\route.ts:804:      payment.billingCycle === rentDates.billingCycle ||
+app\api\manager\dashboard\route.ts:813:      const dueDate = parseDateOnly(rentDates.dueDate);
+app\api\manager\dashboard\route.ts:814:      const graceEndsOn = parseDateOnly(rentDates.graceEndsOn);
+app\api\manager\dashboard\route.ts:827:        isPastGracePeriod && dueDate ? diffDays(now, dueDate) : 0;
+app\api\manager\dashboard\route.ts:837:    if (entry.billingCycle !== rentDates.billingCycle) {
+app\api\manager\dashboard\route.ts:856:      sum + Math.max(0, toSafeInteger(entry.amountCents)),
+app\api\manager\dashboard\route.ts:863:        (sum, payment) => sum + Math.max(0, toSafeInteger(payment.amountCents)),
+app\api\manager\dashboard\route.ts:871:  billingCycle: rentDates.billingCycle,
+app\api\manager\dashboard\route.ts:901:        balanceCents: effectiveBalanceCents,
+app\api\manager\dashboard\route.ts:917:        balanceCents: rawLedgerBalanceCents,
+app\api\manager\dashboard\route.ts:938:            amount: entry.amountCents / 100,
+app\api\manager\dashboard\route.ts:940:            effectiveDate: entry.effectiveDate.toISOString(),
+app\api\manager\dashboard\route.ts:941:            createdAt: entry.createdAt.toISOString(),
+app\api\manager\dashboard\route.ts:942:            billingCycle: entry.billingCycle,
+app\api\manager\dashboard\route.ts:949:    const lateFeesCollected =
+app\api\manager\dashboard\route.ts:951:    const exportMonths = buildExportMonths(property.billingCycleStartDate);
+app\api\manager\dashboard\route.ts:971:        billingCycleStartDate: property.billingCycleStartDate
+app\api\manager\dashboard\route.ts:972:          ? property.billingCycleStartDate.toISOString()
+app\api\manager\dashboard\route.ts:1019:        billingCycleLabel: billingLabel,
+app\api\manager\dashboard\route.ts:1027:        lateFeesCollected,
+app\api\manager\dashboard\route.ts:1054:    rentDueDay: tier.rentDueDay,
+app\api\manager\dashboard\route.ts:1055:    gracePeriodDays: tier.gracePeriodDays,
+app\api\manager\dashboard\route.ts:1056:    lateFeeInitialCents: tier.lateFeeInitialCents,
+app\api\manager\dashboard\route.ts:1057:    lateFeeDailyCents: tier.lateFeeDailyCents,
+app\api\setup\route.ts:18:  dueDay: number | null;
+app\api\setup\route.ts:19:  gracePeriodDays: number;
+app\api\setup\route.ts:20:  lateFeeType: LateFeeType;
+app\api\setup\route.ts:21:  lateFeeInitial: number;
+app\api\setup\route.ts:22:  lateFeeDaily: number;
+app\api\setup\route.ts:181:      if (toInt(tier.dueDay, 0) < 1 || toInt(tier.dueDay, 0) > 31) {
+app\api\setup\route.ts:188:      if (toInt(tier.gracePeriodDays, 0) < 0) {
+app\api\setup\route.ts:195:      if (toMoney(tier.lateFeeInitial) < 0 || toMoney(tier.lateFeeDaily) < 0) {
+app\api\setup\route.ts:241:            billingCycleStartDate: getBusinessDate(),
+app\api\setup\route.ts:268:          const gracePeriodDays = toInt(tier.gracePeriodDays, 0);
+app\api\setup\route.ts:269:          const lateFeeInitial = toMoney(tier.lateFeeInitial);
+app\api\setup\route.ts:270:          const lateFeeDaily = toMoney(tier.lateFeeDaily);
+app\api\setup\route.ts:272:          const dueDay = toInt(tier.dueDay, 1);
+app\api\setup\route.ts:281:              rentDueDay: dueDay,
+app\api\setup\route.ts:282:              gracePeriodDays,
+app\api\setup\route.ts:283:              lateFeeType: tier.lateFeeType,
+app\api\setup\route.ts:284:              lateFeeInitialCents: Math.round(lateFeeInitial * 100),
+app\api\setup\route.ts:285:              lateFeeDailyCents: Math.round(lateFeeDaily * 100),
+app\api\admin\properties\[id]\route.ts:13:  rentDueDay?: unknown;
+app\api\admin\properties\[id]\route.ts:14:  gracePeriodDays?: unknown;
+app\api\admin\properties\[id]\route.ts:15:  lateFeeEnabled?: unknown;
+app\api\admin\properties\[id]\route.ts:16:  lateFeeFlat?: unknown;
+app\api\admin\properties\[id]\route.ts:19:  billingCycleStartDate?: unknown;
+app\api\admin\properties\[id]\route.ts:95:  billingCycleStartDate: property.billingCycleStartDate,
+app\api\admin\properties\[id]\route.ts:103:  rentDueDay: t.rentDueDay,
+app\api\admin\properties\[id]\route.ts:104:  gracePeriodDays: t.gracePeriodDays,
+app\api\admin\properties\[id]\route.ts:105:  lateFeeInitialCents: t.lateFeeInitialCents,
+app\api\admin\properties\[id]\route.ts:106:  lateFeeDailyCents: t.lateFeeDailyCents,
+app\api\admin\properties\[id]\route.ts:171:    const rentDueDay = toNumber(body.rentDueDay, 1);
+app\api\admin\properties\[id]\route.ts:172:    const gracePeriodDays = toNumber(body.gracePeriodDays, 0);
+app\api\admin\properties\[id]\route.ts:173:    const lateFeeEnabled = toBoolean(body.lateFeeEnabled, true);
+app\api\admin\properties\[id]\route.ts:174:    const lateFeeFlatCents = Math.round(toNumber(body.lateFeeFlat, 0) * 100);
+app\api\admin\properties\[id]\route.ts:180:    const billingCycleStartDateRaw =
+app\api\admin\properties\[id]\route.ts:181:  typeof body.billingCycleStartDate === "string"
+app\api\admin\properties\[id]\route.ts:182:    ? body.billingCycleStartDate.trim()
+app\api\admin\properties\[id]\route.ts:185:const billingCycleStartDate = billingCycleStartDateRaw
+app\api\admin\properties\[id]\route.ts:186:  ? new Date(`${billingCycleStartDateRaw}T00:00:00`)
+app\api\admin\properties\[id]\route.ts:189:  const billingCycleOnlyUpdate =
+app\api\admin\properties\[id]\route.ts:191:  typeof body.billingCycleStartDate === "string" &&
+app\api\admin\properties\[id]\route.ts:192:  body.billingCycleStartDate.trim().length > 0;
+app\api\admin\properties\[id]\route.ts:194:if (billingCycleOnlyUpdate) {
+app\api\admin\properties\[id]\route.ts:199:      billingCycleStartDate: true,
+app\api\admin\properties\[id]\route.ts:210:    if (existing.billingCycleStartDate) {
+app\api\admin\properties\[id]\route.ts:220:  if (!billingCycleStartDate || Number.isNaN(billingCycleStartDate.getTime())) {
+app\api\admin\properties\[id]\route.ts:230:      billingCycleStartDate,
+app\api\admin\properties\[id]\route.ts:239:      billingCycleStartDate: property.billingCycleStartDate,
+app\api\admin\properties\[id]\route.ts:244:if (!billingCycleOnlyUpdate && !name) {
+app\api\admin\properties\[id]\route.ts:251:if (!billingCycleOnlyUpdate && !address) {
+app\api\admin\properties\[id]\route.ts:259:  !billingCycleOnlyUpdate &&
+app\api\admin\properties\[id]\route.ts:260:  (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31)
+app\api\admin\properties\[id]\route.ts:269:  !billingCycleOnlyUpdate &&
+app\api\admin\properties\[id]\route.ts:271:    !Number.isInteger(gracePeriodDays) ||
+app\api\admin\properties\[id]\route.ts:272:    gracePeriodDays < 0 ||
+app\api\admin\properties\[id]\route.ts:273:    gracePeriodDays > 31
+app\api\admin\properties\[id]\route.ts:287:    billingCycleStartDate: true,
+app\api\admin\properties\[id]\route.ts:306:const currentStartTime = existing.billingCycleStartDate
+app\api\admin\properties\[id]\route.ts:307:  ? new Date(existing.billingCycleStartDate).getTime()
+app\api\admin\properties\[id]\route.ts:310:const requestedStartTime = billingCycleStartDate
+app\api\admin\properties\[id]\route.ts:311:  ? new Date(billingCycleStartDate).getTime()
+app\api\admin\properties\[id]\route.ts:324:        ...(billingCycleOnlyUpdate
+app\api\admin\properties\[id]\route.ts:332:        ...(billingCycleStartDate !== undefined
+app\api\admin\properties\[id]\route.ts:333:          ? { billingCycleStartDate }
+app\api\admin\properties\[id]\route.ts:338:    const settings = billingCycleOnlyUpdate
+app\api\admin\properties\[id]\route.ts:348:              rentDueDay,
+app\api\admin\properties\[id]\route.ts:349:              gracePeriodDays,
+app\api\admin\properties\[id]\route.ts:350:              lateFeeEnabled,
+app\api\admin\properties\[id]\route.ts:351:              lateFeeFlatCents,
+app\api\admin\properties\[id]\route.ts:359:              rentDueDay,
+app\api\admin\properties\[id]\route.ts:360:              gracePeriodDays,
+app\api\admin\properties\[id]\route.ts:361:              lateFeeEnabled,
+app\api\admin\properties\[id]\route.ts:362:              lateFeeFlatCents,
+app\api\cron\late-fees\route.ts:2:import { runLateFeesJob } from "@/jobs/lateFees";
+app\api\cron\late-fees\route.ts:9:  billingCycle: string;
+app\api\cron\late-fees\route.ts:42:      billingCycle: result.billingCycle,
+app\api\manager\audit-log\route.ts:32:      type: "PAYMENT",
+app\api\manager\audit-log\route.ts:34:      amount: p.amountCents,
+app\api\admin\properties\[id]\payment-status\route.ts:148:        lastSyncedAt: new Date(),
+app\api\admin\properties\[id]\payment-status\route.ts:160:        lastSyncedAt: new Date(),
+app\api\admin\properties\[id]\payment-status\route.ts:168:        action: "PAYMENT_STATUS_UPDATED",
+app\api\public\stats\route.ts:14:  const now = new Date();
+app\api\public\stats\route.ts:15:  return new Date(
+app\api\public\stats\route.ts:21:  const now = new Date();
+app\api\public\stats\route.ts:22:  return new Date(
+app\api\public\stats\route.ts:30:  const now = new Date();
+app\api\public\stats\route.ts:44:          paidAt: {
+app\api\public\stats\route.ts:49:          amountCents: true,
+app\api\public\stats\route.ts:56:          paidAt: {
+app\api\public\stats\route.ts:64:    monthlyPaidAgg._sum.amountCents ?? 0;
+app\api\notes\route.ts:9:type NoteType = "GENERAL" | "PAYMENT" | "SYSTEM";
+app\api\notes\route.ts:164:        noteType: ["GENERAL", "PAYMENT", "SYSTEM"].includes(noteType)
+app\api\payments\create-session\route.ts:166:    billingCycleStartDate:
+app\api\payments\create-session\route.ts:167:      property.billingCycleStartDate,
+app\api\payments\create-session\route.ts:171:const balanceCents = Math.max(
+app\api\payments\create-session\route.ts:178:if (balanceCents <= 0) {
+app\api\payments\create-session\route.ts:199:const processingFeeCents =
+app\api\payments\create-session\route.ts:200:  financialState.processingFeeCents;
+app\api\payments\create-session\route.ts:205:const billingCycle =
+app\api\payments\create-session\route.ts:206:  financialState.billingCycle;
+app\api\payments\create-session\route.ts:214:                ${`${property.id}:${unit.id}:${tenantAssignmentId ?? "none"}:${billingCycle}`}
+app\api\payments\create-session\route.ts:232:                  { billingCycle },
+app\api\payments\create-session\route.ts:247:              billingCycle,
+app\api\payments\create-session\route.ts:248:              amountCents: balanceCents,
+app\api\payments\create-session\route.ts:249:              processingFeeCents,
+app\api\payments\create-session\route.ts:286:        String(balanceCents),
+app\api\payments\create-session\route.ts:288:      processingFeeCents:
+app\api\payments\create-session\route.ts:289:        String(processingFeeCents),
+app\api\payments\create-session\route.ts:294:      billingCycle,
+app\api\payments\create-session\route.ts:297:        new Date().toISOString(),
+app\api\payments\create-session\route.ts:325:            processingFeeCents,
+app\api\payments\create-session\route.ts:353:                balanceCents,
+app\api\payments\create-session\route.ts:359:          ...(processingFeeCents > 0
+app\api\payments\create-session\route.ts:372:                      processingFeeCents,
+app\api\admin\properties\[id]\override\route.ts:119:            moveOutDate: new Date(),
+app\api\admin\properties\[id]\override\route.ts:218:            moveOutDate: new Date(),
+app\api\admin\properties\[id]\override\route.ts:258:    if (action === "REPAIR_PAYMENT_STATUS") {
+app\api\admin\properties\[id]\override\route.ts:280:          action: "PAYMENT_STATUS_REPAIRED",
+app\api\admin\properties\route.ts:19:  dueDay?: string;
+app\api\admin\properties\route.ts:21:  lateFeeInitial?: string;
+app\api\admin\properties\route.ts:22:  lateFeeDaily?: string;
+app\api\admin\properties\route.ts:23:  lateFeeMaxDays?: string;
+app\api\admin\properties\route.ts:127:function getMonthlySubtotal(tier: IncomingTier): number {
+app\api\admin\properties\route.ts:391:      const dueDay = toNumber(ruleSource.dueDay);
+app\api\admin\properties\route.ts:393:      const lateFeeInitial = toNumber(ruleSource.lateFeeInitial);
+app\api\admin\properties\route.ts:394:      const lateFeeDaily = toNumber(ruleSource.lateFeeDaily);
+app\api\admin\properties\route.ts:395:      const lateFeeMaxDays = toNumber(ruleSource.lateFeeMaxDays);
+app\api\admin\properties\route.ts:396:      const monthlySubtotal = getMonthlySubtotal(tier);
+app\api\admin\properties\route.ts:420:      if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
+app\api\admin\properties\route.ts:434:      if (lateFeeInitial < 0) {
+app\api\admin\properties\route.ts:441:      if (lateFeeDaily < 0) {
+app\api\admin\properties\route.ts:449:        !Number.isInteger(lateFeeMaxDays) ||
+app\api\admin\properties\route.ts:450:        lateFeeMaxDays < 0 ||
+app\api\admin\properties\route.ts:451:        lateFeeMaxDays > 31
+app\api\admin\properties\route.ts:524:            rentDueDay: toNumber(firstTier.dueDay, 1),
+app\api\admin\properties\route.ts:525:            gracePeriodDays: toNumber(firstTier.graceDays, 0),
+app\api\admin\properties\route.ts:526:            lateFeeEnabled: true,
+app\api\admin\properties\route.ts:527:            lateFeeFlatCents: toCents(firstTier.lateFeeInitial),
+app\api\admin\properties\route.ts:531:              getMinimumProcessingFee(getMonthlySubtotal(firstTier))
+app\api\admin\properties\route.ts:547:            getMonthlySubtotal(tier)
+app\api\admin\properties\route.ts:555:            rentDueDay: toNumber(ruleSource.dueDay, 1),
+app\api\admin\properties\route.ts:556:            gracePeriodDays: toNumber(ruleSource.graceDays, 0),
+app\api\admin\properties\route.ts:557:            lateFeeInitialCents: toCents(ruleSource.lateFeeInitial),
+app\api\admin\properties\route.ts:558:            lateFeeDailyCents: toCents(ruleSource.lateFeeDaily),
+app\api\admin\properties\route.ts:559:            maxLateFeeDays: toNumber(ruleSource.lateFeeMaxDays, 0),
+app\api\admin\properties\route.ts:560:            processingFeeCents: toCents(calculatedProcessingFee),
+app\api\admin\properties\route.ts:597:                    amountCents: toCents(charge.amount),
+app\api\admin\properties\route.ts:618:                  amountCents: recurringTotalCents,
+app\api\admin\properties\route.ts:619:                  effectiveDate: new Date(),
+app\api\admin\properties\[id]\charges\route.ts:34:  amountCents: number;
+app\api\admin\properties\[id]\charges\route.ts:35:  effectiveDate: Date;
+app\api\admin\properties\[id]\charges\route.ts:41:  amountCents: number;
+app\api\admin\properties\[id]\charges\route.ts:60:  const now = new Date();
+app\api\admin\properties\[id]\charges\route.ts:61:  return new Date(now.getFullYear(), now.getMonth(), 1);
+app\api\admin\properties\[id]\charges\route.ts:65:  const now = new Date();
+app\api\admin\properties\[id]\charges\route.ts:66:  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+app\api\admin\properties\[id]\charges\route.ts:135:            { effectiveDate: "desc" },
+app\api\admin\properties\[id]\charges\route.ts:143:            amountCents: true,
+app\api\admin\properties\[id]\charges\route.ts:144:            effectiveDate: true,
+app\api\admin\properties\[id]\charges\route.ts:153:      const effectiveTime = charge.effectiveDate.getTime();
+app\api\admin\properties\[id]\charges\route.ts:168:          return charge.effectiveDate.getTime() === latestEffectiveTime;
+app\api\admin\properties\[id]\charges\route.ts:174:          amount: charge.amountCents / 100,
+app\api\admin\properties\[id]\charges\route.ts:175:          effectiveDate: charge.effectiveDate.toISOString(),
+app\api\admin\properties\[id]\charges\route.ts:192:      effectiveMonth: firstDayOfCurrentMonth().toISOString(),
+app\api\admin\properties\[id]\charges\route.ts:193:      nextEffectiveMonth: firstDayOfNextMonth().toISOString(),
+app\api\admin\properties\[id]\charges\route.ts:286:              amountCents: amount,
+app\api\admin\properties\[id]\charges\route.ts:302:          effectiveDate: { gte: nextEffectiveDate },
+app\api\admin\properties\[id]\charges\route.ts:315:              amountCents: charge.amountCents,
+app\api\admin\properties\[id]\charges\route.ts:316:              effectiveDate: nextEffectiveDate,
+app\api\admin\properties\[id]\charges\route.ts:330:          effectiveDate: nextEffectiveDate,
+app\api\admin\properties\[id]\charges\route.ts:341:          amountCents: true,
+app\api\admin\properties\[id]\charges\route.ts:342:          effectiveDate: true,
+app\api\admin\properties\[id]\charges\route.ts:363:            amount: c.amountCents / 100,
+app\api\admin\properties\[id]\charges\route.ts:364:            effectiveDate: c.effectiveDate.toISOString(),
+app\api\admin\properties\[id]\charges\route.ts:371:      effectiveDate: nextEffectiveDate.toISOString(),
+app\api\admin\properties\[id]\gplf\route.ts:11:  dueDay: string;
+app\api\admin\properties\[id]\gplf\route.ts:13:  lateFeeEnabled: boolean;
+app\api\admin\properties\[id]\gplf\route.ts:14:  lateFeeAmount: string;
+app\api\admin\properties\[id]\gplf\route.ts:15:  lateFeeDaily?: string;
+app\api\admin\properties\[id]\gplf\route.ts:16:  lateFeeMaxDays?: string;
+app\api\admin\properties\[id]\gplf\route.ts:63:    const rentDueDay = toInt(tier.dueDay, 1);
+app\api\admin\properties\[id]\gplf\route.ts:64:    const gracePeriodDays = toInt(tier.graceDays, 0);
+app\api\admin\properties\[id]\gplf\route.ts:65:    const lateFeeInitialCents = tier.lateFeeEnabled
+app\api\admin\properties\[id]\gplf\route.ts:66:      ? toCents(tier.lateFeeAmount)
+app\api\admin\properties\[id]\gplf\route.ts:68:    const lateFeeDailyCents = tier.lateFeeEnabled
+app\api\admin\properties\[id]\gplf\route.ts:69:      ? toCents(tier.lateFeeDaily)
+app\api\admin\properties\[id]\gplf\route.ts:71:    const maxLateFeeDays = tier.lateFeeEnabled
+app\api\admin\properties\[id]\gplf\route.ts:72:      ? toInt(tier.lateFeeMaxDays, 0)
+app\api\admin\properties\[id]\gplf\route.ts:80:        rentDueDay,
+app\api\admin\properties\[id]\gplf\route.ts:81:        gracePeriodDays,
+app\api\admin\properties\[id]\gplf\route.ts:82:        lateFeeInitialCents,
+app\api\admin\properties\[id]\gplf\route.ts:83:        lateFeeDailyCents,
+app\api\admin\properties\[id]\gplf\route.ts:85:        lateFeeType: "FLAT",
+app\admin\requests\page.tsx:8:  return new Date(value).toLocaleString("en-US");
+app\(marketing)\how-to-avoid-late-rent-payments\page.tsx:258:      {/* HOW TO AVOID LATE RENT PAYMENTS */}
+tests\e2e\full-system.spec.ts:25:  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+app\admin\properties\[id]\setup\page.tsx:324:      } else if (action === "REPAIR_PAYMENT_STATUS") {
+app\admin\properties\[id]\setup\page.tsx:582:            onClick={() => runOverride("REPAIR_PAYMENT_STATUS")}
+app\admin\properties\[id]\PropertyTierEditor.tsx:11:  rentDueDay: number | null;
+app\admin\properties\[id]\PropertyTierEditor.tsx:12:  gracePeriodDays: number | null;
+app\admin\properties\[id]\PropertyTierEditor.tsx:13:  lateFeeInitial: number | null;
+app\admin\properties\[id]\PropertyTierEditor.tsx:14:  lateFeeDaily: number | null;
+app\admin\properties\[id]\PropertyTierEditor.tsx:15:  lateFeeMaxDays: number | null;
+app\admin\properties\[id]\PropertyTierEditor.tsx:36:    rentDueDay: number;
+app\admin\properties\[id]\PropertyTierEditor.tsx:37:    gracePeriodDays: number;
+app\admin\properties\[id]\PropertyTierEditor.tsx:38:    lateFeeInitial: number;
+app\admin\properties\[id]\PropertyTierEditor.tsx:39:    lateFeeDaily: number;
+app\admin\properties\[id]\PropertyTierEditor.tsx:40:    lateFeeMaxDays: number;
+app\admin\properties\[id]\PropertyTierEditor.tsx:66:    rentDueDay: String(Number(tier.rentDueDay || 1)),
+app\admin\properties\[id]\PropertyTierEditor.tsx:67:    gracePeriodDays: String(Number(tier.gracePeriodDays || 0)),
+app\admin\properties\[id]\PropertyTierEditor.tsx:68:    lateFeeInitial: String(Number(tier.lateFeeInitial || 0)),
+app\admin\properties\[id]\PropertyTierEditor.tsx:69:    lateFeeDaily: String(Number(tier.lateFeeDaily || 0)),
+app\admin\properties\[id]\PropertyTierEditor.tsx:70:    lateFeeMaxDays: String(Number(tier.lateFeeMaxDays || 0)),
+app\admin\properties\[id]\PropertyTierEditor.tsx:116:      const dueDay = Number(state.rentDueDay);
+app\admin\properties\[id]\PropertyTierEditor.tsx:117:      if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
+app\admin\properties\[id]\PropertyTierEditor.tsx:118:        errors.rentDueDay = "Due day must be between 1 and 31.";
+app\admin\properties\[id]\PropertyTierEditor.tsx:121:      const grace = Number(state.gracePeriodDays);
+app\admin\properties\[id]\PropertyTierEditor.tsx:123:        errors.gracePeriodDays = "Grace period must be between 0 and 31.";
+app\admin\properties\[id]\PropertyTierEditor.tsx:126:      const lateInitial = Number(state.lateFeeInitial);
+app\admin\properties\[id]\PropertyTierEditor.tsx:128:        errors.lateFeeInitial = "Initial late fee must be 0 or greater.";
+app\admin\properties\[id]\PropertyTierEditor.tsx:131:      const lateDaily = Number(state.lateFeeDaily);
+app\admin\properties\[id]\PropertyTierEditor.tsx:133:        errors.lateFeeDaily = "Daily late fee must be 0 or greater.";
+app\admin\properties\[id]\PropertyTierEditor.tsx:136:      const lateMaxDays = Number(state.lateFeeMaxDays);
+app\admin\properties\[id]\PropertyTierEditor.tsx:138:        errors.lateFeeMaxDays = "Max daily late fee days must be between 0 and 31.";
+app\admin\properties\[id]\PropertyTierEditor.tsx:205:          rentDueDay: Number(state.rentDueDay || 1),
+app\admin\properties\[id]\PropertyTierEditor.tsx:206:          gracePeriodDays: Number(state.gracePeriodDays || 0),
+app\admin\properties\[id]\PropertyTierEditor.tsx:207:          lateFeeInitial: Number(state.lateFeeInitial || 0),
+app\admin\properties\[id]\PropertyTierEditor.tsx:208:          lateFeeDaily: Number(state.lateFeeDaily || 0),
+app\admin\properties\[id]\PropertyTierEditor.tsx:209:          lateFeeMaxDays: Number(state.lateFeeMaxDays || 0),
+app\admin\properties\[id]\PropertyTierEditor.tsx:358:                    value={state.rentDueDay}
+app\admin\properties\[id]\PropertyTierEditor.tsx:362:                        "rentDueDay",
+app\admin\properties\[id]\PropertyTierEditor.tsx:369:                  {submitted && errors.rentDueDay ? (
+app\admin\properties\[id]\PropertyTierEditor.tsx:371:                      {errors.rentDueDay}
+app\admin\properties\[id]\PropertyTierEditor.tsx:380:                    value={state.gracePeriodDays}
+app\admin\properties\[id]\PropertyTierEditor.tsx:384:                        "gracePeriodDays",
+app\admin\properties\[id]\PropertyTierEditor.tsx:391:                  {submitted && errors.gracePeriodDays ? (
+app\admin\properties\[id]\PropertyTierEditor.tsx:393:                      {errors.gracePeriodDays}
+app\admin\properties\[id]\PropertyTierEditor.tsx:402:                    value={state.lateFeeInitial}
+app\admin\properties\[id]\PropertyTierEditor.tsx:406:                        "lateFeeInitial",
+app\admin\properties\[id]\PropertyTierEditor.tsx:413:                  {submitted && errors.lateFeeInitial ? (
+app\admin\properties\[id]\PropertyTierEditor.tsx:415:                      {errors.lateFeeInitial}
+app\admin\properties\[id]\PropertyTierEditor.tsx:424:                    value={state.lateFeeDaily}
+app\admin\properties\[id]\PropertyTierEditor.tsx:428:                        "lateFeeDaily",
+app\admin\properties\[id]\PropertyTierEditor.tsx:435:                  {submitted && errors.lateFeeDaily ? (
+app\admin\properties\[id]\PropertyTierEditor.tsx:437:                      {errors.lateFeeDaily}
+app\admin\properties\[id]\PropertyTierEditor.tsx:446:                    value={state.lateFeeMaxDays}
+app\admin\properties\[id]\PropertyTierEditor.tsx:450:                        "lateFeeMaxDays",
+app\admin\properties\[id]\PropertyTierEditor.tsx:457:                  {submitted && errors.lateFeeMaxDays ? (
+app\admin\properties\[id]\PropertyTierEditor.tsx:459:                      {errors.lateFeeMaxDays}
+app\admin\properties\new\page.tsx:21:  dueDay: string;
+app\admin\properties\new\page.tsx:23:  lateFeeInitial: string;
+app\admin\properties\new\page.tsx:24:  lateFeeDaily: string;
+app\admin\properties\new\page.tsx:25:  lateFeeMaxDays: string;
+app\admin\properties\new\page.tsx:73:    dueDay: "",
+app\admin\properties\new\page.tsx:75:    lateFeeInitial: "",
+app\admin\properties\new\page.tsx:76:    lateFeeDaily: "",
+app\admin\properties\new\page.tsx:77:    lateFeeMaxDays: "5",
+app\admin\properties\new\page.tsx:125:function getMonthlySubtotal(tier: TierRow) {
+app\admin\properties\new\page.tsx:268:      if (tier.dueDay.trim() === "") {
+app\admin\properties\new\page.tsx:269:        errors[`tier-${index}-dueDay`] = "Select a due day.";
+app\admin\properties\new\page.tsx:276:      if (tier.lateFeeInitial.trim() === "") {
+app\admin\properties\new\page.tsx:277:        errors[`tier-${index}-lateFeeInitial`] = "Enter late fee amount.";
+app\admin\properties\new\page.tsx:280:      if (tier.lateFeeDaily.trim() === "") {
+app\admin\properties\new\page.tsx:281:        errors[`tier-${index}-lateFeeDaily`] = "Enter daily late fee.";
+app\admin\properties\new\page.tsx:284:      if (tier.lateFeeMaxDays.trim() === "") {
+app\admin\properties\new\page.tsx:285:        errors[`tier-${index}-lateFeeMaxDays`] = "Enter max late fee days.";
+app\admin\properties\new\page.tsx:416:      key.includes("-dueDay") ||
+app\admin\properties\new\page.tsx:418:      key.includes("-lateFeeInitial") ||
+app\admin\properties\new\page.tsx:419:      key.includes("-lateFeeDaily") ||
+app\admin\properties\new\page.tsx:420:      key.includes("-lateFeeMaxDays")
+app\admin\properties\new\page.tsx:437:        savedAt: new Date().toISOString(),
+app\admin\properties\new\page.tsx:567:          <div className="wizard-brand">RENTFRAY</div>
+app\admin\properties\new\page.tsx:784:                const subtotal = getMonthlySubtotal(tier);
+app\admin\properties\new\page.tsx:1083:                        value={tier.dueDay}
+app\admin\properties\new\page.tsx:1085:                          updateTier(tier.id, "dueDay", e.target.value)
+app\admin\properties\new\page.tsx:1095:                      {submitAttempted && validation[`tier-${index}-dueDay`] && (
+app\admin\properties\new\page.tsx:1097:                          {validation[`tier-${index}-dueDay`]}
+app\admin\properties\new\page.tsx:1130:                          value={tier.lateFeeInitial}
+app\admin\properties\new\page.tsx:1134:                              "lateFeeInitial",
+app\admin\properties\new\page.tsx:1143:                        validation[`tier-${index}-lateFeeInitial`] && (
+app\admin\properties\new\page.tsx:1145:                            {validation[`tier-${index}-lateFeeInitial`]}
+app\admin\properties\new\page.tsx:1156:                          value={tier.lateFeeDaily}
+app\admin\properties\new\page.tsx:1160:                              "lateFeeDaily",
+app\admin\properties\new\page.tsx:1169:                        validation[`tier-${index}-lateFeeDaily`] && (
+app\admin\properties\new\page.tsx:1171:                            {validation[`tier-${index}-lateFeeDaily`]}
+app\admin\properties\new\page.tsx:1182:                        value={tier.lateFeeMaxDays}
+app\admin\properties\new\page.tsx:1186:                            "lateFeeMaxDays",
+app\admin\properties\new\page.tsx:1194:                        validation[`tier-${index}-lateFeeMaxDays`] && (
+app\admin\properties\new\page.tsx:1196:                            {validation[`tier-${index}-lateFeeMaxDays`]}
+app\admin\properties\new\page.tsx:1280:                  const subtotal = getMonthlySubtotal(tier);
+app\admin\properties\[id]\PropertyEditor.tsx:14:      rentDueDay: number | null;
+app\admin\properties\[id]\PropertyEditor.tsx:15:      gracePeriodDays: number | null;
+app\admin\properties\[id]\PropertyEditor.tsx:16:      lateFeeEnabled: boolean | null;
+app\admin\properties\[id]\PropertyEditor.tsx:17:      lateFeeFlat: number | null;
+app\admin\properties\[id]\PropertyEditor.tsx:37:    rentDueDay: number;
+app\admin\properties\[id]\PropertyEditor.tsx:38:    gracePeriodDays: number;
+app\admin\properties\[id]\PropertyEditor.tsx:39:    lateFeeEnabled: boolean;
+app\admin\properties\[id]\PropertyEditor.tsx:40:    lateFeeFlat: number;
+app\admin\properties\[id]\PropertyEditor.tsx:65:  const [rentDueDay, setRentDueDay] = useState(
+app\admin\properties\[id]\PropertyEditor.tsx:66:    property.propertySettings?.rentDueDay?.toString() || "1"
+app\admin\properties\[id]\PropertyEditor.tsx:68:  const [gracePeriodDays, setGracePeriodDays] = useState(
+app\admin\properties\[id]\PropertyEditor.tsx:69:    property.propertySettings?.gracePeriodDays?.toString() || "0"
+app\admin\properties\[id]\PropertyEditor.tsx:71:  const [lateFeeEnabled, setLateFeeEnabled] = useState(
+app\admin\properties\[id]\PropertyEditor.tsx:72:    property.propertySettings?.lateFeeEnabled ?? true
+app\admin\properties\[id]\PropertyEditor.tsx:74:  const [lateFeeFlat, setLateFeeFlat] = useState(
+app\admin\properties\[id]\PropertyEditor.tsx:75:    property.propertySettings?.lateFeeFlat?.toString() || "0"
+app\admin\properties\[id]\PropertyEditor.tsx:100:    const dueDay = Number(rentDueDay);
+app\admin\properties\[id]\PropertyEditor.tsx:101:    if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
+app\admin\properties\[id]\PropertyEditor.tsx:102:      errors.rentDueDay = "Rent due day must be between 1 and 31.";
+app\admin\properties\[id]\PropertyEditor.tsx:105:    const grace = Number(gracePeriodDays);
+app\admin\properties\[id]\PropertyEditor.tsx:107:      errors.gracePeriodDays = "Grace period must be between 0 and 31.";
+app\admin\properties\[id]\PropertyEditor.tsx:110:    const lateFee = Number(lateFeeFlat);
+app\admin\properties\[id]\PropertyEditor.tsx:111:    if (!Number.isFinite(lateFee) || lateFee < 0) {
+app\admin\properties\[id]\PropertyEditor.tsx:112:      errors.lateFeeFlat = "Late fee must be 0 or greater.";
+app\admin\properties\[id]\PropertyEditor.tsx:121:  }, [name, address, rentDueDay, gracePeriodDays, lateFeeFlat, convenienceFeeAmount]);
+app\admin\properties\[id]\PropertyEditor.tsx:145:          rentDueDay: Number(rentDueDay),
+app\admin\properties\[id]\PropertyEditor.tsx:146:          gracePeriodDays: Number(gracePeriodDays),
+app\admin\properties\[id]\PropertyEditor.tsx:147:          lateFeeEnabled,
+app\admin\properties\[id]\PropertyEditor.tsx:148:          lateFeeFlat: Number(lateFeeFlat || 0),
+app\admin\properties\[id]\PropertyEditor.tsx:240:              checked={lateFeeEnabled}
+app\admin\properties\[id]\PropertyEditor.tsx:260:            value={rentDueDay}
+app\admin\properties\[id]\PropertyEditor.tsx:265:          {submitAttempted && validation.rentDueDay ? (
+app\admin\properties\[id]\PropertyEditor.tsx:266:            <p className={styles.editorFieldError}>{validation.rentDueDay}</p>
+app\admin\properties\[id]\PropertyEditor.tsx:274:            value={gracePeriodDays}
+app\admin\properties\[id]\PropertyEditor.tsx:281:          {submitAttempted && validation.gracePeriodDays ? (
+app\admin\properties\[id]\PropertyEditor.tsx:283:              {validation.gracePeriodDays}
+app\admin\properties\[id]\PropertyEditor.tsx:292:            value={lateFeeFlat}
+app\admin\properties\[id]\PropertyEditor.tsx:297:          {submitAttempted && validation.lateFeeFlat ? (
+app\admin\properties\[id]\PropertyEditor.tsx:298:            <p className={styles.editorFieldError}>{validation.lateFeeFlat}</p>
+app\admin\properties\[id]\page.tsx:228:                  {property.settings?.rentDueDay ?? "G현"}
+app\admin\properties\[id]\page.tsx:237:                  {property.settings?.gracePeriodDays ?? "G현"} days
+app\admin\properties\[id]\page.tsx:246:                  {property.settings?.lateFeeEnabled ? "Yes" : "No"}
+app\admin\properties\[id]\page.tsx:255:                  {formatMoney(Number(property.settings?.lateFeeFlat || 0))}
+app\admin\properties\[id]\page.tsx:395:                          {tier.rentDueDay ?? "G현"}
+app\admin\properties\[id]\page.tsx:404:                          {tier.gracePeriodDays ?? "G현"} days
+app\admin\properties\[id]\page.tsx:413:                          {formatMoney(Number(tier.lateFeeInitial || 0))}
+app\admin\properties\[id]\page.tsx:422:                          {formatMoney(Number(tier.lateFeeDaily || 0))}

@@ -51,7 +51,7 @@ export default async function NextStepsPage({
           </div>
 
           <div>
-            <strong>3. Set your billing cycle start date</strong>
+            <strong>3. Set your RentFray Start Date</strong>
             <p className="mt-1">
               In <strong>Account & Payouts</strong>, set the date RentFray
               should begin tracking balances. This prevents tenants from seeing
