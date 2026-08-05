@@ -40,12 +40,17 @@ type Props = {
   onClose: () => void;
   canEditLateFeeSettings: boolean;
   gpLfTierMode: "all" | "selected";
-  setGpLfTierMode: React.Dispatch<React.SetStateAction<"all" | "selected">>;
+  setGpLfTierMode: React.Dispatch<
+    React.SetStateAction<"all" | "selected">
+  >;
   localTiers: LocalTier[];
   gpLfSelectedTierIds: string[];
   toggleGpLfTierSelection: (tierId: string) => void;
+
+  // Retained for compatibility with the current parent component.
   gpLfVisibleTiers: VisibleTier[];
   gpLfComparisonSummary: GpLfComparisonSummary;
+
   formatGpLfMoney: (value: string) => string;
   gpLfSettings: GpLfSettings;
   updateGpLf: (updates: Partial<GpLfSettings>) => void;
@@ -67,12 +72,13 @@ function OverlayShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#173024]/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
-      <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-auto sm:max-h-[90vh] sm:rounded-[32px]">
+      <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-[760px] sm:max-h-[90vh] sm:rounded-[32px] motion-safe:animate-[rf-panel-in_180ms_ease-out] will-change-transform">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--rf-border)] bg-[rgba(255,255,255,0.28)] px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-[var(--rf-text)]">
               {title}
             </h2>
+
             {subtitle ? (
               <p className="mt-1 text-sm text-[var(--rf-text-soft)]">
                 {subtitle}
@@ -89,28 +95,9 @@ function OverlayShell({
           </button>
         </div>
 
-        <div className="rf-scroll min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="rf-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {children}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.6)] px-3 py-3">
-      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--rf-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-[var(--rf-text)]">
-        {value}
       </div>
     </div>
   );
@@ -124,8 +111,6 @@ export default function GpLfPanel({
   localTiers,
   gpLfSelectedTierIds,
   toggleGpLfTierSelection,
-  gpLfVisibleTiers,
-  gpLfComparisonSummary,
   formatGpLfMoney,
   gpLfSettings,
   updateGpLf,
@@ -133,291 +118,435 @@ export default function GpLfPanel({
   savingGpLf,
   gpLfSaveMessage,
 }: Props) {
-  const selectedTierCount =
-    gpLfTierMode === "all" ? localTiers.length : gpLfSelectedTierIds.length;
+  const selectedTierName =
+    gpLfTierMode === "selected"
+      ? localTiers.find((tier) =>
+          gpLfSelectedTierIds.includes(tier.id)
+        )?.tierName ?? "Selected tier"
+      : "All tiers";
 
-  const selectedTierNames =
-    gpLfTierMode === "all"
-      ? localTiers.map((t) => t.tierName).join(", ")
-      : localTiers
-          .filter((t) => gpLfSelectedTierIds.includes(t.id))
-          .map((t) => t.tierName)
-          .join(", ");
+  const graceDays = Math.max(
+    0,
+    Number.parseInt(gpLfSettings.graceDays || "0", 10) || 0
+  );
+
+  const initialLateFee = Math.max(
+    0,
+    Number(gpLfSettings.lateFeeInitial || 0) || 0
+  );
+
+  const dailyLateFee = Math.max(
+    0,
+    Number(gpLfSettings.lateFeeDaily || 0) || 0
+  );
+
+  const maximumDailyFeeDays = Math.max(
+    0,
+    Number.parseInt(gpLfSettings.lateFeeMaxDays || "0", 10) || 0
+  );
+
+  const hasInitialLateFee = initialLateFee > 0;
+  const hasDailyLateFee = dailyLateFee > 0;
+  const initialLateFeeDay = graceDays + 1;
+  const dailyLateFeeStartDay = hasInitialLateFee
+    ? initialLateFeeDay + 1
+    : initialLateFeeDay;
+  const dailyLateFeeEndDay =
+    maximumDailyFeeDays > 0
+      ? dailyLateFeeStartDay + maximumDailyFeeDays - 1
+      : dailyLateFeeStartDay;
+
+  const selectedTierMissing =
+    gpLfTierMode === "selected" && gpLfSelectedTierIds.length === 0;
+
+  const maximumDaysRequired =
+    gpLfSettings.lateFeeEnabled && hasDailyLateFee;
+
+  const maximumDaysInvalid =
+    maximumDaysRequired && maximumDailyFeeDays < 1;
+
+  async function handleSave(): Promise<void> {
+    if (selectedTierMissing) {
+      window.alert("Select a tier before saving.");
+      return;
+    }
+
+    if (gpLfSettings.lateFeeEnabled) {
+      if (!Number.isInteger(graceDays) || graceDays < 0) {
+        window.alert("Grace Period must be 0 or greater.");
+        return;
+      }
+
+      if (maximumDaysInvalid) {
+        window.alert(
+          "Maximum Daily Fee Days is required when a Daily Late Fee is entered."
+        );
+        return;
+      }
+    }
+
+    await saveGpLfSettings();
+  }
 
   return (
     <OverlayShell
-      title="Grace Period & Late Fees"
-      subtitle="Set due day, grace period, and late fee rules by tier."
+      title="Late Payment Rules"
+      subtitle="Configure your grace period and late fee policy."
       onClose={onClose}
     >
       <div className="space-y-5">
         {!canEditLateFeeSettings ? (
           <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-soft)] px-4 py-3 text-sm text-[var(--rf-text-soft)]">
-            View only. Only owner and manager can change grace period and late
-            fee settings.
+            View only. Only an owner or manager can change late-payment
+            rules.
           </div>
         ) : null}
 
-        <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
-          <div className="space-y-4">
-            <div>
-              <label className="rf-label">Apply settings to</label>
-              <select
-                value={gpLfTierMode}
-                onChange={(e) =>
-                  setGpLfTierMode(e.target.value as "all" | "selected")
+        <section className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
+          <div>
+            <label className="rf-label">Apply settings to</label>
+
+            <select
+              value={gpLfTierMode}
+              onChange={(event) => {
+                const mode = event.target.value as "all" | "selected";
+                setGpLfTierMode(mode);
+
+                if (
+                  mode === "selected" &&
+                  gpLfSelectedTierIds.length === 0 &&
+                  localTiers[0]
+                ) {
+                  toggleGpLfTierSelection(localTiers[0].id);
                 }
-                disabled={!canEditLateFeeSettings}
-                className="rf-input max-w-xs"
-              >
-                <option value="all">All tiers</option>
-                <option value="selected">Selected tiers</option>
-              </select>
-            </div>
-
-            {gpLfTierMode === "selected" ? (
-              <div>
-                <div className="rf-label">Choose tiers</div>
-                <div className="flex flex-wrap gap-2">
-                  {localTiers.map((tier) => {
-                    const isSelected = gpLfSelectedTierIds.includes(tier.id);
-
-                    return (
-                      <button
-                        key={tier.id}
-                        type="button"
-                        onClick={() => toggleGpLfTierSelection(tier.id)}
-                        disabled={!canEditLateFeeSettings}
-                        className={`rf-btn min-h-[36px] px-3 text-xs ${
-                          isSelected ? "rf-btn-primary" : "rf-btn-secondary"
-                        }`}
-                      >
-                        {tier.tierName}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.5)] px-3 py-3 text-sm text-[var(--rf-text-soft)]">
-              {gpLfTierMode === "all" ? (
-                <div className="text-sm font-semibold text-red-600">
-                  Applying to ALL tiers ({localTiers.length})
-                </div>
-              ) : (
-                <div className="text-sm font-semibold text-amber-600">
-                  Applying to {selectedTierCount} selected tier
-                  {selectedTierCount === 1 ? "" : "s"}
-                </div>
-              )}
-
-              <div className="mt-1 text-xs text-[var(--rf-text-muted)]">
-                {selectedTierNames || "No tiers selected."}
-              </div>
-            </div>
+              }}
+              disabled={!canEditLateFeeSettings}
+              className="rf-input max-w-xs"
+            >
+              <option value="all">All tiers</option>
+              <option value="selected">Selected tier</option>
+            </select>
           </div>
-        </div>
 
-        {gpLfVisibleTiers.length > 0 ? (
-          <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
-            <div className="mb-4">
-              <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-                Current comparison
-              </div>
-              <div className="mt-1 text-sm text-[var(--rf-text-soft)]">
-                Quick view of the tiers currently in scope.
+          {gpLfTierMode === "selected" ? (
+            <div className="mt-4">
+              <div className="rf-label">Choose tier</div>
+
+              <div className="flex flex-wrap gap-2">
+                {localTiers.map((tier) => {
+                  const isSelected =
+                    gpLfSelectedTierIds[0] === tier.id;
+
+                  return (
+                    <button
+                      key={tier.id}
+                      type="button"
+                      onClick={() => toggleGpLfTierSelection(tier.id)}
+                      disabled={!canEditLateFeeSettings}
+                      className={`rf-btn min-h-[36px] px-3 text-xs ${
+                        isSelected
+                          ? "rf-btn-primary"
+                          : "rf-btn-secondary"
+                      }`}
+                    >
+                      {tier.tierName}
+                    </button>
+                  );
+                })}
               </div>
             </div>
+          ) : null}
+        </section>
 
-            {gpLfComparisonSummary ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <SummaryCard
-                  label="Due day"
-                  value={gpLfComparisonSummary.dueDay || "—"}
-                />
-                <SummaryCard
-                  label="Grace days"
-                  value={gpLfComparisonSummary.graceDays || "—"}
-                />
-                <SummaryCard
-                  label="Late fees"
-                  value={gpLfComparisonSummary.lateFeeStatus || "—"}
-                />
-                <SummaryCard
-                  label="Initial fee"
-                  value={
-                    gpLfComparisonSummary.lateFeeInitial === "Mixed"
-                      ? "Mixed"
-                      : formatGpLfMoney(
-                          gpLfComparisonSummary.lateFeeInitial || "0"
-                        )
-                  }
-                />
-                <SummaryCard
-                  label="Daily fee"
-                  value={
-                    gpLfComparisonSummary.lateFeeDaily === "Mixed"
-                      ? "Mixed"
-                      : formatGpLfMoney(
-                          gpLfComparisonSummary.lateFeeDaily || "0"
-                        )
-                  }
-                />
-                <SummaryCard
-                  label="Max days"
-                  value={gpLfComparisonSummary.lateFeeMaxDays || "—"}
-                />
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-[var(--rf-border)] bg-[var(--rf-bg-soft)] px-4 py-3 text-sm text-[var(--rf-text-soft)]">
-                No tiers selected.
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
+        <section className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
           <div className="mb-4">
             <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-              Settings
+              Late Payment Rules
             </div>
+
             <div className="mt-1 text-sm text-[var(--rf-text-soft)]">
-              These values will be applied to the selected tiers.
+              Editing rules for{" "}
+              <span className="font-semibold text-[var(--rf-text)]">
+                {selectedTierName}
+              </span>
+              .
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="rf-label">Due day</label>
-              <input
-                value={gpLfSettings.dueDay}
-                onChange={(e) =>
-                  updateGpLf({
-                    dueDay: e.target.value.replace(/\D/g, ""),
-                  })
-                }
-                disabled={!canEditLateFeeSettings}
-                className="rf-input"
-                placeholder="1"
-              />
+          {selectedTierMissing ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-medium text-amber-800">
+              Select a tier to edit its late-payment rules.
             </div>
+          ) : (
+            <>
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[var(--rf-border)] bg-[rgba(255,255,255,0.58)] px-4 py-4">
+                <input
+                  id="gplf-late-fee-enabled"
+                  type="checkbox"
+                  checked={gpLfSettings.lateFeeEnabled}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
 
-            <div>
-              <label className="rf-label">Grace days</label>
-              <input
-                value={gpLfSettings.graceDays}
-                onChange={(e) =>
-                  updateGpLf({
-                    graceDays: e.target.value.replace(/\D/g, ""),
-                  })
-                }
-                disabled={!canEditLateFeeSettings}
-                className="rf-input"
-                placeholder="5"
-              />
-            </div>
-          </div>
+                    updateGpLf(
+                      enabled
+                        ? {
+                            lateFeeEnabled: true,
+                            graceDays:
+                              gpLfSettings.graceDays &&
+                              gpLfSettings.graceDays !== "0"
+                                ? gpLfSettings.graceDays
+                                : "5",
+                            lateFeeInitial:
+                              gpLfSettings.lateFeeInitial === "0"
+                                ? ""
+                                : gpLfSettings.lateFeeInitial,
+                            lateFeeDaily:
+                              gpLfSettings.lateFeeDaily === "0"
+                                ? ""
+                                : gpLfSettings.lateFeeDaily,
+                            lateFeeMaxDays:
+                              gpLfSettings.lateFeeMaxDays === "0"
+                                ? ""
+                                : gpLfSettings.lateFeeMaxDays,
+                          }
+                        : {
+                            lateFeeEnabled: false,
+                            graceDays: "0",
+                            lateFeeInitial: "0",
+                            lateFeeDaily: "0",
+                            lateFeeMaxDays: "0",
+                          }
+                    );
+                  }}
+                  disabled={!canEditLateFeeSettings}
+                  className="h-4 w-4 accent-emerald-700"
+                />
 
-          <div className="mt-5 rounded-[20px] border border-[var(--rf-border)] bg-[rgba(255,255,255,0.58)] p-4">
-            <div className="flex items-center gap-3">
-              <input
-                id="gplf-late-fee-enabled"
-                type="checkbox"
-                checked={gpLfSettings.lateFeeEnabled}
-                onChange={(e) =>
-                  updateGpLf({ lateFeeEnabled: e.target.checked })
-                }
-                disabled={!canEditLateFeeSettings}
-                className="h-4 w-4"
-              />
-              <label
-                htmlFor="gplf-late-fee-enabled"
-                className="text-sm font-semibold text-[var(--rf-text)]"
-              >
-                Enable late fees
+                <div>
+                  <div className="text-sm font-semibold text-[var(--rf-text)]">
+                    Charge Late Fees
+                  </div>
+
+                  <div className="mt-0.5 text-xs text-[var(--rf-text-muted)]">
+                    Add a grace period and optional initial and daily late
+                    fees.
+                  </div>
+                </div>
               </label>
-            </div>
 
-            {gpLfSettings.lateFeeEnabled ? (
-              <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <div>
-                  <label className="rf-label">Initial fee</label>
-                  <input
-                    value={gpLfSettings.lateFeeInitial}
-                    onChange={(e) =>
-                      updateGpLf({
-                        lateFeeInitial: e.target.value.replace(/[^0-9.]/g, ""),
-                      })
-                    }
-                    disabled={!canEditLateFeeSettings}
-                    className="rf-input"
-                    placeholder="0.00"
-                  />
+              {gpLfSettings.lateFeeEnabled ? (
+                <div className="mt-5 space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="rf-label">
+                        Grace Period (Days)
+                      </label>
+
+                      <input
+                        value={gpLfSettings.graceDays}
+                        onChange={(event) =>
+                          updateGpLf({
+                            graceDays: event.target.value.replace(
+                              /\D/g,
+                              ""
+                            ),
+                          })
+                        }
+                        disabled={!canEditLateFeeSettings}
+                        inputMode="numeric"
+                        className="rf-input"
+                        placeholder="5"
+                      />
+
+                      <p className="mt-1 text-xs text-[var(--rf-text-muted)]">
+                        Includes the due date.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="rf-label">
+                        Initial Late Fee
+                      </label>
+
+                      <input
+                        value={gpLfSettings.lateFeeInitial}
+                        onChange={(event) =>
+                          updateGpLf({
+                            lateFeeInitial:
+                              event.target.value.replace(
+                                /[^0-9.]/g,
+                                ""
+                              ),
+                          })
+                        }
+                        disabled={!canEditLateFeeSettings}
+                        inputMode="decimal"
+                        className="rf-input"
+                        placeholder="50.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="rf-label">
+                        Daily Late Fee
+                      </label>
+
+                      <input
+                        value={gpLfSettings.lateFeeDaily}
+                        onChange={(event) => {
+                          const value = event.target.value.replace(
+                            /[^0-9.]/g,
+                            ""
+                          );
+
+                          updateGpLf({
+                            lateFeeDaily: value,
+                            ...(Number(value || 0) > 0
+                              ? {}
+                              : { lateFeeMaxDays: "0" }),
+                          });
+                        }}
+                        disabled={!canEditLateFeeSettings}
+                        inputMode="decimal"
+                        className="rf-input"
+                        placeholder="10.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="rf-label">
+                        Maximum Daily Fee Days
+                        {maximumDaysRequired ? (
+                          <span className="text-red-600"> *</span>
+                        ) : null}
+                      </label>
+
+                      <input
+                        value={
+                          hasDailyLateFee
+                            ? gpLfSettings.lateFeeMaxDays
+                            : ""
+                        }
+                        onChange={(event) =>
+                          updateGpLf({
+                            lateFeeMaxDays:
+                              event.target.value.replace(/\D/g, ""),
+                          })
+                        }
+                        disabled={
+                          !canEditLateFeeSettings || !hasDailyLateFee
+                        }
+                        inputMode="numeric"
+                        min={1}
+                        aria-required={maximumDaysRequired}
+                        aria-invalid={maximumDaysInvalid}
+                        className={`rf-input ${
+                          maximumDaysInvalid
+                            ? "border-red-400 focus:border-red-500"
+                            : ""
+                        }`}
+                        placeholder={
+                          hasDailyLateFee
+                            ? "5"
+                            : "Enter a daily fee first"
+                        }
+                      />
+
+                      {!hasDailyLateFee ? (
+                        <p className="mt-1 text-xs text-[var(--rf-text-muted)]">
+                          Required only when a daily late fee is used.
+                        </p>
+                      ) : maximumDaysInvalid ? (
+                        <p className="mt-1 text-xs font-medium text-red-600">
+                          Enter at least 1 day.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                    <div className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-800">
+                      Late-Payment Timeline
+                    </div>
+
+                    <div className="mt-2 text-sm font-semibold text-emerald-950">
+                      {selectedTierName}
+                    </div>
+
+                    <div className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
+                      <p>
+                        Grace period:{" "}
+                        <strong>
+                          {graceDays} day
+                          {graceDays === 1 ? "" : "s"}
+                        </strong>
+                        , including the due date.
+                      </p>
+
+                      {hasInitialLateFee ? (
+                        <p>
+                          Initial late fee:{" "}
+                          <strong>
+                            {formatGpLfMoney(
+                              gpLfSettings.lateFeeInitial || "0"
+                            )}
+                          </strong>{" "}
+                          on day{" "}
+                          <strong>{initialLateFeeDay}</strong>.
+                        </p>
+                      ) : hasDailyLateFee ? (
+                        <p>No initial late fee.</p>
+                      ) : null}
+
+                      {hasDailyLateFee && maximumDailyFeeDays > 0 ? (
+                        <p>
+                          Daily late fee:{" "}
+                          <strong>
+                            {formatGpLfMoney(
+                              gpLfSettings.lateFeeDaily || "0"
+                            )}{" "}
+                            per day
+                          </strong>{" "}
+                          from day{" "}
+                          <strong>{dailyLateFeeStartDay}</strong>{" "}
+                          through day{" "}
+                          <strong>{dailyLateFeeEndDay}</strong>.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="rf-label">Daily fee</label>
-                  <input
-                    value={gpLfSettings.lateFeeDaily}
-                    onChange={(e) =>
-                      updateGpLf({
-                        lateFeeDaily: e.target.value.replace(/[^0-9.]/g, ""),
-                      })
-                    }
-                    disabled={!canEditLateFeeSettings}
-                    className="rf-input"
-                    placeholder="0.00"
-                  />
+              ) : (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600">
+                  No late fees will be charged.
                 </div>
-
-                <div>
-                  <label className="rf-label">Max days</label>
-                  <input
-                    value={gpLfSettings.lateFeeMaxDays}
-                    onChange={(e) =>
-                      updateGpLf({
-                        lateFeeMaxDays: e.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                    disabled={!canEditLateFeeSettings}
-                    className="rf-input"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 text-sm text-[var(--rf-text-soft)]">
-                Late fees are currently disabled.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {selectedTierCount > 1 ? (
-          <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-            This will overwrite existing settings for {selectedTierCount} tiers.
-          </div>
-        ) : null}
+              )}
+            </>
+          )}
+        </section>
 
         <div className="flex justify-end border-t border-slate-200 pt-4">
-  <button
-    type="button"
-    onClick={() => void saveGpLfSettings()}
-    disabled={!canEditLateFeeSettings || savingGpLf}
-    className={`inline-flex min-h-11 min-w-[140px] items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition ${
-      gpLfSaveMessage === "Saved!"
-        ? "bg-emerald-700"
-        : "bg-[#173024] hover:bg-[#10241b]"
-    } disabled:cursor-not-allowed disabled:opacity-60`}
-  >
-    {savingGpLf
-      ? "Saving..."
-      : gpLfSaveMessage === "Saved!"
-        ? "Saved!"
-        : "Save"}
-  </button>
-</div>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={
+              !canEditLateFeeSettings ||
+              savingGpLf ||
+              selectedTierMissing
+            }
+            className={`inline-flex min-h-11 min-w-[140px] items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition ${
+              gpLfSaveMessage === "Saved!"
+                ? "bg-emerald-700"
+                : "bg-[#173024] hover:bg-[#10241b]"
+            } disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            {savingGpLf
+              ? "Saving..."
+              : gpLfSaveMessage === "Saved!"
+                ? "Saved!"
+                : "Save"}
+          </button>
+        </div>
       </div>
     </OverlayShell>
   );

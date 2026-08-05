@@ -223,6 +223,12 @@ type PropertyChargesResponse = {
   }[];
 };
 
+type SaveTiersResponse = {
+  ok?: boolean;
+  error?: string;
+  tierIdMap?: Record<string, string>;
+};
+
 type MaintenanceRequestRow = {
   id: string;
   unitNumber: string;
@@ -409,7 +415,7 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
     id: `new-tier-${Date.now()}-${index}`,
     tierName: safeName,
 
-    unitCount: "0",
+    unitCount: "",
     activeUnitCount: 0,
     availableUnitCount: 0,
 
@@ -418,7 +424,7 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
     baseRent: "",
     dueDay: "1",
     graceDays: "5",
-    lateFeeEnabled: false,
+    lateFeeEnabled: true,
     lateFeeAmount: "",
     lateFeeDaily: "",
     lateFeeMaxDays: "",
@@ -468,12 +474,13 @@ function OverlayShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#173024]/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
-      <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-auto sm:max-h-[90vh] sm:rounded-[32px]">
+<div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-[760px] sm:max-h-[90vh] sm:rounded-[32px] motion-safe:animate-[rf-panel-in_180ms_ease-out] will-change-transform">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--rf-border)] bg-[rgba(255,255,255,0.28)] px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-emerald-800">
               {title}
             </h2>
+
             {subtitle ? (
               <p className="mt-1 text-sm text-[var(--rf-text-soft)]">
                 {subtitle}
@@ -570,7 +577,6 @@ const searchParams = useSearchParams();
   const [showStripeSuccess, setShowStripeSuccess] = useState(false);
   const requestedPanel = searchParams.get("panel");
   const stripeReturn = searchParams.get("stripeReturn");
-  const returnTo = searchParams.get("returnTo");
 
 useEffect(() => {
   if (requestedPanel === "rent") {
@@ -639,14 +645,20 @@ if (requestedPanel === "propertySetup") {
   const [savingRentFrayStartDate, setSavingRentFrayStartDate] = useState(false);
 
 
-  const [gpLfSettings, setGpLfSettings] = useState({
+const [gpLfSettings, setGpLfSettings] = useState({
   dueDay: "1",
   graceDays: "5",
-  lateFeeEnabled: false,
+  lateFeeEnabled: true,
   lateFeeInitial: "",
   lateFeeDaily: "",
   lateFeeMaxDays: "",
 });
+
+type GpLfSettingsDraft = typeof gpLfSettings;
+
+const [gpLfTierDrafts, setGpLfTierDrafts] = useState<
+  Record<string, GpLfSettingsDraft>
+>({});
 
 const onboardingComplete = Boolean(
   data?.property?.onboarding &&
@@ -740,49 +752,88 @@ useEffect(() => {
 function updateGpLf(
   updates: Partial<typeof gpLfSettings>
 ): void {
-  setGpLfSettings((prev) => ({
-    ...prev,
-    ...updates,
-  }));
+  setGpLfSettings((previous) => {
+    const next = {
+      ...previous,
+      ...updates,
+    };
+
+    if (
+      gpLfTierMode === "selected" &&
+      gpLfSelectedTierIds[0]
+    ) {
+      const tierId = gpLfSelectedTierIds[0];
+
+      setGpLfTierDrafts((current) => ({
+        ...current,
+        [tierId]: next,
+      }));
+    }
+
+    return next;
+  });
 }
 
 function toggleGpLfTierSelection(tierId: string): void {
-  setGpLfSelectedTierIds((current) =>
-    current.includes(tierId)
-      ? current.filter((id) => id !== tierId)
-      : [...current, tierId]
-  );
+  const currentTierId = gpLfSelectedTierIds[0];
+
+  if (currentTierId) {
+    setGpLfTierDrafts((current) => ({
+      ...current,
+      [currentTierId]: gpLfSettings,
+    }));
+  }
+
+  setGpLfSelectedTierIds([tierId]);
+
+  const existingDraft = gpLfTierDrafts[tierId];
+
+  if (existingDraft) {
+    setGpLfSettings(existingDraft);
+    return;
+  }
+
+  const tier = localTiers.find((item) => item.id === tierId);
+
+  if (tier) {
+    setGpLfSettings(getGpLfSettingsFromTiers([tier]));
+  }
 }
 
 
 function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
   const source =
     tiers.find(
-      (t) =>
-        t.lateFeeEnabled ||
-        Number(t.lateFeeAmount || 0) > 0 ||
-        Number(t.lateFeeDaily || 0) > 0 ||
-        Number(t.lateFeeMaxDays || 0) > 0
+      (tier) =>
+        tier.lateFeeEnabled ||
+        Number(tier.lateFeeAmount || 0) > 0 ||
+        Number(tier.lateFeeDaily || 0) > 0 ||
+        Number(tier.lateFeeMaxDays || 0) > 0
     ) ?? tiers[0];
 
   if (!source) {
     return {
       dueDay: "1",
       graceDays: "5",
-      lateFeeEnabled: false,
+      lateFeeEnabled: true,
       lateFeeInitial: "",
       lateFeeDaily: "",
       lateFeeMaxDays: "",
     };
   }
 
+  const hasSavedLateFeeConfiguration =
+    source.lateFeeEnabled ||
+    Number(source.lateFeeAmount || 0) > 0 ||
+    Number(source.lateFeeDaily || 0) > 0 ||
+    Number(source.lateFeeMaxDays || 0) > 0;
+
   return {
     dueDay: source.dueDay || "1",
     graceDays: source.graceDays || "5",
     lateFeeEnabled:
-      source.lateFeeEnabled ||
-      Number(source.lateFeeAmount || 0) > 0 ||
-      Number(source.lateFeeDaily || 0) > 0,
+      hasSavedLateFeeConfiguration ||
+      data?.property?.onboarding?.billingComplete !== true,
     lateFeeInitial: source.lateFeeAmount || "",
     lateFeeDaily: source.lateFeeDaily || "",
     lateFeeMaxDays: source.lateFeeMaxDays || "",
@@ -1206,16 +1257,34 @@ function updateTierCharge(
 }
 
 function addTierCharge(tierId: string): void {
-  setTierCharges((current) =>
-    current.map((tier) =>
-      tier.tierId === tierId
-        ? {
-            ...tier,
-            charges: [...tier.charges, createChargeDraft(tier.charges.length)],
-          }
-        : tier
-    )
-  );
+  setTierCharges((current) => {
+    const existingTier = current.find((tier) => tier.tierId === tierId);
+
+    if (existingTier) {
+      return current.map((tier) =>
+        tier.tierId === tierId
+          ? {
+              ...tier,
+              charges: [
+                ...tier.charges,
+                createChargeDraft(tier.charges.length),
+              ],
+            }
+          : tier
+      );
+    }
+
+    const localTier = localTiers.find((tier) => tier.id === tierId);
+
+    return [
+      ...current,
+      {
+        tierId,
+        tierName: localTier?.tierName || "Untitled Tier",
+        charges: [createChargeDraft(0)],
+      },
+    ];
+  });
 }
 
 function removeTierCharge(tierId: string, chargeId: string): void {
@@ -1957,8 +2026,29 @@ useEffect(() => {
     nextVisibleTierIds.includes(tier.id)
   );
 
-  setGpLfSettings(getGpLfSettingsFromTiers(visibleTiers));
-}, [activePanel, gpLfTierMode, gpLfSelectedTierIds, localTiers]);
+  if (
+  gpLfTierMode === "selected" &&
+  gpLfSelectedTierIds[0]
+) {
+  const tierId = gpLfSelectedTierIds[0];
+  const existingDraft = gpLfTierDrafts[tierId];
+
+  setGpLfSettings(
+    existingDraft ??
+      getGpLfSettingsFromTiers(visibleTiers)
+  );
+
+  return;
+}
+
+setGpLfSettings(getGpLfSettingsFromTiers(visibleTiers));
+}, [
+  activePanel,
+  gpLfTierMode,
+  gpLfSelectedTierIds,
+  localTiers,
+  gpLfTierDrafts,
+]);
 
 useEffect(() => {
   if (activePanel === "maint") {
@@ -1968,7 +2058,7 @@ useEffect(() => {
 }, [activePanel]);
 
 useEffect(() => {
-  if (activePanel === "charges") {
+  if (activePanel === "charges" || activePanel === "rent") {
     void loadTierCharges();
   }
 }, [activePanel, data?.property?.id]);
@@ -2086,13 +2176,24 @@ const gpLfComparisonSummary = useMemo(() => {
 
 function closeActivePanel(): void {
   setActivePanel(null);
+}
 
-  if (returnTo === "setup") {
-    window.location.href = "/manager/getting-started";
-    return;
+function openPanel(panel: Exclude<PanelKey, null>): void {
+  setActivePanel(panel);
+
+  if (panel === "gplf") {
+    setGpLfTierMode("all");
+    setGpLfSelectedTierIds([]);
+    setGpLfSettings({
+      dueDay: "",
+      graceDays: "",
+      lateFeeEnabled: true,
+      lateFeeInitial: "",
+      lateFeeDaily: "",
+      lateFeeMaxDays: "",
+    });
+    setGpLfSaveMessage("");
   }
-
-  setActivePanel("manage");
 }
 
 function updateLocalTier(
@@ -2176,7 +2277,7 @@ function addLocalTier(): void {
        baseRent: "",
        dueDay: "1",
        graceDays: "5",
-       lateFeeEnabled: false,
+       lateFeeEnabled: true,
        lateFeeAmount: "",
        lateFeeDaily: "",
        lateFeeMaxDays: "",
@@ -2202,16 +2303,52 @@ async function saveGpLfSettings(): Promise<void> {
     setSavingGpLf(true);
     setGpLfSaveMessage("");
 
-    const tiersToUpdate = localTiers
-      .filter((tier) => !tier.markedForDelete && targetTierIds.includes(tier.id))
-      .map((tier) => ({
+const activeTiers = localTiers.filter(
+  (tier) => !tier.markedForDelete
+);
+
+const tiersToUpdate =
+  gpLfTierMode === "all"
+    ? activeTiers.map((tier) => ({
         id: tier.id,
         dueDay: gpLfSettings.dueDay,
-        graceDays: gpLfSettings.graceDays,
+        graceDays: gpLfSettings.lateFeeEnabled
+          ? gpLfSettings.graceDays
+          : "0",
         lateFeeEnabled: gpLfSettings.lateFeeEnabled,
-        lateFeeAmount: gpLfSettings.lateFeeInitial,
-        lateFeeDaily: gpLfSettings.lateFeeDaily,
-        lateFeeMaxDays: gpLfSettings.lateFeeMaxDays,
+        lateFeeAmount: gpLfSettings.lateFeeEnabled
+          ? gpLfSettings.lateFeeInitial
+          : "0",
+        lateFeeDaily: gpLfSettings.lateFeeEnabled
+          ? gpLfSettings.lateFeeDaily
+          : "0",
+        lateFeeMaxDays: gpLfSettings.lateFeeEnabled
+          ? gpLfSettings.lateFeeMaxDays
+          : "0",
+      }))
+    : Object.entries({
+        ...gpLfTierDrafts,
+        ...(gpLfSelectedTierIds[0]
+          ? {
+              [gpLfSelectedTierIds[0]]: gpLfSettings,
+            }
+          : {}),
+      }).map(([tierId, settings]) => ({
+        id: tierId,
+        dueDay: settings.dueDay,
+        graceDays: settings.lateFeeEnabled
+          ? settings.graceDays
+          : "0",
+        lateFeeEnabled: settings.lateFeeEnabled,
+        lateFeeAmount: settings.lateFeeEnabled
+          ? settings.lateFeeInitial
+          : "0",
+        lateFeeDaily: settings.lateFeeEnabled
+          ? settings.lateFeeDaily
+          : "0",
+        lateFeeMaxDays: settings.lateFeeEnabled
+          ? settings.lateFeeMaxDays
+          : "0",
       }));
 
     const res = await fetch(
@@ -2310,57 +2447,88 @@ async function saveLocalRentSettings(): Promise<void> {
     throw new Error("Property information is unavailable.");
   }
 
-  const res = await fetch(
-    `/api/admin/properties/${data.property.id}/tiers`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        tiers: localTiers,
-      }),
+  const propertyId = data.property.id;
+
+  setSavingCharges(true);
+  setChargesError("");
+
+  try {
+    const tiersResponse = await fetch(
+      `/api/admin/properties/${propertyId}/tiers`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          tiers: localTiers,
+        }),
+      }
+    );
+
+    const tiersJson =
+      (await tiersResponse.json().catch(() => null)) as
+        | SaveTiersResponse
+        | null;
+
+    if (!tiersResponse.ok || !tiersJson?.ok) {
+      throw new Error(tiersJson?.error || "Failed to save tiers.");
     }
-  );
 
-  const json = await res.json().catch(() => null);
+    const tierIdMap = tiersJson.tierIdMap ?? {};
 
-  if (!res.ok || !json?.ok) {
-    throw new Error(json?.error || "Failed to save tiers.");
-  }
+    const chargePayload = localTiers
+      .filter((tier) => !tier.markedForDelete)
+      .map((tier) => {
+        const realTierId = tierIdMap[tier.id] || tier.id;
 
-  setEditingTierId(null);
+        const chargeBlock = tierCharges.find(
+          (item) => item.tierId === tier.id
+        );
 
-  await loadDashboard({ silent: true });
-  await loadPropertyTiers();
-}
+        return {
+          tierId: realTierId,
+          charges: (chargeBlock?.charges ?? []).map((charge) => ({
+            label: charge.label.trim(),
+            amount: charge.amount,
+            isActive: true,
+          })),
+        };
+      });
 
- function closeUnitPanel(): void {
-  setShowAdjustModal(false);
-  setShowVacateConfirm(false);
-  setShowInactiveConfirm(false);
-  setVacateError("");
-  setSelectedUnit(null);
-  setManualPaymentAmount("");
-  setShowManualPaymentConfirm(false);
-}
+    const chargesResponse = await fetch(
+      `/api/admin/properties/${propertyId}/charges`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          tiers: chargePayload,
+        }),
+      }
+    );
 
-function openPanel(panel: Exclude<PanelKey, null>): void {
-  setActivePanel(panel);
+    const chargesJson =
+      (await chargesResponse.json().catch(() => null)) as
+        | PropertyChargesResponse
+        | null;
 
-  if (panel === "gplf") {
-    setGpLfTierMode("selected");
-    setGpLfSelectedTierIds([]);
-    setGpLfSettings({
-      dueDay: "",
-      graceDays: "",
-      lateFeeEnabled: false,
-      lateFeeInitial: "",
-      lateFeeDaily: "",
-      lateFeeMaxDays: "",
-    });
-    setGpLfSaveMessage("");
+    if (!chargesResponse.ok || !chargesJson?.ok) {
+      throw new Error(
+        chargesJson?.error || "Tiers saved, but recurring charges failed to save."
+      );
+    }
+
+    setEditingTierId(null);
+
+    await loadDashboard({ silent: true });
+    await loadPropertyTiers();
+    await loadTierCharges();
+  } finally {
+    setSavingCharges(false);
   }
 }
 
@@ -2392,20 +2560,6 @@ useEffect(() => {
   data?.property?.onboarding?.bankConnected,
 ]);
 
-useEffect(() => {
-  if (activePanel !== "gplf") return;
-
-  const nextVisibleTierIds =
-    gpLfTierMode === "all"
-      ? localTiers.filter((tier) => !tier.markedForDelete).map((tier) => tier.id)
-      : gpLfSelectedTierIds;
-
-  const visibleTiers = localTiers.filter((tier) =>
-    nextVisibleTierIds.includes(tier.id)
-  );
-
-  setGpLfSettings(getGpLfSettingsFromTiers(visibleTiers));
-}, [activePanel, gpLfTierMode, gpLfSelectedTierIds, localTiers]);
 
 function closePanel(): void {
   setActivePanel(null);
@@ -2642,91 +2796,115 @@ document.cookie.includes("rf_admin_session=") ? (
     <div className="flex flex-col gap-6">
       <div>
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-          Getting started
+          Account setup
         </div>
 
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-          Welcome to RentFray
+          Welcome to RentFray!
         </h2>
 
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          Your manager account is ready. Complete the remaining items below to
-          get your property ready to collect rent.
+          Here is your manager dashboard. Complete the four remaining steps
+          below to finish setting up your account.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         {[
           {
+            number: 1,
             label: "Manager Account",
             complete: true,
+            accessible: true,
+            panel: "manager" as const,
           },
           {
+            number: 2,
             label: "Property Information",
             complete:
               data.property.onboarding?.propertyInformationComplete ?? false,
+            accessible: true,
+            panel: "propertySetup" as const,
           },
           {
+            number: 3,
             label: "Units & Pricing",
             complete: data.property.onboarding?.pricingComplete ?? false,
+            accessible:
+              data.property.onboarding?.propertyInformationComplete ?? false,
+            panel: "rent" as const,
           },
           {
-            label: "Billing Rules",
+            number: 4,
+            label: "Late Payment Rules",
             complete: data.property.onboarding?.billingComplete ?? false,
+            accessible: data.property.onboarding?.pricingComplete ?? false,
+            panel: "gplf" as const,
           },
           {
-            label: "Connect Bank Account",
+            number: 5,
+            label: "Go Live",
             complete: data.property.onboarding?.bankConnected ?? false,
+            accessible: data.property.onboarding?.billingComplete ?? false,
+            panel: "bank" as const,
           },
         ].map((item) => (
-          <div
-            key={item.label}
-            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+          <button
+            key={item.number}
+            type="button"
+            disabled={!item.accessible}
+            onClick={() => openPanel(item.panel)}
+            className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-4 text-left transition ${
               item.complete
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                : "border-slate-200 bg-white text-slate-700"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-300 hover:bg-emerald-100"
+                : item.accessible
+                  ? "border-slate-300 bg-white text-slate-900 hover:border-emerald-300 hover:bg-emerald-50"
+                  : "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 opacity-70"
             }`}
           >
             <div
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
                 item.complete
                   ? "bg-emerald-600 text-white"
-                  : "border border-slate-300 bg-slate-50 text-slate-400"
+                  : item.accessible
+                    ? "border border-emerald-600 bg-white text-emerald-700"
+                    : "border border-slate-300 bg-slate-100 text-slate-400"
               }`}
             >
-              {item.complete ? "\u2713" : ""}
+              {item.complete ? "\u2713" : item.number}
             </div>
 
-            <span className="text-sm font-semibold">{item.label}</span>
-          </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">
+                {item.number}. {item.label}
+              </div>
+
+              <div className="mt-0.5 text-xs font-normal opacity-70">
+                {item.complete
+                  ? "Completed — click to review"
+                  : item.accessible
+                    ? "Click to complete this step"
+                    : "Complete the previous step first"}
+              </div>
+            </div>
+          </button>
         ))}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">
-            Estimated time: about 5 minutes
-          </div>
-
-          <div className="mt-1 text-xs leading-5 text-slate-500">
-            You can leave and return at any time. Your completed information
-            will remain saved.
-          </div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="text-sm font-semibold text-slate-900">
+          Setup takes about 5-10 minutes
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            window.location.href = "/manager/getting-started";
-          }}
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b] sm:w-auto"
-        >
-          Continue Setup
-        </button>
+        <div className="mt-1 text-xs leading-5 text-slate-500">
+          You can leave and return at any time. Your completed information will
+          remain saved.
+        </div>
       </div>
     </div>
   </section>
 ) : (
+
   <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] sm:p-5">
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -3532,8 +3710,16 @@ await loadDashboard({ silent: true });
     setEditingTierId={setEditingTierId}
     updateLocalTier={updateLocalTier}
     addLocalTier={addLocalTier}
-removeLocalTier={removeLocalTier}
-saveLocalRentSettings={saveLocalRentSettings}
+    removeLocalTier={removeLocalTier}
+    saveLocalRentSettings={saveLocalRentSettings}
+    tierCharges={tierCharges}
+    chargesLoading={chargesLoading}
+    chargesError={chargesError}
+    savingCharges={savingCharges}
+    updateTierCharge={updateTierCharge}
+    addTierCharge={addTierCharge}
+    removeTierCharge={removeTierCharge}
+    saveTierCharges={saveTierCharges}
   />
 ) : null}
 
@@ -3641,8 +3827,7 @@ saveLocalRentSettings={saveLocalRentSettings}
 
 {activePanel === "bank" ? (
 <OverlayShell
-  title="Rent Collection Setup"
-  subtitle="Choose when RentFray begins tracking rent and connect your payout account."
+  title="Go Live"
   onClose={closeActivePanel}
 >
 

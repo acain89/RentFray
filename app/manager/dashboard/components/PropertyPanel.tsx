@@ -76,15 +76,15 @@ function OverlayShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#173024]/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
-      <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-auto sm:max-h-[90vh] sm:rounded-[32px]">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--rf-border)] bg-white px-4 py-4 sm:px-6">
+      <div className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)] shadow-[var(--rf-shadow-lg)] sm:h-[760px] sm:max-h-[90vh] sm:rounded-[32px] motion-safe:animate-[rf-panel-in_180ms_ease-out] will-change-transform">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--rf-border)] bg-[rgba(255,255,255,0.28)] px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-[var(--rf-text)]">
               {title}
             </h2>
 
             {subtitle ? (
-              <p className="mt-1 text-sm leading-6 text-[var(--rf-text-soft)]">
+              <p className="mt-1 text-sm text-[var(--rf-text-soft)]">
                 {subtitle}
               </p>
             ) : null}
@@ -99,7 +99,7 @@ function OverlayShell({
           </button>
         </div>
 
-        <div className="rf-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="rf-scroll min-h-0 flex-1 overflow-y-auto p-6">
           {children}
         </div>
       </div>

@@ -24,6 +24,12 @@ type PostBody = {
   tiers?: TierInput[];
 };
 
+type SavedTierResult = {
+  clientId: string;
+  tierId: string;
+  tierName: string;
+};
+
 function toNumber(value: unknown, fallback = 0): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -57,135 +63,172 @@ export async function POST(
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+   const savedTiers = await prisma.$transaction(
+  async (tx: Prisma.TransactionClient): Promise<SavedTierResult[]> => {
+    const results: SavedTierResult[] = [];
 
-      for (let i = 0; i < tiers.length; i += 1) {
-        const t = tiers[i];
+    for (let i = 0; i < tiers.length; i += 1) {
+      const t = tiers[i];
 
-                const name = String(t.tierName || "").trim() || `Tier ${i + 1}`;
-        const baseRentCents = toCents(t.baseRent);
-        const rentDueDay = toInt(t.dueDay, 1);
-        const gracePeriodDays = toInt(t.graceDays, 0);
-        const lateFeeInitialCents = t.lateFeeEnabled ? toCents(t.lateFeeAmount) : 0;
-        const lateFeeDailyCents = t.lateFeeEnabled ? toCents(t.lateFeeDaily) : 0;
-        const maxLateFeeDays = t.lateFeeEnabled ? toInt(t.lateFeeMaxDays, 0) : 0;
-        const unitCount = Math.max(0, toInt(t.unitCount, 0));
+      const clientId = String(t.id || `new-tier-${i}`);
+      const name =
+        String(t.tierName || "").trim() || `Tier ${i + 1}`;
 
-        if (t.markedForDelete && t.id) {
-  const occupiedUnits = await tx.tenantAssignment.count({
-    where: {
-      propertyId: id,
-      isCurrent: true,
-      moveOutDate: null,
-      unit: {
-        tierId: t.id,
-      },
-    },
-  });
+      const baseRentCents = toCents(t.baseRent);
+      const rentDueDay = toInt(t.dueDay, 1);
+      const gracePeriodDays = toInt(t.graceDays, 0);
+      const lateFeeInitialCents = t.lateFeeEnabled
+        ? toCents(t.lateFeeAmount)
+        : 0;
+      const lateFeeDailyCents = t.lateFeeEnabled
+        ? toCents(t.lateFeeDaily)
+        : 0;
+      const maxLateFeeDays = t.lateFeeEnabled
+        ? toInt(t.lateFeeMaxDays, 0)
+        : 0;
+      const unitCount = Math.max(0, toInt(t.unitCount, 0));
 
-  if (occupiedUnits > 0) {
-    throw new Error(
-      `Cannot delete tier "${name}" because units are still assigned.`
-    );
-  }
+      if (t.markedForDelete && t.id) {
+        const occupiedUnits = await tx.tenantAssignment.count({
+          where: {
+            propertyId: id,
+            isCurrent: true,
+            moveOutDate: null,
+            unit: {
+              tierId: t.id,
+            },
+          },
+        });
 
-  const activeTierUnitCount = await tx.unit.count({
-  where: {
-    propertyId: id,
-    tierId: t.id,
-    isActive: true,
-  },
-});
+        if (occupiedUnits > 0) {
+          throw new Error(
+            `Cannot delete tier "${name}" because units are still assigned.`
+          );
+        }
 
-  await tx.propertyTier.update({
-    where: { id: t.id },
-    data: { isActive: false },
-  });
+        await tx.propertyTier.update({
+          where: { id: t.id },
+          data: { isActive: false },
+        });
 
-  continue;
-}
-
-if (t.id && !t.id.startsWith("new-tier-")) {
-  const existingTier = await tx.propertyTier.findFirst({
-    where: {
-      id: t.id,
-      propertyId: id,
-      isActive: true,
-    },
-    select: {
-      id: true,
-      unitCount: true,
-    },
-  });
-
-  if (!existingTier) {
-    throw new Error(`Tier "${name}" was not found.`);
-  }
-
-  const activeTierUnitCount = await tx.unit.count({
-    where: {
-      propertyId: id,
-      tierId: t.id,
-      isActive: true,
-    },
-  });
-
-  const submittedUnitCount = Math.max(0, toInt(t.unitCount, 0));
-
-  const nextUnitCount =
-    submittedUnitCount === activeTierUnitCount &&
-    existingTier.unitCount > activeTierUnitCount
-      ? existingTier.unitCount
-      : submittedUnitCount;
-
-  if (nextUnitCount < activeTierUnitCount) {
-    throw new Error(
-      `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
-    );
-  }
-
-  await tx.propertyTier.update({
-    where: { id: existingTier.id },
-    data: {
-      name,
-      unitCount: nextUnitCount,
-      activeUnitCount: activeTierUnitCount,
-      baseRentCents,
-      rentDueDay,
-      gracePeriodDays,
-      lateFeeInitialCents,
-      lateFeeDailyCents,
-      maxLateFeeDays,
-      lateFeeType: "FLAT",
-      sortOrder: i,
-      isActive: true,
-    },
-  });
-
-  continue;
-}
-
-await tx.propertyTier.create({
-  data: {
-    propertyId: id,
-    name,
-    unitCount,
-    activeUnitCount: 0,
-    baseRentCents,
-    rentDueDay,
-    gracePeriodDays,
-    lateFeeInitialCents,
-    lateFeeDailyCents,
-    maxLateFeeDays,
-    lateFeeType: "FLAT",
-    sortOrder: i,
-    isActive: true,
-  },
-});
+        continue;
       }
-    });
 
-    return NextResponse.json({ ok: true });
+      if (t.id && !t.id.startsWith("new-tier-")) {
+        const existingTier = await tx.propertyTier.findFirst({
+          where: {
+            id: t.id,
+            propertyId: id,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            unitCount: true,
+          },
+        });
+
+        if (!existingTier) {
+          throw new Error(`Tier "${name}" was not found.`);
+        }
+
+        const activeTierUnitCount = await tx.unit.count({
+          where: {
+            propertyId: id,
+            tierId: existingTier.id,
+            isActive: true,
+          },
+        });
+
+        const submittedUnitCount = Math.max(
+          0,
+          toInt(t.unitCount, 0)
+        );
+
+        const nextUnitCount =
+          submittedUnitCount === activeTierUnitCount &&
+          existingTier.unitCount > activeTierUnitCount
+            ? existingTier.unitCount
+            : submittedUnitCount;
+
+        if (nextUnitCount < activeTierUnitCount) {
+          throw new Error(
+            `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
+          );
+        }
+
+        const updatedTier = await tx.propertyTier.update({
+          where: { id: existingTier.id },
+          data: {
+            name,
+            unitCount: nextUnitCount,
+            activeUnitCount: activeTierUnitCount,
+            baseRentCents,
+            rentDueDay,
+            gracePeriodDays,
+            lateFeeInitialCents,
+            lateFeeDailyCents,
+            maxLateFeeDays,
+            lateFeeType: "FLAT",
+            sortOrder: i,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+
+        results.push({
+          clientId,
+          tierId: updatedTier.id,
+          tierName: updatedTier.name,
+        });
+
+        continue;
+      }
+
+      const createdTier = await tx.propertyTier.create({
+        data: {
+          propertyId: id,
+          name,
+          unitCount,
+          activeUnitCount: 0,
+          baseRentCents,
+          rentDueDay,
+          gracePeriodDays,
+          lateFeeInitialCents,
+          lateFeeDailyCents,
+          maxLateFeeDays,
+          lateFeeType: "FLAT",
+          sortOrder: i,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      results.push({
+        clientId,
+        tierId: createdTier.id,
+        tierName: createdTier.name,
+      });
+    }
+
+    return results;
+  }
+);
+
+const tierIdMap = Object.fromEntries(
+  savedTiers.map((tier) => [tier.clientId, tier.tierId])
+);
+
+return NextResponse.json({
+  ok: true,
+  tiers: savedTiers,
+  tierIdMap,
+});
   } catch (err: unknown) {
   console.error("SAVE TIERS FAILED", err);
 
