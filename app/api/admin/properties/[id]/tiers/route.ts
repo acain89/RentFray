@@ -220,8 +220,13 @@ export async function POST(
   }
 );
 
-const tierIdMap = Object.fromEntries(
-  savedTiers.map((tier) => [tier.clientId, tier.tierId])
+const tierIdMap: Record<string, string> = Object.fromEntries(
+  savedTiers.map(
+    (tier: SavedTierResult): [string, string] => [
+      tier.clientId,
+      tier.tierId,
+    ]
+  )
 );
 
 return NextResponse.json({

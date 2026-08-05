@@ -2174,6 +2174,23 @@ const gpLfComparisonSummary = useMemo(() => {
     setShowManualPaymentConfirm(false);
   }
 
+function closeUnitPanel(): void {
+  setSelectedUnit(null);
+  setShowAdjustModal(false);
+
+  setShowManualPaymentConfirm(false);
+  setManualPaymentAmount("");
+
+  setShowVacateConfirm(false);
+  setVacateError("");
+
+  setShowInactiveConfirm(false);
+
+  setShowMoveTierModal(false);
+  setTargetMoveTierId("");
+  setMoveTierError("");
+}
+
 function closeActivePanel(): void {
   setActivePanel(null);
 }
