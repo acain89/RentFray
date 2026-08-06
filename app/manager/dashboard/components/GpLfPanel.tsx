@@ -108,6 +108,7 @@ export default function GpLfPanel({
   localTiers,
   gpLfSelectedTierIds,
   toggleGpLfTierSelection,
+  gpLfComparisonSummary,
   formatGpLfMoney,
   gpLfSettings,
   updateGpLf,
@@ -156,6 +157,11 @@ export default function GpLfPanel({
   const selectedTierMissing =
     gpLfTierMode === "selected" && gpLfSelectedTierIds.length === 0;
 
+  const rulesVary =
+    gpLfTierMode === "all" &&
+    gpLfComparisonSummary !== null &&
+    Object.values(gpLfComparisonSummary).some((value) => value === "Mixed");
+
   const maximumDaysRequired =
     gpLfSettings.lateFeeEnabled && hasDailyLateFee;
 
@@ -199,7 +205,7 @@ export default function GpLfPanel({
           </div>
         ) : null}
 
-        <section className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
+        <section className="sticky top-0 z-20 rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-panel)]/95 p-4 shadow-[var(--rf-shadow-sm)] backdrop-blur">
           <div>
             <label className="rf-label">Apply settings to</label>
 
@@ -389,7 +395,11 @@ export default function GpLfPanel({
                       </label>
 
                       <input
-                        value={gpLfSettings.lateFeeDaily}
+                        value={
+                          gpLfSettings.lateFeeDaily === "0"
+                            ? ""
+                            : gpLfSettings.lateFeeDaily
+                        }
                         onChange={(event) => {
                           const value = event.target.value.replace(
                             /[^0-9.]/g,
@@ -470,47 +480,58 @@ export default function GpLfPanel({
                       {selectedTierName}
                     </div>
 
-                    <div className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
-                      <p>
-                        Grace period:{" "}
-                        <strong>
-                          {graceDays} day
-                          {graceDays === 1 ? "" : "s"}
-                        </strong>
-                        , including the due date.
-                      </p>
-
-                      {hasInitialLateFee ? (
+                    {rulesVary ? (
+                      <div className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
                         <p>
-                          Initial late fee:{" "}
-                          <strong>
-                            {formatGpLfMoney(
-                              gpLfSettings.lateFeeInitial || "0"
-                            )}
-                          </strong>{" "}
-                          on day{" "}
-                          <strong>{initialLateFeeDay}</strong>.
+                          <strong>Late-payment rules vary by tier.</strong>
                         </p>
-                      ) : hasDailyLateFee ? (
-                        <p>No initial late fee.</p>
-                      ) : null}
-
-                      {hasDailyLateFee && maximumDailyFeeDays > 0 ? (
                         <p>
-                          Daily late fee:{" "}
-                          <strong>
-                            {formatGpLfMoney(
-                              gpLfSettings.lateFeeDaily || "0"
-                            )}{" "}
-                            per day
-                          </strong>{" "}
-                          from day{" "}
-                          <strong>{dailyLateFeeStartDay}</strong>{" "}
-                          through day{" "}
-                          <strong>{dailyLateFeeEndDay}</strong>.
+                          Grace period, initial late fee, daily late fee, and maximum daily fee days may be different for each tier.
                         </p>
-                      ) : null}
-                    </div>
+                        <p>
+                          Select an individual tier above to review or change its current rules. Saving while All tiers is selected will apply the displayed values to every tier.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
+                        <p>
+                          Grace period:{" "}
+                          <strong>
+                            {graceDays} day
+                            {graceDays === 1 ? "" : "s"}
+                          </strong>
+                          , including the due date.
+                        </p>
+
+                        {hasInitialLateFee ? (
+                          <p>
+                            Initial late fee:{" "}
+                            <strong>
+                              {formatGpLfMoney(
+                                gpLfSettings.lateFeeInitial || "0"
+                              )}
+                            </strong>{" "}
+                            on day <strong>{initialLateFeeDay}</strong>.
+                          </p>
+                        ) : hasDailyLateFee ? (
+                          <p>No initial late fee.</p>
+                        ) : null}
+
+                        {hasDailyLateFee && maximumDailyFeeDays > 0 ? (
+                          <p>
+                            Daily late fee:{" "}
+                            <strong>
+                              {formatGpLfMoney(
+                                gpLfSettings.lateFeeDaily || "0"
+                              )}{" "}
+                              per day
+                            </strong>{" "}
+                            from day <strong>{dailyLateFeeStartDay}</strong>{" "}
+                            through day <strong>{dailyLateFeeEndDay}</strong>.
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

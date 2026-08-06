@@ -202,17 +202,7 @@ useEffect(() => {
 
     const sourceTier = visibleTierCharges[0];
 
-    if (sourceTier.charges.length === 0) {
-      addTierCharge(sourceTier.tierId);
-      return;
-    }
-
     if (!sameForAllTiers) {
-      for (const tier of visibleTierCharges) {
-        if (tier.charges.length === 0) {
-          addTierCharge(tier.tierId);
-        }
-      }
       return;
     }
 
@@ -500,7 +490,7 @@ const chargeGroups =
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={tier.unitCount}
+                    value={tier.unitCount === "0" ? "" : tier.unitCount}
                     disabled={!canEditRentSettings}
                     onChange={(event) =>
                       updateLocalTier(tier.id, {
@@ -571,6 +561,12 @@ const chargeGroups =
                   </div>
 
                   <div className="space-y-3">
+                    {tier.charges.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                        No recurring charges for {sameForAllTiers ? "these tiers" : tier.tierName}.
+                      </div>
+                    ) : null}
+
                     {tier.charges.map((charge, chargeIndex) => (
                       <div
                         key={charge.id}
