@@ -3,8 +3,11 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
-import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
-
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -158,16 +161,25 @@ const propertyId = session.propertyId;
           throw new Error("TARGET_TIER_FULL");
         }
 
-        const currentTierSettings = resolveEffectiveBillingSettings({
-          tier: unit.tier,
-          propertySettings: property.settings,
-        });
+const permanentDueDay = assertTierBillingCalendar({
+  propertyId: property.id,
+  rentFrayStartDate: property.rentFrayStartDate,
+  propertySettingsDueDay: property.settings?.rentDueDay,
+  tier: unit.tier,
+});
 
-        const rentDates = getRentDateSummary({
-          ...currentTierSettings,
-          now,
-          rentFrayStartDate: property.rentFrayStartDate,
-        });
+const currentTierSettings = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings: property.settings,
+});
+
+currentTierSettings.dueDay = permanentDueDay;
+
+const rentDates = getRentDateSummary({
+  ...currentTierSettings,
+  now,
+  rentFrayStartDate: property.rentFrayStartDate,
+});
 
         const activeAssignment = await tx.tenantAssignment.findFirst({
           where: {

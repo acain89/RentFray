@@ -13,6 +13,7 @@ import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
+import { assertPropertyBillingCalendar } from "@/lib/billingCalendar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -285,15 +286,25 @@ async function finalizeSuccessfulIntent(input: {
 
   const effectiveDate = getBusinessDate();
 
-  const effective = resolveEffectiveBillingSettings({
-    tier: null,
-    propertySettings: property.settings,
-  });
+const permanentDueDay = assertPropertyBillingCalendar({
+  propertyId: property.id,
+  rentFrayStartDate: property.rentFrayStartDate,
+  propertySettingsDueDay:
+    property.settings?.rentDueDay,
+});
 
-  getRentDateSummary({
-    ...effective,
-    now: effectiveDate,
-  });
+const effective = resolveEffectiveBillingSettings({
+  tier: null,
+  propertySettings: property.settings,
+});
+
+effective.dueDay = permanentDueDay;
+
+getRentDateSummary({
+  ...effective,
+  now: effectiveDate,
+  rentFrayStartDate: property.rentFrayStartDate,
+});
 
   let didWriteLedgerPayment = false;
 

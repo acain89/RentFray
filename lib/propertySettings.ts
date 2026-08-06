@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 export type PropertySettingsInput = {
-  rentDueDay: number;
+  rentDueDay?: number;
   gracePeriodDays: number;
   lateFeeFlatCents?: number | null;
   lateFeeEnabled?: boolean;
@@ -63,9 +63,8 @@ function normalizeInput(
       ? null
       : toNonNegativeInt(data.lateFeeFlatCents, 0);
 
-  return {
-    propertyId: "",
-    rentDueDay: toDueDay(data.rentDueDay),
+const normalized: Prisma.PropertySettingsUncheckedCreateInput = {
+  propertyId: "",
     gracePeriodDays: toNonNegativeInt(data.gracePeriodDays, 0),
     lateFeeFlatCents,
     lateFeeEnabled:
@@ -82,7 +81,15 @@ function normalizeInput(
     onboardingComplete: data.onboardingComplete ?? false,
     setupComplete: data.setupComplete ?? false,
   };
+
+if (data.rentDueDay !== undefined) {
+  normalized.rentDueDay = toDueDay(data.rentDueDay);
 }
+
+return normalized;
+}
+
+
 
 export async function getPropertySettings(
   propertyId: string
@@ -120,12 +127,12 @@ export async function upsertPropertySettings(
 
   return prisma.propertySettings.upsert({
     where: { propertyId },
-    create: {
-      ...normalized,
-      propertyId,
-    },
+create: {
+  ...normalized,
+  propertyId,
+  rentDueDay: normalized.rentDueDay ?? 1,
+},
     update: {
-      rentDueDay: normalized.rentDueDay,
       gracePeriodDays: normalized.gracePeriodDays,
       lateFeeFlatCents: normalized.lateFeeFlatCents,
       lateFeeEnabled: normalized.lateFeeEnabled,

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { getLockedMonthlyDueDay } from "@/lib/billingCalendar";
 
 
 export const runtime = "nodejs";
@@ -48,6 +49,34 @@ export async function POST(
     const body = (await req.json()) as PostBody;
     const tiers = Array.isArray(body.tiers) ? body.tiers : [];
 
+    const property = await prisma.property.findUnique({
+  where: { id },
+  select: {
+    rentFrayStartDate: true,
+    settings: {
+      select: {
+        rentDueDay: true,
+      },
+    },
+  },
+});
+
+if (!property) {
+  return NextResponse.json(
+    { error: "Property not found." },
+    { status: 404 }
+  );
+}
+
+const lockedDueDay = getLockedMonthlyDueDay(
+  property.rentFrayStartDate
+);
+
+const authoritativeDueDay =
+  lockedDueDay ??
+  property.settings?.rentDueDay ??
+  1;
+
     if (!id || tiers.length === 0) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
@@ -60,7 +89,6 @@ export async function POST(
       continue;
     }
 
-    const rentDueDay = toInt(tier.dueDay, 1);
     const gracePeriodDays = toInt(tier.graceDays, 0);
     const lateFeeInitialCents = tier.lateFeeEnabled
       ? toCents(tier.lateFeeAmount)
@@ -77,7 +105,7 @@ export async function POST(
         id: tierId,
       },
       data: {
-        rentDueDay,
+        rentDueDay: authoritativeDueDay,  
         gracePeriodDays,
         lateFeeInitialCents,
         lateFeeDailyCents,

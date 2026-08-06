@@ -1,5 +1,7 @@
 // lib/rentDates.ts
 
+
+
 type NullableDate = Date | null;
 
 export type RentDateConfig = {

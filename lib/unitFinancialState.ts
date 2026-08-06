@@ -14,8 +14,10 @@ import {
   type PaymentStatus,
   type UnitStatusResult,
 } from "@/lib/unitStatusEngine";
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 
 type UnitFinancialStateTier = {
+  id?: string | null;
   rentDueDay: number;
   gracePeriodDays: number;
   lateFeeInitialCents: number;
@@ -100,10 +102,19 @@ export async function getUnitFinancialState(
 const rawNow = input.now ?? new Date();
 const now = getBusinessDate(rawNow);
 
-  const effectiveBillingSettings = resolveEffectiveBillingSettings({
+const permanentDueDay = assertTierBillingCalendar({
+  propertyId: input.propertyId,
+  rentFrayStartDate: input.rentFrayStartDate ?? null,
+  propertySettingsDueDay: input.propertySettings?.rentDueDay,
+  tier: input.tier,
+});
+
+const effectiveBillingSettings = resolveEffectiveBillingSettings({
     tier: input.tier,
     propertySettings: input.propertySettings,
   });
+
+effectiveBillingSettings.dueDay = permanentDueDay;
 
 const rentDates = getRentDateSummary({
   ...effectiveBillingSettings,

@@ -10,6 +10,7 @@ import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -243,12 +244,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const effective = resolveEffectiveBillingSettings({
-      tier: typedUnit.tier,
-      propertySettings: typedUnit.property.settings,
-    });
+const permanentDueDay = assertTierBillingCalendar({
+  propertyId: typedUnit.propertyId,
+  rentFrayStartDate: typedUnit.property.rentFrayStartDate,
+  propertySettingsDueDay:
+    typedUnit.property.settings?.rentDueDay,
+  tier: typedUnit.tier,
+});
 
-    const rentDates = getRentDateSummary({
+const effective = resolveEffectiveBillingSettings({
+  tier: typedUnit.tier,
+  propertySettings: typedUnit.property.settings,
+});
+
+effective.dueDay = permanentDueDay;
+
+const rentDates = getRentDateSummary({
       ...effective,
       now: effectiveDate,
       rentFrayStartDate: typedUnit.property.rentFrayStartDate,

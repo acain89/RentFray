@@ -2,17 +2,25 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-
+import { getLockedMonthlyDueDay } from "@/lib/billingCalendar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 type TierInput = {
   id?: string;
   tierName: string;
   unitCount: string;
   markedForDelete?: boolean;
   baseRent: string;
-  dueDay: string;
+
+  /*
+   * Kept temporarily for compatibility with the existing dashboard payload.
+   * This route deliberately ignores this value. The client is never allowed
+   * to establish or change the monthly due day.
+   */
+  dueDay?: string;
+
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeAmount: string;
@@ -31,8 +39,8 @@ type SavedTierResult = {
 };
 
 function toNumber(value: unknown, fallback = 0): number {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function toInt(value: unknown, fallback = 0): number {
@@ -50,199 +58,445 @@ export async function POST(
   try {
     const session = await getSession();
 
-    if (!session || (session.role !== "OWNER" && session.role !== "MANAGER")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (
+      !session ||
+      (session.role !== "OWNER" && session.role !== "MANAGER")
+    ) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     const { id } = await context.params;
-    const body = (await req.json()) as PostBody;
 
-    const tiers: TierInput[] = Array.isArray(body.tiers) ? body.tiers : [];
-
-    if (!id || tiers.length === 0) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    if (!id) {
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
     }
 
-   const savedTiers = await prisma.$transaction(
-  async (tx: Prisma.TransactionClient): Promise<SavedTierResult[]> => {
-    const results: SavedTierResult[] = [];
+    /*
+     * Owners and managers may only modify the property attached to their
+     * authenticated session.
+     */
+    if (!session.propertyId || session.propertyId !== id) {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      );
+    }
 
-    for (let i = 0; i < tiers.length; i += 1) {
-      const t = tiers[i];
+    const body = (await req.json()) as PostBody;
+    const tiers = Array.isArray(body.tiers) ? body.tiers : [];
 
-      const clientId = String(t.id || `new-tier-${i}`);
-      const name =
-        String(t.tierName || "").trim() || `Tier ${i + 1}`;
+    if (tiers.length === 0) {
+      return NextResponse.json(
+        { error: "At least one tier is required." },
+        { status: 400 }
+      );
+    }
 
-      const baseRentCents = toCents(t.baseRent);
-      const rentDueDay = toInt(t.dueDay, 1);
-      const gracePeriodDays = toInt(t.graceDays, 0);
-      const lateFeeInitialCents = t.lateFeeEnabled
-        ? toCents(t.lateFeeAmount)
-        : 0;
-      const lateFeeDailyCents = t.lateFeeEnabled
-        ? toCents(t.lateFeeDaily)
-        : 0;
-      const maxLateFeeDays = t.lateFeeEnabled
-        ? toInt(t.lateFeeMaxDays, 0)
-        : 0;
-      const unitCount = Math.max(0, toInt(t.unitCount, 0));
+    const property = await prisma.property.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        rentFrayStartDate: true,
+        settings: {
+          select: {
+            rentDueDay: true,
+          },
+        },
+      },
+    });
 
-      if (t.markedForDelete && t.id) {
-        const occupiedUnits = await tx.tenantAssignment.count({
-          where: {
-            propertyId: id,
-            isCurrent: true,
-            moveOutDate: null,
-            unit: {
-              tierId: t.id,
+    if (!property) {
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
+    }
+
+    /*
+     * Once the RentFray Start Date is locked, its calendar day is the only
+     * permitted monthly due day.
+     *
+     * Before activation, use the existing internal settings value—or day 1
+     * as a harmless placeholder. lockBillingCalendar() will atomically replace
+     * this value on every tier when management confirms the Start Date.
+     */
+    const lockedDueDay = getLockedMonthlyDueDay(
+      property.rentFrayStartDate
+    );
+
+    const authoritativeDueDay =
+      lockedDueDay ?? property.settings?.rentDueDay ?? 1;
+
+    if (
+      !Number.isInteger(authoritativeDueDay) ||
+      authoritativeDueDay < 1 ||
+      authoritativeDueDay > 31
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The property's billing calendar is invalid. Tier changes were not saved.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const savedTiers = await prisma.$transaction(
+      async (
+        tx: Prisma.TransactionClient
+      ): Promise<SavedTierResult[]> => {
+        /*
+         * Lock the property row so activation and tier editing cannot modify
+         * the billing calendar concurrently.
+         */
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "Property"
+          WHERE "id" = ${id}
+          FOR UPDATE
+        `;
+
+        const currentProperty = await tx.property.findUnique({
+          where: { id },
+          select: {
+            rentFrayStartDate: true,
+            settings: {
+              select: {
+                rentDueDay: true,
+              },
             },
           },
         });
 
-        if (occupiedUnits > 0) {
-          throw new Error(
-            `Cannot delete tier "${name}" because units are still assigned.`
-          );
+        if (!currentProperty) {
+          throw new Error("Property not found.");
         }
 
-        await tx.propertyTier.update({
-          where: { id: t.id },
-          data: { isActive: false },
-        });
-
-        continue;
-      }
-
-      if (t.id && !t.id.startsWith("new-tier-")) {
-        const existingTier = await tx.propertyTier.findFirst({
-          where: {
-            id: t.id,
-            propertyId: id,
-            isActive: true,
-          },
-          select: {
-            id: true,
-            unitCount: true,
-          },
-        });
-
-        if (!existingTier) {
-          throw new Error(`Tier "${name}" was not found.`);
-        }
-
-        const activeTierUnitCount = await tx.unit.count({
-          where: {
-            propertyId: id,
-            tierId: existingTier.id,
-            isActive: true,
-          },
-        });
-
-        const submittedUnitCount = Math.max(
-          0,
-          toInt(t.unitCount, 0)
+        /*
+         * Recalculate after acquiring the row lock. The property may have
+         * been activated between the initial read and this transaction.
+         */
+        const currentLockedDueDay = getLockedMonthlyDueDay(
+          currentProperty.rentFrayStartDate
         );
 
-        const nextUnitCount =
-          submittedUnitCount === activeTierUnitCount &&
-          existingTier.unitCount > activeTierUnitCount
-            ? existingTier.unitCount
-            : submittedUnitCount;
+        const transactionDueDay =
+          currentLockedDueDay ??
+          currentProperty.settings?.rentDueDay ??
+          1;
 
-        if (nextUnitCount < activeTierUnitCount) {
+        if (
+          !Number.isInteger(transactionDueDay) ||
+          transactionDueDay < 1 ||
+          transactionDueDay > 31
+        ) {
           throw new Error(
-            `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
+            "The property's billing calendar is invalid."
           );
         }
 
-        const updatedTier = await tx.propertyTier.update({
-          where: { id: existingTier.id },
-          data: {
-            name,
-            unitCount: nextUnitCount,
-            activeUnitCount: activeTierUnitCount,
-            baseRentCents,
-            rentDueDay,
-            gracePeriodDays,
-            lateFeeInitialCents,
-            lateFeeDailyCents,
-            maxLateFeeDays,
-            lateFeeType: "FLAT",
-            sortOrder: i,
-            isActive: true,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-        });
+        const results: SavedTierResult[] = [];
 
-        results.push({
-          clientId,
-          tierId: updatedTier.id,
-          tierName: updatedTier.name,
-        });
+        for (let index = 0; index < tiers.length; index += 1) {
+          const tier = tiers[index];
 
-        continue;
+          const clientId = String(
+            tier.id || `new-tier-${index}`
+          );
+
+          const name =
+            String(tier.tierName || "").trim() ||
+            `Tier ${index + 1}`;
+
+          const baseRentCents = toCents(tier.baseRent);
+          const gracePeriodDays = toInt(tier.graceDays, 0);
+
+          const lateFeeInitialCents = tier.lateFeeEnabled
+            ? toCents(tier.lateFeeAmount)
+            : 0;
+
+          const lateFeeDailyCents = tier.lateFeeEnabled
+            ? toCents(tier.lateFeeDaily)
+            : 0;
+
+          const maxLateFeeDays = tier.lateFeeEnabled
+            ? toInt(tier.lateFeeMaxDays, 0)
+            : 0;
+
+          const unitCount = Math.max(
+            0,
+            toInt(tier.unitCount, 0)
+          );
+
+          if (baseRentCents < 0) {
+            throw new Error(
+              `Tier "${name}" has an invalid rent amount.`
+            );
+          }
+
+          if (
+            !Number.isInteger(gracePeriodDays) ||
+            gracePeriodDays < 0 ||
+            gracePeriodDays > 31
+          ) {
+            throw new Error(
+              `Tier "${name}" must have a grace period from 0 to 31 days.`
+            );
+          }
+
+          if (
+            lateFeeInitialCents < 0 ||
+            lateFeeDailyCents < 0 ||
+            maxLateFeeDays < 0
+          ) {
+            throw new Error(
+              `Tier "${name}" has invalid late-fee settings.`
+            );
+          }
+
+          if (tier.markedForDelete && tier.id) {
+            const occupiedUnits =
+              await tx.tenantAssignment.count({
+                where: {
+                  propertyId: id,
+                  isCurrent: true,
+                  moveOutDate: null,
+                  unit: {
+                    tierId: tier.id,
+                  },
+                },
+              });
+
+            if (occupiedUnits > 0) {
+              throw new Error(
+                `Cannot delete tier "${name}" because units are still assigned.`
+              );
+            }
+
+            const existingTier =
+              await tx.propertyTier.findFirst({
+                where: {
+                  id: tier.id,
+                  propertyId: id,
+                },
+                select: {
+                  id: true,
+                },
+              });
+
+            if (!existingTier) {
+              throw new Error(
+                `Tier "${name}" was not found.`
+              );
+            }
+
+            await tx.propertyTier.update({
+              where: {
+                id: existingTier.id,
+              },
+              data: {
+                isActive: false,
+              },
+            });
+
+            continue;
+          }
+
+          if (
+            tier.id &&
+            !tier.id.startsWith("new-tier-")
+          ) {
+            const existingTier =
+              await tx.propertyTier.findFirst({
+                where: {
+                  id: tier.id,
+                  propertyId: id,
+                  isActive: true,
+                },
+                select: {
+                  id: true,
+                  unitCount: true,
+                },
+              });
+
+            if (!existingTier) {
+              throw new Error(
+                `Tier "${name}" was not found.`
+              );
+            }
+
+            const activeTierUnitCount =
+              await tx.unit.count({
+                where: {
+                  propertyId: id,
+                  tierId: existingTier.id,
+                  isActive: true,
+                },
+              });
+
+            const submittedUnitCount = Math.max(
+              0,
+              toInt(tier.unitCount, 0)
+            );
+
+            const nextUnitCount =
+              submittedUnitCount === activeTierUnitCount &&
+              existingTier.unitCount > activeTierUnitCount
+                ? existingTier.unitCount
+                : submittedUnitCount;
+
+            if (nextUnitCount < activeTierUnitCount) {
+              throw new Error(
+                `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
+              );
+            }
+
+            const updatedTier =
+              await tx.propertyTier.update({
+                where: {
+                  id: existingTier.id,
+                },
+                data: {
+                  name,
+                  unitCount: nextUnitCount,
+                  activeUnitCount:
+                    activeTierUnitCount,
+                  baseRentCents,
+
+                  /*
+                   * Never use tier.dueDay. The billing calendar is the only
+                   * authority.
+                   */
+                  rentDueDay: transactionDueDay,
+
+                  gracePeriodDays,
+                  lateFeeInitialCents,
+                  lateFeeDailyCents,
+                  maxLateFeeDays,
+                  lateFeeType: "FLAT",
+                  sortOrder: index,
+                  isActive: true,
+                },
+                select: {
+                  id: true,
+                  name: true,
+                },
+              });
+
+            results.push({
+              clientId,
+              tierId: updatedTier.id,
+              tierName: updatedTier.name,
+            });
+
+            continue;
+          }
+
+          const createdTier =
+            await tx.propertyTier.create({
+              data: {
+                propertyId: id,
+                name,
+                unitCount,
+                activeUnitCount: 0,
+                baseRentCents,
+
+                /*
+                 * New tiers automatically inherit the permanent due day.
+                 * The request payload cannot choose or alter it.
+                 */
+                rentDueDay: transactionDueDay,
+
+                gracePeriodDays,
+                lateFeeInitialCents,
+                lateFeeDailyCents,
+                maxLateFeeDays,
+                lateFeeType: "FLAT",
+                sortOrder: index,
+                isActive: true,
+              },
+              select: {
+                id: true,
+                name: true,
+              },
+            });
+
+          results.push({
+            clientId,
+            tierId: createdTier.id,
+            tierName: createdTier.name,
+          });
+        }
+
+        /*
+         * If the calendar is locked, verify that every tier—including
+         * inactive tiers—still matches it before committing.
+         */
+        if (currentLockedDueDay !== null) {
+          const mismatchedTier =
+            await tx.propertyTier.findFirst({
+              where: {
+                propertyId: id,
+                rentDueDay: {
+                  not: currentLockedDueDay,
+                },
+              },
+              select: {
+                id: true,
+              },
+            });
+
+          if (mismatchedTier) {
+            throw new Error(
+              `Billing calendar verification failed for tier ${mismatchedTier.id}.`
+            );
+          }
+        }
+
+        return results;
+      },
+      {
+        isolationLevel:
+          Prisma.TransactionIsolationLevel.Serializable,
       }
+    );
 
-      const createdTier = await tx.propertyTier.create({
-        data: {
-          propertyId: id,
-          name,
-          unitCount,
-          activeUnitCount: 0,
-          baseRentCents,
-          rentDueDay,
-          gracePeriodDays,
-          lateFeeInitialCents,
-          lateFeeDailyCents,
-          maxLateFeeDays,
-          lateFeeType: "FLAT",
-          sortOrder: i,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      });
+    const tierIdMap: Record<string, string> =
+      Object.fromEntries(
+        savedTiers.map(
+          (
+            tier: SavedTierResult
+          ): [string, string] => [
+            tier.clientId,
+            tier.tierId,
+          ]
+        )
+      );
 
-      results.push({
-        clientId,
-        tierId: createdTier.id,
-        tierName: createdTier.name,
-      });
-    }
+    return NextResponse.json({
+      ok: true,
+      tiers: savedTiers,
+      tierIdMap,
+      monthlyDueDay: authoritativeDueDay,
+      billingCalendarLocked: lockedDueDay !== null,
+    });
+  } catch (error: unknown) {
+    console.error("SAVE TIERS FAILED", error);
 
-    return results;
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to save tiers.";
+
+    return NextResponse.json(
+      { error: message },
+      { status: 400 }
+    );
   }
-);
-
-const tierIdMap: Record<string, string> = Object.fromEntries(
-  savedTiers.map(
-    (tier: SavedTierResult): [string, string] => [
-      tier.clientId,
-      tier.tierId,
-    ]
-  )
-);
-
-return NextResponse.json({
-  ok: true,
-  tiers: savedTiers,
-  tierIdMap,
-});
-  } catch (err: unknown) {
-  console.error("SAVE TIERS FAILED", err);
-
-  const message =
-    err instanceof Error ? err.message : "Failed to save tiers";
-
-  return NextResponse.json(
-    { error: message },
-    { status: 400 }
-  );
-}
 }

@@ -19,21 +19,6 @@ function parseDateOnly(value: string): Date {
   return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
 }
 
-function getNextBillingDate(currentDueDate: Date, billingDay: number): Date {
-  const nextYear =
-    currentDueDate.getMonth() === 11
-      ? currentDueDate.getFullYear() + 1
-      : currentDueDate.getFullYear();
-
-  const nextMonth =
-    currentDueDate.getMonth() === 11 ? 0 : currentDueDate.getMonth() + 1;
-
-  const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
-  const safeDay = Math.min(Math.max(1, billingDay), lastDayOfNextMonth);
-
-  return toDateOnly(new Date(nextYear, nextMonth, safeDay));
-}
-
 export function getRentPreview({
   billingDay,
   marketRent,
@@ -51,8 +36,8 @@ export function getRentPreview({
     now: today,
   });
 
-  const cycleStart = parseDateOnly(rentDates.dueDate);
-  const nextBillingDate = getNextBillingDate(cycleStart, billingDay);
+const cycleStart = parseDateOnly(rentDates.dueDate);
+const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
 
   const hasChargeThisCycle = ledgerEntries.some((entry) => {
     if (entry.type !== "RENT_CHARGE") return false;

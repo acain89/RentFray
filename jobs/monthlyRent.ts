@@ -6,6 +6,8 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
+
 const UNIT_CHUNK_SIZE = 500;
 const LEDGER_CREATE_CHUNK_SIZE = 1000;
 const MONTHLY_RENT_JOB_LOCK_ID = 91024001;
@@ -188,10 +190,19 @@ export async function runMonthlyRentJob(
             return acc;
           }
 
+         const permanentDueDay = assertTierBillingCalendar({
+  propertyId: unit.propertyId,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+  propertySettingsDueDay: unit.property.settings?.rentDueDay,
+  tier: unit.tier,
+});
+
           const effective = resolveEffectiveBillingSettings({
             tier: unit.tier,
             propertySettings: unit.property.settings,
           });
+
+           effective.dueDay = permanentDueDay;
 
           const rentDates = getRentDateSummary({
             ...effective,

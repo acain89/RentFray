@@ -10,7 +10,6 @@ type LocalTier = {
 type VisibleTier = {
   id: string;
   tierName: string;
-  dueDay: string;
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeInitial: string;
@@ -19,7 +18,6 @@ type VisibleTier = {
 };
 
 type GpLfSettings = {
-  dueDay: string;
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeInitial: string;
@@ -28,7 +26,6 @@ type GpLfSettings = {
 };
 
 type GpLfComparisonSummary = {
-  dueDay: string;
   graceDays: string;
   lateFeeStatus: string;
   lateFeeInitial: string;

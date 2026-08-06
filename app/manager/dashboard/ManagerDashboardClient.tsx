@@ -184,7 +184,6 @@ type RentTierDraft = {
   isNew?: boolean;
   markedForDelete?: boolean;
   baseRent: string;
-  dueDay: string;
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeAmount: string;
@@ -422,7 +421,6 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
     isNew: true,
     markedForDelete: false,
     baseRent: "",
-    dueDay: "1",
     graceDays: "5",
     lateFeeEnabled: true,
     lateFeeAmount: "",
@@ -646,7 +644,6 @@ if (requestedPanel === "propertySetup") {
 
 
 const [gpLfSettings, setGpLfSettings] = useState({
-  dueDay: "1",
   graceDays: "5",
   lateFeeEnabled: true,
   lateFeeInitial: "",
@@ -716,7 +713,6 @@ useEffect(() => {
       isNew: false,
       markedForDelete: false,
       baseRent: String(tier.baseRent ?? ""),
-      dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
       graceDays: String(
         (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
       ),
@@ -813,7 +809,6 @@ function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
 
   if (!source) {
     return {
-      dueDay: "1",
       graceDays: "5",
       lateFeeEnabled: true,
       lateFeeInitial: "",
@@ -829,7 +824,6 @@ function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
     Number(source.lateFeeMaxDays || 0) > 0;
 
   return {
-    dueDay: source.dueDay || "1",
     graceDays: source.graceDays || "5",
     lateFeeEnabled:
       hasSavedLateFeeConfiguration ||
@@ -843,7 +837,6 @@ function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
   type GpLfTierSnapshot = {
   id: string;
   tierName: string;
-  dueDay: string;
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeInitial: string;
@@ -860,7 +853,6 @@ function getGpLfTierSnapshot(tier: RentTierDraft): GpLfTierSnapshot {
   return {
     id: tier.id,
     tierName: tier.tierName,
-    dueDay: tier.dueDay || "1",
     graceDays: tier.graceDays || "0",
     lateFeeEnabled: Boolean(tier.lateFeeEnabled),
     lateFeeInitial: tier.lateFeeAmount || "0",
@@ -1139,7 +1131,6 @@ async function loadPropertyTiers(): Promise<void> {
       isNew: false,
       markedForDelete: false,
       baseRent: typeof tier.baseRent === "number" ? String(tier.baseRent) : "",
-      dueDay: String((tier as { rentDueDay?: number }).rentDueDay ?? 1),
       graceDays: String(
         (tier as { gracePeriodDays?: number }).gracePeriodDays ?? 5
       ),
@@ -2145,7 +2136,6 @@ const gpLfComparisonSummary = useMemo(() => {
   }
 
   return {
-    dueDay: getMixedText(gpLfVisibleTiers.map((tier) => tier.dueDay)),
     graceDays: getMixedText(gpLfVisibleTiers.map((tier) => tier.graceDays)),
     lateFeeStatus: getMixedBooleanText(
       gpLfVisibleTiers.map((tier) => tier.lateFeeEnabled)
@@ -2202,7 +2192,6 @@ function openPanel(panel: Exclude<PanelKey, null>): void {
     setGpLfTierMode("all");
     setGpLfSelectedTierIds([]);
     setGpLfSettings({
-      dueDay: "",
       graceDays: "",
       lateFeeEnabled: true,
       lateFeeInitial: "",
@@ -2292,7 +2281,6 @@ function addLocalTier(): void {
        isNew: true,
        markedForDelete: false,
        baseRent: "",
-       dueDay: "1",
        graceDays: "5",
        lateFeeEnabled: true,
        lateFeeAmount: "",
@@ -2328,7 +2316,6 @@ const tiersToUpdate =
   gpLfTierMode === "all"
     ? activeTiers.map((tier) => ({
         id: tier.id,
-        dueDay: gpLfSettings.dueDay,
         graceDays: gpLfSettings.lateFeeEnabled
           ? gpLfSettings.graceDays
           : "0",
@@ -2352,7 +2339,6 @@ const tiersToUpdate =
           : {}),
       }).map(([tierId, settings]) => ({
         id: tierId,
-        dueDay: settings.dueDay,
         graceDays: settings.lateFeeEnabled
           ? settings.graceDays
           : "0",

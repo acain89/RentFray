@@ -7,10 +7,10 @@ import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
 import {
-
 getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 
 
 export const runtime = "nodejs";
@@ -254,10 +254,21 @@ export async function POST(req: Request) {
       });
     }
 
+
+const permanentDueDay = assertTierBillingCalendar({
+  propertyId: unit.propertyId,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+  propertySettingsDueDay:
+    unit.property.settings?.rentDueDay,
+  tier: unit.tier,
+});
+
 const effective = resolveEffectiveBillingSettings({
   tier: unit.tier,
   propertySettings: unit.property.settings,
 });
+
+effective.dueDay = permanentDueDay;
 
 const rentDates = getRentDateSummary({
   ...effective,

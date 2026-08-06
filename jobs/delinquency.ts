@@ -6,6 +6,8 @@ import {
   getRentDateSummary,
 } from "@/lib/rentDates";
 
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
+
 export async function runDelinquencyJob(asOf = new Date()) {
   const today = getBusinessDate(asOf);
 
@@ -26,10 +28,19 @@ export async function runDelinquencyJob(asOf = new Date()) {
     const assignment = unit.tenantAssignments[0];
     if (!assignment) continue;
 
-    const effective = resolveEffectiveBillingSettings({
-      tier: unit.tier,
-      propertySettings: unit.property.settings,
-    });
+   const permanentDueDay = assertTierBillingCalendar({
+  propertyId: unit.propertyId,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+  propertySettingsDueDay: unit.property.settings?.rentDueDay,
+  tier: unit.tier,
+});
+
+const effective = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings: unit.property.settings,
+});
+
+effective.dueDay = permanentDueDay;
 
     const rentDates = getRentDateSummary({
       ...effective,

@@ -5,6 +5,11 @@ import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import ManualPaymentForm from "./ManualPaymentForm";
 import ManualChargeForm from "./ManualChargeForm";
 import PostRentButton from "./PostRentButton";
+import {
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 
 function centsToDollars(cents: number | null | undefined): number {
   return Number(cents || 0) / 100;
@@ -111,38 +116,18 @@ function paymentStatusMessage(status: string | null): string {
   }
 }
 
-function getCycleStart(now: Date, billingDay: number): Date {
-  const safeBillingDay = Math.min(Math.max(Number(billingDay || 1), 1), 28);
-  const currentMonthStart = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    safeBillingDay,
-    0,
-    0,
-    0,
-    0
-  );
 
-  if (now.getDate() >= safeBillingDay) {
-    return currentMonthStart;
+function parseDateOnly(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    throw new Error(`Invalid date-only value: ${value}`);
   }
 
   return new Date(
-    now.getFullYear(),
-    now.getMonth() - 1,
-    safeBillingDay,
-    0,
-    0,
-    0,
-    0
-  );
-}
-
-function getNextBillingDate(cycleStart: Date): Date {
-  return new Date(
-    cycleStart.getFullYear(),
-    cycleStart.getMonth() + 1,
-    cycleStart.getDate(),
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
     0,
     0,
     0,
@@ -289,20 +274,46 @@ export default async function UnitDetail({ params }: Props) {
     };
   });
 
-  const rentDueDay = Number(unit.tier?.rentDueDay ?? propertySettings?.rentDueDay ?? 1);
-  const gracePeriodDays = Number(
-    unit.tier?.gracePeriodDays ?? propertySettings?.gracePeriodDays ?? 0
-  );
-  const baseRentCents = Number(unit.baseRentCents ?? unit.tier?.baseRentCents ?? 0);
-  const lateFeeType = unit.tier?.lateFeeType ?? "FLAT";
-  const lateFeeInitialCents = Number(unit.tier?.lateFeeInitialCents ?? 0);
-  const lateFeeDailyCents = Number(unit.tier?.lateFeeDailyCents ?? 0);
-  const maxLateFeeDays = Number(unit.tier?.maxLateFeeDays ?? 0);
-  const processingFeeCents = Number(unit.tier?.processingFeeCents ?? 0);
+const permanentDueDay = assertTierBillingCalendar({
+  propertyId: unit.propertyId,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+  propertySettingsDueDay: propertySettings?.rentDueDay,
+  tier: unit.tier,
+});
 
-  const today = new Date();
-  const cycleStart = getCycleStart(today, rentDueDay);
-  const nextBillingDate = getNextBillingDate(cycleStart);
+const effectiveBillingSettings = resolveEffectiveBillingSettings({
+  tier: unit.tier,
+  propertySettings,
+});
+
+effectiveBillingSettings.dueDay = permanentDueDay;
+
+const today = new Date();
+
+const rentDates = getRentDateSummary({
+  ...effectiveBillingSettings,
+  now: today,
+  rentFrayStartDate: unit.property.rentFrayStartDate,
+});
+
+const rentDueDay = permanentDueDay;
+const gracePeriodDays = effectiveBillingSettings.gracePeriodDays;
+const baseRentCents = Number(
+  unit.baseRentCents ?? unit.tier?.baseRentCents ?? 0
+);
+const lateFeeType = unit.tier?.lateFeeType ?? "FLAT";
+const lateFeeInitialCents =
+  effectiveBillingSettings.lateFeeInitialCents;
+const lateFeeDailyCents =
+  effectiveBillingSettings.lateFeeDailyCents;
+const maxLateFeeDays =
+  effectiveBillingSettings.maxLateFeeDays;
+const processingFeeCents = Number(
+  unit.tier?.processingFeeCents ?? 0
+);
+
+const cycleStart = parseDateOnly(rentDates.dueDate);
+const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
 
   const hasRentChargeThisCycle = currentLedgerEntries.some((entry: LedgerEntry) => {
     const effectiveDate = new Date(entry.effectiveDate);

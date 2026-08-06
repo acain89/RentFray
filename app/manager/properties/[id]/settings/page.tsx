@@ -48,7 +48,6 @@ async function saveSettings(formData: FormData) {
     throw new Error("Missing propertyId");
   }
 
-  const rentDueDay = clampInt(formData.get("billingDay"), 1, 1, 31);
   const gracePeriodDays = clampInt(formData.get("gracePeriodDays"), 5, 0, 31);
 
   const lateFeeFlatCents = Math.round(
@@ -57,12 +56,11 @@ async function saveSettings(formData: FormData) {
 
   const status = parsePropertyStatus(formData.get("lifecycleStatus"));
 
-  await upsertPropertySettings(propertyId, {
-    rentDueDay,
-    gracePeriodDays,
-    lateFeeFlatCents,
-    lateFeeEnabled: lateFeeFlatCents > 0,
-  });
+await upsertPropertySettings(propertyId, {
+  gracePeriodDays,
+  lateFeeFlatCents,
+  lateFeeEnabled: lateFeeFlatCents > 0,
+});
 
   await prisma.property.update({
     where: { id: propertyId },
@@ -123,17 +121,6 @@ export default async function PropertySettingsPage({
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Billing Day</label>
-          <input
-            name="billingDay"
-            type="number"
-            min={1}
-            max={31}
-            defaultValue={settings.rentDueDay}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
 
         <div className="space-y-1">
           <label className="text-sm font-medium">Grace Period Days</label>

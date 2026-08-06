@@ -18,7 +18,6 @@ type RentTierDraft = {
   isNew?: boolean;
   markedForDelete?: boolean;
   baseRent: string;
-  dueDay: string;
   graceDays: string;
   lateFeeEnabled: boolean;
   lateFeeAmount: string;
