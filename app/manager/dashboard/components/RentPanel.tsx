@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -100,7 +101,7 @@ function OverlayShell({
           </button>
         </div>
 
-        <div className="rf-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="rf-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           {children}
         </div>
       </div>
@@ -127,9 +128,12 @@ export default function RentPanel({
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+
   const [sameForAllTiers, setSameForAllTiers] = useState<boolean | null>(
-  null
-);
+    null
+  );
+
+  const sameForAllInitializedRef = useRef(false);
 
   const activeTiers = useMemo(
     () => localTiers.filter((tier) => !tier.markedForDelete),
@@ -152,100 +156,52 @@ export default function RentPanel({
     [activeTiers, tierCharges]
   );
 
-useEffect(() => {
-  if (
-    chargesLoading ||
-    visibleTierCharges.length === 0 ||
-    sameForAllTiers !== null
-  ) {
-    return;
-  }
-
-  const normalizeCharges = (
-    charges: AdditionalChargeDraft[]
-  ): Array<{ label: string; amount: string }> =>
-    charges
-      .filter(
-        (charge) =>
-          charge.label.trim() !== "" || charge.amount.trim() !== ""
-      )
-      .map((charge) => ({
-        label: charge.label.trim(),
-        amount: charge.amount.trim(),
-      }));
-
-  const firstTierCharges = JSON.stringify(
-    normalizeCharges(visibleTierCharges[0].charges)
-  );
-
-  const everyTierMatches = visibleTierCharges.every(
-    (tier) =>
-      JSON.stringify(normalizeCharges(tier.charges)) ===
-      firstTierCharges
-  );
-
-  setSameForAllTiers(everyTierMatches);
-}, [
-  chargesLoading,
-  sameForAllTiers,
-  visibleTierCharges,
-]);
-
-useEffect(() => {
-  if (
-    chargesLoading ||
-    visibleTierCharges.length === 0 ||
-    sameForAllTiers === null
-  ) {
-    return;
-  }
-
-    const sourceTier = visibleTierCharges[0];
-
-    if (!sameForAllTiers) {
+  useEffect(() => {
+    if (
+      sameForAllInitializedRef.current ||
+      chargesLoading ||
+      activeTiers.length === 0
+    ) {
       return;
     }
 
-    for (const targetTier of visibleTierCharges.slice(1)) {
-      if (targetTier.charges.length < sourceTier.charges.length) {
-        addTierCharge(targetTier.tierId);
-        continue;
-      }
+    const everyTierHasLoadedCharges = activeTiers.every((tier) =>
+      tierCharges.some((chargeTier) => chargeTier.tierId === tier.id)
+    );
 
-      if (targetTier.charges.length > sourceTier.charges.length) {
-        const extras = targetTier.charges.slice(sourceTier.charges.length);
-
-        for (const extra of extras) {
-          removeTierCharge(targetTier.tierId, extra.id);
-        }
-
-        continue;
-      }
-
-      sourceTier.charges.forEach((sourceCharge, index) => {
-        const targetCharge = targetTier.charges[index];
-
-        if (!targetCharge) {
-          return;
-        }
-
-        if (
-          targetCharge.label !== sourceCharge.label ||
-          targetCharge.amount !== sourceCharge.amount
-        ) {
-          updateTierCharge(targetTier.tierId, targetCharge.id, {
-            label: sourceCharge.label,
-            amount: sourceCharge.amount,
-          });
-        }
-      });
+    if (!everyTierHasLoadedCharges) {
+      return;
     }
+
+    const normalizeCharges = (
+      charges: AdditionalChargeDraft[]
+    ): Array<{ label: string; amount: string }> =>
+      charges
+        .filter(
+          (charge) =>
+            charge.label.trim() !== "" || charge.amount.trim() !== ""
+        )
+        .map((charge) => ({
+          label: charge.label.trim(),
+          amount: charge.amount.trim(),
+        }));
+
+    const firstTierCharges = JSON.stringify(
+      normalizeCharges(visibleTierCharges[0]?.charges ?? [])
+    );
+
+    const everyTierMatches = visibleTierCharges.every(
+      (tier) =>
+        JSON.stringify(normalizeCharges(tier.charges)) ===
+        firstTierCharges
+    );
+
+    sameForAllInitializedRef.current = true;
+    setSameForAllTiers(everyTierMatches);
   }, [
-    addTierCharge,
+    activeTiers,
     chargesLoading,
-    removeTierCharge,
-    sameForAllTiers,
-    updateTierCharge,
+    tierCharges,
     visibleTierCharges,
   ]);
 
@@ -326,10 +282,10 @@ useEffect(() => {
       return "Each tier requires a name, base rent greater than $0, and a unit count greater than 0.";
     }
 
-const chargeGroups =
-  sameForAllTiers === false
-    ? visibleTierCharges
-    : visibleTierCharges.slice(0, 1);
+    const chargeGroups =
+      sameForAllTiers === false
+        ? visibleTierCharges
+        : visibleTierCharges.slice(0, 1);
 
     for (const tier of chargeGroups) {
       for (const charge of tier.charges) {
@@ -387,279 +343,259 @@ const chargeGroups =
     }
   }
 
-  const chargeGroups = sameForAllTiers
-    ? visibleTierCharges.slice(0, 1)
-    : visibleTierCharges;
-
   return (
     <OverlayShell
       title="Units & Pricing"
       subtitle="Set each tier's monthly price, unit count, and optional recurring charges."
       onClose={onClose}
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         {!canEditRentSettings ? (
-          <div className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-soft)] px-4 py-3 text-sm text-[var(--rf-text-soft)]">
+          <div className="rounded-[20px] border border-[var(--rf-border)] bg-[var(--rf-bg-soft)] px-4 py-3 text-sm text-[var(--rf-text-soft)]">
             View only. Only an owner or manager can change pricing.
           </div>
         ) : null}
 
-        <section className="space-y-4">
-          {activeTiers.map((tier, index) => (
-            <div
-              key={tier.id}
-              className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]"
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-                    Tier {index + 1}
-                  </div>
-
-                  <div className="mt-1 text-base font-semibold text-[var(--rf-text)]">
-                    {tier.tierName.trim() || "Untitled Tier"}
-                  </div>
-                </div>
-
-                {activeTiers.length > 1 ? (
-                  <button
-                    type="button"
-                    disabled={!canEditRentSettings}
-                    onClick={() => {
-                      const confirmed = window.confirm(
-                        `Remove ${tier.tierName.trim() || "this tier"}?`
-                      );
-
-                      if (confirmed) {
-                        removeLocalTier(tier.id);
-                      }
-                    }}
-                    className="text-sm font-semibold text-red-600 transition hover:text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Remove Tier
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="rf-label">
-                    Tier Name <span className="text-red-600">*</span>
-                  </label>
-
-                  <input
-                    value={tier.tierName}
-                    disabled={!canEditRentSettings}
-                    onChange={(event) =>
-                      updateLocalTier(tier.id, {
-                        tierName: event.target.value,
-                      })
-                    }
-                    placeholder="One Bedroom"
-                    className="rf-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="rf-label">
-                    Base Rent <span className="text-red-600">*</span>
-                  </label>
-
-                  <input
-                    value={tier.baseRent}
-                    disabled={!canEditRentSettings}
-                    inputMode="decimal"
-                    onChange={(event) =>
-                      updateLocalTier(tier.id, {
-                        baseRent: event.target.value.replace(
-                          /[^0-9.]/g,
-                          ""
-                        ),
-                      })
-                    }
-                    placeholder="950.00"
-                    className="rf-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="rf-label">
-                    Unit Count <span className="text-red-600">*</span>
-                  </label>
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={tier.unitCount === "0" ? "" : tier.unitCount}
-                    disabled={!canEditRentSettings}
-                    onChange={(event) =>
-                      updateLocalTier(tier.id, {
-                        unitCount: event.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                    placeholder="Enter unit count"
-                    aria-required="true"
-                    className="rf-input"
-                  />
-
-                  <p className="mt-1 text-xs leading-5 text-[var(--rf-text-muted)]">
-                    Maximum tenant activations allowed under this tier.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </section>
-
-        <section className="rounded-[24px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] p-4 shadow-[var(--rf-shadow-sm)]">
-          <div className="flex flex-col gap-4 border-b border-[var(--rf-border)] pb-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
-                Recurring Charges
-              </div>
-
-              <p className="mt-1 text-sm leading-6 text-[var(--rf-text-soft)]">
-                Optional monthly charges such as water, trash, or parking.
-              </p>
-            </div>
-
-            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[var(--rf-border)] bg-white/60 px-4 py-3 text-sm font-semibold text-[var(--rf-text)]">
-              <input
-                type="checkbox"
-                checked={sameForAllTiers ?? true}
-                disabled={!canEditRentSettings}
-                onChange={(event) =>
-                  setSameForAllTiers(event.target.checked)
-                }
-                className="h-4 w-4 accent-emerald-700"
-              />
-              Same for all tiers
-            </label>
+        {chargesLoading ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+            Loading recurring charges...
           </div>
+        ) : (
+          <section className="space-y-3">
+            {activeTiers.map((tier, index) => {
+              const chargeBlock = visibleTierCharges.find(
+                (item) => item.tierId === tier.id
+              );
 
-          {chargesLoading ? (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-              Loading recurring charges...
-            </div>
-          ) : (
-            <div className="mt-4 space-y-5">
-              {chargeGroups.map((tier) => (
+              return (
                 <div
-                  key={tier.tierId}
-                  className="rounded-2xl border border-[var(--rf-border)] bg-white/60 p-4"
+                  key={tier.id}
+                  className="overflow-hidden rounded-[22px] border border-[var(--rf-border)] bg-[var(--rf-bg-card)] shadow-[var(--rf-shadow-sm)]"
                 >
-                  <div className="mb-3">
-                    <div className="text-sm font-semibold text-[var(--rf-text)]">
-                      {sameForAllTiers ? "All Tiers" : tier.tierName}
+                  <div className="flex items-center justify-between gap-3 border-b border-[var(--rf-border)] bg-gradient-to-r from-emerald-50/70 via-white to-white px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-[var(--rf-text)]">
+                        {tier.tierName.trim() || `Tier ${index + 1}`}
+                      </div>
                     </div>
 
-                    {!sameForAllTiers ? (
-                      <div className="mt-1 text-xs text-[var(--rf-text-muted)]">
-                        Charges for {tier.tierName}
-                      </div>
+                    {activeTiers.length > 1 ? (
+                      <button
+                        type="button"
+                        disabled={!canEditRentSettings}
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            `Remove ${tier.tierName.trim() || "this tier"}?`
+                          );
+
+                          if (confirmed) {
+                            removeLocalTier(tier.id);
+                          }
+                        }}
+                        className="shrink-0 text-xs font-semibold text-red-600 transition hover:text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Remove Tier
+                      </button>
                     ) : null}
                   </div>
 
-                  <div className="space-y-3">
-                    {tier.charges.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                        No recurring charges for {sameForAllTiers ? "these tiers" : tier.tierName}.
+                  <div className="grid gap-0 lg:grid-cols-[320px_minmax(0,1fr)]">
+                    <div className="space-y-2.5 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
+                        Tier Details
                       </div>
-                    ) : null}
 
-                    {tier.charges.map((charge, chargeIndex) => (
-                      <div
-                        key={charge.id}
-                        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_160px_auto]"
-                      >
-                        <div>
-                          <label className="rf-label">Charge Name</label>
+                      <div>
+                        <label className="rf-label">
+                          Tier Label <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          value={tier.tierName}
+                          disabled={!canEditRentSettings}
+                          onChange={(event) =>
+                            updateLocalTier(tier.id, {
+                              tierName: event.target.value,
+                            })
+                          }
+                          placeholder="One Bedroom"
+                          className="rf-input"
+                        />
+                      </div>
 
+                      <div>
+                        <label className="rf-label">
+                          Base Price <span className="text-red-600">*</span>
+                        </label>
+                        <div className="flex">
+                          <span className="inline-flex min-w-9 items-center justify-center rounded-l-xl border border-r-0 border-[var(--rf-border)] bg-white text-sm font-semibold text-[var(--rf-text-muted)]">
+                            $
+                          </span>
                           <input
-                            value={charge.label}
-                            disabled={!canEditRentSettings}
-                            onChange={(event) =>
-                              updateCharge(
-                                tier.tierId,
-                                charge.id,
-                                chargeIndex,
-                                {
-                                  label: event.target.value,
-                                }
-                              )
-                            }
-                            placeholder="Water"
-                            className="rf-input"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="rf-label">
-                            Monthly Amount
-                          </label>
-
-                          <input
-                            value={charge.amount}
+                            value={tier.baseRent}
                             disabled={!canEditRentSettings}
                             inputMode="decimal"
                             onChange={(event) =>
-                              updateCharge(
-                                tier.tierId,
-                                charge.id,
-                                chargeIndex,
-                                {
-                                  amount: event.target.value.replace(
-                                    /[^0-9.]/g,
-                                    ""
-                                  ),
-                                }
-                              )
+                              updateLocalTier(tier.id, {
+                                baseRent: event.target.value.replace(
+                                  /[^0-9.]/g,
+                                  ""
+                                ),
+                              })
                             }
-                            placeholder="50.00"
-                            className="rf-input"
+                            placeholder="950.00"
+                            className="rf-input rounded-l-none"
                           />
                         </div>
-
-                        <div className="flex items-end">
-                          <button
-                            type="button"
-                            disabled={!canEditRentSettings}
-                            onClick={() =>
-                              removeCharge(tier.tierId, chargeIndex)
-                            }
-                            className="min-h-[42px] px-2 text-sm font-semibold text-red-600 transition hover:text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Remove
-                          </button>
-                        </div>
                       </div>
-                    ))}
+
+                      <div>
+                        <label className="rf-label">
+                          Unit Count <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={tier.unitCount === "0" ? "" : tier.unitCount}
+                          disabled={!canEditRentSettings}
+                          onChange={(event) =>
+                            updateLocalTier(tier.id, {
+                              unitCount: event.target.value.replace(/\D/g, ""),
+                            })
+                          }
+                          placeholder="10"
+                          aria-required="true"
+                          className="rf-input"
+                        />
+                        <p className="mt-1 text-[11px] leading-4 text-[var(--rf-text-muted)]">
+                          Maximum tenant activations.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 lg:ml-5">
+                      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rf-text-muted)]">
+                            Recurring Charges
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-[var(--rf-text-soft)]">
+                            Optional monthly charges for this tier.
+                          </div>
+                        </div>
+
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--rf-border)] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[var(--rf-text)]">
+                          <input
+                            type="checkbox"
+                            checked={sameForAllTiers === true}
+                            disabled={
+                              !canEditRentSettings || sameForAllTiers === null
+                            }
+                            onChange={(event) => {
+                              setSameForAllTiers(event.target.checked);
+                            }}
+                            className="h-3.5 w-3.5 accent-emerald-700"
+                          />
+                          Same for all tiers
+                        </label>
+                      </div>
+
+                      {chargeBlock?.charges.length ? (
+                        <div className="space-y-2">
+                          {chargeBlock.charges.map((charge, chargeIndex) => (
+                            <div
+                              key={charge.id}
+                              className="grid grid-cols-[minmax(180px,240px)_92px_auto] items-center gap-2"
+                            >
+                              <input
+                                value={charge.label}
+                                disabled={!canEditRentSettings}
+                                onChange={(event) =>
+                                  updateCharge(
+                                    tier.id,
+                                    charge.id,
+                                    chargeIndex,
+                                    {
+                                      label: event.target.value,
+                                    }
+                                  )
+                                }
+                                placeholder="Water"
+                                className="rf-input min-w-0"
+                                aria-label={`Charge name for ${tier.tierName}`}
+                              />
+
+                              <div className="flex">
+                                <span className="inline-flex min-w-7 items-center justify-center rounded-l-xl border border-r-0 border-[var(--rf-border)] bg-slate-50 text-xs font-semibold text-[var(--rf-text-muted)]">
+                                  $
+                                </span>
+                                <input
+                                  value={charge.amount}
+                                  disabled={!canEditRentSettings}
+                                  inputMode="decimal"
+                                  onChange={(event) =>
+                                    updateCharge(
+                                      tier.id,
+                                      charge.id,
+                                      chargeIndex,
+                                      {
+                                        amount: event.target.value.replace(
+                                          /[^0-9.]/g,
+                                          ""
+                                        ),
+                                      }
+                                    )
+                                  }
+                                  placeholder="50"
+                                  className="rf-input min-w-0 rounded-l-none"
+                                  aria-label={`Monthly amount for ${charge.label || "charge"}`}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={!canEditRentSettings}
+                                onClick={() =>
+                                  removeCharge(tier.id, chargeIndex)
+                                }
+                                className="px-1 text-xs font-semibold text-red-600 transition hover:text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                          No recurring charges.
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={!canEditRentSettings}
+                        onClick={() => addCharge(tier.id)}
+                        className="mt-2 text-xs font-semibold text-emerald-800 transition hover:text-emerald-900 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        + Add charge
+                      </button>
+                    </div>
                   </div>
-
-                  <button
-                    type="button"
-                    disabled={!canEditRentSettings}
-                    onClick={() => addCharge(tier.tierId)}
-                    className="mt-3 text-sm font-semibold text-emerald-800 transition hover:text-emerald-900 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    + Add another charge
-                  </button>
                 </div>
-              ))}
+              );
+            })}
+          </section>
+        )}
 
-              {chargesError ? (
-                <div
-                  role="alert"
-                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
-                >
-                  {chargesError}
-                </div>
-              ) : null}
-            </div>
-          )}
-        </section>
+        {chargesError ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
+            {chargesError}
+          </div>
+        ) : null}
 
-        <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-3 border-t border-slate-200 bg-[var(--rf-bg-panel)]/95 px-1 pt-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={addLocalTier}

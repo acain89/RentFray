@@ -582,13 +582,14 @@ useEffect(() => {
     return;
   }
 
-  if (requestedPanel === "gplf") {
-    setGpLfTierMode("all");
-    setGpLfSelectedTierIds([]);
-    setGpLfSaveMessage("");
-    setActivePanel("gplf");
-    return;
-  }
+if (requestedPanel === "gplf") {
+  setActiveGpLfTierId("");
+  setConfiguredGpLfTierIds([]);
+  setGpLfTierDrafts({});
+  setGpLfSaveMessage("");
+  setActivePanel("gplf");
+  return;
+}
 
   if (requestedPanel === "bank") {
     setActivePanel("bank");
@@ -689,8 +690,8 @@ useEffect(() => {
   };
 }, [onboardingComplete, data?.property?.id]);
 
- const [gpLfTierMode, setGpLfTierMode] = useState<"all" | "selected">("all");
-  const [gpLfSelectedTierIds, setGpLfSelectedTierIds] = useState<string[]>([]);
+ const [activeGpLfTierId, setActiveGpLfTierId] = useState("");
+const [configuredGpLfTierIds, setConfiguredGpLfTierIds] = useState<string[]>([]);
   const [savingGpLf, setSavingGpLf] = useState(false);
   const [gpLfSaveMessage, setGpLfSaveMessage] = useState("");
 
@@ -754,33 +755,32 @@ function updateGpLf(
       ...updates,
     };
 
-    if (
-      gpLfTierMode === "selected" &&
-      gpLfSelectedTierIds[0]
-    ) {
-      const tierId = gpLfSelectedTierIds[0];
-
+    if (activeGpLfTierId) {
       setGpLfTierDrafts((current) => ({
         ...current,
-        [tierId]: next,
+        [activeGpLfTierId]: next,
       }));
+
+      setConfiguredGpLfTierIds((current) =>
+        current.includes(activeGpLfTierId)
+          ? current
+          : [...current, activeGpLfTierId]
+      );
     }
 
     return next;
   });
 }
 
-function toggleGpLfTierSelection(tierId: string): void {
-  const currentTierId = gpLfSelectedTierIds[0];
-
-  if (currentTierId) {
+function selectGpLfTier(tierId: string): void {
+  if (activeGpLfTierId) {
     setGpLfTierDrafts((current) => ({
       ...current,
-      [currentTierId]: gpLfSettings,
+      [activeGpLfTierId]: gpLfSettings,
     }));
   }
 
-  setGpLfSelectedTierIds([tierId]);
+  setActiveGpLfTierId(tierId);
 
   const existingDraft = gpLfTierDrafts[tierId];
 
@@ -792,10 +792,47 @@ function toggleGpLfTierSelection(tierId: string): void {
   const tier = localTiers.find((item) => item.id === tierId);
 
   if (tier) {
-    setGpLfSettings(getGpLfSettingsFromTiers([tier]));
+    const settings = getGpLfSettingsFromTiers([tier]);
+
+    setGpLfSettings(settings);
+
+    setGpLfTierDrafts((current) => ({
+      ...current,
+      [tierId]: settings,
+    }));
   }
 }
 
+function applyGpLfToAllTiers(): void {
+  if (!activeGpLfTierId) {
+    return;
+  }
+
+  const activeTiers = localTiers.filter(
+    (tier) => !tier.markedForDelete
+  );
+
+  const confirmed =
+    activeTiers.length <= 1 ||
+    window.confirm(
+      `Apply these late-payment rules to all ${activeTiers.length} tiers? This will replace the current rules for the other tiers.`
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const nextDrafts: Record<string, GpLfSettingsDraft> = {};
+
+  for (const tier of activeTiers) {
+    nextDrafts[tier.id] = {
+      ...gpLfSettings,
+    };
+  }
+
+  setGpLfTierDrafts(nextDrafts);
+  setConfiguredGpLfTierIds(activeTiers.map((tier) => tier.id));
+}
 
 function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
   const source =
@@ -2006,39 +2043,42 @@ useEffect(() => {
 
 
 useEffect(() => {
-  if (activePanel !== "gplf") return;
+  if (activePanel !== "gplf") {
+    return;
+  }
 
-  const nextVisibleTierIds =
-    gpLfTierMode === "all"
-      ? localTiers.map((tier) => tier.id)
-      : gpLfSelectedTierIds;
-
-  const visibleTiers = localTiers.filter((tier) =>
-    nextVisibleTierIds.includes(tier.id)
+  const activeTiers = localTiers.filter(
+    (tier) => !tier.markedForDelete
   );
 
-  if (
-  gpLfTierMode === "selected" &&
-  gpLfSelectedTierIds[0]
-) {
-  const tierId = gpLfSelectedTierIds[0];
-  const existingDraft = gpLfTierDrafts[tierId];
+  if (activeTiers.length === 0) {
+    setActiveGpLfTierId("");
+    setGpLfTierDrafts({});
+    setConfiguredGpLfTierIds([]);
+    return;
+  }
 
-  setGpLfSettings(
-    existingDraft ??
-      getGpLfSettingsFromTiers(visibleTiers)
-  );
+  const drafts: Record<string, GpLfSettingsDraft> = {};
 
-  return;
-}
+  for (const tier of activeTiers) {
+    drafts[tier.id] = getGpLfSettingsFromTiers([tier]);
+  }
 
-setGpLfSettings(getGpLfSettingsFromTiers(visibleTiers));
+  setGpLfTierDrafts(drafts);
+
+  const firstTierId = activeTiers[0].id;
+  setActiveGpLfTierId(firstTierId);
+  setGpLfSettings(drafts[firstTierId]);
+
+  if (data?.property?.onboarding?.billingComplete) {
+    setConfiguredGpLfTierIds(activeTiers.map((tier) => tier.id));
+  } else {
+    setConfiguredGpLfTierIds([]);
+  }
 }, [
   activePanel,
-  gpLfTierMode,
-  gpLfSelectedTierIds,
   localTiers,
-  gpLfTierDrafts,
+  data?.property?.onboarding?.billingComplete,
 ]);
 
 useEffect(() => {
@@ -2118,40 +2158,6 @@ const tierGroups = useMemo<TierGroup[]>(() => {
     };
   }, [tierGroups.length, unitsWithStatus]);
 
-   const gpLfVisibleTierIds = useMemo<string[]>(() => {
-  return gpLfTierMode === "all"
-    ? localTiers.map((tier) => tier.id)
-    : gpLfSelectedTierIds;
-}, [gpLfTierMode, gpLfSelectedTierIds, localTiers]);
-
-const gpLfVisibleTiers = useMemo<GpLfTierSnapshot[]>(() => {
-  return localTiers
-    .filter((tier) => gpLfVisibleTierIds.includes(tier.id))
-    .map(getGpLfTierSnapshot);
-}, [gpLfVisibleTierIds, localTiers]);
-
-const gpLfComparisonSummary = useMemo(() => {
-  if (gpLfVisibleTiers.length === 0) {
-    return null;
-  }
-
-  return {
-    graceDays: getMixedText(gpLfVisibleTiers.map((tier) => tier.graceDays)),
-    lateFeeStatus: getMixedBooleanText(
-      gpLfVisibleTiers.map((tier) => tier.lateFeeEnabled)
-    ),
-    lateFeeInitial: getMixedText(
-      gpLfVisibleTiers.map((tier) => tier.lateFeeInitial)
-    ),
-    lateFeeDaily: getMixedText(
-      gpLfVisibleTiers.map((tier) => tier.lateFeeDaily)
-    ),
-    lateFeeMaxDays: getMixedText(
-      gpLfVisibleTiers.map((tier) => tier.lateFeeMaxDays)
-    ),
-  };
-}, [gpLfVisibleTiers]);
-
   function openUnitPanel(unit: UnitWithStatus): void {
     setShowVacateConfirm(false);
     setShowInactiveConfirm(false);
@@ -2188,17 +2194,11 @@ function closeActivePanel(): void {
 function openPanel(panel: Exclude<PanelKey, null>): void {
   setActivePanel(panel);
 
-  if (panel === "gplf") {
-    setGpLfTierMode("all");
-    setGpLfSelectedTierIds([]);
-    setGpLfSettings({
-      graceDays: "",
-      lateFeeEnabled: true,
-      lateFeeInitial: "",
-      lateFeeDaily: "",
-      lateFeeMaxDays: "",
-    });
-    setGpLfSaveMessage("");
+if (panel === "gplf") {
+  setActiveGpLfTierId("");
+  setConfiguredGpLfTierIds([]);
+  setGpLfTierDrafts({});
+  setGpLfSaveMessage(""); 
   }
 }
 
@@ -2292,99 +2292,107 @@ function addLocalTier(): void {
 }
 
 async function saveGpLfSettings(): Promise<void> {
-  if (!data?.property?.id) return;
-
-  const targetTierIds =
-    gpLfTierMode === "all"
-      ? localTiers.filter((t) => !t.markedForDelete).map((t) => t.id)
-      : gpLfSelectedTierIds;
-
-  if (targetTierIds.length === 0) {
-    setGpLfSaveMessage("Select at least one tier.");
+  if (!data?.property?.id) {
     return;
   }
+
+  const activeTiers = localTiers.filter(
+    (tier) => !tier.markedForDelete
+  );
+
+  if (activeTiers.length === 0) {
+    setGpLfSaveMessage("No tiers available.");
+    return;
+  }
+
+  if (
+    configuredGpLfTierIds.length !== activeTiers.length
+  ) {
+    setGpLfSaveMessage("Configure every tier before saving.");
+    return;
+  }
+
+  const currentDrafts = {
+    ...gpLfTierDrafts,
+    ...(activeGpLfTierId
+      ? {
+          [activeGpLfTierId]: gpLfSettings,
+        }
+      : {}),
+  };
+
+  const tiersToUpdate = activeTiers.map((tier) => {
+    const settings = currentDrafts[tier.id];
+
+    if (!settings) {
+      throw new Error(
+        `Missing late-payment settings for ${tier.tierName}.`
+      );
+    }
+
+    return {
+      id: tier.id,
+      graceDays: settings.lateFeeEnabled
+        ? settings.graceDays || "0"
+        : "0",
+      lateFeeEnabled: settings.lateFeeEnabled,
+      lateFeeAmount: settings.lateFeeEnabled
+        ? settings.lateFeeInitial || "0"
+        : "0",
+      lateFeeDaily: settings.lateFeeEnabled
+        ? settings.lateFeeDaily || "0"
+        : "0",
+      lateFeeMaxDays: settings.lateFeeEnabled
+        ? settings.lateFeeMaxDays || "0"
+        : "0",
+    };
+  });
 
   try {
     setSavingGpLf(true);
     setGpLfSaveMessage("");
 
-const activeTiers = localTiers.filter(
-  (tier) => !tier.markedForDelete
-);
-
-const tiersToUpdate =
-  gpLfTierMode === "all"
-    ? activeTiers.map((tier) => ({
-        id: tier.id,
-        graceDays: gpLfSettings.lateFeeEnabled
-          ? gpLfSettings.graceDays
-          : "0",
-        lateFeeEnabled: gpLfSettings.lateFeeEnabled,
-        lateFeeAmount: gpLfSettings.lateFeeEnabled
-          ? gpLfSettings.lateFeeInitial
-          : "0",
-        lateFeeDaily: gpLfSettings.lateFeeEnabled
-          ? gpLfSettings.lateFeeDaily
-          : "0",
-        lateFeeMaxDays: gpLfSettings.lateFeeEnabled
-          ? gpLfSettings.lateFeeMaxDays
-          : "0",
-      }))
-    : Object.entries({
-        ...gpLfTierDrafts,
-        ...(gpLfSelectedTierIds[0]
-          ? {
-              [gpLfSelectedTierIds[0]]: gpLfSettings,
-            }
-          : {}),
-      }).map(([tierId, settings]) => ({
-        id: tierId,
-        graceDays: settings.lateFeeEnabled
-          ? settings.graceDays
-          : "0",
-        lateFeeEnabled: settings.lateFeeEnabled,
-        lateFeeAmount: settings.lateFeeEnabled
-          ? settings.lateFeeInitial
-          : "0",
-        lateFeeDaily: settings.lateFeeEnabled
-          ? settings.lateFeeDaily
-          : "0",
-        lateFeeMaxDays: settings.lateFeeEnabled
-          ? settings.lateFeeMaxDays
-          : "0",
-      }));
-
     const res = await fetch(
       `/api/admin/properties/${data.property.id}/gplf`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
-        body: JSON.stringify({ tiers: tiersToUpdate }),
+        body: JSON.stringify({
+          tiers: tiersToUpdate,
+        }),
       }
     );
 
     const json = await res.json().catch(() => null);
 
-if (!res.ok || !json?.ok) {
-  setGpLfSaveMessage(json?.error || "Failed to save GP/LF settings.");
-  return;
-}
+    if (!res.ok || !json?.ok) {
+      throw new Error(
+        json?.error || "Failed to save late-payment rules."
+      );
+    }
 
-setGpLfSaveMessage("Saved!");
+    setGpLfTierDrafts(currentDrafts);
+    setGpLfSaveMessage("Saved!");
 
-await loadDashboard({ silent: true });
-await loadPropertyTiers();
+    await loadDashboard({ silent: true });
 
-window.setTimeout(() => {
-  closeActivePanel();
-}, 900);
+    window.setTimeout(() => {
+      closeActivePanel();
+    }, 700);
+  } catch (error) {
+    console.error("Failed to save late-payment rules:", error);
 
-} catch {
-  setGpLfSaveMessage("Failed to save GP/LF settings.");
-} finally {
-  setSavingGpLf(false);
-}
+    setGpLfSaveMessage(
+      error instanceof Error
+        ? error.message
+        : "Failed to save late-payment rules."
+    );
+  } finally {
+    setSavingGpLf(false);
+  }
 }
 
 async function saveRentFrayStartDate(): Promise<void> {
@@ -2544,6 +2552,7 @@ useEffect(() => {
     activePanel !== "bank" ||
     !bankConnected
   ) {
+
     return;
   }
 
@@ -3871,23 +3880,22 @@ await loadDashboard({ silent: true });
 ) : null}
 
       {activePanel === "gplf" ? (
-  <GpLfPanel
-    onClose={closeActivePanel}
-    canEditLateFeeSettings={canEditLateFeeSettings}
-    gpLfTierMode={gpLfTierMode}
-    setGpLfTierMode={setGpLfTierMode}
-    localTiers={localTiers}
-    gpLfSelectedTierIds={gpLfSelectedTierIds}
-    toggleGpLfTierSelection={toggleGpLfTierSelection}
-    gpLfVisibleTiers={gpLfVisibleTiers}
-    gpLfComparisonSummary={gpLfComparisonSummary}
-    formatGpLfMoney={formatGpLfMoney}
-    gpLfSettings={gpLfSettings}
-    updateGpLf={updateGpLf}
-    saveGpLfSettings={saveGpLfSettings}
-    savingGpLf={savingGpLf}
-    gpLfSaveMessage={gpLfSaveMessage}
-  />
+<GpLfPanel
+  onClose={closeActivePanel}
+  canEditLateFeeSettings={canEditLateFeeSettings}
+  localTiers={localTiers.filter(
+    (tier) => !tier.markedForDelete
+  )}
+  activeGpLfTierId={activeGpLfTierId}
+  selectGpLfTier={selectGpLfTier}
+  gpLfSettings={gpLfSettings}
+  updateGpLf={updateGpLf}
+  applyGpLfToAllTiers={applyGpLfToAllTiers}
+  saveGpLfSettings={saveGpLfSettings}
+  savingGpLf={savingGpLf}
+  gpLfSaveMessage={gpLfSaveMessage}
+  configuredGpLfTierIds={configuredGpLfTierIds}
+/>
 ) : null}
 
             {activePanel === "manager" ? (
