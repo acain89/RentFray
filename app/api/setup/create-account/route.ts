@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
-import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { sendVerificationEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,10 +21,6 @@ function clean(value: unknown): string {
 
 function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function hashPasswordForNow(password: string): string {
-  return `plain:${password}`;
 }
 
 function buildDisplayName(firstName: string, lastName: string): string {
@@ -141,6 +138,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const passwordHash = await bcrypt.hash(password, 12);
+
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         const propertyCode = await generateUniquePropertyCode(tx);
@@ -167,9 +166,9 @@ export async function POST(req: Request) {
             role: "OWNER",
             email,
             username: email,
-            passwordHash: hashPasswordForNow(password),
+            passwordHash,
             displayName,
-            isActive: true,
+            isActive: false,
           },
           select: {
             id: true,
@@ -195,23 +194,35 @@ export async function POST(req: Request) {
           propertyCode: property.propertyCode,
           managementUserId: manager.id,
         };
-      }
-    );
+    },
+  {
+    maxWait: 10_000,
+    timeout: 20_000,
+  }
+);
 
-    const token = createSessionToken({
-      role: "OWNER",
-      propertyId: result.propertyId,
-      managementUserId: result.managementUserId,
-    });
+let verificationEmailSent = true;
 
-    await setSessionCookie(token);
+try {
+  await sendVerificationEmail({
+    managementUserId: result.managementUserId,
+    email,
+    displayName,
+  });
+} catch (error) {
+  verificationEmailSent = false;
+  console.error("Initial verification email failed:", error);
+}
 
-    return NextResponse.json({
-      ok: true,
-      propertyId: result.propertyId,
-      propertyCode: result.propertyCode,
-      redirectTo: "/manager/dashboard",
-    });
+return NextResponse.json({
+  ok: true,
+  propertyId: result.propertyId,
+  propertyCode: result.propertyCode,
+  verificationEmailSent,
+  redirectTo: `/verify-email?email=${encodeURIComponent(
+    email
+  )}&sent=${verificationEmailSent ? "1" : "0"}`,
+});
   } catch (error) {
     console.error("Create manager account failed:", error);
 

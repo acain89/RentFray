@@ -7,6 +7,7 @@ import { verifyManagementPassword } from "@/lib/managementAuth";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const ALLOWED_MANAGEMENT_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
@@ -94,12 +95,18 @@ export async function POST(req: Request) {
         passwordHash: true,
         isActive: true,
         propertyId: true,
+        emailVerifiedAt: true,
       },
     });
 
-    if (!user || !user.isActive || !ALLOWED_MANAGEMENT_ROLES.has(user.role)) {
-      return NextResponse.json({ error: "Invalid login." }, { status: 401 });
-    }
+if (
+  !user ||
+  !user.isActive ||
+  !user.emailVerifiedAt ||
+  !ALLOWED_MANAGEMENT_ROLES.has(user.role)
+) {
+  return NextResponse.json({ error: "Invalid login." }, { status: 401 });
+}
 
     const passwordOk = await verifyManagementPassword(
   password,

@@ -140,31 +140,47 @@ model PropertyTierCharge {
 }
 
 model ManagementUser {
-  id                         String               @id @default(cuid())
+  id                         String                   @id @default(cuid())
   propertyId                 String
   role                       String
   email                      String?
   username                   String
   passwordHash               String
   displayName                String?
-  isActive                   Boolean              @default(true)
+  emailVerifiedAt            DateTime?
+  isActive                   Boolean                  @default(true)
   lastLoginAt                DateTime?
-  mustResetPassword          Boolean              @default(false)
+  mustResetPassword          Boolean                  @default(false)
   createdByUserId            String?
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
-  createdLedgerEntries       LedgerEntry[]        @relation("LedgerEntryCreatedBy")
-  voidedLedgerEntries        LedgerEntry[]        @relation("LedgerEntryVoidedBy")
-  createdMaintenanceRequests MaintenanceRequest[] @relation("MaintenanceRequestCreatedByManagement")
-  updatedMaintenanceRequests MaintenanceRequest[] @relation("MaintenanceRequestUpdatedByManagement")
-  createdMaintenanceUsers    MaintenanceUser[]    @relation("MaintenanceUserCreatedBy")
-  property                   Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  createdAssignments         TenantAssignment[]   @relation("TenantAssignmentCreatedBy")
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  createdLedgerEntries       LedgerEntry[]            @relation("LedgerEntryCreatedBy")
+  voidedLedgerEntries        LedgerEntry[]            @relation("LedgerEntryVoidedBy")
+  createdMaintenanceRequests MaintenanceRequest[]     @relation("MaintenanceRequestCreatedByManagement")
+  updatedMaintenanceRequests MaintenanceRequest[]     @relation("MaintenanceRequestUpdatedByManagement")
+  createdMaintenanceUsers    MaintenanceUser[]        @relation("MaintenanceUserCreatedBy")
+  property                   Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAssignments         TenantAssignment[]       @relation("TenantAssignmentCreatedBy")
+  emailVerificationTokens    EmailVerificationToken[]
 
   @@unique([propertyId, username])
   @@index([propertyId, email])
   @@index([propertyId, role])
   @@index([propertyId, isActive])
+}
+
+model EmailVerificationToken {
+  id               String    @id @default(cuid())
+  managementUserId String
+  tokenHash        String    @unique
+  expiresAt        DateTime
+  usedAt           DateTime?
+  createdAt        DateTime  @default(now())
+
+  managementUser ManagementUser @relation(fields: [managementUserId], references: [id], onDelete: Cascade)
+
+  @@index([managementUserId])
+  @@index([expiresAt])
 }
 
 model Unit {
