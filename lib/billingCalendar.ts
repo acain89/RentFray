@@ -293,8 +293,10 @@ export async function lockBillingCalendar(input: {
         updatedTierCount: tierUpdate.count,
       };
     },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+     {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  timeout: 15000,
+  maxWait: 5000,
     }
   );
 }

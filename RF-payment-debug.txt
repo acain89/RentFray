@@ -1,0 +1,2797 @@
+
+
+==================== app\api\payments\create-session\route.ts ====================
+
+import { Prisma } from "@prisma/client";
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
+import { prisma } from "@/lib/prisma";
+import { getSession, refreshSessionCookie } from "@/lib/session";
+import { canMakePayments } from "@/lib/liveGating";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
+import { getBusinessDate } from "@/lib/rentDates";
+
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type ApiSuccess<T> = {
+  ok: true;
+  data: T;
+};
+
+type ApiError = {
+  ok: false;
+  error: string;
+};
+
+function toSafeInteger(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
+export async function POST(req: Request) {
+  try {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimit = checkRateLimit(
+      `create-session:${ip}`,
+      10,
+      60_000
+    );
+
+    if (!rateLimit.ok) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error:
+            "Too many payment attempts. Please wait a minute and try again.",
+        },
+        { status: 429 }
+      );
+    }
+
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+
+    if (!secretKey) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Stripe not configured.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: "2026-02-25.clover",
+    });
+
+    const session = await getSession();
+
+    if (
+      !session ||
+      session.role !== "TENANT" ||
+      !session.unitId ||
+      !session.propertyId
+    ) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    await refreshSessionCookie(session);
+
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
+      },
+      include: {
+        tier: true,
+        property: {
+          include: {
+            settings: true,
+            paymentStatus: true,
+            units: true,
+          },
+        },
+        tenantAssignments: {
+          where: {
+            isCurrent: true,
+          },
+          orderBy: [
+            { moveInDate: "desc" },
+            { createdAt: "desc" },
+          ],
+          take: 1,
+        },
+      },
+    });
+
+    if (!unit) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Unit not found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const property = unit.property;
+
+    if (
+      !canMakePayments({
+        status: property.status,
+        settings: property.settings,
+        units: property.units,
+        paymentStatus: property.paymentStatus,
+        isActive: property.isActive,
+      })
+    ) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Payments unavailable.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!property.stripeAccountId) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "Bank account not connected.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const assignment = unit.tenantAssignments[0] ?? null;
+    const tenantAssignmentId = assignment?.id ?? null;
+
+   const financialState =
+  await getUnitFinancialState({
+    propertyId: property.id,
+    unitId: unit.id,
+    tenantAssignmentId,
+    tier: unit.tier,
+    propertySettings: property.settings,
+    rentFrayStartDate:
+      property.rentFrayStartDate,
+    now: getBusinessDate(),
+  });
+
+const balanceCents = Math.max(
+  0,
+  toSafeInteger(
+    financialState.ledgerBalanceCents
+  )
+);
+
+if (balanceCents <= 0) {
+  return NextResponse.json<ApiError>(
+    {
+      ok: false,
+      error: "No balance due.",
+    },
+    { status: 400 }
+  );
+}
+
+if (financialState.hasPendingPayment) {
+  return NextResponse.json<ApiError>(
+    {
+      ok: false,
+      error:
+        "A payment is already processing for this billing cycle.",
+    },
+    { status: 400 }
+  );
+}
+
+const processingFeeCents =
+  financialState.processingFeeCents;
+
+const totalCents =
+  financialState.tenantTotalDueCents;
+
+const billingCycle =
+  financialState.billingCycle;
+
+    const createdPayment =
+      await prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          await tx.$executeRaw`
+            SELECT pg_advisory_xact_lock(
+              hashtext(
+                ${`${property.id}:${unit.id}:${tenantAssignmentId ?? "none"}:${billingCycle}`}
+              )
+            )
+          `;
+
+          const existing =
+            await tx.payment.findFirst({
+              where: {
+                propertyId: property.id,
+                unitId: unit.id,
+                ...(tenantAssignmentId
+                  ? { tenantAssignmentId }
+                  : {}),
+                status: {
+                  in: ["PENDING", "PAID"],
+                },
+                OR: [
+                  { status: "PENDING" },
+                  { billingCycle },
+                ],
+              },
+            });
+
+          if (existing) {
+            return null;
+          }
+
+          return tx.payment.create({
+            data: {
+              propertyId: property.id,
+              unitId: unit.id,
+              tenantAssignmentId:
+                tenantAssignmentId ?? undefined,
+              billingCycle,
+              amountCents: balanceCents,
+              processingFeeCents,
+              status: "PENDING",
+              paymentMethod: "ACH",
+            },
+          });
+        }
+      );
+
+    if (!createdPayment) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error:
+            "A payment already exists for this billing cycle.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const origin =
+      req.headers.get("origin") ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "http://localhost:10000";
+
+    const paymentMetadata = {
+      paymentId: createdPayment.id,
+      propertyId: property.id,
+      unitId: unit.id,
+
+      // CRITICAL FIX:
+      tenantAssignmentId:
+        tenantAssignmentId || "__NONE__",
+
+      stripeAccountId:
+        property.stripeAccountId,
+
+      ledgerBalanceCents:
+        String(balanceCents),
+
+      processingFeeCents:
+        String(processingFeeCents),
+
+      totalAmountCents:
+        String(totalCents),
+
+      billingCycle,
+
+      paymentStartedAt:
+        new Date().toISOString(),
+    };
+
+    const checkoutSession =
+      await stripe.checkout.sessions.create({
+        mode: "payment",
+
+        payment_method_types: [
+          "us_bank_account",
+        ],
+
+        customer_creation:
+          "if_required",
+
+        payment_method_options: {
+          us_bank_account: {
+            verification_method:
+              "instant",
+            financial_connections: {
+              permissions: [
+                "payment_method",
+              ],
+            },
+          },
+        },
+
+        payment_intent_data: {
+          application_fee_amount:
+            processingFeeCents,
+
+          on_behalf_of:
+            property.stripeAccountId,
+
+          transfer_data: {
+            destination:
+              property.stripeAccountId,
+          },
+
+          metadata:
+            paymentMetadata,
+        },
+
+        metadata:
+          paymentMetadata,
+
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+
+              product_data: {
+                name:
+                  `${property.name} Unit ${unit.unitNumber}`,
+              },
+
+              unit_amount:
+                balanceCents,
+            },
+
+            quantity: 1,
+          },
+
+          ...(processingFeeCents > 0
+            ? [
+                {
+                  price_data: {
+                    currency:
+                      "usd",
+
+                    product_data: {
+                      name:
+                        "Processing Fee",
+                    },
+
+                    unit_amount:
+                      processingFeeCents,
+                  },
+
+                  quantity: 1,
+                },
+              ]
+            : []),
+        ],
+
+        success_url:
+          `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+
+        cancel_url:
+          `${origin}/tenant/pay?checkout=cancelled`,
+      });
+
+    await prisma.payment.update({
+      where: {
+        id: createdPayment.id,
+      },
+      data: {
+        stripeSessionId:
+          checkoutSession.id,
+
+        stripePaymentIntentId:
+          typeof checkoutSession.payment_intent ===
+          "string"
+            ? checkoutSession.payment_intent
+            : null,
+      },
+    });
+
+    return NextResponse.json<
+      ApiSuccess<{ url: string }>
+    >({
+      ok: true,
+      data: {
+        url:
+          checkoutSession.url!,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "create-session error:",
+      error
+    );
+
+    if (
+      error instanceof
+      Stripe.errors.StripeError
+    ) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error:
+            error.message ||
+            "Stripe error.",
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json<ApiError>(
+      {
+        ok: false,
+        error:
+          "Failed to create payment session.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+
+==================== app\api\tenant\dashboard\route.ts ====================
+
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getSession, refreshSessionCookie } from "@/lib/session";
+import {
+getProcessingFeeCents,
+  formatCentsToDollars,
+} from "@/lib/billingConfig";
+import { canMakePayments } from "@/lib/liveGating";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
+import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
+import {
+  getBusinessDate,
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+} from "@/lib/rentDates";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
+
+type StatementItem = {
+  label: string;
+  amount: number;
+};
+
+function buildTenantName(firstName: string | null, lastName: string | null) {
+  const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim();
+  return fullName || "Tenant";
+}
+
+function normalizePaymentStatus(value: unknown): PaymentStatus | null {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "UNPAID":
+    case "PENDING":
+    case "PAID":
+    case "FAILED":
+    case "REVERSED":
+      return status;
+    default:
+      return null;
+  }
+}
+
+function centsToDollars(cents: number): number {
+  return Number((cents / 100).toFixed(2));
+}
+
+function buildStatementLabel(entry: {
+  entryType: string;
+  chargeType: string | null;
+  memo: string | null;
+}) {
+  if (entry.memo && entry.memo.trim()) {
+    return entry.memo.trim();
+  }
+
+  if (entry.entryType === "PAYMENT") return "Payment";
+  if (entry.entryType === "CREDIT") return "Credit";
+  if (entry.entryType === "ADJUSTMENT") return "Adjustment";
+
+  switch (entry.chargeType) {
+    case "RENT":
+      return "Rent";
+    case "LATE_FEE":
+      return "Late Fee";
+    case "RECURRING_FEE":
+      return "Recurring Charge";
+    case "PROCESSING_FEE":
+      return "Processing Fee";
+    case "OTHER_FEE":
+      return "Other Charge";
+    default:
+      return "Charge";
+  }
+}
+
+export async function POST() {
+  try {
+    const session = await getSession();
+
+if (!session) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+await refreshSessionCookie(session);
+
+    if (
+      !session ||
+      session.role !== "TENANT" ||
+      !session.unitId ||
+      !session.propertyId
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const unit = await prisma.unit.findFirst({
+      where: {
+        id: session.unitId,
+        propertyId: session.propertyId,
+      },
+      include: {
+        tier: {
+          select: {
+            rentDueDay: true,
+            gracePeriodDays: true,
+            lateFeeInitialCents: true,
+            lateFeeDailyCents: true,
+            maxLateFeeDays: true,
+          },
+        },
+        property: {
+          include: {
+            settings: true,
+            paymentStatus: true,
+            units: true,
+          },
+        },
+      },
+    });
+
+    if (!unit) {
+      return NextResponse.json({ error: "Unit not found." }, { status: 404 });
+    }
+
+    const property = unit.property;
+   
+    // ✅ ADD THIS RIGHT HERE (immediately after Stripe sync)
+
+if (
+  shouldAutoSetPropertyReady({
+    currentStatus: property.status,
+    isActive: property.isActive,
+    hasSettings: Boolean(property.settings),
+    unitsCount: Array.isArray(property.units) ? property.units.length : 0,
+    processorConnected: property.paymentStatus?.processorConnected,
+    chargesEnabled: property.paymentStatus?.chargesEnabled,
+    payoutsEnabled: property.paymentStatus?.payoutsEnabled,
+  })
+) {
+  await prisma.property.update({
+    where: { id: property.id },
+    data: { status: "READY" },
+  });
+
+  property.status = "READY";
+}
+
+
+ const currentAssignment = await prisma.tenantAssignment.findFirst({
+      where: {
+        propertyId: session.propertyId,
+        unitId: unit.id,
+        isCurrent: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const currentAssignmentId = currentAssignment?.id ?? null;
+
+   const financialState = await getUnitFinancialState({
+  propertyId: session.propertyId,
+  unitId: unit.id,
+  tenantAssignmentId: currentAssignmentId,
+  tier: unit.tier,
+  propertySettings: property.settings,
+  rentFrayStartDate: property.rentFrayStartDate,
+});
+
+const ledgerSummary = financialState.ledgerSummary;
+const balanceCents = financialState.ledgerBalanceCents;
+const processingFeeCents = financialState.processingFeeCents;
+const totalDueCents = financialState.tenantTotalDueCents;
+const rentDates = financialState.rentDates;
+
+console.log("TENANT_RENT_DATE_DEBUG", {
+  unitNumber: unit.unitNumber,
+  tier: unit.tier,
+  propertySettings: property.settings,
+  effectiveBillingSettings: financialState.effectiveBillingSettings,
+  rentDates,
+});
+
+const billingCycle = financialState.billingCycle;
+const isDelinquent = financialState.isDelinquent;
+const unitStatus = financialState.status;
+
+  const paymentEnabled =
+  canMakePayments({
+    status: property.status,
+    settings: property.settings,
+    units: property.units,
+    paymentStatus: property.paymentStatus,
+    isActive: property.isActive,
+  }) && unitStatus.canAttemptPayment;
+
+
+    const tenantPayments = await prisma.payment.findMany({
+  where: {
+    propertyId: session.propertyId,
+    unitId: session.unitId,
+    tenantAssignmentId: currentAssignmentId,
+  },
+      orderBy: [{ createdAt: "desc" }],
+      select: {
+        id: true,
+        amountCents: true,
+        processingFeeCents: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        paidAt: true,
+        failedAt: true,
+        reversedAt: true,
+        stripePaymentIntentId: true,
+        stripeSessionId: true,
+      },
+    });
+
+    const latestPayment = tenantPayments[0] ?? null;
+
+       const businessDate = getBusinessDate();
+       const ledgerEntries = await prisma.ledgerEntry.findMany({
+      where: {
+       propertyId: session.propertyId,
+       unitId: session.unitId,
+       ...(currentAssignmentId
+      ? {
+          OR: [
+            { tenantAssignmentId: currentAssignmentId },
+            { tenantAssignmentId: null },
+          ],
+        }
+      : {}),
+
+       voidedAt: null,
+       effectiveDate: {
+       lte: businessDate,
+        },
+      },
+      orderBy: [
+        { effectiveDate: "desc" },
+        { createdAt: "desc" },
+        { id: "desc" },
+      ],
+      select: {
+        id: true,
+        entryType: true,
+        chargeType: true,
+        billingCycle: true,
+        amountCents: true,
+        effectiveDate: true,
+        memo: true,
+        referenceNumber: true,
+        payment: {
+          select: {
+            status: true,
+            paidAt: true,
+            failedAt: true,
+            reversedAt: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    const filteredLedgerEntries = ledgerEntries.filter(
+      (entry: (typeof ledgerEntries)[number]) => {
+        if (entry.entryType !== "PAYMENT") return true;
+        const status = normalizePaymentStatus(entry.payment?.status);
+return status === "PAID" || status === "PENDING" || status === "REVERSED";
+      }
+    );
+
+    const statementSourceEntries = filteredLedgerEntries.filter(
+  (entry: (typeof filteredLedgerEntries)[number]) =>
+    entry.billingCycle === billingCycle
+);
+
+    let rentCents = 0;
+    let recurringChargesCents = 0;
+    let lateFeesCents = 0;
+    let creditsCents = 0;
+
+    const statementItems: StatementItem[] = statementSourceEntries.map(
+      (entry: (typeof statementSourceEntries)[number]) => {
+        const isCreditLike =
+          entry.entryType === "PAYMENT" ||
+          entry.entryType === "CREDIT" ||
+          entry.entryType === "ADJUSTMENT";
+
+       if (entry.entryType === "CHARGE") {
+  if (entry.chargeType === "RENT") {
+    rentCents += entry.amountCents;
+  } else if (
+    entry.chargeType === "LATE_FEE" ||
+    entry.chargeType === "LATE_FEE_INITIAL" ||
+    entry.chargeType === "LATE_FEE_DAILY"
+  ) {
+    lateFeesCents += entry.amountCents;
+  } else {
+    recurringChargesCents += entry.amountCents;
+  }
+} else if (isCreditLike) {
+  creditsCents += Math.abs(entry.amountCents);
+}
+
+        return {
+          label: buildStatementLabel(entry),
+          amount: centsToDollars(
+            isCreditLike ? -Math.abs(entry.amountCents) : entry.amountCents
+          ),
+        };
+      }
+    );
+
+       const hasLedgerProcessingFee = statementSourceEntries.some(
+      (entry: (typeof statementSourceEntries)[number]) =>
+        entry.entryType === "CHARGE" &&
+        String(entry.chargeType ?? "").toUpperCase() === "PROCESSING_FEE"
+    );
+
+    const displayProcessingFeeCents = hasLedgerProcessingFee
+      ? 0
+      : processingFeeCents;
+
+    const subtotalCents = rentCents + recurringChargesCents + lateFeesCents;
+
+    return NextResponse.json({
+      ok: true,
+
+      tenantName: buildTenantName(
+        unit.portalFirstName ?? null,
+        unit.portalLastName ?? null
+      ),
+
+      propertyName: property.name,
+      propertyStatus: property.status,
+      paymentEnabled,
+
+      unitNumber: unit.unitNumber,
+      unitId: unit.id,
+      billingCycle,
+
+      balanceCents,
+      processingFeeCents,
+      totalDueCents,
+
+      hasPendingPayment: financialState.hasPendingPayment,
+pendingPaymentAmountCents: financialState.hasPendingPayment
+  ? totalDueCents
+  : 0,
+pendingPaymentAmount: financialState.hasPendingPayment
+  ? totalDueCents / 100
+  : 0,
+
+      balance: balanceCents / 100,
+      processingFee: formatCentsToDollars(processingFeeCents),
+      totalDue: formatCentsToDollars(totalDueCents),
+
+      totalPaidCents: ledgerSummary.totalPaidCents,
+      totalPaid: ledgerSummary.totalPaidCents / 100,
+      isDelinquent,
+
+      statement: {
+        rent: centsToDollars(rentCents),
+        recurringCharges: centsToDollars(recurringChargesCents),
+        lateFees: centsToDollars(lateFeesCents),
+        processingFee: centsToDollars(displayProcessingFeeCents),
+        credits: centsToDollars(creditsCents),
+        subtotal: centsToDollars(subtotalCents),
+        totalDue: centsToDollars(totalDueCents),
+        items: statementItems,
+      },
+
+      paymentStatus: unitStatus.paymentStatus,
+      displayStatus: unitStatus.status,
+      statusColor: unitStatus.color,
+      statusLabel: unitStatus.label,
+      
+paymentMessage: unitStatus.tenantMessage,
+     latestPaymentTimestamp:
+     latestPayment?.paidAt?.toISOString() ??
+     latestPayment?.failedAt?.toISOString() ??
+     latestPayment?.reversedAt?.toISOString() ??
+     latestPayment?.createdAt?.toISOString() ??
+     null,
+
+
+        paymentHistory: tenantPayments.map(
+  (payment: (typeof tenantPayments)[number]) => ({
+    id: payment.id,
+
+    amountCents: payment.amountCents,
+    processingFeeCents: payment.processingFeeCents ?? 0,
+
+    totalChargedCents:
+      payment.amountCents +
+      (payment.processingFeeCents ?? 0),
+
+    amount: centsToDollars(payment.amountCents),
+
+    processingFee: centsToDollars(
+      payment.processingFeeCents ?? 0
+    ),
+
+    totalCharged: centsToDollars(
+      payment.amountCents +
+      (payment.processingFeeCents ?? 0)
+    ),
+
+    status:
+      normalizePaymentStatus(payment.status) ??
+      "UNPAID",
+
+    timestamp:
+      payment.paidAt?.toISOString() ??
+      payment.failedAt?.toISOString() ??
+      payment.reversedAt?.toISOString() ??
+      payment.createdAt.toISOString(),
+
+    message:
+      normalizePaymentStatus(payment.status) === "PENDING"
+        ? "Processing"
+        : normalizePaymentStatus(payment.status) === "PAID"
+        ? "Payment successful"
+        : normalizePaymentStatus(payment.status) === "FAILED"
+        ? "Payment failed"
+        : normalizePaymentStatus(payment.status) === "REVERSED"
+        ? "Payment reversed"
+        : "Payment required",
+
+    stripePaymentIntentId:
+      payment.stripePaymentIntentId,
+
+    stripeSessionId:
+      payment.stripeSessionId,
+  })
+),
+
+      dueDate: rentDates.dueDate,
+      graceEndsOn: rentDates.graceEndsOn,
+      initialLateFeeDate: rentDates.initialLateFeeDate,
+      dailyLateFeeStartDate: rentDates.dailyLateFeeStartDate,
+      dailyLateFeeLastDate: rentDates.dailyLateFeeLastDate,
+
+      ledger: filteredLedgerEntries.map(
+        (entry: (typeof filteredLedgerEntries)[number]) => ({
+          id: entry.id,
+          type: entry.entryType,
+          chargeType: entry.chargeType ?? null,
+          billingCycle: entry.billingCycle ?? null,
+          amountCents: entry.amountCents,
+          amount: formatCentsToDollars(entry.amountCents),
+          effectiveDate: entry.effectiveDate.toISOString(),
+          memo: entry.memo ?? null,
+          referenceNumber: entry.referenceNumber ?? null,
+        })
+      ),
+    });
+  } catch (error) {
+    console.error("POST /api/tenant/dashboard failed", error);
+
+    return NextResponse.json(
+      { error: "Failed to load dashboard." },
+      { status: 500 }
+    );
+  }
+}
+
+
+
+
+==================== app\api\tenant\balance\route.ts ====================
+
+import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/session";
+import { getUnitLedgerSummary } from "@/lib/ledger";
+import { prisma } from "@/lib/prisma";
+
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export async function GET() {
+  try {
+    const session = await requireRole("TENANT");
+
+    if (!session.propertyId || !session.unitId) {
+      return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+    }
+
+    const assignment = await prisma.tenantAssignment.findFirst({
+  where: {
+    propertyId: session.propertyId,
+    unitId: session.unitId,
+    isCurrent: true,
+  },
+  orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+  select: { id: true },
+});
+
+const summary = await getUnitLedgerSummary({
+  unitId: session.unitId,
+  tenantAssignmentId: assignment?.id ?? undefined,
+  asOf: new Date(),
+});
+
+    return NextResponse.json({
+      ok: true,
+      balanceCents: summary.balanceCents,
+      chargesCents: summary.totalChargesCents,
+      paymentsCents: summary.totalPaidCents,
+      hasPendingPayment: summary.hasPendingPayment,
+      pendingPaymentAmountCents: summary.pendingPaymentAmountCents,
+      lastPaymentDate: summary.lastPaymentDate,
+      lastPaymentAmountCents: summary.lastPaymentAmountCents,
+    });
+  } catch (error: unknown) {
+    console.error("GET /api/tenant/balance failed", error);
+
+    return NextResponse.json(
+      { error: "Failed to load balance." },
+      { status: 500 }
+    );
+  }
+}
+
+
+==================== app\tenant\dashboard\page.tsx ====================
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import PayNowButton from "@/app/components/PayNowButton";
+
+type PaymentViewStatus =
+  | "UNPAID"
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REVERSED";
+
+type PaymentHistoryRow = {
+  id: string;
+  amountCents: number;
+  processingFeeCents: number;
+  totalChargedCents: number;
+  amount: number;
+  processingFee: number;
+  totalCharged: number;
+  status: PaymentViewStatus;
+  timestamp: string;
+  message: string;
+  stripePaymentIntentId?: string | null;
+  stripeSessionId?: string | null;
+};
+
+type LedgerEntry = {
+  id: string;
+  type: string;
+  amount: number;
+  effectiveDate: string;
+  memo?: string | null;
+};
+
+type StatementItem = {
+  label: string;
+  amount: number;
+};
+
+type StatementData = {
+  rent: number;
+  recurringCharges: number;
+  lateFees: number;
+  processingFee: number;
+  credits: number;
+  subtotal: number;
+  totalDue: number;
+  items: StatementItem[];
+};
+
+type DashboardData = {
+  ok: true;
+  tenantName: string;
+  propertyName?: string;
+  propertyStatus: string;
+  paymentEnabled: boolean;
+  dueDate?: string;
+  graceEndsOn?: string;
+  unitNumber?: string;
+  unitId: string;
+  balance: number;
+  totalPaid: number;
+  isDelinquent: boolean;
+  ledger: LedgerEntry[];
+  statement?: StatementData;
+  paymentStatus?: PaymentViewStatus;
+  paymentMessage?: string;
+  latestPaymentTimestamp?: string | null;
+  hasPendingPayment?: boolean;
+  pendingPaymentAmount?: number;
+  processingFee?: number;
+  totalDue?: number;
+  paymentHistory?: PaymentHistoryRow[];
+};
+
+type DashboardError = {
+  error?: string;
+  ok?: false;
+};
+
+function money(value: number): string {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function fmtDate(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+
+  const raw =
+    value instanceof Date ? value.toISOString() : String(value).trim();
+
+  const isoDateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoDateMatch) {
+    const [, year, month, day] = isoDateMatch;
+    return `${Number(month)}/${Number(day)}/${year}`;
+  }
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+  });
+}
+
+function normalizePaymentStatus(value: unknown): PaymentViewStatus | undefined {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  if (
+    status === "UNPAID" ||
+    status === "PENDING" ||
+    status === "PAID" ||
+    status === "FAILED" ||
+    status === "REVERSED"
+  ) {
+    return status;
+  }
+
+  return undefined;
+}
+
+function normalizeDashboardData(value: unknown): DashboardData | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const data = value as Partial<DashboardData>;
+
+  if (data.ok !== true) {
+    return null;
+  }
+
+  if (typeof data.tenantName !== "string") {
+    return null;
+  }
+
+  if (typeof data.propertyStatus !== "string") {
+    return null;
+  }
+
+  if (typeof data.paymentEnabled !== "boolean") {
+    return null;
+  }
+
+  if (typeof data.unitId !== "string") {
+    return null;
+  }
+
+  if (typeof data.balance !== "number") {
+    return null;
+  }
+
+  if (typeof data.totalPaid !== "number") {
+    return null;
+  }
+
+  if (typeof data.isDelinquent !== "boolean") {
+    return null;
+  }
+
+  const ledger: LedgerEntry[] = Array.isArray(data.ledger)
+    ? data.ledger
+        .filter((entry): entry is LedgerEntry => {
+          if (!entry || typeof entry !== "object") {
+            return false;
+          }
+
+          const candidate = entry as Partial<LedgerEntry>;
+
+          return (
+            typeof candidate.id === "string" &&
+            typeof candidate.type === "string" &&
+            typeof candidate.amount === "number" &&
+            typeof candidate.effectiveDate === "string"
+          );
+        })
+        .map((entry) => ({
+          id: entry.id,
+          type: entry.type,
+          amount: entry.amount,
+          effectiveDate: entry.effectiveDate,
+          memo: entry.memo ?? null,
+        }))
+    : [];
+
+  let statement: StatementData | undefined;
+
+  if (data.statement && typeof data.statement === "object") {
+    const candidate = data.statement as Partial<StatementData>;
+
+    const items: StatementItem[] = Array.isArray(candidate.items)
+      ? candidate.items
+          .filter((item): item is StatementItem => {
+            if (!item || typeof item !== "object") {
+              return false;
+            }
+
+            const row = item as Partial<StatementItem>;
+
+            return (
+              typeof row.label === "string" &&
+              typeof row.amount === "number"
+            );
+          })
+          .map((item) => ({
+            label: item.label,
+            amount: item.amount,
+          }))
+      : [];
+
+    if (
+      typeof candidate.rent === "number" &&
+      typeof candidate.recurringCharges === "number" &&
+      typeof candidate.lateFees === "number" &&
+      typeof candidate.credits === "number" &&
+      typeof candidate.subtotal === "number" &&
+      typeof candidate.totalDue === "number" &&
+      typeof candidate.processingFee === "number"
+    ) {
+      statement = {
+        rent: candidate.rent,
+        recurringCharges: candidate.recurringCharges,
+        lateFees: candidate.lateFees,
+        processingFee: candidate.processingFee,
+        credits: candidate.credits,
+        subtotal: candidate.subtotal,
+        totalDue: candidate.totalDue,
+        items,
+      };
+    }
+  }
+
+const paymentHistory: PaymentHistoryRow[] = Array.isArray(data.paymentHistory)
+  ? data.paymentHistory
+      .filter((payment): payment is PaymentHistoryRow => {
+        if (!payment || typeof payment !== "object") return false;
+
+        const row = payment as Partial<PaymentHistoryRow>;
+
+        return (
+          typeof row.id === "string" &&
+          typeof row.amount === "number" &&
+          typeof row.processingFee === "number" &&
+          typeof row.totalCharged === "number" &&
+          typeof row.timestamp === "string"
+        );
+      })
+      .map((payment) => ({
+        id: payment.id,
+        amountCents: Number(payment.amountCents || 0),
+        processingFeeCents: Number(payment.processingFeeCents || 0),
+        totalChargedCents: Number(payment.totalChargedCents || 0),
+        amount: Number(payment.amount || 0),
+        processingFee: Number(payment.processingFee || 0),
+        totalCharged: Number(payment.totalCharged || 0),
+        status: normalizePaymentStatus(payment.status) ?? "UNPAID",
+        timestamp: payment.timestamp,
+        message: String(payment.message || ""),
+        stripePaymentIntentId: payment.stripePaymentIntentId ?? null,
+        stripeSessionId: payment.stripeSessionId ?? null,
+      }))
+  : [];
+
+  return {
+    ok: true,
+    tenantName: data.tenantName,
+    propertyName:
+      typeof data.propertyName === "string" ? data.propertyName : undefined,
+    propertyStatus: data.propertyStatus,
+    paymentEnabled: data.paymentEnabled,
+    dueDate: typeof data.dueDate === "string" ? data.dueDate : undefined,
+    graceEndsOn:
+      typeof data.graceEndsOn === "string" ? data.graceEndsOn : undefined,
+    unitNumber:
+      typeof data.unitNumber === "string" ? data.unitNumber : undefined,
+    unitId: data.unitId,
+    balance: data.balance,
+    totalPaid: data.totalPaid,
+    isDelinquent: data.isDelinquent,
+    ledger,
+    statement,
+    paymentStatus: normalizePaymentStatus(data.paymentStatus),
+    paymentMessage:
+      typeof data.paymentMessage === "string" ? data.paymentMessage : undefined,
+    latestPaymentTimestamp:
+      typeof data.latestPaymentTimestamp === "string" ||
+      data.latestPaymentTimestamp === null
+        ? data.latestPaymentTimestamp
+        : undefined,
+    hasPendingPayment: Boolean(data.hasPendingPayment),
+pendingPaymentAmount:
+  typeof data.pendingPaymentAmount === "number"
+    ? data.pendingPaymentAmount
+    : undefined,
+processingFee:
+  typeof data.processingFee === "number" ? data.processingFee : undefined,
+totalDue:
+  typeof data.totalDue === "number" ? data.totalDue : undefined,
+paymentHistory,
+  };
+}
+
+export default function TenantDashboard() {
+  const router = useRouter();
+
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
+
+  async function logout(): Promise<void> {
+    try {
+      await fetch("/api/tenant/session", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      window.location.href = "/";
+    } catch {
+      alert("Logout failed");
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    async function load(): Promise<void> {
+      try {
+        const res = await fetch("/api/tenant/dashboard", {
+          method: "POST",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        const result: unknown = await res.json().catch(() => null);
+
+        if (!active) return;
+
+        if (res.status === 401 || res.status === 403) {
+          router.replace("/property-code");
+          return;
+        }
+
+        if (!res.ok) {
+          const apiError =
+            result && typeof result === "object"
+              ? (result as DashboardError).error
+              : undefined;
+
+          setError(apiError || "Failed to load dashboard.");
+          return;
+        }
+
+        const normalized = normalizeDashboardData(result);
+
+        if (!normalized) {
+          setError("Failed to load dashboard.");
+          return;
+        }
+
+        setData(normalized);
+      } catch {
+        if (!active) return;
+        setError("Failed to load dashboard.");
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-sm text-slate-600">
+        Loading...
+      </main>
+    );
+  }
+
+  if (error === "Unauthorized") {
+    router.replace("/property-code");
+    return null;
+  }
+
+  if (error || !data) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <div className="space-y-3 text-center">
+          <div className="text-sm text-red-600">
+            {error || "Error loading."}
+          </div>
+          <button
+            type="button"
+            onClick={() => router.replace("/property-code")}
+            className="rounded-xl border px-4 py-2 text-sm"
+          >
+            Back
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const ledger = Array.isArray(data.ledger) ? data.ledger : [];
+  const statement = data.statement;
+  const paymentBlocked = !data.paymentEnabled;
+  const isPending = data.paymentStatus === "PENDING";
+  const totalDue = statement?.totalDue ?? data.balance;
+  const pendingMessage =
+    data.paymentMessage || "Payment in progress — no further action required";
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-sky-50 to-slate-100 px-4 py-6 text-slate-900">
+      <div className="mx-auto max-w-md space-y-5">
+        <div>
+          <div className="text-xs font-semibold tracking-[0.2em] text-slate-700">
+            RENTFRAY
+          </div>
+
+          <h1 className="mt-3 text-2xl font-semibold">{data.tenantName}</h1>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-2 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Logout
+          </button>
+
+          <p className="mt-1 text-sm text-slate-600">
+            {data.propertyName || "Property"} · Unit {data.unitNumber || "—"}
+          </p>
+        </div>
+
+        <div className="rounded-[28px] border border-sky-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-xs text-slate-500">Current Balance</p>
+
+          {isPending ? (
+            <>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-600">
+                Payment Pending
+              </p>
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                {pendingMessage}
+              </p>
+              {data.latestPaymentTimestamp ? (
+                <p className="mt-2 text-sm text-slate-500">
+                  Submitted on {fmtDate(data.latestPaymentTimestamp)}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {totalDue <= 0 ? (
+  <>
+    <p className="mt-2 text-4xl font-semibold tracking-tight">
+      {money(0)}
+    </p>
+
+    <p className="mt-3 text-sm font-semibold text-green-700">
+      You're all paid up. Check back on your next due date.
+    </p>
+  </>
+) : (
+  <>
+    <p className="mt-2 text-4xl font-semibold tracking-tight">
+      {money(totalDue)}
+    </p>
+
+    <p className="mt-2 text-sm font-medium">
+      {data.isDelinquent ? (
+        <span className="text-red-600">Past Due</span>
+      ) : (
+        <span className="text-green-600">Current</span>
+      )}
+    </p>
+  </>
+)}
+</>
+)}
+</div>
+
+        {statement ? (
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-sm font-semibold text-slate-900">
+              Current Statement
+            </h2>
+
+            <div className="mt-4 space-y-3 text-sm text-slate-700">
+              {statement.items.length > 0 ? (
+                statement.items.map((item, index) => (
+                  <div
+                    key={`${item.label}-${index}`}
+                    className="flex items-start justify-between gap-3"
+                  >
+                    <div className="flex min-w-0 items-start gap-2">
+                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                      <span className="break-words">{item.label}</span>
+                    </div>
+
+                    <span
+                      className={`shrink-0 font-medium ${
+                        item.amount < 0 ? "text-emerald-600" : "text-slate-900"
+                      }`}
+                    >
+                      {item.amount < 0
+                        ? `- ${money(Math.abs(item.amount))}`
+                        : money(item.amount)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-slate-500">
+                  No charges have been posted for this billing period yet.
+                </div>
+              )}
+
+              <div className="my-2 border-t border-slate-200" />
+
+              {(statement.processingFee ?? 0) > 0 && (
+              <div className="flex justify-between">
+              <span>Processing Fee</span>
+              <span className="font-medium">
+              {money(statement.processingFee)}
+              </span>
+              </div>
+                )}
+
+              <div className="border-t border-slate-200 pt-3" />
+
+              {isPending ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="text-base font-semibold text-amber-800">
+                    Payment in progress
+                  </div>
+                   <div className="mt-2 space-y-1 text-sm text-amber-800">
+  <div className="flex justify-between gap-3">
+    <span>Payment amount</span>
+    <span className="font-semibold">
+      {money(data.paymentHistory?.[0]?.amount ?? data.balance)}
+    </span>
+  </div>
+
+  <div className="flex justify-between gap-3">
+    <span>Processing fee</span>
+    <span className="font-semibold">
+      {money(data.paymentHistory?.[0]?.processingFee ?? 0)}
+    </span>
+  </div>
+
+  <div className="flex justify-between gap-3 border-t border-amber-200 pt-1">
+    <span>Total submitted</span>
+    <span className="font-semibold">
+      {money(data.paymentHistory?.[0]?.totalCharged ?? data.pendingPaymentAmount ?? totalDue)}
+    </span>
+  </div>
+</div>
+                  <div className="mt-1 text-sm text-amber-700">
+                    No further action is required while your bank processes this
+                    payment.
+                  </div>
+                  {data.latestPaymentTimestamp ? (
+                    <div className="mt-1 text-sm text-amber-700">
+                      Submitted on {fmtDate(data.latestPaymentTimestamp)}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between text-base font-semibold text-slate-950">
+                    <span>
+                      Total due
+                      {data.dueDate ? ` on ${fmtDate(data.dueDate)}` : ""}
+                    </span>
+                    <span>{money(totalDue)}</span>
+                  </div>
+
+                  {data.graceEndsOn ? (
+                    <div className="text-sm text-slate-500">
+                      Grace period ends {fmtDate(data.graceEndsOn)}.
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+         {totalDue > 0 ? (
+  <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <div>
+      <p className="text-sm font-semibold">Make a Payment</p>
+      <p className="mt-1 text-sm text-slate-600">
+        Amount due: <span className="font-semibold">{money(totalDue)}</span>
+      </p>
+    </div>
+
+    {isPending ? (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        {pendingMessage}
+      </div>
+    ) : null}
+
+    {paymentBlocked && !isPending ? (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Payments are currently disabled.
+      </div>
+    ) : null}
+
+    <PayNowButton
+      unitId={data.unitId}
+      amount={totalDue}
+      disabled={paymentBlocked || isPending}
+      disabledReason={
+        isPending
+          ? pendingMessage
+          : paymentBlocked
+            ? "Payments are currently disabled for this property."
+            : "Payment is not available right now."
+      }
+    />
+  </div>
+) : null}        
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/tenant/payment-history")}
+            className="rounded-xl border px-4 py-3 text-sm"
+          >
+            Payments
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/tenant/maintenance")}
+            className="rounded-xl border px-4 py-3 text-sm"
+          >
+            Maintenance
+          </button>
+        </div>
+
+        <div>
+          <h2 className="mb-2 text-sm font-semibold">Recent Activity</h2>
+
+          <div className="space-y-2">
+            {ledger.length === 0 ? (
+              <div className="rounded-xl border bg-white px-4 py-3 text-sm text-slate-500">
+                No activity yet.
+              </div>
+            ) : (
+              ledger.slice(0, 5).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-xl border bg-white p-3 text-sm"
+                >
+                  <div className="flex justify-between gap-3">
+                    <span>{entry.type}</span>
+                    <span>{money(entry.amount)}</span>
+                  </div>
+
+                  <div className="mt-1 text-xs text-slate-500">
+                    {fmtDate(entry.effectiveDate)}
+                  </div>
+
+                  {entry.memo ? (
+                    <div className="mt-1 text-xs text-slate-500">
+                      {entry.memo}
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+
+==================== app\tenant\pay\page.tsx ====================
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+type BalanceData = {
+  propertyName?: string;
+  unitNumber?: string;
+  balance?: number;
+  ledgerSummary?: {
+    balance?: number;
+  };
+  summary?: {
+    balance?: number;
+  };
+  property?: {
+    settings?: {
+      convenienceFee?: number;
+    };
+  };
+};
+
+function money(value: number) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+export default function TenantPayPage() {
+  const searchParams = useSearchParams();
+
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [data, setData] = useState<BalanceData | null>(null);
+  const checkoutStatus = searchParams.get("checkout");
+  const isSuccess = checkoutStatus === "success";
+  const isCancelled = checkoutStatus === "cancelled";
+
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await fetch("/api/tenant/balance", {
+          cache: "no-store",
+        });
+
+        const json = await res.json();
+
+        if (!res.ok) {
+          setError(json?.error || "Failed to load payment page.");
+          return;
+        }
+
+        setData(json);
+
+        // 🔒 IMPORTANT: DO NOT TRUST URL PARAMS
+        // Always show neutral or safe messaging
+        if (isSuccess) {
+  setMessage("Payment submitted. Awaiting bank processing.");
+} else if (!isCancelled) {
+  setMessage(
+    "If you completed a payment, it will appear here once it begins processing."
+  );
+}
+      } catch {
+        setError("Failed to load payment page.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [isSuccess, isCancelled]);
+
+  const baseAmountDue = useMemo(() => {
+    if (!data) return 0;
+
+    const candidates = [
+      data.balance,
+      data.summary?.balance,
+      data.ledgerSummary?.balance,
+    ];
+
+    const found = candidates.find((value) => Number.isFinite(Number(value)));
+    return Math.max(0, Number(found || 0));
+  }, [data]);
+
+  const convenienceFee = useMemo(() => {
+    return Math.max(0, Number(data?.property?.settings?.convenienceFee || 0));
+  }, [data]);
+
+  const totalAmountDue = useMemo(() => {
+    return Number((baseAmountDue + convenienceFee).toFixed(2));
+  }, [baseAmountDue, convenienceFee]);
+
+  async function handlePayNow() {
+    if (paying) return;
+
+    try {
+      setPaying(true);
+      setError("");
+      setMessage("");
+
+      const res = await fetch("/api/payments/create-session", {
+        method: "POST",
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setError(json?.error || "Failed to start payment.");
+        return;
+      }
+
+      if (json?.preview) {
+        setMessage(
+          json?.message || "Payment preview only. No live session created."
+        );
+        return;
+      }
+
+      if (json?.data?.url) {
+        window.location.href = json.data.url;
+        return;
+      }
+
+      setError("No checkout session returned.");
+    } catch {
+      setError("Failed to start payment.");
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Pay Now</h1>
+        <p className="text-sm text-neutral-600 mt-1">
+          {data?.propertyName || "Property"}
+          {data?.unitNumber ? ` — Unit ${data.unitNumber}` : ""}
+        </p>
+      </div>
+
+      {isSuccess && (
+  <div className="border rounded-xl p-4 bg-white text-sm text-green-600">
+    Payment submitted. Bank processing has started. This may take a few business days.
+  </div>
+)}
+
+{isSuccess && (
+  <button
+    onClick={() => (window.location.href = "/tenant/dashboard")}
+    className="mt-3 px-4 py-2 rounded-lg bg-green-600 text-white"
+  >
+    Return to Dashboard
+  </button>
+)}
+
+{isCancelled && (
+  <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
+    Checkout cancelled. You can try again below.
+  </div>
+)}
+
+      {error ? (
+        <div className="border rounded-xl p-4 bg-white text-sm text-red-600">
+          {error}
+        </div>
+      ) : null}
+
+      {message ? (
+        <div className="border rounded-xl p-4 bg-white text-sm text-neutral-700">
+          {message}
+        </div>
+      ) : null}
+
+      <div className="border rounded-xl p-4 bg-white space-y-4">
+        <div className="text-sm text-neutral-600">Payment summary</div>
+
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span>Balance due</span>
+            <span>{money(baseAmountDue)}</span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span>Convenience fee</span>
+            <span>{money(convenienceFee)}</span>
+          </div>
+
+          <div className="border-t pt-2 flex items-center justify-between text-base font-semibold">
+            <span>Total</span>
+            <span>{money(totalAmountDue)}</span>
+          </div>
+        </div>
+
+        <div className="text-sm text-neutral-600">
+          Electronic payment only.
+        </div>
+
+       {!isSuccess && (
+  <button
+    type="button"
+    onClick={handlePayNow}
+    disabled={paying || totalAmountDue <= 0}
+    className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-60"
+  >
+    {paying ? "Starting..." : "Pay Now"}
+  </button>
+)}
+      </div>
+    </div>
+  );
+}
+
+
+==================== app\components\PayNowButton.tsx ====================
+
+"use client";
+
+import { useState } from "react";
+
+type PayNowButtonProps = {
+  unitId: string;
+  amount: number;
+  disabled?: boolean;
+  disabledReason?: string;
+};
+
+export default function PayNowButton({
+  unitId,
+  amount,
+  disabled = false,
+  disabledReason = "Payment is not available right now.",
+}: PayNowButtonProps) {
+  const [loading, setLoading] = useState(false);
+
+  const amountCents = Math.max(0, Math.round(Number(amount) * 100));
+  const isDisabled = disabled || loading || amountCents <= 0;
+
+  async function handlePay() {
+    if (isDisabled) {
+      if (disabled) alert(disabledReason);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const res = await fetch("/api/payments/create-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        cache: "no-store",
+        body: JSON.stringify({ unitId }),
+      });
+
+      const data: {
+        ok?: boolean;
+        data?: { url?: string };
+        error?: string;
+      } = await res.json().catch(() => ({
+        ok: false,
+        error: "Payment could not be started.",
+      }));
+
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = "/property-code";
+        return;
+      }
+
+      if (data.ok === true && data.data?.url) {
+        window.location.href = data.data.url;
+        return;
+      }
+
+      alert(data.error || "Payment could not be started.");
+    } catch {
+      alert("Payment could not be started.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handlePay}
+      disabled={isDisabled}
+      aria-disabled={isDisabled}
+      title={isDisabled ? disabledReason : "Verify your bank and pay"}
+      className="rounded bg-green-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {loading
+        ? "Opening secure payment..."
+        : disabled
+        ? "Payment unavailable"
+        : "Verify Bank & Pay"}
+    </button>
+  );
+}
+
+
+==================== lib\ledger.ts ====================
+
+import { prisma } from "@/lib/prisma";
+
+export type LedgerSummaryInput = {
+  unitId: string;
+  tenantAssignmentId?: string;
+  asOf: Date;
+  billingCycle?: string;
+};
+
+export type LedgerSummary = {
+  balanceCents: number;
+  totalChargesCents: number;
+  totalCreditsCents: number;
+  totalPaidCents: number;
+  currentCycleRentChargesCents: number;
+  currentCycleLateFeeChargesCents: number;
+  currentCycleRecurringChargesCents: number;
+
+  positiveAdjustmentsCents: number;
+  negativeAdjustmentsCents: number;
+  netAdjustmentsCents: number;
+
+  balance: number;
+  totalCharges: number;
+  totalCredits: number;
+  totalPaid: number;
+  currentCycleRentCharges: number;
+  currentCycleLateFeeCharges: number;
+  currentCycleRecurringCharges: number;
+
+  positiveAdjustments: number;
+  negativeAdjustments: number;
+  netAdjustments: number;
+
+  lastPaymentDate: Date | null;
+  lastPaymentAmountCents: number | null;
+  lastPaymentAmount: number | null;
+
+  hasPendingPayment: boolean;
+  pendingPaymentAmountCents: number;
+
+  hasPaidPayment: boolean;
+  hasFailedPayment: boolean;
+  hasReversedPayment: boolean;
+};
+
+type LedgerEntryType =
+  | "CHARGE"
+  | "PAYMENT"
+  | "CREDIT"
+  | "ADJUSTMENT";
+
+type PaymentStatus =
+  | "UNPAID"
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REVERSED";
+
+type LedgerEntryRow = {
+  id: string;
+  amountCents: number;
+  entryType: unknown;
+  chargeType: unknown;
+  billingCycle: string | null;
+  effectiveDate: Date;
+  createdAt: Date;
+  payment: {
+    status: unknown;
+  } | null;
+};
+
+function normalizeLedgerEntryType(
+  value: unknown
+): LedgerEntryType | null {
+  const type = String(value ?? "").trim().toUpperCase();
+
+  switch (type) {
+    case "CHARGE":
+    case "PAYMENT":
+    case "CREDIT":
+    case "ADJUSTMENT":
+      return type;
+    default:
+      return null;
+  }
+}
+
+function normalizePaymentStatus(
+  value: unknown
+): PaymentStatus | null {
+  const status = String(value ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "UNPAID":
+    case "PENDING":
+    case "PAID":
+    case "FAILED":
+    case "REVERSED":
+      return status;
+    default:
+      return null;
+  }
+}
+
+function centsToDollars(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
+function toSafeDate(value: unknown): Date | null {
+  if (!value) return null;
+
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value as string | number);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toSafeInteger(value: unknown): number {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return 0;
+  }
+
+  return Math.trunc(amount);
+}
+
+function getSignedImpactCents(
+  entryType: LedgerEntryType,
+  amountCents: number,
+  paymentStatus: PaymentStatus | null
+): number {
+  const safeAmount = toSafeInteger(amountCents);
+  const absoluteAmount = Math.abs(safeAmount);
+
+  switch (entryType) {
+    case "CHARGE":
+      return absoluteAmount;
+
+    case "PAYMENT":
+      return paymentStatus === "PAID"
+        ? -absoluteAmount
+        : 0;
+
+    case "CREDIT":
+      return -absoluteAmount;
+
+    case "ADJUSTMENT":
+      return safeAmount;
+
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Sole authority for unit-level ledger math.
+ *
+ * Rules:
+ * - CHARGE increases the balance.
+ * - CREDIT reduces the balance.
+ * - Only PAID payments reduce the balance.
+ * - PENDING, FAILED, and REVERSED payments do not reduce the balance.
+ * - Positive and negative adjustments remain separately reportable.
+ * - Voided entries do not count.
+ * - Future-dated entries after `asOf` do not count.
+ * - The ledger does not silently hide invalid pre-start entries.
+ */
+export async function getUnitLedgerSummary(
+  input: LedgerSummaryInput
+): Promise<LedgerSummary> {
+  const entries: LedgerEntryRow[] =
+    await prisma.ledgerEntry.findMany({
+      where: {
+        unitId: input.unitId,
+        voidedAt: null,
+
+        ...(input.tenantAssignmentId
+          ? {
+              OR: [
+                {
+                  tenantAssignmentId:
+                    input.tenantAssignmentId,
+                },
+                {
+                  tenantAssignmentId: null,
+                },
+              ],
+            }
+          : {}),
+
+        effectiveDate: {
+          lte: input.asOf,
+        },
+      },
+
+      orderBy: [
+        { effectiveDate: "asc" },
+        { createdAt: "asc" },
+        { id: "asc" },
+      ],
+
+      select: {
+        id: true,
+        amountCents: true,
+        entryType: true,
+        chargeType: true,
+        billingCycle: true,
+        effectiveDate: true,
+        createdAt: true,
+        payment: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
+
+  const payments = await prisma.payment.findMany({
+    where: {
+      unitId: input.unitId,
+
+      ...(input.tenantAssignmentId
+        ? {
+            OR: [
+              {
+                tenantAssignmentId:
+                  input.tenantAssignmentId,
+              },
+              {
+                tenantAssignmentId: null,
+              },
+            ],
+          }
+        : {}),
+    },
+
+    select: {
+      status: true,
+      amountCents: true,
+      billingCycle: true,
+    },
+  });
+
+  let balanceCents = 0;
+  let totalChargesCents = 0;
+  let totalCreditsCents = 0;
+  let totalPaidCents = 0;
+  let currentCycleRentChargesCents = 0;
+  let currentCycleLateFeeChargesCents = 0;
+  let currentCycleRecurringChargesCents = 0;
+  let positiveAdjustmentsCents = 0;
+  let negativeAdjustmentsCents = 0;
+
+  let lastPaymentDate: Date | null = null;
+  let lastPaymentCreatedAt: Date | null = null;
+  let lastPaymentAmountCents: number | null = null;
+
+  let hasPendingPayment = false;
+  let pendingPaymentAmountCents = 0;
+
+  const currentCycleStatuses: PaymentStatus[] = [];
+
+  for (const payment of payments) {
+    const status = normalizePaymentStatus(payment.status);
+
+    if (!status) {
+      continue;
+    }
+
+    if (status === "PENDING") {
+      hasPendingPayment = true;
+
+      pendingPaymentAmountCents += Math.max(
+        0,
+        Math.abs(toSafeInteger(payment.amountCents))
+      );
+    }
+
+    if (
+      input.billingCycle &&
+      payment.billingCycle === input.billingCycle
+    ) {
+      currentCycleStatuses.push(status);
+    }
+  }
+
+  const hasPaidPayment =
+    currentCycleStatuses.includes("PAID");
+
+  const hasFailedPayment =
+    !hasPaidPayment &&
+    !hasPendingPayment &&
+    currentCycleStatuses.includes("FAILED");
+
+  const hasReversedPayment =
+    !hasPaidPayment &&
+    !hasPendingPayment &&
+    currentCycleStatuses.includes("REVERSED");
+
+  for (const entry of entries) {
+    const entryType = normalizeLedgerEntryType(
+      entry.entryType
+    );
+
+    if (!entryType) {
+      continue;
+    }
+
+    const rawAmountCents = toSafeInteger(
+      entry.amountCents
+    );
+
+    const paymentStatus = normalizePaymentStatus(
+      entry.payment?.status
+    );
+
+    balanceCents += getSignedImpactCents(
+      entryType,
+      rawAmountCents,
+      paymentStatus
+    );
+
+    switch (entryType) {
+     case "CHARGE": {
+  const chargeAmountCents = Math.abs(rawAmountCents);
+  totalChargesCents += chargeAmountCents;
+
+  if (
+    input.billingCycle &&
+    entry.billingCycle === input.billingCycle
+  ) {
+    const chargeType = String(
+      entry.chargeType ?? ""
+    )
+      .trim()
+      .toUpperCase();
+
+    if (chargeType === "RENT") {
+      currentCycleRentChargesCents +=
+        chargeAmountCents;
+    } else if (
+      chargeType === "LATE_FEE" ||
+      chargeType === "LATE_FEE_INITIAL" ||
+      chargeType === "LATE_FEE_DAILY"
+    ) {
+      currentCycleLateFeeChargesCents +=
+        chargeAmountCents;
+    } else if (
+      chargeType === "RECURRING_FEE" ||
+      chargeType === "RECURRING_CHARGE"
+    ) {
+      currentCycleRecurringChargesCents +=
+        chargeAmountCents;
+    }
+  }
+
+  break;
+}
+
+      case "CREDIT":
+        totalCreditsCents += Math.abs(rawAmountCents);
+        break;
+
+      case "ADJUSTMENT":
+        if (rawAmountCents > 0) {
+          positiveAdjustmentsCents += rawAmountCents;
+        } else if (rawAmountCents < 0) {
+          negativeAdjustmentsCents += Math.abs(
+            rawAmountCents
+          );
+        }
+        break;
+
+      case "PAYMENT":
+        if (paymentStatus !== "PAID") {
+          break;
+        }
+
+        const paymentAmountCents =
+          Math.abs(rawAmountCents);
+
+        totalPaidCents += paymentAmountCents;
+
+        const effectiveDate = toSafeDate(
+          entry.effectiveDate
+        );
+
+        const createdAt = toSafeDate(entry.createdAt);
+
+        if (!effectiveDate || !createdAt) {
+          break;
+        }
+
+        const isLaterPayment =
+          lastPaymentDate === null ||
+          effectiveDate.getTime() >
+            lastPaymentDate.getTime() ||
+          (effectiveDate.getTime() ===
+            lastPaymentDate.getTime() &&
+            (lastPaymentCreatedAt === null ||
+              createdAt.getTime() >
+                lastPaymentCreatedAt.getTime()));
+
+        if (isLaterPayment) {
+          lastPaymentDate = effectiveDate;
+          lastPaymentCreatedAt = createdAt;
+          lastPaymentAmountCents =
+            paymentAmountCents;
+        }
+        break;
+    }
+  }
+
+  const netAdjustmentsCents =
+    positiveAdjustmentsCents -
+    negativeAdjustmentsCents;
+
+  return {
+    balanceCents,
+    totalChargesCents,
+    totalCreditsCents,
+    totalPaidCents,
+    currentCycleRentChargesCents,
+    currentCycleLateFeeChargesCents,
+    currentCycleRecurringChargesCents,
+
+    positiveAdjustmentsCents,
+    negativeAdjustmentsCents,
+    netAdjustmentsCents,
+
+    balance: centsToDollars(balanceCents),
+    totalCharges: centsToDollars(
+      totalChargesCents
+    ),
+    totalCredits: centsToDollars(
+      totalCreditsCents
+    ),
+    totalPaid: centsToDollars(totalPaidCents),
+    currentCycleRentCharges: centsToDollars(
+    currentCycleRentChargesCents
+    ),
+    currentCycleLateFeeCharges: centsToDollars(
+    currentCycleLateFeeChargesCents
+    ),
+    currentCycleRecurringCharges: centsToDollars(
+    currentCycleRecurringChargesCents
+    ),
+
+    positiveAdjustments: centsToDollars(
+      positiveAdjustmentsCents
+    ),
+    negativeAdjustments: centsToDollars(
+      negativeAdjustmentsCents
+    ),
+    netAdjustments: centsToDollars(
+      netAdjustmentsCents
+    ),
+
+    lastPaymentDate,
+    lastPaymentAmountCents,
+    lastPaymentAmount:
+      lastPaymentAmountCents === null
+        ? null
+        : centsToDollars(lastPaymentAmountCents),
+
+    hasPendingPayment,
+    pendingPaymentAmountCents,
+
+    hasPaidPayment,
+    hasFailedPayment,
+    hasReversedPayment,
+  };
+}
+
+
+==================== lib\paymentAllocation.ts ====================
+
+type LedgerRow = {
+  id: string;
+  amountCents: number;
+  entryType: string;
+  effectiveDate: Date | string;
+  appliedAmountCents?: number | null;
+};
+
+type PaymentAllocation = {
+  chargeId: string;
+  appliedAmountCents: number;
+};
+
+type PaymentAllocationResult = {
+  allocations: PaymentAllocation[];
+  remainingCents: number;
+  totalOpenChargeCents: number;
+  isExactPaymentMatch: boolean;
+};
+
+type CanonicalLedgerEntryType =
+  | "CHARGE"
+  | "PAYMENT"
+  | "CREDIT"
+  | "ADJUSTMENT";
+
+function toSafeInteger(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.trunc(n);
+}
+
+function normalizeLedgerEntryType(
+  value: unknown
+): CanonicalLedgerEntryType | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+
+  switch (normalized) {
+    case "CHARGE":
+    case "PAYMENT":
+    case "CREDIT":
+    case "ADJUSTMENT":
+      return normalized;
+    default:
+      return null;
+  }
+}
+
+function toDateMs(value: unknown): number {
+  const date = value instanceof Date ? value : new Date(String(value ?? ""));
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+export function allocatePayment(
+  paymentAmountCents: number,
+  charges: LedgerRow[]
+): PaymentAllocationResult {
+  let remaining = Math.max(0, toSafeInteger(paymentAmountCents));
+
+  const openCharges = charges
+    .map((c) => {
+      const type = normalizeLedgerEntryType(c.entryType);
+      if (type !== "CHARGE") return null;
+
+      const amount = Math.max(0, toSafeInteger(c.amountCents));
+      const applied = Math.max(
+        0,
+        toSafeInteger(c.appliedAmountCents ?? 0)
+      );
+
+      const open = Math.max(0, amount - applied);
+      if (open <= 0) return null;
+
+      return {
+        id: c.id,
+        openAmountCents: open,
+        effectiveDateMs: toDateMs(c.effectiveDate),
+      };
+    })
+    .filter(Boolean as unknown as <T>(x: T | null) => x is T)
+    .sort((a, b) => a.effectiveDateMs - b.effectiveDateMs);
+
+  const totalOpenChargeCents = openCharges.reduce(
+    (sum, c) => sum + c.openAmountCents,
+    0
+  );
+
+  const allocations: PaymentAllocation[] = [];
+
+  for (const charge of openCharges) {
+    if (remaining <= 0) break;
+
+    const applied = Math.min(charge.openAmountCents, remaining);
+
+    allocations.push({
+      chargeId: charge.id,
+      appliedAmountCents: applied,
+    });
+
+    remaining -= applied;
+  }
+
+  return {
+    allocations,
+    remainingCents: remaining,
+    totalOpenChargeCents,
+    isExactPaymentMatch:
+      paymentAmountCents > 0 &&
+      paymentAmountCents === totalOpenChargeCents,
+  };
+}
+
+
+==================== lib\unitFinancialState.ts ====================
+
+// lib/unitFinancialState.ts
+
+import { getProcessingFeeCents } from "@/lib/billingConfig";
+import { getUnitLedgerSummary, type LedgerSummary } from "@/lib/ledger";
+import {
+  getBusinessDate,
+  getRentDateSummary,
+  resolveEffectiveBillingSettings,
+  type EffectiveBillingSettings,
+  type RentDateSummary,
+} from "@/lib/rentDates";
+import {
+  getUnitStatus,
+  type PaymentStatus,
+  type UnitStatusResult,
+} from "@/lib/unitStatusEngine";
+import { assertTierBillingCalendar } from "@/lib/billingCalendar";
+
+type UnitFinancialStateTier = {
+  id?: string | null;
+  rentDueDay: number;
+  gracePeriodDays: number;
+  lateFeeInitialCents: number;
+  lateFeeDailyCents: number;
+  maxLateFeeDays: number;
+} | null;
+
+type UnitFinancialStatePropertySettings = {
+  rentDueDay: number;
+  gracePeriodDays: number;
+  lateFeeEnabled: boolean;
+  lateFeeFlatCents?: number | null;
+} | null;
+
+type UnitFinancialStateInput = {
+  propertyId: string;
+  unitId: string;
+  tenantAssignmentId: string | null;
+  tier: UnitFinancialStateTier;
+  propertySettings: UnitFinancialStatePropertySettings;
+  rentFrayStartDate?: Date | null;
+  now?: Date;
+};
+
+function parseDateOnly(value: string): Date | null {
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!year || !month || !day) return null;
+
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function diffDays(later: Date, earlier: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.max(
+    0,
+    Math.floor(
+      (startOfDay(later).getTime() - startOfDay(earlier).getTime()) / msPerDay
+    )
+  );
+}
+
+export type UnitFinancialState = {
+  effectiveBillingSettings: EffectiveBillingSettings;
+  rentDates: RentDateSummary;
+  ledgerSummary: LedgerSummary;
+
+  ledgerBalanceCents: number;
+  processingFeeCents: number;
+  tenantTotalDueCents: number;
+
+  billingCycle: string;
+  dueDate: string;
+  graceEndsOn: string;
+
+  isWithinGracePeriod: boolean;
+  isPastGracePeriod: boolean;
+  isDelinquent: boolean;
+  daysPastDue: number;
+  daysPastGrace: number;
+
+  hasPendingPayment: boolean;
+  hasFailedPayment: boolean;
+  hasReversedPayment: boolean;
+  hasPaidPayment: boolean;
+
+  status: UnitStatusResult;
+  paymentStatus: PaymentStatus;
+};
+
+export async function getUnitFinancialState(
+  input: UnitFinancialStateInput
+): Promise<UnitFinancialState> {
+const rawNow = input.now ?? new Date();
+const now = getBusinessDate(rawNow);
+
+const permanentDueDay = assertTierBillingCalendar({
+  propertyId: input.propertyId,
+  rentFrayStartDate: input.rentFrayStartDate ?? null,
+  propertySettingsDueDay: input.propertySettings?.rentDueDay,
+  tier: input.tier,
+});
+
+const effectiveBillingSettings = resolveEffectiveBillingSettings({
+    tier: input.tier,
+    propertySettings: input.propertySettings,
+  });
+
+effectiveBillingSettings.dueDay = permanentDueDay;
+
+const rentDates = getRentDateSummary({
+  ...effectiveBillingSettings,
+  now: rawNow,
+  rentFrayStartDate: input.rentFrayStartDate ?? null,
+});
+
+const ledgerSummary = await getUnitLedgerSummary({
+  unitId: input.unitId,
+  tenantAssignmentId: input.tenantAssignmentId ?? undefined,
+  asOf: now,
+  billingCycle: rentDates.billingCycle,
+});
+
+const rawLedgerBalanceCents = Math.max(
+  0,
+  ledgerSummary.balanceCents
+);
+
+const hasPendingPayment = ledgerSummary.hasPendingPayment;
+const hasFailedPayment = ledgerSummary.hasFailedPayment;
+const hasReversedPayment = ledgerSummary.hasReversedPayment;
+const hasPaidPayment = ledgerSummary.hasPaidPayment;
+  const effectiveBalanceCents = hasPendingPayment ? 0 : rawLedgerBalanceCents;
+  const processingFeeCents =
+    effectiveBalanceCents > 0
+      ? getProcessingFeeCents(effectiveBalanceCents)
+      : 0;
+
+  const tenantTotalDueCents =
+    effectiveBalanceCents > 0
+      ? effectiveBalanceCents + processingFeeCents
+      : 0;
+
+  const dueDate = parseDateOnly(rentDates.dueDate);
+  const graceEndsOn = parseDateOnly(rentDates.graceEndsOn);
+
+  const isPastGracePeriod =
+    !hasPendingPayment &&
+    effectiveBalanceCents > 0 &&
+    rentDates.isDelinquent === true;
+
+  const isWithinGracePeriod =
+    !hasPendingPayment && effectiveBalanceCents > 0 && !isPastGracePeriod;
+
+  const daysPastDue = isPastGracePeriod && dueDate ? diffDays(now, dueDate) : 0;
+
+  const daysPastGrace =
+    isPastGracePeriod && graceEndsOn ? diffDays(now, graceEndsOn) : 0;
+
+  const status = getUnitStatus({
+    balanceCents: effectiveBalanceCents,
+    hasPendingPayment,
+    hasFailedPayment,
+    hasReversedPayment,
+    isDelinquent: isPastGracePeriod,
+    isWithinGracePeriod,
+  });
+
+  return {
+    effectiveBillingSettings,
+    rentDates,
+    ledgerSummary,
+
+    ledgerBalanceCents: rawLedgerBalanceCents,
+    processingFeeCents,
+    tenantTotalDueCents,
+
+    billingCycle: rentDates.billingCycle,
+    dueDate: rentDates.dueDate,
+    graceEndsOn: rentDates.graceEndsOn,
+
+    isWithinGracePeriod,
+    isPastGracePeriod,
+    isDelinquent: isPastGracePeriod,
+    daysPastDue,
+    daysPastGrace,
+
+    hasPendingPayment,
+    hasFailedPayment,
+    hasReversedPayment,
+    hasPaidPayment,
+
+    status,
+    paymentStatus: status.paymentStatus,
+  };
+}

@@ -6,7 +6,6 @@ import { getSession, refreshSessionCookie } from "@/lib/session";
 import { canMakePayments } from "@/lib/liveGating";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
-import { getBusinessDate } from "@/lib/rentDates";
 
 
 export const runtime = "nodejs";
@@ -156,17 +155,14 @@ export async function POST(req: Request) {
     const assignment = unit.tenantAssignments[0] ?? null;
     const tenantAssignmentId = assignment?.id ?? null;
 
-   const financialState =
-  await getUnitFinancialState({
-    propertyId: property.id,
-    unitId: unit.id,
-    tenantAssignmentId,
-    tier: unit.tier,
-    propertySettings: property.settings,
-    rentFrayStartDate:
-      property.rentFrayStartDate,
-    now: getBusinessDate(),
-  });
+const financialState = await getUnitFinancialState({
+  propertyId: property.id,
+  unitId: unit.id,
+  tenantAssignmentId,
+  tier: unit.tier,
+  propertySettings: property.settings,
+  rentFrayStartDate: property.rentFrayStartDate,
+});
 
 const balanceCents = Math.max(
   0,

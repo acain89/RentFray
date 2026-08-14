@@ -1,3 +1,7 @@
+
+
+==================== app\api\manager\dashboard\route.ts ====================
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
@@ -971,9 +975,6 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
         rentFrayStartDate: property.rentFrayStartDate
           ? property.rentFrayStartDate.toISOString()
           : null,
-setupCompleteAcknowledgedAt: property.setupCompleteAcknowledgedAt
-  ? property.setupCompleteAcknowledgedAt.toISOString()
-  : null,
 paymentStatus: {
   bankConnected: Boolean(paymentStatus?.onboardingComplete),
   bankStatus,
@@ -1073,5 +1074,386 @@ bankConnected: Boolean(paymentStatus?.onboardingComplete),
   } catch (error) {
     console.error("dashboard error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+
+==================== app\api\auth\session\route.ts ====================
+
+// app/api/auth/session/route.ts
+
+import { NextResponse } from "next/server";
+import { getSession, clearSessionCookie } from "@/lib/session";
+
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+type SessionUser = {
+  role: string;
+  propertyId: string | null;
+  managementUserId: string | null;
+  unitId: string | null;
+  maintenanceUserId: string | null;
+};
+
+export async function GET() {
+  try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json({
+        ok: false,
+        user: null,
+        onboarding: null,
+      });
+    }
+
+    const user: SessionUser = {
+      role: String(session.role),
+      propertyId: session.propertyId ?? null,
+      managementUserId: session.managementUserId ?? null,
+      unitId: session.unitId ?? null,
+      maintenanceUserId: session.maintenanceUserId ?? null,
+    };
+
+    return NextResponse.json({
+      ok: true,
+      user,
+      onboarding: {
+        hasProperty: Boolean(user.propertyId),
+        needsSetup: false,
+        needsBankConnection: false,
+      },
+    });
+  } catch {
+    return NextResponse.json({
+      ok: false,
+      user: null,
+      onboarding: null,
+    });
+  }
+}
+
+export async function POST() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "Use the role-specific login route for this account type.",
+    },
+    { status: 400 }
+  );
+}
+
+export async function DELETE() {
+  await clearSessionCookie();
+
+  return NextResponse.json({
+    ok: true,
+  });
+}
+
+
+==================== app\api\manager\session\route.ts ====================
+
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { canManagerOperate } from "@/lib/liveGating";
+import { verifyManagementPassword } from "@/lib/managementAuth";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+const ALLOWED_MANAGEMENT_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
+
+type LoginBody = {
+  username?: string;
+  email?: string;
+  password?: string;
+  propertyCode?: string;
+};
+
+function clean(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+export async function POST(req: Request) {
+  try {
+           const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimit = checkRateLimit(`manager-login:${ip}`, 10, 60_000);
+
+    if (!rateLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please wait a minute and try again." },
+        { status: 429 }
+      );
+    }     
+
+    const body = (await req.json()) as LoginBody;
+
+    const propertyCode = clean(body.propertyCode);
+    const username = clean(body.username);
+    const email = clean(body.email).toLowerCase();
+    const password = clean(body.password);
+
+    const loginIdentifier = username || email;
+
+    if (!loginIdentifier || !password) {
+      return NextResponse.json({ error: "Invalid login." }, { status: 400 });
+    }
+
+    let propertyId: string | null = null;
+
+    if (propertyCode && propertyCode.length >= 4 && propertyCode.length <= 5) {
+      const property = await prisma.property.findUnique({
+        where: { propertyCode },
+        select: { id: true, isActive: true, status: true },
+      });
+
+      if (!property) {
+        return NextResponse.json({ error: "Invalid login." }, { status: 401 });
+      }
+
+      if (!canManagerOperate(property) && property.status !== "SETUP") {
+        return NextResponse.json(
+          { error: "Property not available." },
+          { status: 403 }
+        );
+      }
+
+      propertyId = property.id;
+    }
+
+    const user = await prisma.managementUser.findFirst({
+      where: {
+        isActive: true,
+        role: { in: ["OWNER", "MANAGER", "STAFF"] },
+        ...(propertyId ? { propertyId } : {}),
+        OR: [
+          username ? { username } : undefined,
+          email ? { email } : undefined,
+        ].filter(
+          (
+            clause
+          ): clause is { username: string } | { email: string } =>
+            Boolean(clause)
+        ),
+      },
+      select: {
+        id: true,
+        role: true,
+        passwordHash: true,
+        isActive: true,
+        propertyId: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+if (
+  !user ||
+  !user.isActive ||
+  !user.emailVerifiedAt ||
+  !ALLOWED_MANAGEMENT_ROLES.has(user.role)
+) {
+  return NextResponse.json({ error: "Invalid login." }, { status: 401 });
+}
+
+    const passwordOk = await verifyManagementPassword(
+  password,
+  user.passwordHash
+);
+
+    if (!passwordOk) {
+      return NextResponse.json({ error: "Invalid login." }, { status: 401 });
+    }
+
+    const token = createSessionToken({
+      role: user.role as "OWNER" | "MANAGER" | "STAFF",
+      propertyId: user.propertyId,
+      managementUserId: user.id,
+    });
+
+    await setSessionCookie(token);
+
+    await prisma.managementUser.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      role: user.role,
+    });
+  } catch (error) {
+    console.error("POST /api/manager/session failed", error);
+    return NextResponse.json({ error: "Login failed." }, { status: 500 });
+  }
+}
+
+export async function DELETE() {
+  return NextResponse.json(
+    { ok: true },
+    {
+      headers: {
+        "Set-Cookie":
+          "manager_session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax",
+      },
+    }
+  );
+}
+
+
+==================== app\api\auth\verify-email\route.ts ====================
+
+import { NextResponse } from "next/server";
+
+import { prisma } from "@/lib/prisma";
+import {
+  hashEmailVerificationToken,
+  sendWelcomeEmail,
+} from "@/lib/email";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function getBaseUrl(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_BASE_URL is not configured.");
+  }
+
+  return baseUrl.replace(/\/+$/, "");
+}
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const token = url.searchParams.get("token")?.trim();
+
+    if (!token) {
+      return NextResponse.redirect(
+        `${getBaseUrl()}/verify-email?status=invalid`
+      );
+    }
+
+    const tokenHash = hashEmailVerificationToken(token);
+
+    const verification = await prisma.emailVerificationToken.findUnique({
+      where: {
+        tokenHash,
+      },
+      select: {
+        id: true,
+        managementUserId: true,
+        expiresAt: true,
+        usedAt: true,
+        managementUser: {
+          select: {
+            id: true,
+            role: true,
+            email: true,
+            displayName: true,
+            emailVerifiedAt: true,
+            propertyId: true,
+            property: {
+              select: {
+                name: true,
+                propertyCode: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (
+      !verification ||
+      verification.usedAt ||
+      verification.expiresAt.getTime() <= Date.now()
+    ) {
+      return NextResponse.redirect(
+        `${getBaseUrl()}/verify-email?status=invalid`
+      );
+    }
+
+    const manager = verification.managementUser;
+
+    if (!manager.email) {
+      return NextResponse.redirect(
+        `${getBaseUrl()}/verify-email?status=invalid`
+      );
+    }
+
+    const verifiedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.managementUser.update({
+        where: {
+          id: manager.id,
+        },
+        data: {
+          emailVerifiedAt: manager.emailVerifiedAt ?? verifiedAt,
+          isActive: true,
+        },
+      }),
+      prisma.emailVerificationToken.update({
+        where: {
+          id: verification.id,
+        },
+        data: {
+          usedAt: verifiedAt,
+        },
+      }),
+      prisma.emailVerificationToken.updateMany({
+        where: {
+          managementUserId: manager.id,
+          id: {
+            not: verification.id,
+          },
+          usedAt: null,
+        },
+        data: {
+          usedAt: verifiedAt,
+        },
+      }),
+    ]);
+
+    const tokenSession = createSessionToken({
+      role: manager.role as "OWNER" | "MANAGER" | "STAFF",
+      propertyId: manager.propertyId,
+      managementUserId: manager.id,
+    });
+
+    await setSessionCookie(tokenSession);
+
+    try {
+      await sendWelcomeEmail({
+        email: manager.email,
+        displayName: manager.displayName,
+        propertyName: manager.property.name,
+        propertyCode: manager.property.propertyCode,
+      });
+    } catch (error) {
+      console.error("Welcome email failed after verification:", error);
+    }
+
+    return NextResponse.redirect(
+      `${getBaseUrl()}/manager/dashboard?verified=1`
+    );
+  } catch (error) {
+    console.error("Verify email failed:", error);
+
+    return NextResponse.redirect(
+      `${getBaseUrl()}/verify-email?status=error`
+    );
   }
 }

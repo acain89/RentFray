@@ -1,3 +1,1181 @@
+
+
+==================== lib\email.ts ====================
+
+import crypto from "crypto";
+
+import { prisma } from "@/lib/prisma";
+import { EMAIL_FROM, resend } from "@/lib/resend";
+
+const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getBaseUrl(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_BASE_URL is not configured.");
+  }
+
+  return baseUrl.replace(/\/+$/, "");
+}
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+export async function createEmailVerificationToken(
+  managementUserId: string
+): Promise<string> {
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS);
+
+  await prisma.$transaction([
+    prisma.emailVerificationToken.deleteMany({
+      where: {
+        managementUserId,
+        usedAt: null,
+      },
+    }),
+    prisma.emailVerificationToken.create({
+      data: {
+        managementUserId,
+        tokenHash,
+        expiresAt,
+      },
+    }),
+  ]);
+
+  return token;
+}
+
+export async function sendVerificationEmail(input: {
+  managementUserId: string;
+  email: string;
+  displayName?: string | null;
+}): Promise<void> {
+  const token = await createEmailVerificationToken(input.managementUserId);
+
+  const verificationUrl = `${getBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(
+    token
+  )}`;
+
+  const name = input.displayName?.trim() || "there";
+
+  const { error } = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: input.email,
+    subject: "Verify your RentFray email",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#0f172a;">
+        <h1 style="font-size:28px;margin:0 0 16px;">Verify your email</h1>
+
+        <p style="font-size:16px;line-height:1.6;">
+          Hi ${escapeHtml(name)},
+        </p>
+
+        <p style="font-size:16px;line-height:1.6;">
+          Confirm your email address to finish creating your RentFray manager account.
+        </p>
+
+        <p style="margin:32px 0;">
+          <a
+            href="${verificationUrl}"
+            style="display:inline-block;background:#233143;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px;"
+          >
+            Verify Email
+          </a>
+        </p>
+
+        <p style="font-size:14px;line-height:1.6;color:#64748b;">
+          This verification link expires in 24 hours.
+        </p>
+
+        <p style="font-size:14px;line-height:1.6;color:#64748b;">
+          If you did not create a RentFray account, you can ignore this email.
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(`Resend verification email failed: ${error.message}`);
+  }
+}
+
+export async function sendWelcomeEmail(input: {
+  email: string;
+  displayName?: string | null;
+  propertyName: string;
+  propertyCode: string;
+}): Promise<void> {
+  const loginUrl = `${getBaseUrl()}/manager/login`;
+  const name = input.displayName?.trim() || "there";
+
+  const { error } = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: input.email,
+    subject: "Welcome to RentFray",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#0f172a;">
+        <h1 style="font-size:28px;margin:0 0 16px;">Welcome to RentFray</h1>
+
+        <p style="font-size:16px;line-height:1.6;">
+          Hi ${escapeHtml(name)},
+        </p>
+
+        <p style="font-size:16px;line-height:1.6;">
+          Your RentFray manager account is verified and ready to use.
+        </p>
+
+        <div style="margin:32px 0;padding:24px;border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;text-align:center;">
+          <div style="font-size:13px;font-weight:700;letter-spacing:0.12em;color:#64748b;text-transform:uppercase;">
+            Property Code
+          </div>
+
+          <div style="font-size:42px;font-weight:800;letter-spacing:0.08em;margin-top:8px;color:#0f172a;">
+            ${escapeHtml(input.propertyCode)}
+          </div>
+        </div>
+
+        <p style="font-size:16px;line-height:1.6;">
+          Property: <strong>${escapeHtml(input.propertyName)}</strong>
+        </p>
+
+        <p style="margin:32px 0;">
+          <a
+            href="${loginUrl}"
+            style="display:inline-block;background:#233143;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px;"
+          >
+            Manager Login
+          </a>
+        </p>
+
+        <p style="font-size:14px;line-height:1.6;color:#64748b;">
+          Keep your Property Code somewhere easy to find. Managers, tenants, and maintenance users may need it to access your property's RentFray account.
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(`Resend welcome email failed: ${error.message}`);
+  }
+}
+
+export function hashEmailVerificationToken(token: string): string {
+  return hashToken(token);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+==================== app\api\auth\verify-email\route.ts ====================
+
+import { NextResponse } from "next/server";
+
+import { prisma } from "@/lib/prisma";
+import {
+  hashEmailVerificationToken,
+  sendWelcomeEmail,
+} from "@/lib/email";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function getBaseUrl(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_BASE_URL is not configured.");
+  }
+
+  return baseUrl.replace(/\/+$/, "");
+}
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const token = url.searchParams.get("token")?.trim();
+
+    if (!token) {
+      return NextResponse.redirect(
+        `${getBaseUrl()}/verify-email?status=invalid`
+      );
+    }
+
+    const tokenHash = hashEmailVerificationToken(token);
+
+    const verification = await prisma.emailVerificationToken.findUnique({
+      where: {
+        tokenHash,
+      },
+      select: {
+        id: true,
+        managementUserId: true,
+        expiresAt: true,
+        usedAt: true,
+        managementUser: {
+          select: {
+            id: true,
+            role: true,
+            email: true,
+            displayName: true,
+            emailVerifiedAt: true,
+            propertyId: true,
+            property: {
+              select: {
+                name: true,
+                propertyCode: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (
+      !verification ||
+      verification.usedAt ||
+      verification.expiresAt.getTime() <= Date.now()
+    ) {
+      return NextResponse.redirect(
+        `${getBaseUrl()}/verify-email?status=invalid`
+      );
+    }
+
+    const manager = verification.managementUser;
+
+    if (!manager.email) {
+      return NextResponse.redirect(
+        `${getBaseUrl()}/verify-email?status=invalid`
+      );
+    }
+
+    const verifiedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.managementUser.update({
+        where: {
+          id: manager.id,
+        },
+        data: {
+          emailVerifiedAt: manager.emailVerifiedAt ?? verifiedAt,
+          isActive: true,
+        },
+      }),
+      prisma.emailVerificationToken.update({
+        where: {
+          id: verification.id,
+        },
+        data: {
+          usedAt: verifiedAt,
+        },
+      }),
+      prisma.emailVerificationToken.updateMany({
+        where: {
+          managementUserId: manager.id,
+          id: {
+            not: verification.id,
+          },
+          usedAt: null,
+        },
+        data: {
+          usedAt: verifiedAt,
+        },
+      }),
+    ]);
+
+    const tokenSession = createSessionToken({
+      role: manager.role as "OWNER" | "MANAGER" | "STAFF",
+      propertyId: manager.propertyId,
+      managementUserId: manager.id,
+    });
+
+    await setSessionCookie(tokenSession);
+
+    try {
+      await sendWelcomeEmail({
+        email: manager.email,
+        displayName: manager.displayName,
+        propertyName: manager.property.name,
+        propertyCode: manager.property.propertyCode,
+      });
+    } catch (error) {
+      console.error("Welcome email failed after verification:", error);
+    }
+
+    return NextResponse.redirect(
+      `${getBaseUrl()}/manager/dashboard?verified=1`
+    );
+  } catch (error) {
+    console.error("Verify email failed:", error);
+
+    return NextResponse.redirect(
+      `${getBaseUrl()}/verify-email?status=error`
+    );
+  }
+}
+
+
+==================== app\api\admin\properties\[id]\route.ts ====================
+
+import { NextResponse, type NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+import {
+  BillingCalendarError,
+  lockBillingCalendar,
+} from "@/lib/billingCalendar";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type PatchBody = {
+  name?: unknown;
+  address?: unknown;
+  propertyType?: unknown;
+  isActive?: unknown;
+  gracePeriodDays?: unknown;
+  lateFeeEnabled?: unknown;
+  lateFeeFlat?: unknown;
+  convenienceFeeEnabled?: unknown;
+  convenienceFeeAmount?: unknown;
+  rentFrayStartDate?: unknown;
+};
+
+function safeString(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function toBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return fallback;
+}
+
+function isPrismaKnownError(
+  error: unknown
+): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError;
+}
+
+function canAccessProperty(input: {
+  sessionPropertyId: string | null | undefined;
+  requestedPropertyId: string;
+  role: string;
+}): boolean {
+  if (input.role === "ADMIN") {
+    return true;
+  }
+
+  return (
+    (input.role === "OWNER" || input.role === "MANAGER") &&
+    input.sessionPropertyId === input.requestedPropertyId
+  );
+}
+
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    const { id } = await context.params;
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !canAccessProperty({
+        sessionPropertyId: session.propertyId,
+        requestedPropertyId: id,
+        role: session.role,
+      })
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const property = await prisma.property.findUnique({
+      where: { id },
+      include: {
+        settings: true,
+        tiers: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          include: {
+            units: {
+              orderBy: { unitNumber: "asc" },
+            },
+          },
+        },
+      },
+    });
+
+    if (!property) {
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      property: {
+        id: property.id,
+        name: property.name,
+        code: property.propertyCode,
+        type: property.propertyType,
+        isActive: property.isActive,
+        address: property.addressLine1,
+        rentFrayStartDate: property.rentFrayStartDate,
+      },
+      settings: property.settings,
+      tiers: property.tiers.map(
+  (tier: (typeof property.tiers)[number]) => ({
+        id: tier.id,
+        name: tier.name,
+        baseRent: tier.baseRentCents / 100,
+        unitCount: tier.units.length,
+        rentDueDay: tier.rentDueDay,
+        gracePeriodDays: tier.gracePeriodDays,
+        lateFeeInitialCents: tier.lateFeeInitialCents,
+        lateFeeDailyCents: tier.lateFeeDailyCents,
+        maxLateFeeDays: tier.maxLateFeeDays,
+      })),
+    });
+  } catch (error) {
+    console.error("GET property failed", error);
+
+    return NextResponse.json(
+      { error: "Failed to load property." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    const { id } = await context.params;
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing id." }, { status: 400 });
+    }
+
+    await prisma.property.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("DELETE property failed", error);
+
+    return NextResponse.json(
+      { error: "Failed to delete property." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    const { id } = await context.params;
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Missing property id." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !canAccessProperty({
+        sessionPropertyId: session.propertyId,
+        requestedPropertyId: id,
+        role: session.role,
+      })
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = (await req.json()) as PatchBody;
+
+    const rentFrayStartDateOnlyUpdate =
+      Object.keys(body).length === 1 &&
+      typeof body.rentFrayStartDate === "string" &&
+      body.rentFrayStartDate.trim().length > 0;
+
+    if (rentFrayStartDateOnlyUpdate) {
+      if (session.role !== "OWNER" && session.role !== "ADMIN") {
+        return NextResponse.json(
+          {
+            error:
+              "Only the property owner can permanently lock the RentFray Start Date.",
+          },
+          { status: 403 }
+        );
+      }
+
+      const locked = await lockBillingCalendar({
+        propertyId: id,
+        rentFrayStartDate: body.rentFrayStartDate,
+        actor: {
+          actorType: session.role === "ADMIN" ? "ADMIN" : "MANAGER",
+          managementUserId:
+            session.role === "ADMIN"
+              ? null
+              : session.managementUserId ?? null,
+          adminId:
+            session.role === "ADMIN"
+              ? session.managementUserId ?? null
+              : null,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        property: {
+          id: locked.propertyId,
+          rentFrayStartDate: locked.rentFrayStartDate,
+          rentFrayStartDateString: locked.rentFrayStartDateString,
+          monthlyDueDay: locked.monthlyDueDay,
+        },
+      });
+    }
+
+    const name = safeString(body.name);
+    const address = safeString(body.address);
+    const propertyType = safeString(body.propertyType || "OTHER");
+    const isActive = toBoolean(body.isActive, true);
+
+    const gracePeriodDays = toNumber(body.gracePeriodDays, 0);
+    const lateFeeEnabled = toBoolean(body.lateFeeEnabled, true);
+    const lateFeeFlatCents = Math.round(
+      toNumber(body.lateFeeFlat, 0) * 100
+    );
+    const convenienceFeeEnabled = toBoolean(
+      body.convenienceFeeEnabled,
+      true
+    );
+    const convenienceFeeAmountCents = Math.round(
+      toNumber(body.convenienceFeeAmount, 0) * 100
+    );
+
+    if (!name) {
+      return NextResponse.json(
+        { error: "Property name is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!address) {
+      return NextResponse.json(
+        { error: "Property address is required." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !Number.isInteger(gracePeriodDays) ||
+      gracePeriodDays < 0 ||
+      gracePeriodDays > 31
+    ) {
+      return NextResponse.json(
+        { error: "Grace period must be 0–31." },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.property.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        rentFrayStartDate: true,
+        settings: {
+          select: {
+            id: true,
+            rentDueDay: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Property not found." },
+        { status: 404 }
+      );
+    }
+
+    const updated = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const property = await tx.property.update({
+          where: { id },
+          data: {
+            name,
+            addressLine1: address,
+            propertyType,
+            isActive,
+          },
+        });
+
+        const settings = existing.settings
+          ? await tx.propertySettings.update({
+              where: { propertyId: id },
+              data: {
+                gracePeriodDays,
+                lateFeeEnabled,
+                lateFeeFlatCents,
+                convenienceFeeEnabled,
+                convenienceFeeAmountCents,
+              },
+            })
+          : await tx.propertySettings.create({
+              data: {
+                propertyId: id,
+                rentDueDay:
+                  existing.rentFrayStartDate?.getUTCDate() ?? 1,
+                gracePeriodDays,
+                lateFeeEnabled,
+                lateFeeFlatCents,
+                convenienceFeeEnabled,
+                convenienceFeeAmountCents,
+              },
+            });
+
+        return { property, settings };
+      }
+    );
+
+    return NextResponse.json({
+      ok: true,
+      property: {
+        id: updated.property.id,
+        name: updated.property.name,
+      },
+      settings: updated.settings,
+    });
+  } catch (error: unknown) {
+    if (error instanceof BillingCalendarError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
+
+    if (isPrismaKnownError(error)) {
+      console.error("PATCH property prisma error", error);
+    } else {
+      console.error("PATCH property failed", error);
+    }
+
+    return NextResponse.json(
+      { error: "Failed to update property." },
+      { status: 500 }
+    );
+  }
+}
+
+
+==================== lib\billingCalendar.ts ====================
+
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getBusinessDate } from "@/lib/rentDates";
+
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export class BillingCalendarError extends Error {
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = "BillingCalendarError";
+    this.statusCode = statusCode;
+  }
+}
+
+export type BillingCalendarActor = {
+  actorType: "MANAGER" | "ADMIN" | "SYSTEM";
+  managementUserId?: string | null;
+  adminId?: string | null;
+};
+
+export type LockedBillingCalendar = {
+  propertyId: string;
+  rentFrayStartDate: Date;
+  rentFrayStartDateString: string;
+  monthlyDueDay: number;
+  updatedTierCount: number;
+};
+
+type DateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+function parseDateOnly(value: unknown): DateParts {
+  const raw = String(value ?? "").trim();
+  const match = DATE_ONLY_PATTERN.exec(raw);
+
+  if (!match) {
+    throw new BillingCalendarError(
+      "RentFray Start Date must be a valid calendar date."
+    );
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  const isValid =
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+
+  if (!isValid) {
+    throw new BillingCalendarError(
+      "RentFray Start Date must be a valid calendar date."
+    );
+  }
+
+  return { year, month, day };
+}
+
+function createStoredDate(parts: DateParts): Date {
+  /*
+   * Store the selected calendar date at UTC midnight.
+   *
+   * lib/rentDates.ts deliberately reads the stored value with UTC getters,
+   * which prevents the selected day from shifting because of server timezone
+   * or daylight-saving behavior.
+   */
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+}
+
+function datePartsToString(parts: DateParts): string {
+  return [
+    String(parts.year).padStart(4, "0"),
+    String(parts.month).padStart(2, "0"),
+    String(parts.day).padStart(2, "0"),
+  ].join("-");
+}
+
+function dateToUtcDateOnlyString(value: Date): string {
+  return [
+    String(value.getUTCFullYear()).padStart(4, "0"),
+    String(value.getUTCMonth() + 1).padStart(2, "0"),
+    String(value.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function businessTodayString(now: Date): string {
+  const today = getBusinessDate(now);
+
+  return [
+    String(today.getFullYear()).padStart(4, "0"),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function assertTodayOrFuture(parts: DateParts, now: Date): void {
+  const selected = datePartsToString(parts);
+  const today = businessTodayString(now);
+
+  /*
+   * YYYY-MM-DD strings sort chronologically, so this comparison remains
+   * timezone-safe and avoids timestamp conversion errors.
+   */
+  if (selected < today) {
+    throw new BillingCalendarError(
+      "RentFray Start Date cannot be in the past."
+    );
+  }
+}
+
+function assertValidDueDay(value: number): void {
+  if (!Number.isInteger(value) || value < 1 || value > 31) {
+    throw new BillingCalendarError(
+      "The permanent monthly due day is invalid."
+    );
+  }
+}
+
+export async function lockBillingCalendar(input: {
+  propertyId: string;
+  rentFrayStartDate: unknown;
+  actor: BillingCalendarActor;
+  now?: Date;
+}): Promise<LockedBillingCalendar> {
+  const propertyId = String(input.propertyId ?? "").trim();
+
+  if (!propertyId) {
+    throw new BillingCalendarError("Missing property id.");
+  }
+
+  const now = input.now ?? new Date();
+  const selectedParts = parseDateOnly(input.rentFrayStartDate);
+
+  assertTodayOrFuture(selectedParts, now);
+  assertValidDueDay(selectedParts.day);
+
+  const selectedDate = createStoredDate(selectedParts);
+  const selectedDateString = datePartsToString(selectedParts);
+  const monthlyDueDay = selectedParts.day;
+
+  return prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      /*
+       * Serialize all attempts to lock this property's billing calendar.
+       * This prevents two simultaneous requests from both passing the
+       * "not locked" check.
+       */
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Property"
+        WHERE "id" = ${propertyId}
+        FOR UPDATE
+      `;
+
+      const existing = await tx.property.findUnique({
+        where: { id: propertyId },
+        select: {
+          id: true,
+          name: true,
+          rentFrayStartDate: true,
+        },
+      });
+
+      if (!existing) {
+        throw new BillingCalendarError("Property not found.", 404);
+      }
+
+      if (existing.rentFrayStartDate) {
+        throw new BillingCalendarError(
+          "RentFray Start Date has already been permanently locked and cannot be changed.",
+          409
+        );
+      }
+
+      await tx.property.update({
+        where: { id: propertyId },
+        data: {
+          rentFrayStartDate: selectedDate,
+        },
+      });
+
+      await tx.propertySettings.upsert({
+        where: { propertyId },
+        update: {
+          rentDueDay: monthlyDueDay,
+        },
+        create: {
+          propertyId,
+          rentDueDay: monthlyDueDay,
+        },
+      });
+
+      /*
+       * Update every tier, including inactive tiers. An inactive tier may be
+       * reactivated later and must not retain an obsolete due day.
+       */
+      const tierUpdate = await tx.propertyTier.updateMany({
+        where: { propertyId },
+        data: {
+          rentDueDay: monthlyDueDay,
+        },
+      });
+
+      /*
+       * Verify the complete invariant before allowing the transaction to
+       * commit. Any failure throws and rolls back every write above.
+       */
+      const verification = await tx.property.findUnique({
+        where: { id: propertyId },
+        select: {
+          rentFrayStartDate: true,
+          settings: {
+            select: {
+              rentDueDay: true,
+            },
+          },
+          tiers: {
+            select: {
+              id: true,
+              rentDueDay: true,
+            },
+          },
+        },
+      });
+
+      if (!verification?.rentFrayStartDate) {
+        throw new BillingCalendarError(
+          "Billing calendar verification failed: start date was not saved.",
+          500
+        );
+      }
+
+      const storedDateString = dateToUtcDateOnlyString(
+        verification.rentFrayStartDate
+      );
+
+      if (storedDateString !== selectedDateString) {
+        throw new BillingCalendarError(
+          "Billing calendar verification failed: stored start date does not match the selected date.",
+          500
+        );
+      }
+
+      if (verification.settings?.rentDueDay !== monthlyDueDay) {
+        throw new BillingCalendarError(
+          "Billing calendar verification failed: property settings do not match the permanent due day.",
+          500
+        );
+      }
+
+      const mismatchedTier = verification.tiers.find(
+        (tier) => tier.rentDueDay !== monthlyDueDay
+      );
+
+      if (mismatchedTier) {
+        throw new BillingCalendarError(
+          `Billing calendar verification failed: tier ${mismatchedTier.id} does not match the permanent due day.`,
+          500
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          propertyId,
+          actorType: input.actor.actorType,
+          actorAdminId: input.actor.adminId ?? null,
+          actorManagementUserId: input.actor.managementUserId ?? null,
+          action: "BILLING_CALENDAR_LOCKED",
+          targetType: "PROPERTY",
+          targetId: propertyId,
+          summary: `RentFray Start Date permanently locked as ${selectedDateString}; monthly rent is due on day ${monthlyDueDay}.`,
+          metadataJson: JSON.stringify({
+            rentFrayStartDate: selectedDateString,
+            monthlyDueDay,
+            updatedTierCount: tierUpdate.count,
+          }),
+        },
+      });
+
+      return {
+        propertyId,
+        rentFrayStartDate: selectedDate,
+        rentFrayStartDateString: selectedDateString,
+        monthlyDueDay,
+        updatedTierCount: tierUpdate.count,
+      };
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
+}
+
+export function getLockedMonthlyDueDay(
+  rentFrayStartDate: Date | null | undefined
+): number | null {
+  if (!rentFrayStartDate) {
+    return null;
+  }
+
+  const dueDay = rentFrayStartDate.getUTCDate();
+  assertValidDueDay(dueDay);
+
+  return dueDay;
+}
+
+export function assertPropertyBillingCalendar(input: {
+  propertyId: string;
+  rentFrayStartDate: Date | null;
+  propertySettingsDueDay: number | null | undefined;
+}): number {
+  if (!input.rentFrayStartDate) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} does not have a locked RentFray Start Date.`,
+      409
+    );
+  }
+
+  const permanentDueDay = getLockedMonthlyDueDay(
+    input.rentFrayStartDate
+  );
+
+  if (permanentDueDay === null) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has an invalid billing calendar.`,
+      500
+    );
+  }
+
+  if (input.propertySettingsDueDay !== permanentDueDay) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has conflicting billing settings.`,
+      500
+    );
+  }
+
+  return permanentDueDay;
+}
+
+export function assertTierBillingCalendar(input: {
+  propertyId: string;
+  rentFrayStartDate: Date | null;
+  propertySettingsDueDay: number | null | undefined;
+  tier: {
+    id?: string | null;
+    rentDueDay: number;
+  } | null;
+}): number {
+  if (!input.rentFrayStartDate) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} does not have a locked RentFray Start Date.`,
+      409
+    );
+  }
+
+  const permanentDueDay = getLockedMonthlyDueDay(
+    input.rentFrayStartDate
+  );
+
+  if (permanentDueDay === null) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has an invalid billing calendar.`,
+      500
+    );
+  }
+
+  if (input.propertySettingsDueDay !== permanentDueDay) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has conflicting billing settings.`,
+      500
+    );
+  }
+
+  if (!input.tier) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} does not have a valid billing tier.`,
+      500
+    );
+  }
+
+  if (input.tier.rentDueDay !== permanentDueDay) {
+    const tierLabel = input.tier.id
+      ? `tier ${input.tier.id}`
+      : "the selected tier";
+
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has a conflicting due day on ${tierLabel}.`,
+      500
+    );
+  }
+
+  return permanentDueDay;
+}
+
+export function assertBillingCalendarInvariant(input: {
+  propertyId: string;
+  rentFrayStartDate: Date | null;
+  propertySettingsDueDay: number | null | undefined;
+  tiers: Array<{
+    id: string;
+    rentDueDay: number;
+  }>;
+}): number {
+  if (!input.rentFrayStartDate) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} does not have a locked RentFray Start Date.`,
+      409
+    );
+  }
+
+  const permanentDueDay = getLockedMonthlyDueDay(
+    input.rentFrayStartDate
+  );
+
+  if (permanentDueDay === null) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has an invalid billing calendar.`,
+      500
+    );
+  }
+
+  if (input.propertySettingsDueDay !== permanentDueDay) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has conflicting billing settings.`,
+      500
+    );
+  }
+
+  const mismatchedTier = input.tiers.find(
+    (tier) => tier.rentDueDay !== permanentDueDay
+  );
+
+  if (mismatchedTier) {
+    throw new BillingCalendarError(
+      `Property ${input.propertyId} has a conflicting due day on tier ${mismatchedTier.id}.`,
+      500
+    );
+  }
+
+  return permanentDueDay;
+}
+
+
+==================== app\manager\dashboard\ManagerDashboardClient.tsx ====================
+
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -98,7 +1276,6 @@ onboarding?: {
   bankConnected: boolean;
 };
 rentFrayStartDate?: string | null;
-setupCompleteAcknowledgedAt?: string | null;
 };
   session: {
     role: "OWNER" | "MANAGER" | "STAFF";
@@ -669,18 +1846,27 @@ const onboardingComplete = Boolean(
 );
 
 useEffect(() => {
-  if (!onboardingComplete) {
-    setShowSetupSuccess(false);
+  if (!onboardingComplete || !data?.property?.id) {
     return;
   }
 
-  setShowSetupSuccess(
-    !data?.property?.setupCompleteAcknowledgedAt
-  );
-}, [
-  onboardingComplete,
-  data?.property?.setupCompleteAcknowledgedAt,
-]);
+  const storageKey = `rf-setup-success-${data.property.id}`;
+
+  if (window.sessionStorage.getItem(storageKey) === "shown") {
+    return;
+  }
+
+  window.sessionStorage.setItem(storageKey, "shown");
+  setShowSetupSuccess(true);
+
+  const timeout = window.setTimeout(() => {
+    setShowSetupSuccess(false);
+  }, 5000);
+
+  return () => {
+    window.clearTimeout(timeout);
+  };
+}, [onboardingComplete, data?.property?.id]);
 
  const [activeGpLfTierId, setActiveGpLfTierId] = useState("");
 const [configuredGpLfTierIds, setConfiguredGpLfTierIds] = useState<string[]>([]);
@@ -763,7 +1949,6 @@ function updateGpLf(
     return next;
   });
 }
-
 
 function selectGpLfTier(tierId: string): void {
   if (activeGpLfTierId) {
@@ -1029,47 +2214,6 @@ async function handleOnboard(): Promise<void> {
     window.location.href = json.url;
   } catch {
     alert("Failed to continue Stripe setup.");
-  }
-}
-
-async function acknowledgeSetupComplete(): Promise<void> {
-  try {
-    const response = await fetch("/api/manager/setup-complete", {
-      method: "POST",
-      credentials: "include",
-    });
-
-    const json = (await response.json().catch(() => null)) as
-      | {
-          ok?: boolean;
-          error?: string;
-          setupCompleteAcknowledgedAt?: string;
-        }
-      | null;
-
-    if (!response.ok || !json?.ok || !json.setupCompleteAcknowledgedAt) {
-      alert(json?.error || "Failed to open dashboard.");
-      return;
-    }
-
-    setData((current) => {
-      if (!current) {
-        return current;
-      }
-
-      return {
-        ...current,
-        property: {
-          ...current.property,
-          setupCompleteAcknowledgedAt:
-            json.setupCompleteAcknowledgedAt ?? null,
-        },
-      };
-    });
-
-    setShowSetupSuccess(false);
-  } catch {
-    alert("Failed to open dashboard.");
   }
 }
 
@@ -2830,9 +3974,7 @@ document.cookie.includes("rf_admin_session=") ? (
 
       <button
         type="button"
-        onClick={() => {
-        void acknowledgeSetupComplete();
-          }}
+        onClick={() => setShowSetupSuccess(false)}
         className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#173024] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10241b] sm:w-auto"
       >
         View Dashboard

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { createSessionToken, setSessionCookie } from "@/lib/session";
+import {
+  clearSessionCookie,
+  createSessionToken,
+  setSessionCookie,
+} from "@/lib/session";
 import { canManagerOperate } from "@/lib/liveGating";
 import { verifyManagementPassword } from "@/lib/managementAuth";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -141,13 +145,9 @@ if (
 }
 
 export async function DELETE() {
-  return NextResponse.json(
-    { ok: true },
-    {
-      headers: {
-        "Set-Cookie":
-          "manager_session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax",
-      },
-    }
-  );
+  await clearSessionCookie();
+
+  return NextResponse.json({
+    ok: true,
+  });
 }
