@@ -1,4 +1,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import {
+  assertTierBillingCalendar,
+  BillingCalendarError,
+} from "@/lib/billingCalendar";
 import { prisma } from "@/lib/prisma";
 import {
   getBusinessDate,
@@ -6,11 +10,16 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
-import { assertTierBillingCalendar } from "@/lib/billingCalendar";
-
 const UNIT_CHUNK_SIZE = 500;
 const LEDGER_CREATE_CHUNK_SIZE = 1000;
 const MONTHLY_RENT_JOB_LOCK_ID = 91024001;
+
+type MonthlyRentJobFailure = {
+  propertyId: string;
+  unitId: string;
+  unitNumber: string;
+  error: string;
+};
 
 type MonthlyRentJobResult = {
   ok: true;
@@ -22,6 +31,8 @@ type MonthlyRentJobResult = {
   rentChargesCreated: number;
   recurringFeeChargesCreated: number;
   existingChargesSkipped: number;
+  failedUnits: number;
+  failures: MonthlyRentJobFailure[];
 };
 
 type MonthlyRentUnit = Prisma.UnitGetPayload<{
@@ -63,6 +74,10 @@ function rentKey(unitId: string, billingCycle: string): string {
 
 function feeKey(unitId: string, billingCycle: string, memo: string): string {
   return `${unitId}|${billingCycle}|RECURRING_FEE|${memo}`;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function acquireMonthlyRentLock(db: PrismaClient): Promise<boolean> {
@@ -123,6 +138,8 @@ export async function runMonthlyRentJob(
       rentChargesCreated: 0,
       recurringFeeChargesCreated: 0,
       existingChargesSkipped: 0,
+      failedUnits: 0,
+      failures: [],
     };
   }
 
@@ -137,14 +154,15 @@ export async function runMonthlyRentJob(
   let rentChargesCreated = 0;
   let recurringFeeChargesCreated = 0;
   let existingChargesSkipped = 0;
+  const failures: MonthlyRentJobFailure[] = [];
 
   try {
     while (true) {
       const units: MonthlyRentUnit[] = await prisma.unit.findMany({
         where: {
           isActive: true,
-         ...(propertyId ? { propertyId } : {}),
-            },
+          ...(propertyId ? { propertyId } : {}),
+        },
         orderBy: { id: "asc" },
         take: UNIT_CHUNK_SIZE,
         ...(cursorId
@@ -181,28 +199,30 @@ export async function runMonthlyRentJob(
       cursorId = units[units.length - 1]?.id;
       processedUnits += units.length;
 
-      const dueUnitPayloads: DueUnitPayload[] = units.reduce<DueUnitPayload[]>(
-        (acc, unit) => {
-          const assignment = unit.tenantAssignments[0] ?? null;
+      const dueUnitPayloads: DueUnitPayload[] = [];
 
-          if (!assignment) {
-            skippedNoTenant++;
-            return acc;
-          }
+      for (const unit of units) {
+        const assignment = unit.tenantAssignments[0] ?? null;
 
-         const permanentDueDay = assertTierBillingCalendar({
-  propertyId: unit.propertyId,
-  rentFrayStartDate: unit.property.rentFrayStartDate,
-  propertySettingsDueDay: unit.property.settings?.rentDueDay,
-  tier: unit.tier,
-});
+        if (!assignment) {
+          skippedNoTenant++;
+          continue;
+        }
+
+        try {
+          const permanentDueDay = assertTierBillingCalendar({
+            propertyId: unit.propertyId,
+            rentFrayStartDate: unit.property.rentFrayStartDate,
+            propertySettingsDueDay: unit.property.settings?.rentDueDay,
+            tier: unit.tier,
+          });
 
           const effective = resolveEffectiveBillingSettings({
             tier: unit.tier,
             propertySettings: unit.property.settings,
           });
 
-           effective.dueDay = permanentDueDay;
+          effective.dueDay = permanentDueDay;
 
           const rentDates = getRentDateSummary({
             ...effective,
@@ -210,16 +230,16 @@ export async function runMonthlyRentJob(
             rentFrayStartDate: unit.property.rentFrayStartDate,
           });
 
-           if (!rentDates.hasStarted) {
-           skippedNotDue++;
-           return acc;
-           } 
+          if (!rentDates.hasStarted) {
+            skippedNotDue++;
+            continue;
+          }
 
           const dueDate = parseDateOnly(rentDates.dueDate);
 
           if (!sameDay(today, dueDate)) {
             skippedNotDue++;
-            return acc;
+            continue;
           }
 
           if (
@@ -227,22 +247,39 @@ export async function runMonthlyRentJob(
             startOfDay(assignment.moveInDate).getTime() > dueDate.getTime()
           ) {
             skippedMoveInAfterDue++;
-            return acc;
+            continue;
           }
 
           dueUnits++;
 
-          acc.push({
+          dueUnitPayloads.push({
             unit,
             assignment,
             billingCycle: rentDates.billingCycle,
             dueDate,
           });
+        } catch (error: unknown) {
+          if (!(error instanceof BillingCalendarError)) {
+            throw error;
+          }
 
-          return acc;
-        },
-        []
-      );
+          const failure: MonthlyRentJobFailure = {
+            propertyId: unit.propertyId,
+            unitId: unit.id,
+            unitNumber: unit.unitNumber,
+            error: getErrorMessage(error),
+          };
+
+          failures.push(failure);
+
+          console.error(
+            "[monthly-rent] Skipping unit with invalid billing calendar",
+            {
+              ...failure,
+            }
+          );
+        }
+      }
 
       if (dueUnitPayloads.length === 0) continue;
 
@@ -364,6 +401,8 @@ export async function runMonthlyRentJob(
       rentChargesCreated,
       recurringFeeChargesCreated,
       existingChargesSkipped,
+      failedUnits: failures.length,
+      failures,
     };
   } finally {
     await releaseMonthlyRentLock(prisma);

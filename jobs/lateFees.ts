@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { getUnitFinancialState } from "@/lib/unitFinancialState";
+import { BillingCalendarError } from "@/lib/billingCalendar";
 import { getBusinessDate } from "@/lib/rentDates";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -41,28 +42,41 @@ function isOnOrBefore(date: Date, comparisonDate: Date): boolean {
   return startOfDay(date).getTime() <= startOfDay(comparisonDate).getTime();
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+type LateFeeJobFailure = {
+  propertyId: string;
+  unitId: string;
+  unitNumber: string;
+  error: string;
+};
+
 type LateFeesJobResult = {
   ok: true;
-  billingCycle: string;
+  billingCycle: "per-unit";
   posted: number;
   skipped: number;
+  failedUnits: number;
+  failures: LateFeeJobFailure[];
 };
 
 export async function runLateFeesJob(
   asOf = new Date(),
   propertyId?: string
 ): Promise<LateFeesJobResult> {
-  // Keep the original timestamp for timezone-aware financial calculations.
+  // Preserve the original timestamp for timezone-aware financial calculations.
   const rawNow = asOf;
 
-  // Use the normalized business date only for ledger effective dates and memos.
+  // Normalize only the effective ledger date/memo date to RentFray business time.
   const effectiveDate = getBusinessDate(rawNow);
 
   const units = await prisma.unit.findMany({
-where: {
-  isActive: true,
-  ...(propertyId ? { propertyId } : {}),
-},
+    where: {
+      isActive: true,
+      ...(propertyId ? { propertyId } : {}),
+    },
     include: {
       property: {
         include: {
@@ -101,6 +115,7 @@ where: {
 
   let posted = 0;
   let skipped = 0;
+  const failures: LateFeeJobFailure[] = [];
 
   for (const unit of units) {
     const assignment = unit.tenantAssignments[0] ?? null;
@@ -110,20 +125,43 @@ where: {
       continue;
     }
 
-const financialState = await getUnitFinancialState({
-  propertyId: unit.propertyId,
-  unitId: unit.id,
-  tenantAssignmentId: assignment.id,
-  tier: unit.tier,
-  propertySettings: unit.property.settings,
-  rentFrayStartDate: unit.property.rentFrayStartDate,
-  now: rawNow,
-});
+    let financialState: Awaited<ReturnType<typeof getUnitFinancialState>>;
 
-if (!financialState.rentDates.hasStarted) {
-  skipped++;
-  continue;
-}
+    try {
+      financialState = await getUnitFinancialState({
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        tenantAssignmentId: assignment.id,
+        tier: unit.tier,
+        propertySettings: unit.property.settings,
+        rentFrayStartDate: unit.property.rentFrayStartDate,
+        now: rawNow,
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof BillingCalendarError)) {
+        throw error;
+      }
+
+      const failure: LateFeeJobFailure = {
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        unitNumber: unit.unitNumber,
+        error: getErrorMessage(error),
+      };
+
+      failures.push(failure);
+
+      console.error("[late-fees] Skipping unit with invalid billing calendar", {
+        ...failure,
+      });
+
+      continue;
+    }
+
+    if (!financialState.rentDates.hasStarted) {
+      skipped++;
+      continue;
+    }
 
     const effective = financialState.effectiveBillingSettings;
     const billingCycle = financialState.billingCycle;
@@ -151,41 +189,37 @@ if (!financialState.rentDates.hasStarted) {
       financialState.rentDates.dailyLateFeeLastDate
     );
 
-   const existingLateFees: Array<{
-  chargeType: string | null;
-  memo: string | null;
-}> = await prisma.ledgerEntry.findMany({
-  where: {
-    propertyId: unit.propertyId,
-    unitId: unit.id,
-    tenantAssignmentId: assignment.id,
-    billingCycle,
-    entryType: "CHARGE",
-    chargeType: {
-      in: [
-        "LATE_FEE",
-        "LATE_FEE_INITIAL",
-        "LATE_FEE_DAILY",
-      ],
-    },
-    voidedAt: null,
-  },
-  select: {
-    chargeType: true,
-    memo: true,
-  },
-});
+    const existingLateFees: Array<{
+      chargeType: string | null;
+      memo: string | null;
+    }> = await prisma.ledgerEntry.findMany({
+      where: {
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        tenantAssignmentId: assignment.id,
+        billingCycle,
+        entryType: "CHARGE",
+        chargeType: {
+          in: ["LATE_FEE", "LATE_FEE_INITIAL", "LATE_FEE_DAILY"],
+        },
+        voidedAt: null,
+      },
+      select: {
+        chargeType: true,
+        memo: true,
+      },
+    });
 
     const hasExistingInitial = existingLateFees.some(
-      entry =>
+      (entry) =>
         entry.chargeType === "LATE_FEE" ||
         entry.chargeType === "LATE_FEE_INITIAL"
     );
 
     const existingDailyMemos = new Set(
       existingLateFees
-        .filter(entry => entry.chargeType === "LATE_FEE_DAILY")
-        .map(entry => entry.memo)
+        .filter((entry) => entry.chargeType === "LATE_FEE_DAILY")
+        .map((entry) => entry.memo)
         .filter((memo): memo is string => Boolean(memo))
     );
 
@@ -275,5 +309,7 @@ if (!financialState.rentDates.hasStarted) {
     billingCycle: "per-unit",
     posted,
     skipped,
+    failedUnits: failures.length,
+    failures,
   };
 }
