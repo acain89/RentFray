@@ -261,10 +261,10 @@ const billingCycle =
       );
     }
 
-    const origin =
-      req.headers.get("origin") ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:10000";
+  const origin =
+  process.env.NODE_ENV === "production"
+    ? "https://rentfray.com"
+    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:10000";
 
     const paymentMetadata = {
       paymentId: createdPayment.id,
