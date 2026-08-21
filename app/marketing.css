@@ -238,6 +238,8 @@
   min-height: 38px;
   padding: 0 16px;
   font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
   .rfm-button-small { padding: 0 13px; font-size: 12px; }
   .rfm-hero { padding-top: 34px; }

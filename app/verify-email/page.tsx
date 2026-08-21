@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 type ResendResponse =
   | {
@@ -12,7 +12,7 @@ type ResendResponse =
       error?: string;
     };
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
 
   const email = searchParams.get("email")?.trim() || "";
@@ -188,5 +188,25 @@ if (!targetEmail) {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#dfe7ee] px-4 py-8 text-[#0f172a] sm:px-6 sm:py-12">
+          <div className="mx-auto w-full max-w-xl">
+            <div className="rounded-[28px] border border-[#cbd5e1] bg-white p-5 shadow-sm sm:p-7">
+              <p className="text-sm text-[#64748b]">
+                Loading verification page...
+              </p>
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
