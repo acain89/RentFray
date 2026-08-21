@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/pin";
+import { runLateFeesJob } from "@/jobs/lateFees";
 import {
   createSessionToken,
   setSessionCookie,
@@ -604,6 +605,24 @@ export async function POST(req: Request) {
         timeout: 20_000,
       }
     );
+
+    /*
+     * Catch up any late fees that were already earned before this
+     * tenant was activated.
+     *
+     * This deliberately runs after the activation transaction commits
+     * so the canonical late-fee job can see the new assignment and
+     * any current-cycle rent charge.
+     */
+    try {
+      await runLateFeesJob(new Date(), activation.propertyId);
+    } catch (error: unknown) {
+      console.error(
+        "Tenant activation late-fee catch-up failed",
+        error
+      );
+    }
+
 
     /*
      * The session is created only after every database operation commits.
