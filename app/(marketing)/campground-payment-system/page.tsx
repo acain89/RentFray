@@ -1,4 +1,4 @@
-// app/campground-payment-system/page.tsx
+﻿// app/campground-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "Campground Payment System | Simple Online Campground Rent Payments | RentFray",
   description:
     "A campground payment system built for simple online rent payments. Collect campground space rent online, reduce manual tracking, and keep resident and guest payments organized with a clean, self-serve platform that stays free for the business.",
+  alternates: {
+    canonical: "/campground-payment-system",
+  },
 };
 
 export default function CampgroundPaymentSystemPage() {
@@ -15,7 +18,7 @@ export default function CampgroundPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Campground Payment System — A Simpler Way to Collect Campground
+          Campground Payment System â€” A Simpler Way to Collect Campground
           Payments Online
         </h1>
 
@@ -74,13 +77,13 @@ export default function CampgroundPaymentSystemPage() {
         <p>Usually, what they actually want is simple:</p>
 
         <ul className="space-y-2">
-          <li>• One clear way to collect campground payments online</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less dependence on checks, cash, and manual follow-up</li>
-          <li>• A more repeatable monthly collection workflow</li>
-          <li>• Fewer spreadsheets and fewer disconnected systems</li>
-          <li>• A payment process that feels easy to explain and easy to repeat</li>
-          <li>• A tool that does not require training just to use it</li>
+          <li>â€¢ One clear way to collect campground payments online</li>
+          <li>â€¢ Better visibility into who has paid and who has not</li>
+          <li>â€¢ Less dependence on checks, cash, and manual follow-up</li>
+          <li>â€¢ A more repeatable monthly collection workflow</li>
+          <li>â€¢ Fewer spreadsheets and fewer disconnected systems</li>
+          <li>â€¢ A payment process that feels easy to explain and easy to repeat</li>
+          <li>â€¢ A tool that does not require training just to use it</li>
         </ul>
 
         <p>
@@ -141,7 +144,7 @@ export default function CampgroundPaymentSystemPage() {
       {/* PAIN AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Just the Payment — It Is the Friction Around
+          The Real Problem Is Not Just the Payment â€” It Is the Friction Around
           It
         </h2>
 
@@ -155,12 +158,12 @@ export default function CampgroundPaymentSystemPage() {
         <p>Every workaround adds drag:</p>
 
         <ul className="space-y-2">
-          <li>• Checking different places to confirm whether money arrived</li>
-          <li>• Sending reminders manually</li>
-          <li>• Updating spreadsheets after the fact</li>
-          <li>• Matching payments to spaces by hand</li>
-          <li>• Explaining payment instructions repeatedly</li>
-          <li>• Rebuilding a reliable picture of the month from scattered data</li>
+          <li>â€¢ Checking different places to confirm whether money arrived</li>
+          <li>â€¢ Sending reminders manually</li>
+          <li>â€¢ Updating spreadsheets after the fact</li>
+          <li>â€¢ Matching payments to spaces by hand</li>
+          <li>â€¢ Explaining payment instructions repeatedly</li>
+          <li>â€¢ Rebuilding a reliable picture of the month from scattered data</li>
         </ul>
 
         <p>
@@ -587,14 +590,14 @@ export default function CampgroundPaymentSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• best campground payment system</li>
-          <li>• campground payment software</li>
-          <li>• online campground rent payments</li>
-          <li>• monthly RV space payment system</li>
-          <li>• simple campground payment tracking system</li>
-          <li>• free campground payment platform</li>
-          <li>• how to collect monthly campground payments online</li>
-          <li>• easy recurring payment system for campgrounds</li>
+          <li>â€¢ best campground payment system</li>
+          <li>â€¢ campground payment software</li>
+          <li>â€¢ online campground rent payments</li>
+          <li>â€¢ monthly RV space payment system</li>
+          <li>â€¢ simple campground payment tracking system</li>
+          <li>â€¢ free campground payment platform</li>
+          <li>â€¢ how to collect monthly campground payments online</li>
+          <li>â€¢ easy recurring payment system for campgrounds</li>
         </ul>
 
         <p>

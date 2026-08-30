@@ -1,4 +1,4 @@
-// app/student-housing-rent-payment/page.tsx
+﻿// app/student-housing-rent-payment/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "Student Housing Rent Payment | Simple Online Payments | RentFray",
   description:
     "A student housing rent payment system built for simple online recurring payments. Give residents a clear way to pay online, reduce manual tracking, and keep student housing payments organized.",
+  alternates: {
+    canonical: "/student-housing-rent-payment",
+  },
 };
 
 export default function StudentHousingRentPaymentPage() {
@@ -14,7 +17,7 @@ export default function StudentHousingRentPaymentPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Student Housing Rent Payment — A Simpler Way to Handle Recurring Resident Payments
+          Student Housing Rent Payment â€” A Simpler Way to Handle Recurring Resident Payments
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -56,11 +59,11 @@ export default function StudentHousingRentPaymentPage() {
         <p>Usually, what they really want is simple:</p>
 
         <ul className="space-y-2">
-          <li>• A clear way for residents to pay rent online</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less spreadsheet work and less manual reconciliation</li>
-          <li>• Less dependence on checks and inconsistent payment methods</li>
-          <li>• A payment routine that feels easier to repeat every month</li>
+          <li>â€¢ A clear way for residents to pay rent online</li>
+          <li>â€¢ Better visibility into who has paid and who has not</li>
+          <li>â€¢ Less spreadsheet work and less manual reconciliation</li>
+          <li>â€¢ Less dependence on checks and inconsistent payment methods</li>
+          <li>â€¢ A payment routine that feels easier to repeat every month</li>
         </ul>
 
         <p>

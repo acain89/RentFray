@@ -17,10 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.rentfray.com"),
 
-  title: {
-    default: "RentFray | Free Rent Collection Software",
-    template: "%s | RentFray",
-  },
+title: "RentFray | Free Rent Collection Software",
 
   description:
     "Free rent collection software for property owners and managers. Collect rent online, track tenant balances and payment status, and accept secure payments without monthly software fees.",
@@ -40,13 +37,8 @@ export const metadata: Metadata = {
 
   applicationName: "RentFray",
 
-  alternates: {
-    canonical: "/",
-  },
-
   openGraph: {
     type: "website",
-    url: "/",
     siteName: "RentFray",
     title: "RentFray | Free Rent Collection Software",
     description:

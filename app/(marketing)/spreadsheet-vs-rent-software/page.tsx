@@ -1,4 +1,4 @@
-// app/spreadsheet-vs-rent-software/page.tsx
+﻿// app/spreadsheet-vs-rent-software/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "Spreadsheet vs Rent Software | Simpler Rent Collection and Tracking | RentFray",
   description:
     "Compare spreadsheet vs rent software and see why a simpler, more organized rent collection system can reduce manual work, confusion, and monthly admin with RentFray.",
+  alternates: {
+    canonical: "/spreadsheet-vs-rent-software",
+  },
 };
 
 export default function SpreadsheetVsRentSoftwarePage() {
@@ -15,7 +18,7 @@ export default function SpreadsheetVsRentSoftwarePage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Spreadsheet vs Rent Software — Why So Many Landlords Stay Manual Too
+          Spreadsheet vs Rent Software â€” Why So Many Landlords Stay Manual Too
           Long, Then Realize the Month Has Become Harder Than It Should Be
         </h1>
 
@@ -78,11 +81,11 @@ export default function SpreadsheetVsRentSoftwarePage() {
         <p>Usually, they are asking questions like:</p>
 
         <ul className="space-y-2">
-          <li>• Is my spreadsheet still enough for rent tracking?</li>
-          <li>• Am I doing more manual work than I realize?</li>
-          <li>• Would rent software actually simplify anything?</li>
-          <li>• Do I need a real system, or can I keep using spreadsheets?</li>
-          <li>• Is there a lighter option than bloated property software?</li>
+          <li>â€¢ Is my spreadsheet still enough for rent tracking?</li>
+          <li>â€¢ Am I doing more manual work than I realize?</li>
+          <li>â€¢ Would rent software actually simplify anything?</li>
+          <li>â€¢ Do I need a real system, or can I keep using spreadsheets?</li>
+          <li>â€¢ Is there a lighter option than bloated property software?</li>
         </ul>
 
         <p>
@@ -101,7 +104,7 @@ export default function SpreadsheetVsRentSoftwarePage() {
       {/* PROBLEM AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          Why Spreadsheets Feel Good at First — Then Slowly Start Carrying Too
+          Why Spreadsheets Feel Good at First â€” Then Slowly Start Carrying Too
           Much of the Process
         </h2>
 
@@ -210,7 +213,7 @@ export default function SpreadsheetVsRentSoftwarePage() {
 
         <p>
           A spreadsheet can absolutely hold rent data. The real problem is that
-          it rarely reduces the landlord’s manual role in the monthly process.
+          it rarely reduces the landlordâ€™s manual role in the monthly process.
         </p>
       </section>
 
@@ -223,18 +226,18 @@ export default function SpreadsheetVsRentSoftwarePage() {
         <p>
           Good rent software should not exist just to look more professional
           than a spreadsheet. It should solve the monthly friction that the
-          spreadsheet keeps leaving on the landlord’s shoulders.
+          spreadsheet keeps leaving on the landlordâ€™s shoulders.
         </p>
 
         <p>A stronger rent system should help with a few things directly:</p>
 
         <ul className="space-y-2">
-          <li>• Give tenants one clear way to pay</li>
-          <li>• Make payment status easier to see</li>
-          <li>• Reduce spreadsheet dependence and manual entry</li>
-          <li>• Reduce repeated matching and side-note tracking</li>
-          <li>• Create a recurring workflow that is easier to trust</li>
-          <li>• Stay simple enough to use consistently every month</li>
+          <li>â€¢ Give tenants one clear way to pay</li>
+          <li>â€¢ Make payment status easier to see</li>
+          <li>â€¢ Reduce spreadsheet dependence and manual entry</li>
+          <li>â€¢ Reduce repeated matching and side-note tracking</li>
+          <li>â€¢ Create a recurring workflow that is easier to trust</li>
+          <li>â€¢ Stay simple enough to use consistently every month</li>
         </ul>
 
         <p>
@@ -287,12 +290,12 @@ export default function SpreadsheetVsRentSoftwarePage() {
         <p>That means:</p>
 
         <ul className="space-y-2">
-          <li>• One clearer payment path</li>
-          <li>• Better monthly visibility</li>
-          <li>• Less manual logging</li>
-          <li>• Less spreadsheet cleanup</li>
-          <li>• Less repeated follow-up</li>
-          <li>• A simpler recurring monthly workflow</li>
+          <li>â€¢ One clearer payment path</li>
+          <li>â€¢ Better monthly visibility</li>
+          <li>â€¢ Less manual logging</li>
+          <li>â€¢ Less spreadsheet cleanup</li>
+          <li>â€¢ Less repeated follow-up</li>
+          <li>â€¢ A simpler recurring monthly workflow</li>
         </ul>
 
         <p className="font-medium">
@@ -388,7 +391,7 @@ export default function SpreadsheetVsRentSoftwarePage() {
         <p>
           A lot of landlords assume spreadsheets are simple and software is
           complicated. But sometimes the spreadsheet is only simple because the
-          complexity is hidden inside the landlord’s own repeated effort.
+          complexity is hidden inside the landlordâ€™s own repeated effort.
         </p>
 
         <p>
@@ -513,7 +516,7 @@ export default function SpreadsheetVsRentSoftwarePage() {
       {/* COMPARISON */}
       <section className="mb-12">
         <h2 className="mb-4 text-2xl font-semibold">
-          Spreadsheet vs Rent Software — Side by Side
+          Spreadsheet vs Rent Software â€” Side by Side
         </h2>
 
         <div className="space-y-6 text-slate-700">
@@ -677,14 +680,14 @@ export default function SpreadsheetVsRentSoftwarePage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>• spreadsheet vs rent software</li>
-          <li>• is rent software better than spreadsheets</li>
-          <li>• spreadsheet for tracking rent vs software</li>
-          <li>• best way to track rent payments for landlords</li>
-          <li>• simple rent software for small landlords</li>
-          <li>• when to stop using spreadsheets for rent</li>
-          <li>• spreadsheet alternative for rent collection</li>
-          <li>• cleaner monthly rent workflow for landlords</li>
+          <li>â€¢ spreadsheet vs rent software</li>
+          <li>â€¢ is rent software better than spreadsheets</li>
+          <li>â€¢ spreadsheet for tracking rent vs software</li>
+          <li>â€¢ best way to track rent payments for landlords</li>
+          <li>â€¢ simple rent software for small landlords</li>
+          <li>â€¢ when to stop using spreadsheets for rent</li>
+          <li>â€¢ spreadsheet alternative for rent collection</li>
+          <li>â€¢ cleaner monthly rent workflow for landlords</li>
         </ul>
 
         <p>

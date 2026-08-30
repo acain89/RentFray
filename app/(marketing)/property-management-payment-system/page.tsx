@@ -1,4 +1,4 @@
-// app/property-management-payment-system/page.tsx
+﻿// app/property-management-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "Property Management Payment System | Free Online Rent Collection | RentFray",
   description:
     "A property management payment system built for simple online rent collection. No monthly fees for property owners. Tenants pay online, managers stay organized, and setup stays easy.",
+  alternates: {
+    canonical: "/property-management-payment-system",
+  },
 };
 
 export default function PropertyManagementPaymentSystemPage() {
@@ -15,7 +18,7 @@ export default function PropertyManagementPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Property Management Payment System — Built for Simple, Repeatable Rent Collection
+          Property Management Payment System â€” Built for Simple, Repeatable Rent Collection
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -64,11 +67,11 @@ export default function PropertyManagementPaymentSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Collect rent payments online in a repeatable way</li>
-          <li>• Give tenants a simple path to pay each month</li>
-          <li>• Reduce manual tracking and reconciliation work</li>
-          <li>• Keep payment flow consistent across units and tenants</li>
-          <li>• Help managers see what is happening without extra friction</li>
+          <li>â€¢ Collect rent payments online in a repeatable way</li>
+          <li>â€¢ Give tenants a simple path to pay each month</li>
+          <li>â€¢ Reduce manual tracking and reconciliation work</li>
+          <li>â€¢ Keep payment flow consistent across units and tenants</li>
+          <li>â€¢ Help managers see what is happening without extra friction</li>
         </ul>
 
         <p>
@@ -288,13 +291,13 @@ export default function PropertyManagementPaymentSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Apartment communities</li>
-          <li>• Small multifamily portfolios</li>
-          <li>• Duplexes and scattered rental units</li>
-          <li>• Mobile home parks</li>
-          <li>• RV parks</li>
-          <li>• Self-storage facilities</li>
-          <li>• Mixed property portfolios</li>
+          <li>â€¢ Apartment communities</li>
+          <li>â€¢ Small multifamily portfolios</li>
+          <li>â€¢ Duplexes and scattered rental units</li>
+          <li>â€¢ Mobile home parks</li>
+          <li>â€¢ RV parks</li>
+          <li>â€¢ Self-storage facilities</li>
+          <li>â€¢ Mixed property portfolios</li>
         </ul>
 
         <p>

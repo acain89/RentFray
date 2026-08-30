@@ -1,4 +1,4 @@
-// app/hoa-payment-system/page.tsx
+﻿// app/hoa-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "HOA Payment System | Simple Online HOA Payments | RentFray",
   description:
     "An HOA payment system built for simple online recurring payments. Give residents a clear way to pay online, reduce manual tracking, and stay organized without monthly fees for the business.",
+  alternates: {
+    canonical: "/hoa-payment-system",
+  },
 };
 
 export default function HoaPaymentSystemPage() {
@@ -14,7 +17,7 @@ export default function HoaPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          HOA Payment System — A Simpler Way to Handle Recurring Community Payments
+          HOA Payment System â€” A Simpler Way to Handle Recurring Community Payments
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -57,11 +60,11 @@ export default function HoaPaymentSystemPage() {
         <p>Usually, what they really want is simple:</p>
 
         <ul className="space-y-2">
-          <li>• A clear way for residents to pay online</li>
-          <li>• Less dependence on paper checks and manual deposits</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less spreadsheet work and less payment confusion</li>
-          <li>• A recurring payment process that feels easier to repeat</li>
+          <li>â€¢ A clear way for residents to pay online</li>
+          <li>â€¢ Less dependence on paper checks and manual deposits</li>
+          <li>â€¢ Better visibility into who has paid and who has not</li>
+          <li>â€¢ Less spreadsheet work and less payment confusion</li>
+          <li>â€¢ A recurring payment process that feels easier to repeat</li>
         </ul>
 
         <p>

@@ -44,23 +44,25 @@ const faqSchema = {
   })),
 };
 
-const softwareSchema = {
+const webPageSchema = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "RentFray",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
   url: pageUrl,
+  name: pageTitle,
   description: pageDescription,
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
   },
 };
 
 export const metadata: Metadata = {
-  title: pageTitle,
+title: {
+  absolute: pageTitle,
+},
   description: pageDescription,
   alternates: {
     canonical: pagePath,
@@ -111,7 +113,7 @@ export default function FreeRentCollectionSoftwarePage() {
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
       />
 
       <section className="border-b border-slate-200 bg-white">

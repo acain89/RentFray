@@ -1,4 +1,4 @@
-// app/rental-payment-platform/page.tsx
+﻿// app/rental-payment-platform/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "Rental Payment Platform | Simple Online Rent Collection | RentFray",
   description:
     "A rental payment platform built for simple online rent collection. Tenants pay online, owners get paid directly, and properties stay organized without monthly fees for the business.",
+  alternates: {
+    canonical: "/rental-payment-platform",
+  },
 };
 
 export default function RentalPaymentPlatformPage() {
@@ -14,7 +17,7 @@ export default function RentalPaymentPlatformPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Rental Payment Platform — A Simpler Way to Collect Rent Online
+          Rental Payment Platform â€” A Simpler Way to Collect Rent Online
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -57,11 +60,11 @@ export default function RentalPaymentPlatformPage() {
         <p>Usually, what they want is simple:</p>
 
         <ul className="space-y-2">
-          <li>• A clear way for tenants to pay rent online</li>
-          <li>• A cleaner monthly payment routine</li>
-          <li>• Better visibility into what has been paid</li>
-          <li>• Less dependence on checks and manual tracking</li>
-          <li>• A system that feels obvious instead of technical</li>
+          <li>â€¢ A clear way for tenants to pay rent online</li>
+          <li>â€¢ A cleaner monthly payment routine</li>
+          <li>â€¢ Better visibility into what has been paid</li>
+          <li>â€¢ Less dependence on checks and manual tracking</li>
+          <li>â€¢ A system that feels obvious instead of technical</li>
         </ul>
 
         <p>
@@ -271,13 +274,13 @@ export default function RentalPaymentPlatformPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Apartment communities</li>
-          <li>• Small rental portfolios</li>
-          <li>• Duplexes and scattered units</li>
-          <li>• Mobile home parks</li>
-          <li>• RV parks</li>
-          <li>• Self-storage facilities</li>
-          <li>• Mixed rental portfolios</li>
+          <li>â€¢ Apartment communities</li>
+          <li>â€¢ Small rental portfolios</li>
+          <li>â€¢ Duplexes and scattered units</li>
+          <li>â€¢ Mobile home parks</li>
+          <li>â€¢ RV parks</li>
+          <li>â€¢ Self-storage facilities</li>
+          <li>â€¢ Mixed rental portfolios</li>
         </ul>
 
         <p>

@@ -1,4 +1,4 @@
-// app/how-to-avoid-late-rent-payments/page.tsx
+﻿// app/how-to-avoid-late-rent-payments/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "How to Avoid Late Rent Payments | Simpler Rent Collection Process | RentFray",
   description:
     "Learn how to avoid late rent payments with a simpler, more organized rent collection process. Reduce manual follow-up, improve tenant payment clarity, and make monthly rent collection easier with RentFray.",
+  alternates: {
+    canonical: "/how-to-avoid-late-rent-payments",
+  },
 };
 
 export default function HowToAvoidLateRentPaymentsPage() {
@@ -15,7 +18,7 @@ export default function HowToAvoidLateRentPaymentsPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          How to Avoid Late Rent Payments — A Simpler Way to Reduce Monthly
+          How to Avoid Late Rent Payments â€” A Simpler Way to Reduce Monthly
           Payment Friction
         </h1>
 
@@ -63,8 +66,8 @@ export default function HowToAvoidLateRentPaymentsPage() {
       {/* INTENT BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search “How to Avoid Late Rent
-          Payments”
+          What People Usually Mean When They Search â€œHow to Avoid Late Rent
+          Paymentsâ€
         </h2>
 
         <p>
@@ -76,11 +79,11 @@ export default function HowToAvoidLateRentPaymentsPage() {
         <p>Usually, they are trying to answer questions like:</p>
 
         <ul className="space-y-2">
-          <li>• How do I make the rent process clearer for tenants?</li>
-          <li>• How do I reduce the number of reminder texts I have to send?</li>
-          <li>• How do I stop the same tenants from paying late every month?</li>
-          <li>• How do I make on-time payment feel more normal and automatic?</li>
-          <li>• How do I run a rent system that is easier for tenants to follow?</li>
+          <li>â€¢ How do I make the rent process clearer for tenants?</li>
+          <li>â€¢ How do I reduce the number of reminder texts I have to send?</li>
+          <li>â€¢ How do I stop the same tenants from paying late every month?</li>
+          <li>â€¢ How do I make on-time payment feel more normal and automatic?</li>
+          <li>â€¢ How do I run a rent system that is easier for tenants to follow?</li>
         </ul>
 
         <p>
@@ -236,11 +239,11 @@ export default function HowToAvoidLateRentPaymentsPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• One clear payment path for tenants</li>
-          <li>• Less dependence on checks, cash, and manual workarounds</li>
-          <li>• Better monthly payment visibility</li>
-          <li>• Less spreadsheet and note dependence</li>
-          <li>• A recurring workflow that is easier to follow consistently</li>
+          <li>â€¢ One clear payment path for tenants</li>
+          <li>â€¢ Less dependence on checks, cash, and manual workarounds</li>
+          <li>â€¢ Better monthly payment visibility</li>
+          <li>â€¢ Less spreadsheet and note dependence</li>
+          <li>â€¢ A recurring workflow that is easier to follow consistently</li>
         </ul>
 
         <p>
@@ -386,8 +389,8 @@ export default function HowToAvoidLateRentPaymentsPage() {
         </p>
 
         <p>
-          That is usually the tipping point. You are not just trying to “get
-          paid.” You are trying to stop the monthly cycle from creating the same
+          That is usually the tipping point. You are not just trying to â€œget
+          paid.â€ You are trying to stop the monthly cycle from creating the same
           avoidable chaos over and over.
         </p>
 
@@ -610,7 +613,7 @@ export default function HowToAvoidLateRentPaymentsPage() {
         </h2>
 
         <p>
-          For many landlords, the best answer is not simply “be stricter.” It is
+          For many landlords, the best answer is not simply â€œbe stricter.â€ It is
           to make the monthly rent process cleaner, clearer, and easier to
           follow so the conditions that feed lateness are reduced.
         </p>
@@ -625,14 +628,14 @@ export default function HowToAvoidLateRentPaymentsPage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>• how to avoid late rent payments</li>
-          <li>• best way to reduce late rent</li>
-          <li>• how landlords stop tenants from paying late</li>
-          <li>• simple system to reduce late rent payments</li>
-          <li>• better rent collection process for on-time payments</li>
-          <li>• online rent system to reduce late payments</li>
-          <li>• how to make tenants pay rent on time</li>
-          <li>• cleaner monthly rent workflow for landlords</li>
+          <li>â€¢ how to avoid late rent payments</li>
+          <li>â€¢ best way to reduce late rent</li>
+          <li>â€¢ how landlords stop tenants from paying late</li>
+          <li>â€¢ simple system to reduce late rent payments</li>
+          <li>â€¢ better rent collection process for on-time payments</li>
+          <li>â€¢ online rent system to reduce late payments</li>
+          <li>â€¢ how to make tenants pay rent on time</li>
+          <li>â€¢ cleaner monthly rent workflow for landlords</li>
         </ul>
 
         <p>

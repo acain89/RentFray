@@ -1,4 +1,4 @@
-// app/marina-slip-payment-system/page.tsx
+﻿// app/marina-slip-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "Marina Slip Payment System | Simple Online Marina Slip Payments | RentFray",
   description:
     "A marina slip payment system built for simple online rent payments. Collect marina slip payments online, reduce manual tracking, and keep tenant and slip payments organized with a clean, self-serve platform that stays free for the business.",
+  alternates: {
+    canonical: "/marina-slip-payment-system",
+  },
 };
 
 export default function MarinaSlipPaymentSystemPage() {
@@ -15,7 +18,7 @@ export default function MarinaSlipPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Marina Slip Payment System — A Simpler Way to Collect Marina Slip
+          Marina Slip Payment System â€” A Simpler Way to Collect Marina Slip
           Payments Online
         </h1>
 
@@ -72,13 +75,13 @@ export default function MarinaSlipPaymentSystemPage() {
         <p>Usually, what they actually want is simple:</p>
 
         <ul className="space-y-2">
-          <li>• One clear way to collect marina slip payments online</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less dependence on checks, cash, and manual follow-up</li>
-          <li>• A more repeatable monthly collection workflow</li>
-          <li>• Fewer spreadsheets and fewer disconnected systems</li>
-          <li>• A payment process that feels easy to explain and easy to repeat</li>
-          <li>• A tool that does not require training just to use it</li>
+          <li>â€¢ One clear way to collect marina slip payments online</li>
+          <li>â€¢ Better visibility into who has paid and who has not</li>
+          <li>â€¢ Less dependence on checks, cash, and manual follow-up</li>
+          <li>â€¢ A more repeatable monthly collection workflow</li>
+          <li>â€¢ Fewer spreadsheets and fewer disconnected systems</li>
+          <li>â€¢ A payment process that feels easy to explain and easy to repeat</li>
+          <li>â€¢ A tool that does not require training just to use it</li>
         </ul>
 
         <p>
@@ -139,7 +142,7 @@ export default function MarinaSlipPaymentSystemPage() {
       {/* PAIN AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Just the Payment — It Is the Friction Around
+          The Real Problem Is Not Just the Payment â€” It Is the Friction Around
           It
         </h2>
 
@@ -153,12 +156,12 @@ export default function MarinaSlipPaymentSystemPage() {
         <p>Every workaround adds drag:</p>
 
         <ul className="space-y-2">
-          <li>• Checking different places to confirm whether money arrived</li>
-          <li>• Sending reminders manually</li>
-          <li>• Updating spreadsheets after the fact</li>
-          <li>• Matching payments to slip holders by hand</li>
-          <li>• Explaining payment instructions repeatedly</li>
-          <li>• Rebuilding a reliable picture of the month from scattered data</li>
+          <li>â€¢ Checking different places to confirm whether money arrived</li>
+          <li>â€¢ Sending reminders manually</li>
+          <li>â€¢ Updating spreadsheets after the fact</li>
+          <li>â€¢ Matching payments to slip holders by hand</li>
+          <li>â€¢ Explaining payment instructions repeatedly</li>
+          <li>â€¢ Rebuilding a reliable picture of the month from scattered data</li>
         </ul>
 
         <p>
@@ -582,14 +585,14 @@ export default function MarinaSlipPaymentSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• best marina slip payment system</li>
-          <li>• marina payment software</li>
-          <li>• online marina slip payments</li>
-          <li>• boat slip rent payment platform</li>
-          <li>• simple marina payment tracking system</li>
-          <li>• free marina slip payment platform</li>
-          <li>• how to collect marina slip payments online</li>
-          <li>• easy recurring payment system for marinas</li>
+          <li>â€¢ best marina slip payment system</li>
+          <li>â€¢ marina payment software</li>
+          <li>â€¢ online marina slip payments</li>
+          <li>â€¢ boat slip rent payment platform</li>
+          <li>â€¢ simple marina payment tracking system</li>
+          <li>â€¢ free marina slip payment platform</li>
+          <li>â€¢ how to collect marina slip payments online</li>
+          <li>â€¢ easy recurring payment system for marinas</li>
         </ul>
 
         <p>

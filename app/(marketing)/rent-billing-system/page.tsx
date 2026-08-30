@@ -1,4 +1,4 @@
-// app/rent-billing-system/page.tsx
+﻿// app/rent-billing-system/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "Rent Billing System | Simple Online Rent Billing | RentFray",
   description:
     "A rent billing system built for simple online rent collection. Keep monthly rent billing organized, let tenants pay online, and reduce manual work without monthly fees for the business.",
+  alternates: {
+    canonical: "/rent-billing-system",
+  },
 };
 
 export default function RentBillingSystemPage() {
@@ -14,7 +17,7 @@ export default function RentBillingSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Rent Billing System — A Simpler Way to Handle Monthly Rent Payments
+          Rent Billing System â€” A Simpler Way to Handle Monthly Rent Payments
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -58,11 +61,11 @@ export default function RentBillingSystemPage() {
         <p>Usually, that means they want to:</p>
 
         <ul className="space-y-2">
-          <li>• Keep monthly rent billing more organized</li>
-          <li>• Give tenants a consistent way to pay online</li>
-          <li>• Reduce manual reminders and spreadsheet work</li>
-          <li>• Stop piecing together payment activity from different sources</li>
-          <li>• Run a simpler, more repeatable monthly billing process</li>
+          <li>â€¢ Keep monthly rent billing more organized</li>
+          <li>â€¢ Give tenants a consistent way to pay online</li>
+          <li>â€¢ Reduce manual reminders and spreadsheet work</li>
+          <li>â€¢ Stop piecing together payment activity from different sources</li>
+          <li>â€¢ Run a simpler, more repeatable monthly billing process</li>
         </ul>
 
         <p>
@@ -275,13 +278,13 @@ export default function RentBillingSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Apartment communities</li>
-          <li>• Small rental portfolios</li>
-          <li>• Duplexes and scattered units</li>
-          <li>• Mobile home parks</li>
-          <li>• RV parks</li>
-          <li>• Self-storage facilities</li>
-          <li>• Mixed rental operations</li>
+          <li>â€¢ Apartment communities</li>
+          <li>â€¢ Small rental portfolios</li>
+          <li>â€¢ Duplexes and scattered units</li>
+          <li>â€¢ Mobile home parks</li>
+          <li>â€¢ RV parks</li>
+          <li>â€¢ Self-storage facilities</li>
+          <li>â€¢ Mixed rental operations</li>
         </ul>
 
         <p>

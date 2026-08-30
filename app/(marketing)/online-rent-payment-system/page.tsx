@@ -45,30 +45,26 @@ const faqSchema = {
   })),
 };
 
-const softwareSchema = {
+const webPageSchema = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "RentFray",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
   url: pageUrl,
+  name: pageTitle,
   description: pageDescription,
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
   },
 };
 
-const organizationSchema = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "RentFray",
-  url: siteUrl,
-};
 
 export const metadata: Metadata = {
-  title: pageTitle,
+title: {
+  absolute: pageTitle,
+},
   description: pageDescription,
   alternates: {
     canonical: pagePath,
@@ -119,13 +115,9 @@ export default function OnlineRentPaymentSystemPage() {
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-      />
-
+  
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
           <div className="max-w-3xl">

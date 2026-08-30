@@ -1,4 +1,4 @@
-// app/landlord-payment-system/page.tsx
+﻿// app/landlord-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "Landlord Payment System | Free Online Rent Collection | RentFray",
   description:
     "A landlord payment system built for simple online rent collection. No monthly fees for landlords. Tenants pay online, owners get paid directly, and setup stays easy.",
+  alternates: {
+    canonical: "/landlord-payment-system",
+  },
 };
 
 export default function LandlordPaymentSystemPage() {
@@ -14,7 +17,7 @@ export default function LandlordPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Landlord Payment System — Simple, Direct, and Built for Real Rent Collection
+          Landlord Payment System â€” Simple, Direct, and Built for Real Rent Collection
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -301,12 +304,12 @@ export default function LandlordPaymentSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Apartment buildings and apartment communities</li>
-          <li>• Duplexes and small rental portfolios</li>
-          <li>• Mobile home parks</li>
-          <li>• RV parks</li>
-          <li>• Self-storage facilities</li>
-          <li>• Mixed portfolios with multiple property types</li>
+          <li>â€¢ Apartment buildings and apartment communities</li>
+          <li>â€¢ Duplexes and small rental portfolios</li>
+          <li>â€¢ Mobile home parks</li>
+          <li>â€¢ RV parks</li>
+          <li>â€¢ Self-storage facilities</li>
+          <li>â€¢ Mixed portfolios with multiple property types</li>
         </ul>
 
         <p>

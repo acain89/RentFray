@@ -1,4 +1,4 @@
-// app/rent-tracking-software/page.tsx
+﻿// app/rent-tracking-software/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "Rent Tracking Software | Simple Online Rent Tracking | RentFray",
   description:
     "Simple rent tracking software for landlords and property managers. Track rent payments online, reduce manual work, and stay organized without monthly fees for the business.",
+  alternates: {
+    canonical: "/rent-tracking-software",
+  },
 };
 
 export default function RentTrackingSoftwarePage() {
@@ -14,7 +17,7 @@ export default function RentTrackingSoftwarePage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Rent Tracking Software — A Simpler Way to See What’s Paid and What’s Not
+          Rent Tracking Software â€” A Simpler Way to See Whatâ€™s Paid and Whatâ€™s Not
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -56,11 +59,11 @@ export default function RentTrackingSoftwarePage() {
         <p>Usually that means they want software that helps them:</p>
 
         <ul className="space-y-2">
-          <li>• Track rent payments without relying on memory</li>
-          <li>• See which tenants have paid and which have not</li>
-          <li>• Reduce spreadsheet work and manual note-taking</li>
-          <li>• Keep recurring rent collection organized</li>
-          <li>• Avoid messy payment methods and inconsistent records</li>
+          <li>â€¢ Track rent payments without relying on memory</li>
+          <li>â€¢ See which tenants have paid and which have not</li>
+          <li>â€¢ Reduce spreadsheet work and manual note-taking</li>
+          <li>â€¢ Keep recurring rent collection organized</li>
+          <li>â€¢ Avoid messy payment methods and inconsistent records</li>
         </ul>
 
         <p>
@@ -90,7 +93,7 @@ export default function RentTrackingSoftwarePage() {
         <p>
           That usually means checking texts, digging through emails, comparing
           notes, updating spreadsheets, and trying to remember which tenant paid
-          through which method. That kind of process works until it doesn’t.
+          through which method. That kind of process works until it doesnâ€™t.
         </p>
 
         <p>
@@ -152,13 +155,13 @@ export default function RentTrackingSoftwarePage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Track who paid rent</li>
-          <li>• See who has not paid yet</li>
-          <li>• Keep monthly payment flow more organized</li>
-          <li>• Reduce spreadsheet dependence</li>
-          <li>• Cut down on manual payment follow-up</li>
-          <li>• Give tenants a cleaner way to pay online</li>
-          <li>• Create a more repeatable monthly process</li>
+          <li>â€¢ Track who paid rent</li>
+          <li>â€¢ See who has not paid yet</li>
+          <li>â€¢ Keep monthly payment flow more organized</li>
+          <li>â€¢ Reduce spreadsheet dependence</li>
+          <li>â€¢ Cut down on manual payment follow-up</li>
+          <li>â€¢ Give tenants a cleaner way to pay online</li>
+          <li>â€¢ Create a more repeatable monthly process</li>
         </ul>
 
         <p>

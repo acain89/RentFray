@@ -1,4 +1,4 @@
-// app/manual-rent-tracking-vs-software/page.tsx
+﻿// app/manual-rent-tracking-vs-software/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "Manual Rent Tracking vs Software | Simpler Rent Tracking and Collection | RentFray",
   description:
     "Compare manual rent tracking vs software and see why a simpler, more organized rent collection system can reduce spreadsheet work, confusion, and monthly admin with RentFray.",
+  alternates: {
+    canonical: "/manual-rent-tracking-vs-software",
+  },
 };
 
 export default function ManualRentTrackingVsSoftwarePage() {
@@ -15,7 +18,7 @@ export default function ManualRentTrackingVsSoftwarePage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Manual Rent Tracking vs Software — Why the Monthly Process Usually
+          Manual Rent Tracking vs Software â€” Why the Monthly Process Usually
           Gets Harder Before Landlords Finally Change It
         </h1>
 
@@ -77,11 +80,11 @@ export default function ManualRentTrackingVsSoftwarePage() {
         <p>Usually, they are really asking things like:</p>
 
         <ul className="space-y-2">
-          <li>• Is my spreadsheet system still good enough?</li>
-          <li>• Am I doing more work manually than I realize?</li>
-          <li>• Would software actually simplify the process or just add more steps?</li>
-          <li>• Is there a lighter option than a giant property management platform?</li>
-          <li>• At what point does manual rent tracking stop being worth it?</li>
+          <li>â€¢ Is my spreadsheet system still good enough?</li>
+          <li>â€¢ Am I doing more work manually than I realize?</li>
+          <li>â€¢ Would software actually simplify the process or just add more steps?</li>
+          <li>â€¢ Is there a lighter option than a giant property management platform?</li>
+          <li>â€¢ At what point does manual rent tracking stop being worth it?</li>
         </ul>
 
         <p>
@@ -100,7 +103,7 @@ export default function ManualRentTrackingVsSoftwarePage() {
       {/* PROBLEM AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          Why Manual Rent Tracking Feels Fine at First — Then Starts Creating
+          Why Manual Rent Tracking Feels Fine at First â€” Then Starts Creating
           Monthly Drag
         </h2>
 
@@ -225,12 +228,12 @@ export default function ManualRentTrackingVsSoftwarePage() {
         <p>A stronger rent system should do a few things well:</p>
 
         <ul className="space-y-2">
-          <li>• Give tenants one clear way to pay</li>
-          <li>• Make payment status easier to read</li>
-          <li>• Reduce spreadsheet dependence</li>
-          <li>• Reduce manual matching and note-taking</li>
-          <li>• Create one recurring workflow that is easier to trust</li>
-          <li>• Stay simple enough to actually use every month</li>
+          <li>â€¢ Give tenants one clear way to pay</li>
+          <li>â€¢ Make payment status easier to read</li>
+          <li>â€¢ Reduce spreadsheet dependence</li>
+          <li>â€¢ Reduce manual matching and note-taking</li>
+          <li>â€¢ Create one recurring workflow that is easier to trust</li>
+          <li>â€¢ Stay simple enough to actually use every month</li>
         </ul>
 
         <p>
@@ -257,7 +260,7 @@ export default function ManualRentTrackingVsSoftwarePage() {
       {/* POSITIONING */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Comparison Is Not Manual vs Software — It Is Friction vs
+          The Real Comparison Is Not Manual vs Software â€” It Is Friction vs
           Clarity
         </h2>
 
@@ -286,12 +289,12 @@ export default function ManualRentTrackingVsSoftwarePage() {
         <p>That means:</p>
 
         <ul className="space-y-2">
-          <li>• One clearer payment path</li>
-          <li>• Better monthly visibility</li>
-          <li>• Less spreadsheet work</li>
-          <li>• Less repeated follow-up</li>
-          <li>• Less manual reconstruction</li>
-          <li>• A simpler recurring monthly routine</li>
+          <li>â€¢ One clearer payment path</li>
+          <li>â€¢ Better monthly visibility</li>
+          <li>â€¢ Less spreadsheet work</li>
+          <li>â€¢ Less repeated follow-up</li>
+          <li>â€¢ Less manual reconstruction</li>
+          <li>â€¢ A simpler recurring monthly routine</li>
         </ul>
 
         <p className="font-medium">
@@ -379,8 +382,8 @@ export default function ManualRentTrackingVsSoftwarePage() {
       {/* SIMPLICITY */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters More Than Whether the System Is “Manual” or
-          “Software”
+          Why Simplicity Matters More Than Whether the System Is â€œManualâ€ or
+          â€œSoftwareâ€
         </h2>
 
         <p>
@@ -513,7 +516,7 @@ export default function ManualRentTrackingVsSoftwarePage() {
       {/* COMPARISON */}
       <section className="mb-12">
         <h2 className="mb-4 text-2xl font-semibold">
-          Manual Rent Tracking vs Software — Side by Side
+          Manual Rent Tracking vs Software â€” Side by Side
         </h2>
 
         <div className="space-y-6 text-slate-700">
@@ -678,14 +681,14 @@ export default function ManualRentTrackingVsSoftwarePage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>• manual rent tracking vs software</li>
-          <li>• is rent tracking software better than spreadsheets</li>
-          <li>• manual rent collection vs online system</li>
-          <li>• best way to track rent payments for landlords</li>
-          <li>• simple rent software for small landlords</li>
-          <li>• spreadsheet vs rent tracking system</li>
-          <li>• when to switch from manual rent tracking</li>
-          <li>• cleaner monthly rent workflow for landlords</li>
+          <li>â€¢ manual rent tracking vs software</li>
+          <li>â€¢ is rent tracking software better than spreadsheets</li>
+          <li>â€¢ manual rent collection vs online system</li>
+          <li>â€¢ best way to track rent payments for landlords</li>
+          <li>â€¢ simple rent software for small landlords</li>
+          <li>â€¢ spreadsheet vs rent tracking system</li>
+          <li>â€¢ when to switch from manual rent tracking</li>
+          <li>â€¢ cleaner monthly rent workflow for landlords</li>
         </ul>
 
         <p>

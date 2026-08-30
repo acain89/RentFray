@@ -1,264 +1,490 @@
-// app/collect-rent-online/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata = {
-  title: "Collect Rent Online | Free Rent Collection System | RentFray",
-  description:
-    "Collect rent online with no monthly fees. Simple rent payment system for landlords and property managers. Tenants pay online, you get paid directly.",
+const siteUrl = "https://www.rentfray.com";
+const pagePath = "/collect-rent-online";
+const pageUrl = `${siteUrl}${pagePath}`;
+
+const pageTitle = "Collect Rent Online | RentFray";
+
+const pageDescription =
+  "Collect rent online with RentFray. Landlords and property managers can track payments and tenant balances without a monthly software subscription. Tenants pay a processing fee when they submit payments.";
+
+const faqItems = [
+  {
+    question: "Can I collect rent online with RentFray?",
+    answer:
+      "Yes. RentFray gives landlords and property managers an online rent collection system for recurring tenant payments.",
+  },
+  {
+    question: "Does RentFray charge landlords a monthly fee?",
+    answer:
+      "No. RentFray does not charge landlords, property owners, or property managers a monthly software subscription.",
+  },
+  {
+    question: "Do tenants pay a fee?",
+    answer:
+      "Yes. Tenants pay a processing fee when they submit payments through RentFray.",
+  },
+  {
+    question: "Can I track who has paid?",
+    answer:
+      "Yes. RentFray helps owners and managers track payment status and tenant balances so they can quickly see what has been paid and what remains due.",
+  },
+  {
+    question: "What types of properties can use RentFray?",
+    answer:
+      "RentFray can be used for apartments, rental homes, mobile home parks, RV parks, and other properties that collect recurring rent.",
+  },
+] as const;
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
 };
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
+  alternates: {
+    canonical: pagePath,
+  },
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: pageUrl,
+    siteName: "RentFray",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description: pageDescription,
+  },
+};
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+      {children}
+    </h2>
+  );
+}
+
+function FeatureCard({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="mt-3 text-sm leading-7 text-slate-600">{description}</p>
+    </div>
+  );
+}
 
 export default function CollectRentOnlinePage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
 
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Collect Rent Online — Without Software, Fees, or Friction
-        </h1>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          Collect rent payments online with a system built for simplicity. No monthly fees,
-          no complicated setup, and no software to learn. Just a direct way to collect rent,
-          track payments, and stay in control.
-        </p>
-
-        <div className="mt-6">
-          <Link href="/" className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800">
-            Start Collecting Rent
-          </Link>
-        </div>
-      </section>
-
-      {/* PROBLEM EXPANDED */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">The Problem with Traditional Rent Collection</h2>
-
-        <p>
-          Collecting rent manually creates friction at every step. Checks get delayed,
-          cash payments are difficult to track, and spreadsheets quickly become unreliable.
-        </p>
-
-        <p>
-          For small landlords, this means chasing payments and manually updating records.
-          For larger properties, it creates operational inefficiencies and constant uncertainty.
-        </p>
-
-        <p>
-          Even digital tools like peer-to-peer apps weren’t built for structured rent collection.
-          They lack proper tracking, consistency, and visibility.
-        </p>
-
-        <p className="font-medium">
-          A proper online rent collection system removes all of this.
-        </p>
-      </section>
-
-      {/* KEYWORD SATURATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">A Complete Online Rent Payment System</h2>
-
-        <p>
-          RentFray is a focused rent payment platform designed specifically for collecting
-          rent payments online. It replaces manual methods and eliminates the need for
-          complex property management software.
-        </p>
-
-        <p>
-          With RentFray, you can:
-        </p>
-
-        <ul className="space-y-2">
-          <li>• Collect rent online from any tenant</li>
-          <li>• Track rent payments in real time</li>
-          <li>• Provide a simple tenant payment experience</li>
-          <li>• Eliminate spreadsheets and manual tracking</li>
-          <li>• Run a clean, structured rent collection system</li>
-        </ul>
-
-        <p>
-          This is digital rent collection built for clarity and speed.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">How to Collect Rent Online</h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p><strong>1.</strong> Create your property</p>
-          <p><strong>2.</strong> Receive your property code</p>
-          <p><strong>3.</strong> Share the code with tenants</p>
-          <p><strong>4.</strong> Tenants activate and pay rent online</p>
-          <p><strong>5.</strong> Payments are processed and sent directly to you</p>
-        </div>
-
-        <p className="mt-4 text-slate-600">
-          No onboarding calls. No training. No complicated setup process.
-        </p>
-      </section>
-
-      {/* SWITCH MOMENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">When Landlords Switch to Online Rent Collection</h2>
-
-        <p>
-          Most landlords switch to collecting rent online after experiencing the same issues:
-          late payments, missing records, or time-consuming manual tracking.
-        </p>
-
-        <p>
-          Once rent collection moves online, everything becomes predictable.
-          Payments are recorded automatically, tenants have a consistent way to pay,
-          and there’s no guesswork.
-        </p>
-
-        <p className="font-medium">
-          After switching, very few go back to manual systems.
-        </p>
-      </section>
-
-      {/* WHO IT’S FOR */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Who This Rent Collection System Is For</h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            RentFray works for any situation where rent payments need to be collected regularly.
-          </p>
-
-          <ul className="space-y-2">
-            <li>• Small landlords managing a handful of units</li>
-            <li>• Apartment complexes</li>
-            <li>• Mobile home parks</li>
-            <li>• RV parks</li>
-            <li>• Self-storage facilities</li>
-            <li>• Multi-property operators</li>
-          </ul>
-
-          <p>
-            Whether you collect rent from 2 tenants or 200, the system stays simple.
-          </p>
-        </div>
-      </section>
-
-      {/* COMPARISON DEEP */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">RentFray vs Other Ways to Collect Rent</h2>
-
-        <div className="space-y-6 text-slate-700">
-
-          <div>
-            <p className="font-semibold">RentFray vs Venmo / Cash App</p>
-            <p>
-              Peer-to-peer apps are not built for rent collection. They lack tracking,
-              structure, and consistency. RentFray provides a dedicated system where
-              every rent payment is recorded and organized.
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              RentFray
             </p>
-          </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p>
-              Spreadsheets require manual updates and are prone to errors. RentFray
-              automates the entire process and eliminates manual tracking.
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+              Collect Rent Online Without a Monthly Software Subscription
+            </h1>
+
+            <p className="mt-6 text-lg leading-8 text-slate-600">
+              Give tenants a clear way to pay rent online while keeping payment
+              status and balances organized in one place.
             </p>
-          </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Property Management Software</p>
-            <p>
-              Full property management platforms are often expensive and complex.
-              RentFray focuses only on rent collection — making it faster, simpler,
-              and easier to use.
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              RentFray is $0 per month for landlords and property managers.
+              Tenants pay a processing fee when they submit payments.
             </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/setup"
+                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              >
+                Start Collecting Rent
+              </Link>
+
+              <Link
+                href="/how-to-collect-rent-online"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                How Online Rent Collection Works
+              </Link>
+            </div>
           </div>
-
         </div>
       </section>
 
-      {/* TRUST */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">How Payments Work</h2>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            A Simpler Way to Collect Rent Online
+          </SectionHeading>
 
-        <div className="space-y-4 text-slate-700">
-          <p>
-            Payments are processed securely and sent directly to your connected account.
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            Online rent collection should make the monthly process easier, not
+            add another layer of complexity. Tenants should know where to pay,
+            and the property should be able to see what has been paid and what
+            still needs attention.
           </p>
 
-          <p>
-            You don’t hold funds manually, and you don’t need to track transactions yourself.
-            Every rent payment is automatically recorded in the system.
-          </p>
-
-          <p>
-            This creates a clear, reliable record of all rent activity — something
-            traditional methods cannot match.
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            RentFray is built around that basic workflow. Instead of relying on
+            a mix of checks, spreadsheets, text messages, and separate payment
+            records, owners and managers can use one system for recurring rent
+            collection and payment visibility.
           </p>
         </div>
       </section>
 
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Benefits of Online Rent Payments</h2>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <SectionHeading>
+            What You Can Do When You Collect Rent With RentFray
+          </SectionHeading>
 
-        <div className="space-y-4 text-slate-700">
-          <p><strong>Real-time visibility:</strong> Always know who has paid</p>
-          <p><strong>Faster payments:</strong> Tenants pay instantly</p>
-          <p><strong>Automation:</strong> No manual tracking required</p>
-          <p><strong>Consistency:</strong> Standardized payment process</p>
-          <p><strong>Professional experience:</strong> Clean and simple for tenants</p>
+          <div className="mt-8 grid gap-6 md:grid-cols-2">
+            <FeatureCard
+              title="Accept Rent Online"
+              description="Give tenants an online payment path instead of depending on checks, cash, or disconnected payment methods."
+            />
+
+            <FeatureCard
+              title="Track Payment Status"
+              description="See which payments have been completed, which are pending, and which balances still require attention."
+            />
+
+            <FeatureCard
+              title="See Tenant Balances"
+              description="Keep rent balances visible by tenant or unit without using a spreadsheet as the primary record."
+            />
+
+            <FeatureCard
+              title="Manage Recurring Rent"
+              description="Use one consistent monthly workflow instead of rebuilding the rent collection process each cycle."
+            />
+          </div>
         </div>
       </section>
 
-      {/* FAQ EXPANDED */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Frequently Asked Questions</h2>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            Why Landlords Move Rent Collection Online
+          </SectionHeading>
 
-        <div className="space-y-4 text-slate-700">
-          <p><strong>How do I collect rent online?</strong><br />Create a property, share your code, and tenants pay.</p>
-          <p><strong>Is this free?</strong><br />Yes. No monthly fees for landlords.</p>
-          <p><strong>Do tenants need an app?</strong><br />No. Everything works in a browser.</p>
-          <p><strong>Can I track rent payments?</strong><br />Yes, automatically.</p>
-          <p><strong>Is this secure?</strong><br />Yes, payments are processed securely.</p>
-          <p><strong>Can I use this for small properties?</strong><br />Yes.</p>
-          <p><strong>Can I use this for large properties?</strong><br />Yes.</p>
-          <p><strong>What is the best way to collect rent online?</strong><br />Use a structured system like RentFray.</p>
-          <p><strong>Can I replace spreadsheets?</strong><br />Yes, completely.</p>
-          <p><strong>How fast can I start?</strong><br />Usually under a minute.</p>
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            Manual rent collection can create unnecessary work. Checks have to
+            be received and recorded. Cash has to be documented. Bank transfers
+            can require manual matching. Spreadsheets only stay accurate if
+            someone keeps updating them.
+          </p>
+
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            Moving rent collection online can reduce that fragmentation. A
+            dedicated system gives tenants one payment path and gives the
+            landlord one place to review payment activity and balances.
+          </p>
+
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            That does not mean every landlord needs a large property management
+            suite. For many properties, a focused rent collection system is
+            enough.
+          </p>
         </div>
       </section>
 
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              How Online Rent Collection Works With RentFray
+            </SectionHeading>
 
-        <div className="space-y-2 text-blue-600">
-          <Link href="/rent-payment-app">Rent Payment App</Link><br />
-          <Link href="/online-rent-payment-system">Online Rent Payment System</Link><br />
-          <Link href="/tenant-payment-portal">Tenant Payment Portal</Link><br />
-          <Link href="/free-rent-collection-software">Free Rent Collection Software</Link><br />
-          <Link href="/rent-collection-software-landlords">Rent Collection Software for Landlords</Link>
+            <div className="mt-8 space-y-6">
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  1. Set up the property
+                </h3>
+                <p className="mt-2 leading-7 text-slate-600">
+                  The landlord or property manager sets up the property and the
+                  recurring rent collection workflow.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  2. Tenants access the payment process
+                </h3>
+                <p className="mt-2 leading-7 text-slate-600">
+                  Tenants use RentFray's online payment flow to submit their rent.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  3. Payments are processed securely
+                </h3>
+                <p className="mt-2 leading-7 text-slate-600">
+                  Payment processing is handled through Stripe. RentFray does not
+                  store tenant banking information or hold tenant funds.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  4. The property tracks the result
+                </h3>
+                <p className="mt-2 leading-7 text-slate-600">
+                  Owners and managers can review payment status and balances from
+                  the same rent collection system.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">Start Collecting Rent Online Today</h3>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            Online Rent Collection for Different Property Types
+          </SectionHeading>
 
-        <p className="mt-2 text-slate-600">
-          No subscriptions. No setup fees. Just a better way to collect rent.
-        </p>
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            The basic rent collection problem is similar across many property
+            types: recurring payments need to be collected, recorded, and easy
+            to review.
+          </p>
 
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Link
+              href="/online-rent-payment-system-apartments"
+              className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:bg-slate-50"
+            >
+              <h3 className="font-semibold">Apartments</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Collect recurring rent across multiple units.
+              </p>
+            </Link>
+
+            <Link
+              href="/mobile-home-park-rent-collection"
+              className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:bg-slate-50"
+            >
+              <h3 className="font-semibold">Mobile Home Parks</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Keep monthly lot and home rent organized.
+              </p>
+            </Link>
+
+            <Link
+              href="/rv-park-rent-collection"
+              className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:bg-slate-50"
+            >
+              <h3 className="font-semibold">RV Parks</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Manage recurring rent for long-term spaces.
+              </p>
+            </Link>
+
+            <Link
+              href="/duplex-landlord-rent-collection"
+              className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:bg-slate-50"
+            >
+              <h3 className="font-semibold">Duplexes</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Use a lightweight collection workflow for smaller properties.
+              </p>
+            </Link>
+
+            <Link
+              href="/commercial-property-rent-collection"
+              className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:bg-slate-50"
+            >
+              <h3 className="font-semibold">Commercial Properties</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Organize recurring tenant payments and balances.
+              </p>
+            </Link>
+
+            <Link
+              href="/student-housing-rent-payment"
+              className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:bg-slate-50"
+            >
+              <h3 className="font-semibold">Student Housing</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Give residents a clear online rent payment path.
+              </p>
+            </Link>
+          </div>
+        </div>
       </section>
 
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              Online Rent Collection Without a Monthly RentFray Subscription
+            </SectionHeading>
+
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              RentFray is free for landlords and property managers. There is no
+              monthly RentFray software subscription for the business.
+            </p>
+
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              Tenants pay a processing fee when they submit payments. This keeps
+              the pricing model clear while allowing the property to use the rent
+              collection software without a recurring monthly software charge.
+            </p>
+
+            <div className="mt-6">
+              <Link
+                href="/free-rent-collection-software-no-monthly-fee"
+                className="font-semibold text-slate-900 underline underline-offset-4"
+              >
+                Learn more about RentFray's no-monthly-fee model
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>Frequently Asked Questions</SectionHeading>
+
+          <div className="mt-8 space-y-4">
+            {faqItems.map((item) => (
+              <div
+                key={item.question}
+                className="rounded-2xl border border-slate-200 bg-white p-6"
+              >
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {item.question}
+                </h3>
+
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {item.answer}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>Related Rent Collection Resources</SectionHeading>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/free-rent-collection-software"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Free Rent Collection Software
+              </Link>
+
+              <Link
+                href="/online-rent-payment-system"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Online Rent Payment System
+              </Link>
+
+              <Link
+                href="/how-to-collect-rent-online"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                How to Collect Rent Online
+              </Link>
+
+              <Link
+                href="/tenant-payment-portal"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Tenant Payment Portal
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-slate-900">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="rounded-3xl bg-slate-950 px-6 py-10 text-white shadow-xl sm:px-10">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Ready to collect rent online?
+            </h2>
+
+            <p className="mt-4 max-w-3xl leading-7 text-slate-300">
+              Give tenants a clear online payment path and keep rent payment
+              status and balances organized without a monthly RentFray software
+              subscription.
+            </p>
+
+            <div className="mt-8">
+              <Link
+                href="/setup"
+                className="inline-block rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+              >
+                Start Collecting Rent
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

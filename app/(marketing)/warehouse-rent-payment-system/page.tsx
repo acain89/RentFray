@@ -1,4 +1,4 @@
-// app/warehouse-rent-payment-system/page.tsx
+﻿// app/warehouse-rent-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ export const metadata = {
     "Warehouse Rent Payment System | Simple Online Warehouse Rent Payments | RentFray",
   description:
     "A warehouse rent payment system built for simple online rent payments. Collect warehouse rent online, reduce manual tracking, and keep tenant payments organized with a clean, self-serve platform that stays free for the business.",
+  alternates: {
+    canonical: "/warehouse-rent-payment-system",
+  },
 };
 
 export default function WarehouseRentPaymentSystemPage() {
@@ -15,7 +18,7 @@ export default function WarehouseRentPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Warehouse Rent Payment System — A Simpler Way to Collect Warehouse
+          Warehouse Rent Payment System â€” A Simpler Way to Collect Warehouse
           Rent Online
         </h1>
 
@@ -75,13 +78,13 @@ export default function WarehouseRentPaymentSystemPage() {
         <p>Usually, what they actually want is simple:</p>
 
         <ul className="space-y-2">
-          <li>• One clear way for warehouse tenants to pay rent online</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less dependence on checks, wires, and manual follow-up</li>
-          <li>• A more repeatable monthly collection workflow</li>
-          <li>• Fewer spreadsheets and fewer disconnected systems</li>
-          <li>• A payment process that feels professional and easy to explain</li>
-          <li>• Software that does not feel oversized for the job</li>
+          <li>â€¢ One clear way for warehouse tenants to pay rent online</li>
+          <li>â€¢ Better visibility into who has paid and who has not</li>
+          <li>â€¢ Less dependence on checks, wires, and manual follow-up</li>
+          <li>â€¢ A more repeatable monthly collection workflow</li>
+          <li>â€¢ Fewer spreadsheets and fewer disconnected systems</li>
+          <li>â€¢ A payment process that feels professional and easy to explain</li>
+          <li>â€¢ Software that does not feel oversized for the job</li>
         </ul>
 
         <p>
@@ -142,7 +145,7 @@ export default function WarehouseRentPaymentSystemPage() {
       {/* PAIN AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Just the Rent — It Is the Repeated Friction
+          The Real Problem Is Not Just the Rent â€” It Is the Repeated Friction
           Around It
         </h2>
 
@@ -150,19 +153,19 @@ export default function WarehouseRentPaymentSystemPage() {
           Many warehouse property owners tolerate a messy payment routine for
           too long because it technically works. Rent eventually comes in.
           Someone eventually confirms it. The records eventually get updated.
-          But that “eventually” carries a lot of wasted time and unnecessary
+          But that â€œeventuallyâ€ carries a lot of wasted time and unnecessary
           mental load.
         </p>
 
         <p>Every workaround adds drag:</p>
 
         <ul className="space-y-2">
-          <li>• Checking multiple places to confirm whether payment arrived</li>
-          <li>• Sending manual reminders</li>
-          <li>• Updating spreadsheets later instead of seeing one clear status</li>
-          <li>• Matching payments to tenants by hand</li>
-          <li>• Repeating payment instructions over and over</li>
-          <li>• Rebuilding an accurate month-end picture from scattered data</li>
+          <li>â€¢ Checking multiple places to confirm whether payment arrived</li>
+          <li>â€¢ Sending manual reminders</li>
+          <li>â€¢ Updating spreadsheets later instead of seeing one clear status</li>
+          <li>â€¢ Matching payments to tenants by hand</li>
+          <li>â€¢ Repeating payment instructions over and over</li>
+          <li>â€¢ Rebuilding an accurate month-end picture from scattered data</li>
         </ul>
 
         <p>
@@ -581,14 +584,14 @@ export default function WarehouseRentPaymentSystemPage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>• best warehouse rent payment system</li>
-          <li>• warehouse rent collection software</li>
-          <li>• online warehouse rent payments</li>
-          <li>• warehouse tenant payment platform</li>
-          <li>• simple warehouse rent payment system</li>
-          <li>• how to collect warehouse rent online</li>
-          <li>• free warehouse rent payment software</li>
-          <li>• warehouse rent tracking system</li>
+          <li>â€¢ best warehouse rent payment system</li>
+          <li>â€¢ warehouse rent collection software</li>
+          <li>â€¢ online warehouse rent payments</li>
+          <li>â€¢ warehouse tenant payment platform</li>
+          <li>â€¢ simple warehouse rent payment system</li>
+          <li>â€¢ how to collect warehouse rent online</li>
+          <li>â€¢ free warehouse rent payment software</li>
+          <li>â€¢ warehouse rent tracking system</li>
         </ul>
 
         <p>

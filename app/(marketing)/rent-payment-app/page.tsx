@@ -1,4 +1,4 @@
-// app/rent-payment-app/page.tsx
+﻿// app/rent-payment-app/page.tsx
 
 import Link from "next/link";
 
@@ -6,6 +6,9 @@ export const metadata = {
   title: "Rent Payment App | Free for Landlords, Simple for Tenants | RentFray",
   description:
     "Looking for a rent payment app? RentFray lets landlords collect rent online with no monthly fees. Tenants pay online, owners get paid directly, and setup is simple.",
+  alternates: {
+    canonical: "/rent-payment-app",
+  },
 };
 
 export default function RentPaymentAppPage() {
@@ -14,7 +17,7 @@ export default function RentPaymentAppPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Rent Payment App — Without the Usual App Headaches
+          Rent Payment App â€” Without the Usual App Headaches
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -56,11 +59,11 @@ export default function RentPaymentAppPage() {
         <p>Usually, that means they want to:</p>
 
         <ul className="space-y-2">
-          <li>• Let tenants pay rent online from a phone or computer</li>
-          <li>• See who has paid and who has not</li>
-          <li>• Avoid checks, cash, and spreadsheet tracking</li>
-          <li>• Use a system that is easy to understand immediately</li>
-          <li>• Avoid monthly software fees when possible</li>
+          <li>â€¢ Let tenants pay rent online from a phone or computer</li>
+          <li>â€¢ See who has paid and who has not</li>
+          <li>â€¢ Avoid checks, cash, and spreadsheet tracking</li>
+          <li>â€¢ Use a system that is easy to understand immediately</li>
+          <li>â€¢ Avoid monthly software fees when possible</li>
         </ul>
 
         <p>
@@ -190,11 +193,11 @@ export default function RentPaymentAppPage() {
         <p>That leads to real benefits:</p>
 
         <ul className="space-y-2">
-          <li>• Faster rent collection</li>
-          <li>• Better visibility into payment status</li>
-          <li>• Less manual tracking</li>
-          <li>• More consistency from month to month</li>
-          <li>• A more professional payment experience for tenants</li>
+          <li>â€¢ Faster rent collection</li>
+          <li>â€¢ Better visibility into payment status</li>
+          <li>â€¢ Less manual tracking</li>
+          <li>â€¢ More consistency from month to month</li>
+          <li>â€¢ A more professional payment experience for tenants</li>
         </ul>
 
         <p>
@@ -210,7 +213,7 @@ export default function RentPaymentAppPage() {
         </h2>
 
         <p>
-          Most property owners do not start by saying, “I need software.” They
+          Most property owners do not start by saying, â€œI need software.â€ They
           start by getting tired of the same recurring problems.
         </p>
 
@@ -245,13 +248,13 @@ export default function RentPaymentAppPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>• Small landlords with a few units</li>
-          <li>• Apartment owners and managers</li>
-          <li>• Mobile home park operators</li>
-          <li>• RV park owners</li>
-          <li>• Self-storage businesses</li>
-          <li>• Multi-property operators</li>
-          <li>• Teams that want a cleaner payment process without software bloat</li>
+          <li>â€¢ Small landlords with a few units</li>
+          <li>â€¢ Apartment owners and managers</li>
+          <li>â€¢ Mobile home park operators</li>
+          <li>â€¢ RV park owners</li>
+          <li>â€¢ Self-storage businesses</li>
+          <li>â€¢ Multi-property operators</li>
+          <li>â€¢ Teams that want a cleaner payment process without software bloat</li>
         </ul>
 
         <p>
@@ -384,8 +387,8 @@ export default function RentPaymentAppPage() {
         </p>
 
         <p>
-          From the owner’s side, that means a cleaner payment path. From the
-          tenant’s side, it means a more legitimate and structured way to pay rent
+          From the ownerâ€™s side, that means a cleaner payment path. From the
+          tenantâ€™s side, it means a more legitimate and structured way to pay rent
           online than informal peer-to-peer methods.
         </p>
 

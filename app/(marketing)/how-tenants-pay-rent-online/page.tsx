@@ -1,517 +1,486 @@
-// app/how-tenants-pay-rent-online/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata = {
-  title:
-    "How Tenants Pay Rent Online | Simple Online Rent Payment Process | RentFray",
-  description:
-    "Learn how tenants pay rent online and discover a simpler way to collect rent, reduce manual tracking, and keep monthly rent payments organized with RentFray.",
+const siteUrl = "https://www.rentfray.com";
+const pagePath = "/how-tenants-pay-rent-online";
+const pageUrl = `${siteUrl}${pagePath}`;
+
+const pageTitle = "How Tenants Pay Rent Online | RentFray";
+
+const pageDescription =
+  "Learn how tenants pay rent online with a simple recurring process. See how RentFray connects tenant payments with payment status and balance tracking for landlords and property managers.";
+
+const faqItems = [
+  {
+    question: "How do tenants pay rent online with RentFray?",
+    answer:
+      "Tenants use RentFray's online payment flow to review what they owe and submit their rent payment through the web.",
+  },
+  {
+    question: "Do tenants need to install an app?",
+    answer:
+      "No separate app is required. Tenants can use RentFray through a web browser.",
+  },
+  {
+    question: "What happens after a tenant submits payment?",
+    answer:
+      "The payment is processed through Stripe, and the property can track the payment status and tenant balance from the management side.",
+  },
+  {
+    question: "Does RentFray store tenant banking information?",
+    answer:
+      "No. RentFray does not store tenant banking information or hold tenant funds. Payment processing is handled through Stripe.",
+  },
+  {
+    question: "Do tenants pay a processing fee?",
+    answer:
+      "Yes. Tenants pay a processing fee when they submit payments through RentFray.",
+  },
+] as const;
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
 };
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
+  alternates: {
+    canonical: pagePath,
+  },
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: pageUrl,
+    siteName: "RentFray",
+    type: "article",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description: pageDescription,
+  },
+};
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+      {children}
+    </h2>
+  );
+}
 
 export default function HowTenantsPayRentOnlinePage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          How Tenants Pay Rent Online — A Simple, Clear Process That Makes
-          Monthly Rent Easier for Everyone
-        </h1>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are trying to understand how tenants pay rent online, you are
-          probably not just looking for a technical explanation. You want a
-          process that is simple for tenants to follow, easy for landlords to
-          manage, and clean enough that the monthly rent cycle does not turn
-          into a scattered mix of payments, reminders, and manual tracking.
-        </p>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          That is where many systems fall short. Technically, tenants can send
-          money in a lot of ways. But not all methods create a strong recurring
-          workflow. Some are confusing. Some require extra steps. Some leave the
-          landlord doing too much manual work. Others add unnecessary software
-          complexity.
-        </p>
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              RentFray Guide
+            </p>
 
-        <p className="mt-4 text-slate-700">
-          RentFray is built around a better approach. It gives tenants a clear,
-          simple way to pay rent online while giving landlords a cleaner monthly
-          workflow with better visibility and less manual tracking.
-        </p>
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+              How Tenants Pay Rent Online
+            </h1>
 
-        <p className="mt-4 text-slate-700">
-          So instead of thinking about individual payment methods, it is more
-          useful to understand the full process. Because the real goal is not
-          just online payment. It is a cleaner recurring rent cycle.
-        </p>
+            <p className="mt-6 text-lg leading-8 text-slate-600">
+              Online rent payment should be a straightforward recurring process:
+              the tenant sees what is owed, submits payment, and the property can
+              track what happened.
+            </p>
 
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              RentFray is designed to keep that process simple for the tenant
+              while giving landlords and property managers clear payment and
+              balance visibility.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/tenant-online-rent-payments"
+                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              >
+                Tenant Online Rent Payments
+              </Link>
+
+              <Link
+                href="/tenant-payment-portal"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Tenant Payment Portal
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* OVERVIEW */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          The Simple Answer: How Tenants Pay Rent Online
-        </h2>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            The Basic Online Rent Payment Process
+          </SectionHeading>
 
-        <p>
-          At a high level, online rent payment should be very straightforward.
-          A tenant logs in, sees what they owe, submits payment, and the system
-          records it clearly.
-        </p>
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            The exact details can vary by rent collection system, but the basic
+            process should be simple. The tenant accesses the payment system,
+            reviews the amount due, submits payment, and receives a clear result.
+          </p>
 
-        <p>
-          But the quality of the system depends on how clean that process feels.
-          The strongest systems remove confusion, reduce extra steps, and make
-          the monthly cycle easy to repeat.
-        </p>
-
-        <p className="font-medium">
-          A good online rent payment process should feel obvious the first time
-          and even easier every time after that.
-        </p>
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            On the property side, the payment should connect back to the tenant's
+            recurring rent record so the landlord does not have to manually
+            piece together what happened.
+          </p>
+        </div>
       </section>
 
-      {/* STEP BY STEP */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Step-by-Step: How Tenants Pay Rent Online
-        </h2>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              Step 1: The Tenant Accesses the Rent Payment System
+            </SectionHeading>
 
-        <div className="space-y-5 text-slate-700">
-          <div>
-            <p className="font-semibold">
-              Step 1: Tenant receives access to the payment system
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              The first step is simply getting to the correct payment flow.
+              Tenants should have one clear place to go when rent is due instead
+              of trying to remember which payment method or account to use.
             </p>
-            <p className="mt-2">
-              The landlord provides a simple way for the tenant to access the
-              system. This is often done through a property code, login page, or
-              onboarding link. The goal is to make entry easy without confusion.
-            </p>
-          </div>
 
-          <div>
-            <p className="font-semibold">
-              Step 2: Tenant logs in and sees their unit and rent details
-            </p>
-            <p className="mt-2">
-              Once inside, the tenant should immediately see what they owe and
-              which unit they are paying for. There should be no guessing or
-              searching for information.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 3: Tenant selects the payment option
-            </p>
-            <p className="mt-2">
-              The system presents a clear payment method. The best systems keep
-              this simple instead of overwhelming the tenant with too many
-              choices.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 4: Tenant submits payment
-            </p>
-            <p className="mt-2">
-              The tenant completes the payment in a few steps. This should feel
-              quick and predictable, not complicated or technical.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 5: Payment is recorded and visible
-            </p>
-            <p className="mt-2">
-              Once submitted, the payment should be clearly recorded. Both the
-              tenant and landlord should be able to understand the status
-              without needing extra confirmation steps.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 6: The system supports the next monthly cycle
-            </p>
-            <p className="mt-2">
-              The real value of online rent payment is not just one transaction.
-              It is the recurring workflow. The next month should feel just as
-              easy, if not easier.
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              RentFray is web-based, so tenants do not need to install a separate
+              mobile app just to make a rent payment.
             </p>
           </div>
         </div>
       </section>
 
-      {/* WHY SYSTEM MATTERS */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why the System Matters More Than the Payment Method
-        </h2>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            Step 2: The Tenant Sees What Is Owed
+          </SectionHeading>
 
-        <p>
-          Many landlords focus on the payment method itself. But the real issue
-          is the system around it.
-        </p>
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            Before submitting payment, the tenant should be able to understand
+            the amount that needs to be paid.
+          </p>
 
-        <p>
-          Tenants can technically pay rent in many ways. But if the process is
-          unclear, slow, or scattered, the landlord still ends up dealing with
-          reminders, confirmations, and manual tracking.
-        </p>
-
-        <p>
-          A strong online rent system does more than accept payments. It creates
-          a consistent monthly structure that both the tenant and landlord can
-          rely on.
-        </p>
-
-        <p className="font-medium">
-          The best systems reduce questions, not just transactions.
-        </p>
-      </section>
-
-      {/* COMMON PROBLEMS */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Common Problems With Weak Online Rent Payment Setups
-        </h2>
-
-        <div className="space-y-5">
-          <div>
-            <p className="font-semibold">Too many payment options</p>
-            <p className="mt-2">
-              When tenants can pay in too many different ways, the process
-              becomes fragmented. The landlord ends up tracking payments across
-              multiple sources.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Unclear payment status</p>
-            <p className="mt-2">
-              If tenants are unsure whether payment went through, they ask. If
-              landlords are unsure, they check. This creates unnecessary back-
-              and-forth every month.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Manual tracking still required</p>
-            <p className="mt-2">
-              Some systems move money but still require spreadsheets or notes to
-              keep everything organized. That defeats the purpose of going
-              online.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Too many steps for tenants</p>
-            <p className="mt-2">
-              If the process feels complicated, tenants are more likely to delay
-              or avoid completing it quickly.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">No clear recurring workflow</p>
-            <p className="mt-2">
-              If each month feels like starting over, the system is not doing
-              enough to support consistency.
-            </p>
-          </div>
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            Connecting the tenant payment flow to the property's rent records
+            helps reduce confusion about balances and gives both sides a clearer
+            understanding of the current amount due.
+          </p>
         </div>
-
-        <p>
-          These are not technical problems. They are workflow problems. And they
-          are exactly what a better rent payment system should solve.
-        </p>
       </section>
 
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What a Better Online Rent Payment Experience Looks Like
-        </h2>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              Step 3: The Tenant Submits Payment
+            </SectionHeading>
 
-        <p>
-          A strong system makes the process feel simple from both sides. Tenants
-          know exactly how to pay. Landlords know exactly what happened.
-        </p>
-
-        <p>That means:</p>
-
-        <ul className="space-y-2">
-          <li>• One clear place for tenants to pay</li>
-          <li>• Immediate understanding of payment status</li>
-          <li>• Less need for reminders and follow-up</li>
-          <li>• Less reliance on spreadsheets and notes</li>
-          <li>• A consistent monthly routine</li>
-        </ul>
-
-        <p>
-          RentFray is built around this type of experience. It focuses on
-          removing friction instead of adding features, so the monthly process
-          becomes easier instead of heavier.
-        </p>
-
-        <p className="font-medium">
-          The best online rent payment system is the one tenants can use without
-          thinking and landlords can trust without checking.
-        </p>
-      </section>
-
-      {/* USE CASES */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          This Process Applies Across Property Types
-        </h2>
-
-        <p>
-          The exact property may differ, but the payment process should remain
-          simple and consistent.
-        </p>
-
-        <div className="space-y-5">
-          <div>
-            <p className="font-semibold">Small landlords</p>
-            <p className="mt-2">
-              A simple online system can remove a large amount of manual work
-              that would otherwise fall on the owner each month.
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              The tenant follows the online payment flow and submits the rent
+              payment through RentFray.
             </p>
-          </div>
 
-          <div>
-            <p className="font-semibold">Apartments</p>
-            <p className="mt-2">
-              With multiple tenants, a consistent payment workflow becomes even
-              more important for keeping the month organized.
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              Payment processing is handled through Stripe. RentFray does not
+              store tenant banking information or hold tenant funds.
             </p>
-          </div>
 
-          <div>
-            <p className="font-semibold">Mobile home and RV parks</p>
-            <p className="mt-2">
-              Recurring monthly payments across many residents benefit from a
-              clear and repeatable system.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Owner-managed properties</p>
-            <p className="mt-2">
-              Reducing manual tracking and follow-up has an immediate impact on
-              time and mental load.
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              Tenants pay a processing fee when they submit payments.
             </p>
           </div>
         </div>
       </section>
 
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of a Strong Online Rent Payment Process
-        </h2>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            Step 4: The Payment Receives a Status
+          </SectionHeading>
 
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner monthly workflow:</strong> Stop piecing together
-            payments from different sources.
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            Submitting an online payment does not always mean the payment is
+            instantly complete. Payments can move through processing states
+            before they are finalized.
           </p>
 
-          <p>
-            <strong>Better payment visibility:</strong> See what happened without
-            extra checking.
-          </p>
-
-          <p>
-            <strong>Less manual follow-up:</strong> Reduce reminders and
-            confirmations.
-          </p>
-
-          <p>
-            <strong>Less spreadsheet dependence:</strong> Avoid manual tracking
-            systems.
-          </p>
-
-          <p>
-            <strong>Better tenant experience:</strong> Give tenants a clear,
-            simple process.
-          </p>
-
-          <p>
-            <strong>More consistent monthly rhythm:</strong> Make each cycle
-            easier to repeat.
-          </p>
-
-          <p>
-            <strong>Self-serve setup:</strong> No complicated onboarding or
-            software overhead.
-          </p>
-
-          <p>
-            <strong>No monthly fee for the business:</strong> RentFray is
-            designed to stay free for landlords.
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            RentFray tracks payment status so the property can distinguish
+            between payments that have completed, payments that are still
+            processing, and payments that have failed.
           </p>
         </div>
       </section>
 
-      {/* LONG TAIL */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for How Tenants Pay Rent Online the Right Way?
-        </h2>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              Step 5: The Landlord Sees the Result
+            </SectionHeading>
 
-        <p>
-          The goal is not just to move rent online. It is to make the process
-          simpler, clearer, and easier to repeat every month.
-        </p>
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              The management side of the system gives the landlord or property
+              manager visibility into the tenant's payment status and remaining
+              balance.
+            </p>
 
-        <p>
-          That is why focused rent collection systems outperform both manual
-          methods and overly complex platforms. They remove friction instead of
-          adding more steps.
-        </p>
-
-        <p>If you are searching for phrases like these, you are in the right place:</p>
-
-        <ul className="space-y-2">
-          <li>• how tenants pay rent online</li>
-          <li>• online rent payment process</li>
-          <li>• how to collect rent online from tenants</li>
-          <li>• simple tenant payment system</li>
-          <li>• best way for tenants to pay rent online</li>
-          <li>• rent payment process for landlords</li>
-          <li>• easy online rent collection workflow</li>
-          <li>• tenant rent payment steps</li>
-        </ul>
-
-        <p>
-          RentFray is built for exactly that kind of search intent. It focuses
-          on making the rent process easier to understand, easier to use, and
-          easier to trust.
-        </p>
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              That connection between the payment and the rent record is what
+              makes a dedicated rent collection system different from simply
+              receiving money through an unrelated payment service.
+            </p>
+          </div>
+        </div>
       </section>
 
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions About Online Rent Payments
-        </h2>
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            Step 6: The Process Repeats Next Month
+          </SectionHeading>
 
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>How do tenants pay rent online?</strong>
-            <br />
-            Tenants log into a system, view what they owe, submit payment, and
-            the system records it clearly for both sides.
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            Rent is recurring, so an online rent payment system should make the
+            next month's process familiar rather than forcing the tenant and
+            landlord to start over.
           </p>
 
-          <p>
-            <strong>Is online rent payment better than checks?</strong>
-            <br />
-            In most cases, yes. It reduces delays, manual handling, and tracking
-            work.
-          </p>
-
-          <p>
-            <strong>Do tenants need an app?</strong>
-            <br />
-            Not necessarily. Many systems work directly in a browser.
-          </p>
-
-          <p>
-            <strong>What makes a good online rent system?</strong>
-            <br />
-            Simplicity, clarity, and a clean recurring workflow.
-          </p>
-
-          <p>
-            <strong>Can small landlords use online rent systems?</strong>
-            <br />
-            Yes. They often benefit the most because it reduces manual work.
-          </p>
-
-          <p>
-            <strong>Is RentFray free?</strong>
-            <br />
-            Yes. It is designed to be free for the business side.
-          </p>
-
-          <p>
-            <strong>What is the biggest mistake landlords make?</strong>
-            <br />
-            Using multiple disconnected payment methods instead of one clear
-            system.
-          </p>
-
-          <p>
-            <strong>Why does online payment matter?</strong>
-            <br />
-            Because it turns a messy monthly process into a repeatable system.
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            A consistent recurring workflow makes it easier for tenants to know
+            what to do and easier for the property to review the month's
+            payment activity.
           </p>
         </div>
       </section>
 
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              What the Landlord Sees vs. What the Tenant Sees
+            </SectionHeading>
 
-        <div className="space-y-3 text-slate-700">
-          <p>
-            <Link href="/collect-rent-online" className="text-blue-600 hover:underline">
-              Collect Rent Online
+            <div className="mt-8 grid gap-6 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Tenant Side
+                </h3>
+
+                <p className="mt-3 leading-7 text-slate-600">
+                  The tenant focuses on the amount owed and the payment process.
+                  The goal is to keep the experience direct and easy to
+                  understand.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Property Side
+                </h3>
+
+                <p className="mt-3 leading-7 text-slate-600">
+                  The landlord or manager focuses on balances, payment status,
+                  and which tenants or units still require attention.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>
+            Why Online Rent Payment Is More Than Moving Money
+          </SectionHeading>
+
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            There are many ways to send money electronically. The important
+            difference with rent is that the payment belongs to a recurring
+            obligation that the property has to track every month.
+          </p>
+
+          <p className="mt-4 text-base leading-8 text-slate-600">
+            A rent-focused system connects the transaction to the tenant balance
+            and payment record. That reduces the amount of manual reconciliation
+            needed after the payment is submitted.
+          </p>
+
+          <div className="mt-6">
+            <Link
+              href="/tenant-rent-payment-options"
+              className="font-semibold text-slate-900 underline underline-offset-4"
+            >
+              Compare tenant rent payment options
             </Link>
-          </p>
-
-          <p>
-            <Link href="/tenant-payment-portal" className="text-blue-600 hover:underline">
-              Tenant Payment Portal
-            </Link>
-          </p>
-
-          <p>
-            <Link href="/rent-payment-app" className="text-blue-600 hover:underline">
-              Rent Payment App
-            </Link>
-          </p>
-
-          <p>
-            <Link href="/best-way-to-collect-rent" className="text-blue-600 hover:underline">
-              Best Way to Collect Rent
-            </Link>
-          </p>
+          </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Make Tenant Rent Payments Simple and Repeatable
-        </h3>
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>
+              How RentFray Fits Into the Process
+            </SectionHeading>
 
-        <p className="mt-2 text-slate-600">
-          One system. One workflow. No monthly fee for the business.
-        </p>
+            <p className="mt-5 text-base leading-8 text-slate-600">
+              RentFray combines the tenant payment flow with landlord-side
+              payment status and balance tracking.
+            </p>
 
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              It is $0 per month for landlords and property managers. Tenants
+              pay a processing fee when they submit payments.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/tenant-online-rent-payments"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Tenant Online Rent Payments
+              </Link>
+
+              <Link
+                href="/online-rent-payment-system"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Online Rent Payment System
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <SectionHeading>Frequently Asked Questions</SectionHeading>
+
+          <div className="mt-8 space-y-4">
+            {faqItems.map((item) => (
+              <div
+                key={item.question}
+                className="rounded-2xl border border-slate-200 bg-white p-6"
+              >
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {item.question}
+                </h3>
+
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {item.answer}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="max-w-4xl">
+            <SectionHeading>Related Tenant Payment Resources</SectionHeading>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/tenant-online-rent-payments"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Tenant Online Rent Payments
+              </Link>
+
+              <Link
+                href="/tenant-payment-portal"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Tenant Payment Portal
+              </Link>
+
+              <Link
+                href="/tenant-rent-payment-options"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Tenant Rent Payment Options
+              </Link>
+
+              <Link
+                href="/easiest-way-for-tenants-to-pay-rent"
+                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                Easiest Way for Tenants to Pay Rent
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-slate-900">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="rounded-3xl bg-slate-950 px-6 py-10 text-white shadow-xl sm:px-10">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Want to offer tenants online rent payments?
+            </h2>
+
+            <p className="mt-4 max-w-3xl leading-7 text-slate-300">
+              RentFray gives tenants a web-based payment flow while giving
+              landlords and property managers visibility into payment status and
+              balances.
+            </p>
+
+            <div className="mt-8">
+              <Link
+                href="/setup"
+                className="inline-block rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+              >
+                Start Free Setup
+              </Link>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   );
