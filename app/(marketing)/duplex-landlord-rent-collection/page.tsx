@@ -1,615 +1,547 @@
-// app/duplex-landlord-rent-collection/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title: "Duplex Landlord Rent Collection | Simple Online Rent Payments | RentFray",
-  description:
-    "A duplex landlord rent collection system built for simple online rent payments. Collect rent online, reduce manual tracking, and keep duplex payments organized without monthly fees for the business.",
+const pagePath = "/duplex-landlord-rent-collection";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "Duplex Rent Collection for Landlords | RentFray";
+
+const pageDescription =
+  "Online rent collection for duplex landlords. Collect rent from both units, track tenant balances and payment status, and manage recurring rent without monthly software fees.";
+
+const faqItems = [
+  {
+    question: "How can a duplex landlord collect rent online?",
+    answer:
+      "A duplex landlord can use an online rent collection system that gives both tenants a consistent payment path while keeping each unit's rent, payments, and balance separate.",
+  },
+  {
+    question: "Is rent collection software useful for only two units?",
+    answer:
+      "It can be. A duplex may only have two units, but landlords can still benefit from organized payment records, recurring rent, tenant balances, and a consistent online payment process.",
+  },
+  {
+    question: "Can I track each duplex unit separately?",
+    answer:
+      "Yes. RentFray keeps rent obligations and payment activity associated with the appropriate tenant and unit.",
+  },
+  {
+    question: "Do duplex tenants need to download an app?",
+    answer:
+      "No. RentFray uses a browser-based tenant payment experience, so tenants do not need to install an app.",
+  },
+  {
+    question: "How are duplex rent payments processed?",
+    answer:
+      "Payments are processed through Stripe. RentFray does not store tenant banking information or hold tenant funds.",
+  },
+  {
+    question: "Does RentFray charge duplex landlords a monthly fee?",
+    answer:
+      "No. RentFray has no monthly software fee for property owners and managers. Tenants pay a small processing fee when they submit payments.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/duplex-landlord-rent-collection",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "article",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Collect rent from both duplex units online and keep tenant balances and payment status organized.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "Online rent collection and payment tracking for duplex landlords.",
   },
 };
 
 export default function DuplexLandlordRentCollectionPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Duplex Landlord Rent Collection — A Simpler Way to Collect Rent Online
-        </h1>
+    <>
+      <Script
+        id="duplex-rent-collection-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are looking for a better way to handle duplex landlord rent
-          collection, you are probably trying to solve the same recurring
-          problem many small landlords face: how to make rent collection feel
-          organized, consistent, and easy to manage without relying on checks,
-          cash, text-message reminders, or spreadsheets.
-        </p>
+      <Script
+        id="duplex-rent-collection-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          RentFray is built for exactly that. It gives duplex landlords a
-          cleaner way to collect rent online, reduce monthly friction, and run
-          a payment process tenants can actually follow.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* WHAT DUPLEX LANDLORDS WANT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What Duplex Landlords Actually Want from a Rent Collection System
-        </h2>
-
-        <p>
-          Most duplex landlords are not searching for rent collection software
-          because they want a giant property management platform. They are
-          searching because the current payment routine takes too much mental
-          energy every month.
-        </p>
-
-        <p>Usually, what they really want is simple:</p>
-
-        <ul className="space-y-2">
-          <li>• A clear way for tenants to pay rent online</li>
-          <li>• Less dependence on checks, cash, and manual reminders</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less spreadsheet work and less payment confusion</li>
-          <li>• A rent collection process that feels easy to repeat each month</li>
-        </ul>
-
-        <p>
-          That is where many systems miss the mark. They are too large, too
-          expensive, or too technical for a duplex landlord who just wants a
-          simple and professional rent collection setup.
-        </p>
-
-        <p className="font-medium">
-          A good duplex rent collection system should make monthly rent easier,
-          not heavier.
-        </p>
-      </section>
-
-      {/* WHY IT MATTERS */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Duplex Rent Collection Gets Messy So Easily
-        </h2>
-
-        <p>
-          Duplex landlords often think they should be able to manage everything
-          manually because there are only a few units. But that is exactly where
-          small recurring friction builds up.
-        </p>
-
-        <p>
-          One tenant pays one way. Another pays another way. One month is easy.
-          The next month needs follow-up. A reminder gets sent by text. A note
-          gets written somewhere. A spreadsheet gets updated later. Even with
-          only two units, the process can become more scattered than it should.
-        </p>
-
-        <p>
-          That is why a dedicated duplex landlord rent collection system matters.
-          It gives you one cleaner payment path instead of a patchwork routine.
-          Tenants know how to pay. You know where to look. The monthly cycle
-          becomes easier to manage.
-        </p>
-
-        <p>
-          The value is not just that payments happen online. The real value is
-          that rent collection happens through a more structured and repeatable
-          process.
-        </p>
-      </section>
-
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Built for Small Landlords Who Want Simplicity, Not Software Bloat
-        </h2>
-
-        <p>
-          RentFray is a focused online rent collection platform designed to help
-          landlords collect recurring rent payments without unnecessary software
-          complexity. It is especially strong for duplex landlords because it
-          solves the real monthly problem without burying you in features you do
-          not need.
-        </p>
-
-        <p>
-          Many duplex owners do not need a giant enterprise system. They need a
-          practical way to collect rent online, keep payment status clear, and
-          stop relying on scattered methods. RentFray is built around that exact
-          use case.
-        </p>
-
-        <p>
-          The workflow stays centered on the payment experience. Tenants get a
-          straightforward path to pay. Landlords get a more organized monthly
-          routine. The property feels more professional without becoming more
-          complicated.
-        </p>
-
-        <p>
-          If you are looking for duplex landlord rent collection software that
-          feels direct and easy to use, that focus is a major advantage.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          How This Duplex Landlord Rent Collection System Works
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Step 1:</strong> Create the property and complete the basic
-            setup
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Duplex Rent Collection
           </p>
-          <p>
-            <strong>Step 2:</strong> Receive the unique property code
+
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Duplex Rent Collection for Landlords
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            A duplex only has two units, but that still means two recurring rent
+            obligations, two tenant accounts, and two payment histories to keep
+            organized every month.
           </p>
-          <p>
-            <strong>Step 3:</strong> Share that code with your tenants
+
+          <p className="mt-4 max-w-3xl text-slate-600">
+            RentFray gives duplex landlords a focused online system for
+            collecting rent, tracking tenant balances, and monitoring payment
+            status without requiring a monthly software subscription.
           </p>
-          <p>
-            <strong>Step 4:</strong> Tenants activate and make rent payments
-            online
-          </p>
-          <p>
-            <strong>Step 5:</strong> You run on a cleaner monthly rent
-            collection process with better visibility
-          </p>
-        </div>
+        </section>
 
-        <p className="mt-4 text-slate-600">
-          No long onboarding process. No complicated implementation cycle. No
-          need to turn a simple duplex payment routine into a giant software
-          project.
-        </p>
-      </section>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Keep Both Duplex Units Separate and Organized
+          </h2>
 
-      {/* WHY SIMPLICITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters So Much for Duplex Landlords
-        </h2>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              The biggest advantage of organized duplex rent collection is not
+              managing a huge number of tenants. It is keeping the two tenant
+              accounts accurate without unnecessary manual work.
+            </p>
 
-        <p>
-          Duplex landlords usually want something that feels lightweight and
-          obvious. If the system is confusing, it feels like overkill. If the
-          process is bloated, it becomes easier to go back to manual habits.
-          If the software feels too large for the property size, it stops being
-          attractive.
-        </p>
+            <p>
+              Each unit can have its own rent obligation, tenant payment
+              activity, and remaining balance. That makes it easier to see the
+              status of each side of the duplex without mixing payment records
+              together.
+            </p>
 
-        <p>
-          That is why simplicity matters so much. Rent collection does not just
-          need to work once. It needs to work every single month without
-          becoming an annoyance. The easier the process is to explain and
-          repeat, the more likely everyone is to use it consistently.
-        </p>
+            <p>
+              Instead of treating rent as a collection of unrelated deposits,
+              the payment activity stays connected to the appropriate rental
+              account.
+            </p>
+          </div>
+        </section>
 
-        <p>
-          RentFray is designed around that principle. The payment path should
-          feel obvious. The recurring routine should feel lighter. The system
-          should make the duplex easier to manage, not harder.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What a Duplex Landlord Needs to Track
+          </h2>
 
-        <p className="font-medium">
-          A simpler system is usually the right system for a duplex.
-        </p>
-      </section>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Rent Due for Each Unit</h3>
+              <p className="mt-2 text-slate-600">
+                Keep each tenant's recurring rent obligation associated with
+                the correct side of the duplex.
+              </p>
+            </div>
 
-      {/* SWITCHING MOMENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          When Duplex Landlords Usually Start Looking for a Better Rent Collection System
-        </h2>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Payment Activity</h3>
+              <p className="mt-2 text-slate-600">
+                See payment activity without relying only on bank deposits,
+                texts, or handwritten records.
+              </p>
+            </div>
 
-        <p>
-          Most duplex landlords start looking for a better rent collection
-          system when the current process becomes more annoying than it is worth.
-        </p>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Payment Status</h3>
+              <p className="mt-2 text-slate-600">
+                Distinguish completed payments from activity that is still
+                processing or requires attention.
+              </p>
+            </div>
 
-        <p>
-          Maybe one tenant keeps paying differently each month. Maybe you are
-          still tracking payments manually. Maybe you are tired of sending text
-          reminders and double-checking whether money came in. Maybe the process
-          technically works, but it feels messier than it should for just two
-          units.
-        </p>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Remaining Balance</h3>
+              <p className="mt-2 text-slate-600">
+                Know what each tenant still owes after completed payments are
+                applied.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <p>
-          That is usually when a dedicated system becomes the right move. You
-          are not trying to add more software. You are trying to stop repeating
-          the same monthly hassle.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Why Use Rent Collection Software for Only Two Units?
+          </h2>
 
-        <p>
-          Once the rent collection workflow becomes more structured, the duplex
-          usually feels easier to operate and easier to keep organized.
-        </p>
-      </section>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A duplex landlord can absolutely collect rent manually. Checks,
+              bank transfers, payment apps, and spreadsheets may be sufficient
+              when the process is working well.
+            </p>
 
-      {/* WHY THIS FITS DUPLEXES */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why This Is a Strong Fit for Duplex Owners
-        </h2>
+            <p>
+              The reason to use dedicated rent collection software is not
+              because two units are inherently difficult to manage. It is
+              because software can connect the payment process with the rent
+              records.
+            </p>
 
-        <p>
-          Duplex owners sit in a very specific middle ground. The property is
-          too small to justify bloated software, but large enough that recurring
-          manual rent collection still creates stress. That is exactly why a
-          focused system makes sense.
-        </p>
-
-        <p>
-          RentFray gives duplex landlords a cleaner recurring payment workflow
-          without asking them to manage a giant platform. It keeps the process
-          professional, but still simple enough for a small property.
-        </p>
-
-        <p>
-          That makes it easier to collect rent online, easier to keep track of
-          what is happening, and easier to maintain a cleaner monthly rhythm
-          with tenants.
-        </p>
-      </section>
-
-      {/* COMPARISON */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          RentFray vs Other Ways Duplex Landlords Collect Rent
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">RentFray vs Checks</p>
-            <p className="mt-2">
-              Checks are familiar, but they slow down the monthly cycle and add
-              extra handling. A dedicated online rent collection system gives
-              tenants a cleaner payment path and gives duplex landlords a more
-              organized routine.
+            <p>
+              If one tenant pays in full while the other still owes part of the
+              month's rent, a dedicated system can make those two account
+              positions easier to see without manually reconciling separate
+              records.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Cash</p>
-            <p className="mt-2">
-              Cash creates recordkeeping and follow-up problems. A structured
-              online payment system creates a clearer and more professional
-              recurring rent process.
+          <div className="mt-5">
+            <Link
+              href="/manual-rent-tracking-vs-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Compare manual rent tracking with software →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Give Both Tenants the Same Online Payment Process
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A consistent payment process means both duplex tenants know where
+              to go when rent is due.
+            </p>
+
+            <p>
+              RentFray provides a browser-based tenant experience, so tenants
+              can access the payment flow without downloading an app.
+            </p>
+
+            <p>
+              Keeping both units on the same rent collection workflow also
+              reduces the need to reconcile completely different payment
+              methods each month.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Track Duplex Rent by Balance, Not Just Payment
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Knowing that a tenant made a payment is only part of the account
+              picture.
+            </p>
+
+            <p>
+              If monthly rent is $1,200 and the tenant has completed a $900
+              payment, the important number is the remaining $300 balance.
+            </p>
+
+            <p>
+              Tracking the balance makes partial payments and outstanding rent
+              easier to understand than a simple paid-or-unpaid note.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets can record notes manually, but they do not solve the
-              real payment workflow. Someone still has to collect, confirm, and
-              reconcile payments. RentFray helps organize the actual process
-              itself.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Generic Payment Apps</p>
-            <p className="mt-2">
-              Generic money-transfer apps are not true rent collection systems.
-              They are not built around recurring property payments, tenant
-              structure, or a cleaner landlord workflow.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Large Property Software</p>
-            <p className="mt-2">
-              Large software suites can bring more setup, more cost, and more
-              complexity than a duplex landlord really needs. RentFray keeps the
-              focus tighter, which helps it stay easier to use.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* TRUST */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Payment Clarity Matters for Small Landlords
-        </h2>
-
-        <p>
-          One of the biggest reasons small-property rent collection feels messy
-          is that the payment path itself is unclear. When tenants pay in
-          different ways, the landlord ends up reconstructing what happened
-          after the fact.
-        </p>
-
-        <p>
-          A better system keeps the payment path more direct. Tenants use a
-          clearer online process. Landlords have a more dependable recurring
-          routine. That makes payment tracking feel more trustworthy because the
-          workflow itself is more organized.
-        </p>
-
-        <p>
-          RentFray supports that by giving duplex landlords a structured path
-          for online recurring payments and cleaner month-to-month visibility.
-        </p>
-      </section>
-
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of a Better Duplex Rent Collection System
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner monthly payment routine:</strong> Make each month
-            easier to manage.
-          </p>
-
-          <p>
-            <strong>Better tenant consistency:</strong> Give tenants one clearer
-            way to pay online.
-          </p>
-
-          <p>
-            <strong>Less manual work:</strong> Reduce spreadsheet dependence and
-            patchwork payment handling.
-          </p>
-
-          <p>
-            <strong>Better visibility:</strong> Make it easier to understand who
-            has paid and what still needs attention.
-          </p>
-
-          <p>
-            <strong>More professional payment experience:</strong> A structured
-            system feels clearer and more dependable.
-          </p>
-
-          <p>
-            <strong>No monthly fee burden for the business:</strong> RentFray is
-            designed to stay free for landlords and property owners.
-          </p>
-        </div>
-      </section>
-
-      {/* LONG TAIL */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best Way to Collect Rent for a Duplex?
-        </h2>
-
-        <p>
-          For many duplex owners, the best rent collection system is not the one
-          with the most features. It is the one tenants can actually use,
-          landlords can actually understand, and the property can actually rely
-          on every month without unnecessary friction.
-        </p>
-
-        <p>
-          That is why focused rent collection platforms often outperform
-          bloated systems. They keep the core workflow clear: collect rent
-          online, keep the monthly cycle organized, and reduce the repeated
-          manual effort that makes ownership harder than it should be.
-        </p>
-
-        <p>
-          If you are searching for duplex landlord rent collection software
-          because the current process feels fragmented, manual, or more annoying
-          than it should be, RentFray is built for exactly that.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is duplex landlord rent collection software?</strong>
-            <br />
-            It is a system that helps duplex landlords collect recurring rent
-            payments in a more organized and repeatable way.
-          </p>
-
-          <p>
-            <strong>Why use a duplex rent collection system?</strong>
-            <br />
-            It helps reduce manual payment handling, improve consistency, and
-            create a cleaner recurring monthly routine.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for landlords?</strong>
-            <br />
-            Yes. RentFray is designed so the business side does not pay a
-            monthly fee.
-          </p>
-
-          <p>
-            <strong>Can tenants pay online?</strong>
-            <br />
-            Yes. Tenants can activate and make payments through the online
-            system.
-          </p>
-
-          <p>
-            <strong>Do tenants need to download anything?</strong>
-            <br />
-            No. The payment flow works through the browser.
-          </p>
-
-          <p>
-            <strong>Is this useful even if I only have two units?</strong>
-            <br />
-            Yes. Duplex landlords often benefit a lot from having a cleaner and
-            more organized monthly rent process.
-          </p>
-
-          <p>
-            <strong>How do tenants get started?</strong>
-            <br />
-            Tenants use the property code to activate and make payments through
-            the online system.
-          </p>
-
-          <p>
-            <strong>Why not just use spreadsheets?</strong>
-            <br />
-            Spreadsheets still require manual updates and do not solve the
-            actual recurring payment workflow.
-          </p>
-
-          <p>
-            <strong>Why not just use a generic payment app?</strong>
-            <br />
-            Generic payment tools are not dedicated rent collection systems
-            built around recurring landlord-tenant payments.
-          </p>
-
-          <p>
-            <strong>How fast can I get started?</strong>
-            <br />
-            The goal is quick self-serve setup with minimal friction.
-          </p>
-
-          <p>
-            <strong>Is this only for duplexes?</strong>
-            <br />
-            No. It is also a strong fit for other small rental properties that
-            need structured recurring online payments.
-          </p>
-
-          <p>
-            <strong>Will this feel too big for a small landlord?</strong>
-            <br />
-            No. RentFray is specifically positioned to feel simpler and more
-            focused than bloated property software.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want the broader core page? Visit{" "}
-            <Link
-              href="/online-rent-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Online Rent Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Looking for the direct collection angle? See{" "}
-            <Link
-              href="/collect-rent-online"
-              className="text-blue-600 hover:underline"
-            >
-              Collect Rent Online
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the app-style page? Read{" "}
-            <Link
-              href="/rent-payment-app"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Payment App
-            </Link>
-            .
-          </p>
-
-          <p>
-            Need the landlord-focused version? Visit{" "}
-            <Link
-              href="/landlord-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Landlord Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the billing angle? Read{" "}
-            <Link
-              href="/rent-billing-system"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Billing System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the tracking angle? Visit{" "}
+          <div className="mt-5">
             <Link
               href="/rent-tracking-software"
-              className="text-blue-600 hover:underline"
+              className="font-semibold text-blue-600 hover:underline"
             >
-              Rent Tracking Software
+              Learn about rent tracking software →
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Recurring Rent for a Duplex
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Rent is not a one-time transaction. The same obligation returns
+              according to the property's rent schedule.
+            </p>
+
+            <p>
+              RentFray is built around recurring rent so landlords can manage
+              the monthly cycle without treating every month's rent as an
+              unrelated payment request.
+            </p>
+
+            <p>
+              That recurring structure is useful even for a two-unit property
+              because it preserves the relationship between the tenant, the
+              amount due, payment activity, and remaining balance.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Duplex Rent Collection: Manual vs Online
+          </h2>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="px-3 py-3 font-semibold">Task</th>
+                  <th className="px-3 py-3 font-semibold">Manual Process</th>
+                  <th className="px-3 py-3 font-semibold">
+                    Online Rent System
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="text-slate-600">
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Collect rent</td>
+                  <td className="px-3 py-3">
+                    Checks, cash, transfers, or payment apps
+                  </td>
+                  <td className="px-3 py-3">
+                    Consistent online payment path
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track each unit</td>
+                  <td className="px-3 py-3">
+                    Spreadsheet, notes, or separate records
+                  </td>
+                  <td className="px-3 py-3">
+                    Tenant and unit records kept together
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track balance</td>
+                  <td className="px-3 py-3">Calculated manually</td>
+                  <td className="px-3 py-3">
+                    Maintained with the rent account
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-3 py-3">Review payment status</td>
+                  <td className="px-3 py-3">
+                    Check individual payment sources
+                  </td>
+                  <td className="px-3 py-3">
+                    Status visible in the rent workflow
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Do Duplex Landlords Need Full Property Management Software?
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Some duplex landlords may need broader property-management tools
+              for accounting, maintenance, leasing, screening, documents, or
+              other operational tasks.
+            </p>
+
+            <p>
+              Others may only need a focused way to collect recurring rent and
+              keep tenant balances organized.
+            </p>
+
+            <p>
+              RentFray is designed for that narrower job. It does not require a
+              landlord to adopt a large property-management suite just to
+              organize rent collection.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/rent-collection-software-alternative"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Compare rent collection software alternatives →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Secure Online Rent Payment Processing
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Duplex rent payments through RentFray are processed by Stripe.
+            </p>
+
+            <p>
+              RentFray does not store tenant banking information or hold tenant
+              funds. RentFray organizes the rent collection workflow while
+              Stripe provides the payment-processing infrastructure.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Duplex Rent Collection Without a Monthly Software Fee
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            RentFray costs $0 per month for duplex landlords and property
+            managers.
           </p>
 
-          <p>
-            Want the small-property variant? Read{" "}
+          <p className="mt-3 text-slate-600">
+            Tenants pay a small processing fee when they submit payments. The
+            landlord does not take on a monthly RentFray software subscription.
+          </p>
+
+          <div className="mt-5">
+            <Link
+              href="/free-rent-collection-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Explore free rent collection software →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
+
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Rent Collection Resources
+          </h2>
+
+          <div className="mt-4 flex flex-col gap-3">
             <Link
               href="/rent-collection-software-landlords"
               className="text-blue-600 hover:underline"
             >
               Rent Collection Software for Landlords
             </Link>
-            .
+
+            <Link
+              href="/online-rent-payment-system"
+              className="text-blue-600 hover:underline"
+            >
+              Online Rent Payment System
+            </Link>
+
+            <Link
+              href="/best-way-to-collect-rent"
+              className="text-blue-600 hover:underline"
+            >
+              Best Way to Collect Rent
+            </Link>
+
+            <Link
+              href="/rent-tracking-software"
+              className="text-blue-600 hover:underline"
+            >
+              Rent Tracking Software
+            </Link>
+
+            <Link
+              href="/online-rent-payment-system-apartments"
+              className="text-blue-600 hover:underline"
+            >
+              Apartment Rent Payment System
+            </Link>
+
+            <Link
+              href="/commercial-property-rent-collection"
+              className="text-blue-600 hover:underline"
+            >
+              Commercial Property Rent Collection
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Collect Rent From Both Duplex Units Online
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            Keep recurring rent, tenant balances, and payment status organized
+            for both units without a monthly software fee.
           </p>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use a Duplex Rent Collection System That Makes Monthly Payments Easier
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fees for landlords. No patchwork payment routine. Just a
-          cleaner way to collect duplex rent online.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }

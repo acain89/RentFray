@@ -1,821 +1,544 @@
-// app/marina-slip-payment-system/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title:
-    "Marina Slip Payment System | Simple Online Marina Slip Payments | RentFray",
-  description:
-    "A marina slip payment system built for simple online rent payments. Collect marina slip payments online, reduce manual tracking, and keep tenant and slip payments organized with a clean, self-serve platform that stays free for the business.",
+const pagePath = "/marina-slip-payment-system";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "Marina Slip Payment System for Recurring Rent | RentFray";
+
+const pageDescription =
+  "Collect recurring marina slip rent online, track slip-holder balances and payment status, and manage recurring dockage payments without monthly software fees.";
+
+const faqItems = [
+  {
+    question: "Can marinas collect recurring slip rent online with RentFray?",
+    answer:
+      "Yes. RentFray can support recurring online payments for marina slips and other configured recurring rental charges.",
+  },
+  {
+    question: "Can I track marina payments by slip holder?",
+    answer:
+      "Yes. RentFray keeps recurring payment activity and balances associated with the appropriate rental account so marina operators can review what has been paid and what remains due.",
+  },
+  {
+    question: "Is RentFray full marina management software?",
+    answer:
+      "No. RentFray is focused on recurring payment collection, balances, and payment status. It does not replace specialized marina software for reservations, transient dockage, vessel records, fuel sales, launch scheduling, maintenance, or other marina operations.",
+  },
+  {
+    question: "Do slip holders need to download an app?",
+    answer:
+      "No. RentFray uses a browser-based payment experience, so slip holders can access the payment flow without installing an app.",
+  },
+  {
+    question: "How are marina slip payments processed?",
+    answer:
+      "Payments are processed through Stripe. RentFray does not store slip-holder banking information or hold slip-holder funds.",
+  },
+  {
+    question: "Does RentFray charge marina owners a monthly software fee?",
+    answer:
+      "No. RentFray has no monthly software fee for property owners and managers. Slip holders pay a small processing fee when they submit payments.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/marina-slip-payment-system",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "article",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Collect recurring marina slip rent online and track slip-holder balances and payment status.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "Online recurring marina slip payments and balance tracking without monthly software fees.",
   },
 };
 
 export default function MarinaSlipPaymentSystemPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Marina Slip Payment System — A Simpler Way to Collect Marina Slip
-          Payments Online
-        </h1>
+    <>
+      <Script
+        id="marina-slip-payment-system-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are looking for a marina slip payment system, you are probably
-          trying to solve a very familiar problem: recurring slip payments
-          should feel organized and easy to manage, but in a lot of marinas they
-          still depend on checks, cash, manual notes, email reminders, and a
-          payment process that feels more patched together than it should.
-        </p>
+      <Script
+        id="marina-slip-payment-system-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          RentFray is built to simplify that. It gives marina owners and
-          managers a cleaner way to collect payments online, reduce spreadsheet
-          work, create a more organized payment process for slip holders, and
-          replace scattered routines with one direct, repeatable system.
-        </p>
-
-        <p className="mt-4 text-slate-700">
-          The goal is not to pile on software. The goal is to make marina slip
-          payments feel obvious, structured, and easier to run every single
-          month.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* WHAT THEY ACTUALLY WANT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What Marina Owners Actually Want from a Slip Payment System
-        </h2>
-
-        <p>
-          Most people searching for a marina slip payment system are not really
-          searching for more software. They are trying to create a cleaner,
-          easier recurring payment rhythm.
-        </p>
-
-        <p>
-          They want slip holders to know exactly how to pay. They want the
-          payment path to feel organized. They want to stop piecing together
-          checks, cash, bank transfers, notes, and reminders every month. They
-          want less friction, not more features.
-        </p>
-
-        <p>Usually, what they actually want is simple:</p>
-
-        <ul className="space-y-2">
-          <li>• One clear way to collect marina slip payments online</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less dependence on checks, cash, and manual follow-up</li>
-          <li>• A more repeatable monthly collection workflow</li>
-          <li>• Fewer spreadsheets and fewer disconnected systems</li>
-          <li>• A payment process that feels easy to explain and easy to repeat</li>
-          <li>• A tool that does not require training just to use it</li>
-        </ul>
-
-        <p>
-          That is where many platforms miss. They assume marina owners want
-          larger systems, more menus, and more moving parts. In many cases, the
-          opposite is true. What marina owners actually want is a payment
-          workflow that feels tighter, clearer, and easier to manage.
-        </p>
-
-        <p className="font-medium">
-          A strong marina slip payment system should make the recurring payment
-          cycle feel lighter, not heavier.
-        </p>
-      </section>
-
-      {/* WHY IT GETS MESSY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Marina Slip Payment Collection Gets Messy So Easily
-        </h2>
-
-        <p>
-          Marinas often look manageable from a distance. Defined slips.
-          Recurring customers. Predictable monthly or seasonal payments. But the
-          actual collection process can become fragmented faster than many
-          owners expect.
-        </p>
-
-        <p>
-          One slip holder pays by check. Another pays cash. Another pays late
-          and needs reminders. Another wants to pay a different way every
-          month. Even when occupancy is stable, the workflow around payment
-          collection can become inconsistent.
-        </p>
-
-        <p>
-          Then the manual layer begins. Someone has to confirm what came in.
-          Someone has to note what is still outstanding. Someone has to send
-          reminders. Someone has to update a spreadsheet. Someone has to rebuild
-          the monthly picture afterward.
-        </p>
-
-        <p>
-          That is why marina slip payment collection often becomes more of an
-          operating headache than it should be. The problem is rarely just the
-          payment itself. The problem is the lack of one clean, centralized
-          process.
-        </p>
-
-        <p>
-          A dedicated system helps because it replaces a patchwork routine with
-          a more structured recurring flow. Slip holders know how to pay. Marina
-          owners know where to look. The monthly cycle becomes less about
-          reconstruction and more about visibility.
-        </p>
-      </section>
-
-      {/* PAIN AMPLIFICATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Just the Payment — It Is the Friction Around
-          It
-        </h2>
-
-        <p>
-          Many marina owners tolerate a messy payment routine for too long
-          because it technically works. Money eventually comes in. Someone
-          eventually confirms it. Records eventually get updated. But
-          &quot;eventually&quot; is where a lot of wasted time lives.
-        </p>
-
-        <p>Every workaround adds drag:</p>
-
-        <ul className="space-y-2">
-          <li>• Checking different places to confirm whether money arrived</li>
-          <li>• Sending reminders manually</li>
-          <li>• Updating spreadsheets after the fact</li>
-          <li>• Matching payments to slip holders by hand</li>
-          <li>• Explaining payment instructions repeatedly</li>
-          <li>• Rebuilding a reliable picture of the month from scattered data</li>
-        </ul>
-
-        <p>
-          None of that feels like a major problem in isolation. Together, it
-          creates a recurring process that is more annoying, more fragile, and
-          more manual than it should be.
-        </p>
-
-        <p>
-          Over time, this has a real cost. Not just in money, but in mental
-          energy. Payment collection becomes something you have to manage
-          actively instead of a system you can rely on.
-        </p>
-
-        <p>
-          That is the point where many marina owners start looking for a better
-          option. Not because they want a giant platform. Because they want to
-          stop repeating the same small headaches every billing cycle.
-        </p>
-      </section>
-
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Built for Marinas That Want Simplicity, Not Software Bloat
-        </h2>
-
-        <p>
-          RentFray is a focused online payment platform designed to make
-          recurring marina slip payments easier to manage. It is built around a
-          simple idea: marina owners and managers should be able to run a
-          cleaner payment workflow without adopting a giant, bloated system that
-          creates a second job.
-        </p>
-
-        <p>
-          That matters because many marinas do not need a huge software suite
-          with endless modules and a long learning curve. They need a way to
-          collect payments online, keep payment status clearer, reduce manual
-          work, and give slip holders a payment path that actually feels
-          straightforward.
-        </p>
-
-        <p>
-          RentFray stays focused on that core job. It is self-serve. It is built
-          to feel direct. It is designed to be easier to understand than larger
-          property systems. And it is positioned to stay free for the business,
-          which makes it far easier to adopt without feeling like one more
-          recurring overhead cost.
-        </p>
-
-        <p>
-          If you are searching for marina slip payment software because the
-          current setup feels fragmented, over-manual, or more chaotic than it
-          should be, that focus is exactly the advantage.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          How This Marina Slip Payment System Works
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Step 1:</strong> Create the property and complete the basic
-            setup
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Marina Slip Payments
           </p>
-          <p>
-            <strong>Step 2:</strong> Receive the unique property code for that
-            marina
+
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Marina Slip Payment System for Recurring Rent
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            Marinas with long-term or seasonal slip holders may collect the same
+            dockage or slip rent from many rental accounts during each billing
+            cycle.
           </p>
-          <p>
-            <strong>Step 3:</strong> Share that code with slip holders
+
+          <p className="mt-4 max-w-3xl text-slate-600">
+            RentFray provides a focused online system for recurring marina slip
+            payments, account balances, and payment status without a monthly
+            software subscription for marina owners or managers.
           </p>
-          <p>
-            <strong>Step 4:</strong> They activate and begin making payments
-            through the system
-          </p>
-          <p>
-            <strong>Step 5:</strong> Run on a cleaner recurring collection
-            process with better visibility and less manual follow-up
-          </p>
-        </div>
+        </section>
 
-        <p className="mt-4 text-slate-600">
-          The idea is simple on purpose. No bloated implementation phase. No
-          confusing handoff. No need to turn payment collection into a software
-          project just to make the recurring process more organized.
-        </p>
-      </section>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Keep Every Slip Holder's Payment Account Separate
+          </h2>
 
-      {/* SIMPLICITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters So Much in Marina Slip Payments
-        </h2>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              When multiple slip holders pay during the same billing period,
+              each payment needs to stay connected to the correct rental
+              account.
+            </p>
 
-        <p>
-          Marinas do not benefit from complexity for its own sake. A payment
-          system only helps if people actually use it consistently and
-          understand how it works without friction.
-        </p>
+            <p>
+              RentFray keeps recurring payment activity and balances associated
+              with the appropriate account rather than leaving the marina to
+              reconstruct the payment picture from deposits, notes, and
+              spreadsheets.
+            </p>
 
-        <p>
-          If the setup feels heavy, owners delay implementing it. If the slip
-          holder experience feels unclear, payments keep drifting back to old
-          habits. If the software feels oversized for the job, it becomes harder
-          to justify using it at all.
-        </p>
+            <p>
+              That creates a clearer record of what each account owes, what has
+              been paid, and what remains outstanding.
+            </p>
+          </div>
+        </section>
 
-        <p>
-          That is why simplicity is a practical advantage, not a cosmetic one.
-          The easier a system is to explain, the easier it is to adopt. The
-          easier it is to repeat, the more likely it is to become the normal
-          payment process.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Recurring Slip Rent and Dockage Payments
+          </h2>
 
-        <p>
-          RentFray is designed around that idea. The payment path should feel
-          obvious. The workflow should feel clean. The recurring routine should
-          feel lighter than what came before.
-        </p>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Long-term marina arrangements often involve recurring payments
+              tied to an ongoing slip or dockage agreement.
+            </p>
 
-        <p className="font-medium">
-          In marina slip payment collection, the simplest system is often the
-          one that actually gets used correctly.
-        </p>
-      </section>
+            <p>
+              RentFray is most relevant when those charges can be represented as
+              recurring rental obligations associated with individual accounts.
+            </p>
 
-      {/* SWITCHING MOMENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          When Marina Owners Usually Start Looking for a Better Payment System
-        </h2>
+            <p>
+              That makes the platform a better fit for recurring slip rent than
+              for one-time transient dockage or reservation-based marina
+              activity.
+            </p>
+          </div>
+        </section>
 
-        <p>
-          Most owners do not start searching because everything is broken. They
-          start searching because the current process is too manual, too
-          fragmented, or too annoying to keep tolerating.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What Marina Operators Need to Track
+          </h2>
 
-        <p>
-          Maybe different slip holders keep paying in different ways. Maybe
-          payments technically arrive, but the recordkeeping process is
-          scattered. Maybe reminders have to be sent too often. Maybe the
-          current method &quot;works,&quot; but only because someone keeps
-          manually holding it together every cycle.
-        </p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Slip-Holder Account</h3>
+              <p className="mt-2 text-slate-600">
+                Keep recurring payment activity associated with the appropriate
+                rental account.
+              </p>
+            </div>
 
-        <p>
-          That is the tipping point. You are not looking for more software. You
-          are looking for a cleaner operating routine. You want marina slip
-          payment collection to stop feeling like a repeated management chore
-          and start feeling like a process with structure.
-        </p>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Recurring Amount Due</h3>
+              <p className="mt-2 text-slate-600">
+                Maintain the expected recurring payment according to the
+                marina's account setup.
+              </p>
+            </div>
 
-        <p>
-          Once that happens, the difference is immediate. The payment path gets
-          clearer. The cycle becomes easier to read. The marina starts
-          operating with less recurring friction.
-        </p>
-      </section>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Payment Status</h3>
+              <p className="mt-2 text-slate-600">
+                Distinguish completed payments from activity that is still
+                processing or requires attention.
+              </p>
+            </div>
 
-      {/* USE CASE SEGMENTATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why This Is a Strong Fit for Different Types of Marinas
-        </h2>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Remaining Balance</h3>
+              <p className="mt-2 text-slate-600">
+                See what remains due after completed payments are applied to the
+                account.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <p>
-          Marinas are not all the same. Different properties have different slip
-          mixes, stay lengths, billing habits, and management styles. But the
-          need for a cleaner recurring payment process stays remarkably
-          consistent.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Let Slip Holders Pay Online Without an App
+          </h2>
 
-        <div className="space-y-5">
-          <div>
-            <p className="font-semibold">Small Marinas</p>
-            <p className="mt-2">
-              Smaller marinas usually do not need heavyweight software. They
-              need a direct system that makes payment collection easier without
-              adding complexity that feels disproportionate to the property.
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              RentFray gives slip holders a browser-based path for submitting
+              recurring payments.
+            </p>
+
+            <p>
+              They do not need to download an app before accessing the payment
+              flow.
+            </p>
+
+            <p>
+              Payment activity stays connected to the rental account so the
+              marina can review the payment together with the account balance.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Track the Account Balance, Not Just the Payment
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A payment record by itself does not always tell the marina whether
+              a slip-holder account is fully current.
+            </p>
+
+            <p>
+              RentFray tracks completed payment activity together with the
+              account balance, giving operators a clearer view of what remains
+              owed.
+            </p>
+
+            <p>
+              That is more useful for recurring rental accounts than simply
+              recording that money changed hands.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">Seasonal Slip Marinas</p>
-            <p className="mt-2">
-              When seasonal or recurring slip billing is part of the property
-              mix, consistency matters. A structured payment system helps create
-              a cleaner recurring process and reduces confusion.
+          <div className="mt-5">
+            <Link
+              href="/rent-tracking-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn about payment and balance tracking →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Payment Status Provides More Context
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A slip holder with a submitted payment that is still processing is
+              different from an account with no payment activity.
+            </p>
+
+            <p>
+              Keeping payment status visible helps marina operators distinguish
+              those situations before deciding which accounts require
+              attention.
+            </p>
+
+            <p>
+              That distinction becomes increasingly useful when many recurring
+              slip accounts are due during the same billing period.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">Owner-Managed Marinas</p>
-            <p className="mt-2">
-              If the owner is still close to day-to-day operations, the pain of
-              manual payment tracking is felt more directly. A cleaner system
-              helps reduce that hands-on administrative burden.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Marina Slip Payments vs Manual Tracking
+          </h2>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="px-3 py-3 font-semibold">Task</th>
+                  <th className="px-3 py-3 font-semibold">Manual Process</th>
+                  <th className="px-3 py-3 font-semibold">
+                    Recurring Payment System
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="text-slate-600">
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Collect slip rent</td>
+                  <td className="px-3 py-3">
+                    Checks, cash, or separate transfers
+                  </td>
+                  <td className="px-3 py-3">
+                    Consistent online payment path
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Identify account</td>
+                  <td className="px-3 py-3">
+                    Match transaction manually
+                  </td>
+                  <td className="px-3 py-3">
+                    Payment connected to rental account
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track balance</td>
+                  <td className="px-3 py-3">Calculated manually</td>
+                  <td className="px-3 py-3">
+                    Maintained with account activity
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-3 py-3">Review payment status</td>
+                  <td className="px-3 py-3">
+                    Check payment records separately
+                  </td>
+                  <td className="px-3 py-3">
+                    Status visible in the payment workflow
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Where Dedicated Marina Management Software Goes Further
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Running a marina involves operational needs that extend well
+              beyond collecting recurring slip rent.
+            </p>
+
+            <p>
+              Specialized marina software may include transient reservations,
+              slip availability, vessel records, contracts, fuel sales,
+              launch scheduling, dry storage, service and maintenance
+              management, marina maps, and other operational tools.
+            </p>
+
+            <p>
+              RentFray does not claim to replace those functions.
+            </p>
+
+            <p>
+              Its role is narrower: recurring online payments, configured
+              charges, account balances, and payment-status visibility.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">Family-Run Marinas</p>
-            <p className="mt-2">
-              Family-run properties often benefit from simplifying the payment
-              side of operations wherever possible. A focused workflow helps the
-              marina feel more organized overall.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            When a Focused Marina Payment System May Be Enough
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A marina may already have workable processes for assigning slips,
+              maintaining vessel information, handling contracts, and managing
+              daily operations.
+            </p>
+
+            <p>
+              Its main payment problem may simply be collecting recurring slip
+              rent online and maintaining a clearer picture of account balances.
+            </p>
+
+            <p>
+              In that situation, a focused payment platform can address the
+              recurring collection workflow without requiring the marina to
+              replace every other operational process.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">Growing Marinas That Need More Structure</p>
-            <p className="mt-2">
-              As recurring occupancy grows, informal payment habits become
-              harder to control. A clearer system helps keep the recurring
-              workflow easier to understand and easier to manage.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Secure Marina Slip Payment Processing
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Payments submitted through RentFray are processed through Stripe.
+            </p>
+
+            <p>
+              RentFray does not store slip-holder banking information or hold
+              slip-holder funds. RentFray organizes the recurring payment
+              workflow while Stripe provides the payment-processing
+              infrastructure.
             </p>
           </div>
-        </div>
+        </section>
 
-        <p>
-          In each case, the logic is the same: create one clearer way to collect
-          payments online, make the recurring cycle easier to manage, and reduce
-          the need for manual stitching between multiple payment methods.
-        </p>
-      </section>
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Marina Slip Payments Without a Monthly Software Fee
+          </h2>
 
-      {/* COMPARISON */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          RentFray vs Other Ways Marinas Collect Slip Payments
-        </h2>
+          <p className="mt-4 text-slate-600">
+            RentFray costs $0 per month for marina owners and managers using the
+            payment platform.
+          </p>
 
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">RentFray vs Checks</p>
-            <p className="mt-2">
-              Checks are familiar, but familiarity is not the same as
-              efficiency. Checks slow the workflow down, require handling,
-              require confirmation, and keep owners tied to a more manual
-              process. A dedicated marina slip payment system gives slip holders
-              a cleaner payment path and gives owners a more organized recurring
-              routine.
-            </p>
+          <p className="mt-3 text-slate-600">
+            Slip holders pay a small processing fee when they submit payments.
+            The marina does not take on a monthly RentFray software subscription.
+          </p>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
+
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">RentFray vs Cash</p>
-            <p className="mt-2">
-              Cash creates recordkeeping problems immediately. Even when the
-              payment is made, the process around it still feels fragile. A
-              structured online payment system creates a clearer, more
-              professional, and more repeatable way to handle recurring marina
-              payments.
-            </p>
-          </div>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Payment Resources
+          </h2>
 
-          <div>
-            <p className="font-semibold">RentFray vs Bank Transfers</p>
-            <p className="mt-2">
-              Bank transfers can sound simple on paper, but in practice they
-              still rely on an owner or manager manually checking, matching,
-              noting, and following up. They do not automatically create a
-              cleaner operating workflow. RentFray focuses on the full process,
-              not just the movement of money.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets are often used because they are flexible, but they
-              only document what happened after someone updates them. They do not
-              solve the payment process itself. Someone still has to collect,
-              verify, and reconcile everything manually. RentFray helps organize
-              the actual payment workflow, not just the notes around it.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Generic Payment Apps</p>
-            <p className="mt-2">
-              Generic payment apps are not dedicated recurring payment systems.
-              They are not built around structured marina payments, slip holder
-              organization, or a cleaner monthly workflow. They move money, but
-              they do not create a professional payment system.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Large Property Software</p>
-            <p className="mt-2">
-              Large property platforms can bring more cost, more training, more
-              setup, and more complexity than many marina owners actually want.
-              For owners who mainly want a cleaner way to collect payments and
-              see status clearly, that extra weight can become a drawback rather
-              than a benefit. RentFray keeps the focus tighter, which helps it
-              stay easier to adopt and easier to use.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* TRUST / CLARITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Payment Clarity Matters So Much for Marinas
-        </h2>
-
-        <p>
-          One of the biggest reasons marina slip payment collection becomes
-          stressful is not just because of late payments. It is because the
-          payment path itself feels unclear.
-        </p>
-
-        <p>
-          When slip holders pay in different ways, owners end up reconstructing
-          the story after the fact. What came in? Who paid? What is pending?
-          What still needs follow-up? That uncertainty creates unnecessary drag
-          in the billing cycle.
-        </p>
-
-        <p>
-          A better system makes the process itself more legible. Slip holders
-          use a clearer online path. Owners have one more dependable place to
-          look. The recurring month-to-month workflow becomes easier to trust
-          because the structure is stronger.
-        </p>
-
-        <p>
-          RentFray is built around that kind of clarity. The point is to make
-          marina payment collection feel less like detective work and more like
-          a process that runs on a clean, repeatable track.
-        </p>
-
-        <p className="font-medium">
-          Better visibility does not just help with tracking. It lowers the
-          mental load of running the property.
-        </p>
-      </section>
-
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of a Better Marina Slip Payment System
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner recurring workflow:</strong> Turn payment collection
-            into a more repeatable process instead of a patchwork routine.
-          </p>
-
-          <p>
-            <strong>Better slip holder consistency:</strong> Give people one
-            clearer path to pay online.
-          </p>
-
-          <p>
-            <strong>Less manual follow-up:</strong> Reduce the need to chase
-            status across checks, transfers, and side conversations.
-          </p>
-
-          <p>
-            <strong>Less spreadsheet dependence:</strong> Stop relying so
-            heavily on manual tracking to keep the payment picture together.
-          </p>
-
-          <p>
-            <strong>More professional payment experience:</strong> A structured
-            system feels more credible and easier to operate.
-          </p>
-
-          <p>
-            <strong>Better visibility:</strong> Make it easier to understand who
-            has paid, what has happened, and what still needs attention.
-          </p>
-
-          <p>
-            <strong>Self-serve setup:</strong> Get started without turning the
-            system into a long implementation project.
-          </p>
-
-          <p>
-            <strong>No monthly fee burden for the business:</strong> RentFray is
-            designed to stay free for property owners and managers on the
-            business side.
-          </p>
-        </div>
-      </section>
-
-      {/* LONG TAIL CAPTURE */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best Marina Slip Payment System?
-        </h2>
-
-        <p>
-          For many marina owners, the best payment system is not the one with
-          the longest feature list. It is the one that slip holders can actually
-          use, owners can actually understand, and the property can actually
-          rely on every cycle without unnecessary friction.
-        </p>
-
-        <p>
-          That is why focused payment platforms can outperform bloated software
-          in real-world use. They keep the core workflow clear: collect marina
-          slip payments online, make the recurring cycle more organized, and
-          reduce the repeated manual effort that makes ownership harder than it
-          needs to be.
-        </p>
-
-        <p>
-          If you are searching for phrases like these, you are in the right
-          place:
-        </p>
-
-        <ul className="space-y-2">
-          <li>• best marina slip payment system</li>
-          <li>• marina payment software</li>
-          <li>• online marina slip payments</li>
-          <li>• boat slip rent payment platform</li>
-          <li>• simple marina payment tracking system</li>
-          <li>• free marina slip payment platform</li>
-          <li>• how to collect marina slip payments online</li>
-          <li>• easy recurring payment system for marinas</li>
-        </ul>
-
-        <p>
-          RentFray is built for exactly that type of search intent. Not because
-          it tries to be everything, but because it stays centered on the job
-          that matters: making marina slip payments simpler and more organized.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions About Marina Slip Payment Systems
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is a marina slip payment system?</strong>
-            <br />
-            It is a system that helps marina owners collect recurring slip
-            payments in a more organized, visible, and repeatable way.
-          </p>
-
-          <p>
-            <strong>
-              Why use a marina slip payment system instead of manual methods?
-            </strong>
-            <br />
-            Manual methods often create inconsistent payment paths, extra
-            follow-up, and heavier spreadsheet work. A dedicated system helps
-            centralize the process and reduce recurring friction.
-          </p>
-
-          <p>
-            <strong>Can slip holders pay online with RentFray?</strong>
-            <br />
-            Yes. The system is designed to give people a straightforward online
-            payment path.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for the marina owner?</strong>
-            <br />
-            Yes. RentFray is designed so the business side does not carry a
-            monthly fee burden.
-          </p>
-
-          <p>
-            <strong>Is this only for large marinas?</strong>
-            <br />
-            No. It is a strong fit for both larger marinas and smaller
-            owner-managed properties that want a cleaner recurring payment
-            workflow.
-          </p>
-
-          <p>
-            <strong>Can this help replace checks and spreadsheets?</strong>
-            <br />
-            Yes. A major benefit is reducing dependence on scattered payment
-            methods and manual recordkeeping.
-          </p>
-
-          <p>
-            <strong>Do people need to download anything?</strong>
-            <br />
-            No. The payment flow works through the browser.
-          </p>
-
-          <p>
-            <strong>Is setup complicated?</strong>
-            <br />
-            No. The system is built to be self-serve and straightforward to set
-            up.
-          </p>
-
-          <p>
-            <strong>Why not just use a generic payment app?</strong>
-            <br />
-            Generic payment apps are not built specifically for recurring marina
-            payments or a cleaner property-side collection workflow.
-          </p>
-
-          <p>
-            <strong>Why not just keep using spreadsheets?</strong>
-            <br />
-            Spreadsheets can document information, but they do not create a
-            cleaner payment collection process. Someone still has to manually
-            manage the workflow around them.
-          </p>
-
-          <p>
-            <strong>
-              Is RentFray trying to be a full property management platform?
-            </strong>
-            <br />
-            No. It is focused on creating a simpler, more organized payment
-            experience rather than overwhelming owners with software bloat.
-          </p>
-
-          <p>
-            <strong>What is the main advantage of using RentFray?</strong>
-            <br />
-            The biggest advantage is turning a fragmented recurring collection
-            routine into a cleaner, more repeatable process that is easier to
-            manage.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want the broader core page? Visit{" "}
+          <div className="mt-4 flex flex-col gap-3">
             <Link
               href="/online-rent-payment-system"
               className="text-blue-600 hover:underline"
             >
               Online Rent Payment System
             </Link>
-            .
-          </p>
 
-          <p>
-            Looking for the direct collection angle? See{" "}
-            <Link
-              href="/collect-rent-online"
-              className="text-blue-600 hover:underline"
-            >
-              Collect Rent Online
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the app-style version? Read{" "}
-            <Link
-              href="/rent-payment-app"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Payment App
-            </Link>
-            .
-          </p>
-
-          <p>
-            Need the landlord-focused version? Visit{" "}
-            <Link
-              href="/landlord-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Landlord Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the billing angle? Read{" "}
             <Link
               href="/rent-billing-system"
               className="text-blue-600 hover:underline"
             >
-              Rent Billing System
+              Recurring Rent Billing
             </Link>
-            .
-          </p>
 
-          <p>
-            Need the tracking angle? Visit{" "}
             <Link
               href="/rent-tracking-software"
               className="text-blue-600 hover:underline"
             >
-              Rent Tracking Software
+              Rent and Balance Tracking
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the campground version? See{" "}
             <Link
-              href="/campground-payment-system"
+              href="/commercial-property-rent-collection"
               className="text-blue-600 hover:underline"
             >
-              Campground Payment System
+              Commercial Property Rent Collection
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the RV-focused version? Visit{" "}
             <Link
               href="/rv-park-rent-collection"
               className="text-blue-600 hover:underline"
             >
               RV Park Rent Collection
             </Link>
-            .
+
+            <Link
+              href="/campground-payment-system"
+              className="text-blue-600 hover:underline"
+            >
+              Campground Payment System
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Collect Recurring Marina Slip Rent Online
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            Keep slip-holder payments, balances, and payment status organized
+            without a monthly RentFray software fee.
           </p>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use a Marina Slip Payment System That Makes Recurring Payments Easier
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fee for the business. No scattered payment routine. Just a
-          cleaner way to collect marina slip payments online and keep the
-          recurring cycle organized.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }

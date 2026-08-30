@@ -1,820 +1,577 @@
-// app/office-rent-payment-system/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title:
-    "Office Rent Payment System | Simple Online Office Rent Payments | RentFray",
-  description:
-    "An office rent payment system built for simple online rent payments. Collect office rent online, reduce manual tracking, and keep tenant payments organized with a clean, self-serve platform that stays free for the business.",
+const pagePath = "/office-rent-payment-system";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "Office Rent Payment System for Commercial Tenants | RentFray";
+
+const pageDescription =
+  "Collect office rent online, track commercial tenant balances and payment status, and manage recurring rent without monthly software fees.";
+
+const faqItems = [
+  {
+    question: "Can office tenants pay rent online with RentFray?",
+    answer:
+      "Yes. RentFray gives office tenants a browser-based way to submit recurring rent payments online.",
+  },
+  {
+    question: "Can I track office rent by tenant or suite?",
+    answer:
+      "Yes. RentFray keeps rent obligations, payment activity, and balances associated with the appropriate tenant and rental unit.",
+  },
+  {
+    question: "Can RentFray manage recurring office rent?",
+    answer:
+      "Yes. RentFray is designed around recurring rent obligations and provides owners and managers with payment-status and balance visibility throughout the billing cycle.",
+  },
+  {
+    question: "Is RentFray commercial property management software?",
+    answer:
+      "RentFray is focused on rent collection, recurring charges, balances, and payment status. It does not replace specialized commercial lease accounting, CAM reconciliation, percentage-rent calculations, lease administration, or full property-management software.",
+  },
+  {
+    question: "How are office rent payments processed?",
+    answer:
+      "Payments are processed through Stripe. RentFray does not store tenant banking information or hold tenant funds.",
+  },
+  {
+    question: "Does RentFray charge office property owners a monthly fee?",
+    answer:
+      "No. RentFray has no monthly software fee for property owners and managers. Tenants pay a small processing fee when they submit payments.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/office-rent-payment-system",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "article",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Collect recurring office rent online and track commercial tenant balances and payment status.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "Online office rent collection and commercial tenant balance tracking without monthly software fees.",
   },
 };
 
 export default function OfficeRentPaymentSystemPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Office Rent Payment System — A Simpler Way to Collect Office Rent
-          Online
-        </h1>
+    <>
+      <Script
+        id="office-rent-payment-system-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are looking for an office rent payment system, you are probably
-          trying to solve a very practical problem: office rent collection
-          should feel organized and professional, but in a lot of buildings, it
-          still depends on scattered habits, manual reminders, bank transfers,
-          paper checks, and follow-up that keeps repeating every month.
-        </p>
+      <Script
+        id="office-rent-payment-system-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          RentFray is built to simplify that. It gives office property owners
-          and managers a cleaner way to collect rent online, reduce spreadsheet
-          work, create a more consistent tenant payment process, and replace
-          messy rent collection routines with one direct, repeatable system.
-        </p>
-
-        <p className="mt-4 text-slate-700">
-          The goal is not to add more software layers. The goal is to make
-          office rent payments feel obvious, structured, and easier to manage
-          every single month.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* WHAT THEY ACTUALLY WANT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What Office Property Owners Actually Want from an Office Rent Payment
-          System
-        </h2>
-
-        <p>
-          Most people searching for an office rent payment system are not trying
-          to buy a giant software platform. They are trying to create a better
-          monthly payment rhythm.
-        </p>
-
-        <p>
-          They want tenants to know exactly how to pay. They want the payment
-          process to feel cleaner. They want to stop stitching together checks,
-          transfers, emails, reminders, and side notes every month. They want
-          less friction, less manual handling, and less uncertainty.
-        </p>
-
-        <p>Usually, what they actually want is simple:</p>
-
-        <ul className="space-y-2">
-          <li>• One clear way for office tenants to pay rent online</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less dependence on checks, wires, and manual follow-up</li>
-          <li>• A more repeatable monthly collection workflow</li>
-          <li>• Fewer spreadsheets and fewer disconnected systems</li>
-          <li>• A payment process that feels professional and easy to explain</li>
-          <li>• Software that does not feel oversized for the job</li>
-        </ul>
-
-        <p>
-          That is where a lot of office rent collection software misses the
-          mark. Instead of making the payment process lighter, it piles on more
-          menus, more setup, and more complexity. But the real need is usually
-          much simpler than that.
-        </p>
-
-        <p className="font-medium">
-          A strong office rent payment system should make the monthly cycle feel
-          tighter, clearer, and easier to manage.
-        </p>
-      </section>
-
-      {/* WHY IT GETS MESSY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Office Rent Collection Gets Messy So Easily
-        </h2>
-
-        <p>
-          Office properties often look straightforward from the outside.
-          Recurring tenants. Defined suites. Predictable lease structure.
-          Monthly rent. But the actual payment routine can become fragmented
-          faster than many owners expect.
-        </p>
-
-        <p>
-          One tenant pays by check. Another pays by bank transfer. Another has a
-          different internal accounting person every few months. Another is
-          always a little late and needs follow-up. Another wants directions
-          re-explained. Even when the building is stable, the payment workflow
-          itself can become inconsistent.
-        </p>
-
-        <p>
-          Then the manual layer kicks in. Someone has to check whether the money
-          arrived. Someone has to note what is still missing. Someone has to
-          follow up with a late tenant. Someone has to keep the spreadsheet
-          current. Someone has to reconstruct the month after the fact.
-        </p>
-
-        <p>
-          That is why office rent collection can feel heavier than it should.
-          The issue is not only whether tenants pay. The issue is that the
-          payment process often lacks one clean, centralized path.
-        </p>
-
-        <p>
-          A dedicated office rent payment system helps because it replaces a
-          patchwork routine with a more structured recurring flow. Tenants know
-          how to pay. Owners know where to look. The monthly cycle becomes less
-          about managing loose ends and more about simple visibility.
-        </p>
-      </section>
-
-      {/* PAIN AMPLIFICATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Just the Rent — It Is the Repeated Friction
-          Around It
-        </h2>
-
-        <p>
-          Many office property owners tolerate a messy payment routine for too
-          long because it technically works. Rent eventually comes in. Someone
-          eventually confirms it. The records eventually get updated. But that
-          “eventually” carries a lot of wasted time and unnecessary mental load.
-        </p>
-
-        <p>Every workaround adds drag:</p>
-
-        <ul className="space-y-2">
-          <li>• Checking multiple places to confirm whether payment arrived</li>
-          <li>• Sending manual reminders</li>
-          <li>• Updating spreadsheets later instead of seeing one clear status</li>
-          <li>• Matching payments to tenants by hand</li>
-          <li>• Repeating payment instructions over and over</li>
-          <li>• Rebuilding an accurate month-end picture from scattered data</li>
-        </ul>
-
-        <p>
-          None of those problems feel massive in isolation. Together, they turn
-          rent collection into a monthly operating chore that stays more manual
-          and more fragile than it needs to be.
-        </p>
-
-        <p>
-          Over time, that cost adds up in attention, interruptions, and
-          frustration. Rent collection becomes something you constantly have to
-          supervise instead of a system you can simply rely on.
-        </p>
-
-        <p>
-          That is when many office property owners start looking for a better
-          office rent payment system. Not because they want more software. They
-          want to stop repeating the same avoidable headaches every month.
-        </p>
-      </section>
-
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Built for Office Properties That Want Simplicity, Not Software Bloat
-        </h2>
-
-        <p>
-          RentFray is a focused online rent payment platform designed to make
-          recurring office rent payments easier to manage. It is built around a
-          simple idea: owners and managers should be able to run a cleaner
-          payment workflow without adopting a giant, bloated platform that
-          creates more work than it removes.
-        </p>
-
-        <p>
-          That matters because many office properties do not need an oversized
-          enterprise suite just to handle tenant rent collection. They need a
-          straightforward way to collect rent online, keep payment status clear,
-          reduce manual work, and give tenants a payment path that feels
-          obvious.
-        </p>
-
-        <p>
-          RentFray stays focused on that core job. It is self-serve. It is built
-          to feel direct. It is designed to be easier to understand than large
-          property systems. And it is designed to stay free for the business,
-          which makes it easier to adopt without feeling like one more monthly
-          software expense.
-        </p>
-
-        <p>
-          If you are searching for an office rent payment system because the
-          current setup feels fragmented, too manual, or more complicated than
-          it should be, that focused positioning is exactly the advantage.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          How This Office Rent Payment System Works
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Step 1:</strong> Create the property and complete the basic
-            setup
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Office Rent Collection
           </p>
-          <p>
-            <strong>Step 2:</strong> Receive a unique property code for that
-            office property
+
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Office Rent Payment System for Commercial Tenants
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            Collect recurring office rent online while keeping each commercial
+            tenant's payment activity, balance, and payment status connected to
+            the correct rental account.
           </p>
-          <p>
-            <strong>Step 3:</strong> Share the code with office tenants
+
+          <p className="mt-4 max-w-3xl text-slate-600">
+            RentFray gives office property owners and managers a focused rent
+            collection system without adding a monthly software subscription.
           </p>
-          <p>
-            <strong>Step 4:</strong> Tenants activate and begin paying rent
-            through the system
-          </p>
-          <p>
-            <strong>Step 5:</strong> Run on a cleaner monthly collection process
-            with better visibility and less manual follow-up
-          </p>
-        </div>
+        </section>
 
-        <p className="mt-4 text-slate-600">
-          The workflow is intentionally simple. No heavy implementation phase.
-          No confusing training process. No need to turn office rent collection
-          into a complicated software rollout just to make the monthly routine
-          more organized.
-        </p>
-      </section>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Keep Office Rent Organized by Tenant and Rental Unit
+          </h2>
 
-      {/* SIMPLICITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters So Much for Office Rent Payments
-        </h2>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              An office property may have one commercial tenant or multiple
+              tenants occupying separate suites or rental units.
+            </p>
 
-        <p>
-          A rent payment system only helps if people actually use it
-          consistently. If the platform feels heavy, confusing, or oversized,
-          adoption gets weaker. Tenants fall back into older habits. Owners keep
-          doing manual work in the background. The software becomes one more
-          layer instead of a cleaner solution.
-        </p>
+            <p>
+              RentFray keeps recurring rent obligations, completed payment
+              activity, and balances associated with the appropriate tenant and
+              unit.
+            </p>
 
-        <p>
-          That is why simplicity is not a cosmetic preference. It is a practical
-          advantage. The easier a system is to explain, the easier it is to
-          adopt. The easier it is to repeat, the more likely it becomes the
-          standard monthly workflow.
-        </p>
+            <p>
+              Instead of treating every deposit as an isolated transaction,
+              owners and managers can review rent in the context of the account
+              that actually owes it.
+            </p>
+          </div>
+        </section>
 
-        <p>
-          RentFray is designed around that principle. The payment path should
-          feel direct. The recurring monthly routine should feel lighter. The
-          system should make the office property easier to run, not harder.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            A Consistent Online Payment Path for Office Tenants
+          </h2>
 
-        <p className="font-medium">
-          In office rent collection, the simplest system is often the one that
-          gets used correctly month after month.
-        </p>
-      </section>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Checks, separate bank transfers, and manually recorded payments
+              can all move money, but they can also leave the property manager
+              responsible for matching each transaction back to the correct
+              tenant account.
+            </p>
 
-      {/* SWITCHING MOMENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          When Office Property Owners Usually Start Looking for a Better Payment
-          System
-        </h2>
+            <p>
+              RentFray gives tenants a consistent browser-based payment path
+              connected to the property's rent collection workflow.
+            </p>
 
-        <p>
-          Most owners do not start looking because everything is failing. They
-          start looking because the current process is too manual, too
-          fragmented, or too annoying to keep tolerating.
-        </p>
+            <p>
+              Tenants do not need to download an app before accessing the
+              payment experience.
+            </p>
+          </div>
+        </section>
 
-        <p>
-          Maybe different tenants keep paying in different ways. Maybe payments
-          come in, but the tracking process feels messy. Maybe reminders are
-          still sent manually. Maybe the current process technically works, but
-          only because someone keeps holding it together behind the scenes every
-          month.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What an Office Rent Payment System Should Track
+          </h2>
 
-        <p>
-          That is usually the tipping point. You are not looking for more
-          complexity. You are looking for a cleaner monthly operating routine.
-          You want office rent collection to stop feeling like a recurring
-          management burden and start feeling like a process with structure.
-        </p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Tenant and Unit</h3>
+              <p className="mt-2 text-slate-600">
+                Keep rent activity associated with the commercial tenant and
+                rental unit responsible for the obligation.
+              </p>
+            </div>
 
-        <p>
-          Once that happens, the difference is immediate. The payment path gets
-          clearer. The month becomes easier to read. The property starts
-          operating with less recurring friction.
-        </p>
-      </section>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Amount Due</h3>
+              <p className="mt-2 text-slate-600">
+                Maintain the recurring rent obligation according to the
+                property's configured billing cycle.
+              </p>
+            </div>
 
-      {/* USE CASE SEGMENTATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why This Is a Strong Fit for Different Types of Office Properties
-        </h2>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Payment Status</h3>
+              <p className="mt-2 text-slate-600">
+                Distinguish completed payments from activity that is still
+                processing or requires attention.
+              </p>
+            </div>
 
-        <p>
-          Office properties are not all the same. Different buildings have
-          different tenant mixes, lease structures, and management styles. But
-          the need for a cleaner recurring rent payment process stays very
-          consistent.
-        </p>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Tenant Balance</h3>
+              <p className="mt-2 text-slate-600">
+                See what remains owed after completed payment activity is
+                applied to the account.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <div className="space-y-5">
-          <div>
-            <p className="font-semibold">Small Office Buildings</p>
-            <p className="mt-2">
-              Smaller office properties usually do not need heavyweight software.
-              They need a direct system that makes rent collection easier
-              without adding complexity that feels disproportionate to the
-              property.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Recurring Office Rent Needs More Than a Payment Button
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Office rent is generally an ongoing obligation rather than a
+              series of unrelated transactions.
+            </p>
+
+            <p>
+              A tenant owes rent for a billing cycle, submits payment activity,
+              and has an account balance that needs to remain understandable
+              afterward.
+            </p>
+
+            <p>
+              RentFray is structured around that recurring relationship instead
+              of functioning as a generic person-to-person money transfer tool.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Track the Tenant Balance, Not Just the Transaction
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A transaction record answers one question: did payment activity
+              occur?
+            </p>
+
+            <p>
+              A tenant balance answers another important question: what does
+              this account still owe?
+            </p>
+
+            <p>
+              RentFray keeps payment activity and balances together so office
+              property owners and managers can review the account instead of
+              relying only on a list of deposits.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">Multi-Tenant Office Buildings</p>
-            <p className="mt-2">
-              In multi-tenant office environments, consistency matters. A
-              structured rent payment system helps create a cleaner recurring
-              process across suites and reduces monthly confusion.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Professional Office Complexes</p>
-            <p className="mt-2">
-              Office complexes benefit from a payment workflow that feels
-              professional, standardized, and easy to manage without constant
-              manual oversight.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Owner-Managed Office Properties</p>
-            <p className="mt-2">
-              If the owner is still close to day-to-day operations, the pain of
-              manual payment tracking is felt more directly. A cleaner system
-              helps reduce that recurring administrative burden.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Mixed Office and Commercial Spaces</p>
-            <p className="mt-2">
-              Properties with a blend of office and commercial tenants often
-              benefit from simplifying the rent payment side wherever possible.
-              A focused system helps keep the recurring workflow easier to
-              understand.
-            </p>
-          </div>
-        </div>
-
-        <p>
-          In each case, the logic stays the same: create one clearer way to
-          collect office rent online, make the recurring cycle easier to manage,
-          and reduce the need for manual stitching between multiple payment
-          methods.
-        </p>
-      </section>
-
-      {/* COMPARISON */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          RentFray vs Other Ways Office Properties Collect Rent
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">RentFray vs Checks</p>
-            <p className="mt-2">
-              Checks are familiar, but they keep the monthly workflow slower and
-              more manual. They require handling, confirmation, tracking, and
-              extra follow-up. A dedicated office rent payment system gives
-              tenants a cleaner path and gives owners a more organized recurring
-              routine.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Cash</p>
-            <p className="mt-2">
-              Cash creates obvious recordkeeping and professionalism problems. A
-              structured online rent payment system creates a clearer, more
-              dependable, and more repeatable way to handle recurring office
-              rent.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Bank Transfers and Wires</p>
-            <p className="mt-2">
-              Bank transfers may seem simple, but they still rely on someone
-              manually checking, matching, noting, and following up. They do not
-              automatically create a cleaner monthly workflow. RentFray focuses
-              on the full payment process, not just the movement of money.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets record notes after someone updates them. They do not
-              solve the payment workflow itself. Someone still has to collect,
-              verify, and reconcile everything manually. RentFray helps organize
-              the actual office rent collection process, not just the notes
-              around it.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Generic Payment Apps</p>
-            <p className="mt-2">
-              Generic payment apps are not built specifically for recurring
-              office rent payments. They move money, but they do not create a
-              structured, property-based payment system with a cleaner monthly
-              operating rhythm.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Large Property Software</p>
-            <p className="mt-2">
-              Large platforms can bring more setup, more cost, more training,
-              and more software weight than many office property owners actually
-              want. For owners who mainly want a cleaner way to collect rent and
-              see status clearly, that extra weight can become a drawback rather
-              than a benefit. RentFray keeps the focus tighter, which helps it
-              stay easier to adopt and easier to use.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* TRUST / CLARITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Payment Clarity Matters So Much in Office Properties
-        </h2>
-
-        <p>
-          One of the biggest reasons office rent collection becomes stressful is
-          not just because of late payments. It is because the payment path
-          itself feels unclear.
-        </p>
-
-        <p>
-          When tenants pay in different ways, owners end up reconstructing the
-          story afterward. What came in? Which tenant paid? What is still
-          pending? What still needs follow-up? That uncertainty creates
-          unnecessary friction in the monthly cycle.
-        </p>
-
-        <p>
-          A better office rent payment system makes the process easier to read.
-          Tenants use a clearer online path. Owners have a more dependable place
-          to look. The recurring month-to-month workflow becomes easier to trust
-          because the structure is stronger.
-        </p>
-
-        <p>
-          RentFray is built around that kind of clarity. The point is to make
-          office rent collection feel less like detective work and more like a
-          process that runs on a clean, repeatable track.
-        </p>
-
-        <p className="font-medium">
-          Better visibility does not just improve tracking. It lowers the mental
-          load of running the property.
-        </p>
-      </section>
-
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of a Better Office Rent Payment System
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner monthly workflow:</strong> Turn rent collection into
-            a more repeatable process instead of a monthly patchwork routine.
-          </p>
-
-          <p>
-            <strong>Better tenant consistency:</strong> Give office tenants one
-            clear path to pay rent online.
-          </p>
-
-          <p>
-            <strong>Less manual follow-up:</strong> Reduce the need to chase
-            status across checks, transfers, and scattered communication.
-          </p>
-
-          <p>
-            <strong>Less spreadsheet dependence:</strong> Stop relying so
-            heavily on manual records to keep the payment picture together.
-          </p>
-
-          <p>
-            <strong>More professional payment experience:</strong> A structured
-            system feels easier to trust and easier to operate.
-          </p>
-
-          <p>
-            <strong>Better visibility:</strong> Make it easier to understand who
-            has paid, what happened, and what still needs attention.
-          </p>
-
-          <p>
-            <strong>Self-serve setup:</strong> Get started without turning the
-            platform into a long software implementation project.
-          </p>
-
-          <p>
-            <strong>No monthly fee burden for the business:</strong> RentFray is
-            designed to stay free for property owners and managers on the
-            business side.
-          </p>
-        </div>
-      </section>
-
-      {/* LONG TAIL CAPTURE */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best Office Rent Payment System?
-        </h2>
-
-        <p>
-          For many office property owners, the best rent payment system is not
-          the one with the biggest feature list. It is the one that tenants can
-          actually use, owners can actually understand, and the property can
-          actually rely on every month without unnecessary friction.
-        </p>
-
-        <p>
-          That is why focused rent payment platforms can outperform bloated
-          software in real-world use. They keep the core workflow clear: collect
-          office rent online, make the monthly cycle more organized, and reduce
-          the repeated manual effort that makes ownership harder than it needs
-          to be.
-        </p>
-
-        <p>If you are searching for phrases like these, you are in the right place:</p>
-
-        <ul className="space-y-2">
-          <li>• best office rent payment system</li>
-          <li>• office rent collection software</li>
-          <li>• online office rent payments</li>
-          <li>• office building rent payment platform</li>
-          <li>• simple office tenant payment system</li>
-          <li>• how to collect office rent online</li>
-          <li>• free office rent payment software</li>
-          <li>• office rent tracking system</li>
-        </ul>
-
-        <p>
-          RentFray is built for exactly that type of intent. Not because it
-          tries to be everything, but because it stays centered on the job that
-          matters: making office rent payments simpler and more organized.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions About Office Rent Payment Systems
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is an office rent payment system?</strong>
-            <br />
-            It is a system that helps office property owners collect recurring
-            rent payments in a more organized, visible, and repeatable way.
-          </p>
-
-          <p>
-            <strong>
-              Why use an office rent payment system instead of manual methods?
-            </strong>
-            <br />
-            Manual methods often create inconsistent payment paths, extra
-            follow-up, and more spreadsheet work. A dedicated system helps
-            centralize the process and reduce monthly friction.
-          </p>
-
-          <p>
-            <strong>Can office tenants pay rent online with RentFray?</strong>
-            <br />
-            Yes. The system is designed to give office tenants a straightforward
-            online payment path.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for the property owner?</strong>
-            <br />
-            Yes. RentFray is designed so the business side does not carry a
-            monthly fee burden.
-          </p>
-
-          <p>
-            <strong>Is this only for large office buildings?</strong>
-            <br />
-            No. It is a strong fit for both larger office properties and
-            smaller owner-managed office spaces that want a cleaner rent
-            workflow.
-          </p>
-
-          <p>
-            <strong>Can this help replace checks and spreadsheets?</strong>
-            <br />
-            Yes. A major benefit is reducing dependence on scattered payment
-            methods and manual recordkeeping.
-          </p>
-
-          <p>
-            <strong>Do tenants need to download anything?</strong>
-            <br />
-            No. The payment flow works through the browser.
-          </p>
-
-          <p>
-            <strong>Is setup complicated?</strong>
-            <br />
-            No. The system is built to be self-serve and straightforward to set
-            up.
-          </p>
-
-          <p>
-            <strong>
-              Why not just use a generic payment app for office rent?
-            </strong>
-            <br />
-            Generic payment apps are not built specifically for recurring office
-            rent payments or a cleaner property-side collection workflow.
-          </p>
-
-          <p>
-            <strong>
-              Why not just keep using spreadsheets for office rent tracking?
-            </strong>
-            <br />
-            Spreadsheets can document information, but they do not create a
-            cleaner rent collection process. Someone still has to manually
-            manage the workflow around them.
-          </p>
-
-          <p>
-            <strong>
-              Is RentFray trying to be a full property management platform?
-            </strong>
-            <br />
-            No. It is focused on creating a simpler, more organized rent payment
-            experience rather than overwhelming owners with software bloat.
-          </p>
-
-          <p>
-            <strong>What is the main advantage of using RentFray?</strong>
-            <br />
-            The biggest advantage is turning a fragmented monthly collection
-            routine into a cleaner, more repeatable process that is easier to
-            manage.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want the broader core page? Visit{" "}
-            <Link
-              href="/online-rent-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Online Rent Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Looking for the direct collection angle? See{" "}
-            <Link
-              href="/collect-rent-online"
-              className="text-blue-600 hover:underline"
-            >
-              Collect Rent Online
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the app-style version? Read{" "}
-            <Link
-              href="/rent-payment-app"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Payment App
-            </Link>
-            .
-          </p>
-
-          <p>
-            Need the landlord-focused version? Visit{" "}
-            <Link
-              href="/landlord-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Landlord Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the billing angle? Read{" "}
-            <Link
-              href="/rent-billing-system"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Billing System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Need the tracking angle? Visit{" "}
+          <div className="mt-5">
             <Link
               href="/rent-tracking-software"
-              className="text-blue-600 hover:underline"
+              className="font-semibold text-blue-600 hover:underline"
             >
-              Rent Tracking Software
+              Learn about rent and balance tracking →
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Payment Status Adds Important Context
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A submitted payment that is still processing is different from a
+              completed payment, and both are different from an account with no
+              payment activity.
+            </p>
+
+            <p>
+              RentFray keeps payment status visible so owners and managers have
+              more context when reviewing office tenant accounts.
+            </p>
+
+            <p>
+              That is particularly useful when several commercial tenants have
+              rent due during the same billing cycle.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Office Rent Collection Across Multiple Tenants
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              As the number of tenants increases, a payment process based on
+              separate checks, transfers, notes, and spreadsheet updates
+              requires more reconciliation.
+            </p>
+
+            <p>
+              A centralized rent collection system gives the property one place
+              to review recurring tenant obligations, payment activity, status,
+              and balances.
+            </p>
+
+            <p>
+              The same basic workflow can therefore remain consistent across
+              separate office rental accounts.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Office Rent Payment System vs Manual Tracking
+          </h2>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="px-3 py-3 font-semibold">Task</th>
+                  <th className="px-3 py-3 font-semibold">Manual Process</th>
+                  <th className="px-3 py-3 font-semibold">RentFray</th>
+                </tr>
+              </thead>
+
+              <tbody className="text-slate-600">
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Collect office rent</td>
+                  <td className="px-3 py-3">
+                    Checks or separate payment methods
+                  </td>
+                  <td className="px-3 py-3">
+                    Consistent online payment path
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Identify tenant</td>
+                  <td className="px-3 py-3">
+                    Match transactions manually
+                  </td>
+                  <td className="px-3 py-3">
+                    Payment activity connected to the rental account
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track balance</td>
+                  <td className="px-3 py-3">
+                    Maintain separate records
+                  </td>
+                  <td className="px-3 py-3">
+                    Balance maintained with account activity
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-3 py-3">Review payment status</td>
+                  <td className="px-3 py-3">
+                    Check payment records separately
+                  </td>
+                  <td className="px-3 py-3">
+                    Status visible in the rent workflow
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Office Rent Collection vs Commercial Lease Accounting
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Commercial property operations can involve considerably more than
+              collecting base rent.
+            </p>
+
+            <p>
+              Some office leases include common-area maintenance charges,
+              expense reconciliations, taxes, insurance allocations, percentage
+              rent, complicated escalations, lease abstracts, and specialized
+              accounting requirements.
+            </p>
+
+            <p>
+              RentFray does not claim to replace commercial lease-accounting or
+              lease-administration software.
+            </p>
+
+            <p>
+              Its focus is narrower: recurring rent and configured charges,
+              online tenant payments, account balances, and payment-status
+              visibility.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            When a Focused Office Rent System Makes Sense
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Not every office property needs an enterprise commercial
+              property-management suite.
+            </p>
+
+            <p>
+              An owner or manager may already have workable processes for
+              leases, accounting, maintenance, and property operations while
+              still needing a better system for recurring rent collection.
+            </p>
+
+            <p>
+              RentFray addresses that narrower problem without requiring the
+              property to replace every other part of its management process.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/commercial-property-rent-collection"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn about commercial property rent collection →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Secure Office Rent Payment Processing
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Payments submitted through RentFray are processed through Stripe.
+            </p>
+
+            <p>
+              RentFray does not store tenant banking information or hold tenant
+              funds. RentFray manages the rent collection workflow while Stripe
+              provides the payment-processing infrastructure.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Office Rent Collection Without a Monthly Software Fee
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            RentFray costs $0 per month for office property owners and managers.
           </p>
 
-          <p>
-            Want the broader commercial angle? See{" "}
+          <p className="mt-3 text-slate-600">
+            Tenants pay a small processing fee when they submit payments. The
+            property does not take on a monthly RentFray software subscription.
+          </p>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
+
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Rent Collection Resources
+          </h2>
+
+          <div className="mt-4 flex flex-col gap-3">
             <Link
               href="/commercial-property-rent-collection"
               className="text-blue-600 hover:underline"
             >
               Commercial Property Rent Collection
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the tenant-facing angle? Visit{" "}
+            <Link
+              href="/online-rent-payment-system"
+              className="text-blue-600 hover:underline"
+            >
+              Online Rent Payment System
+            </Link>
+
+            <Link
+              href="/rent-billing-system"
+              className="text-blue-600 hover:underline"
+            >
+              Recurring Rent Billing System
+            </Link>
+
+            <Link
+              href="/rent-tracking-software"
+              className="text-blue-600 hover:underline"
+            >
+              Rent Tracking Software
+            </Link>
+
+            <Link
+              href="/property-management-payment-system"
+              className="text-blue-600 hover:underline"
+            >
+              Property Management Payment System
+            </Link>
+
             <Link
               href="/tenant-payment-portal"
               className="text-blue-600 hover:underline"
             >
               Tenant Payment Portal
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Collect Office Rent Online with RentFray
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            Keep commercial tenant rent, balances, and payment status organized
+            without a monthly RentFray software fee.
           </p>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use an Office Rent Payment System That Makes Monthly Payments Easier
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fee for the business. No scattered payment routine. Just a
-          cleaner way to collect office rent online and keep the monthly cycle
-          organized.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }

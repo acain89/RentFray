@@ -1,616 +1,528 @@
-// app/hoa-payment-system/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title: "HOA Payment System | Simple Online HOA Payments | RentFray",
-  description:
-    "An HOA payment system built for simple online recurring payments. Give residents a clear way to pay online, reduce manual tracking, and stay organized without monthly fees for the business.",
+const pagePath = "/hoa-payment-system";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "HOA Payment System for Recurring Dues | RentFray";
+
+const pageDescription =
+  "Collect recurring HOA dues and community payments online, track homeowner balances and payment status, and avoid monthly software fees.";
+
+const faqItems = [
+  {
+    question: "Can HOAs collect recurring dues online with RentFray?",
+    answer:
+      "Yes. RentFray can support recurring online payments for homeowner dues, assessments, and other configured community charges when they fit a recurring payment workflow.",
+  },
+  {
+    question: "Can I track HOA balances by homeowner account?",
+    answer:
+      "Yes. RentFray keeps recurring payment activity and balances associated with the appropriate homeowner or resident account.",
+  },
+  {
+    question: "Is RentFray full HOA management software?",
+    answer:
+      "No. RentFray is focused on recurring payment collection, balances, and payment status. It does not replace specialized HOA software for accounting, elections, violations, architectural requests, document management, reserve planning, or other association-management functions.",
+  },
+  {
+    question: "Do homeowners need to download an app?",
+    answer:
+      "No. RentFray uses a browser-based payment experience, so homeowners can access the payment flow without installing an app.",
+  },
+  {
+    question: "How are HOA payments processed?",
+    answer:
+      "Payments are processed through Stripe. RentFray does not store homeowner banking information or hold homeowner funds.",
+  },
+  {
+    question: "Does RentFray charge HOAs a monthly software fee?",
+    answer:
+      "No. RentFray has no monthly software fee for organizations using the platform. Homeowners pay a small processing fee when they submit payments.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/hoa-payment-system",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "article",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Collect recurring HOA dues online and track homeowner balances and payment status.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "Online recurring HOA dues collection and homeowner balance tracking.",
   },
 };
 
 export default function HoaPaymentSystemPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          HOA Payment System — A Simpler Way to Handle Recurring Community Payments
-        </h1>
+    <>
+      <Script
+        id="hoa-payment-system-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are looking for an HOA payment system, you are probably trying
-          to solve a familiar problem: how to make recurring homeowner payments
-          feel more organized, more consistent, and less dependent on checks,
-          cash, spreadsheets, and manual follow-up.
-        </p>
+      <Script
+        id="hoa-payment-system-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          RentFray is built for exactly that kind of recurring payment flow. It
-          gives communities a cleaner way to handle monthly or recurring online
-          payments, reduce administrative friction, and create a simpler payment
-          routine residents can actually follow.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* WHAT PEOPLE WANT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What Most Communities Really Want from an HOA Payment System
-        </h2>
-
-        <p>
-          Most boards, associations, and managers are not searching for an HOA
-          payment system because they want more software. They are searching
-          because the current payment process takes too much effort to manage
-          every month.
-        </p>
-
-        <p>Usually, what they really want is simple:</p>
-
-        <ul className="space-y-2">
-          <li>• A clear way for residents to pay online</li>
-          <li>• Less dependence on paper checks and manual deposits</li>
-          <li>• Better visibility into who has paid and who has not</li>
-          <li>• Less spreadsheet work and less payment confusion</li>
-          <li>• A recurring payment process that feels easier to repeat</li>
-        </ul>
-
-        <p>
-          That is where many systems miss the mark. They make a basic payment
-          need feel like a large software deployment. What most communities
-          actually need is a focused, easy-to-understand online payment process.
-        </p>
-
-        <p className="font-medium">
-          A good HOA payment system should reduce friction every month, not add
-          more of it.
-        </p>
-      </section>
-
-      {/* WHY IT MATTERS */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why a Dedicated HOA Payment System Matters
-        </h2>
-
-        <p>
-          Recurring community payments seem easy until they have to be collected
-          consistently across many homeowners, many timelines, and many payment
-          habits. One resident mails a check. Another wants to pay digitally.
-          Someone updates a spreadsheet. Someone else checks the bank account.
-          Before long, the payment process becomes more manual than it should be.
-        </p>
-
-        <p>
-          A dedicated HOA payment system helps solve that by giving the community
-          one clearer recurring payment path. Residents know how to pay. Boards
-          and managers know where to look. The process becomes easier to explain
-          and easier to repeat.
-        </p>
-
-        <p>
-          The value is not just that payments happen online. The real value is
-          that online HOA payments happen through a more structured process
-          instead of scattered routines and manual workarounds.
-        </p>
-
-        <p>
-          That difference becomes more important every payment cycle.
-        </p>
-      </section>
-
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          An HOA Payment System Built Around the Actual Monthly Workflow
-        </h2>
-
-        <p>
-          RentFray is a focused recurring-payment platform designed to help
-          organizations handle monthly and recurring payments online without
-          unnecessary software weight. The goal is not to overload boards or
-          managers with features they will never use. The goal is to make the
-          payment process cleaner.
-        </p>
-
-        <p>
-          That focused approach matters. Many communities do not need a giant
-          management suite just to improve payment collection. They need a
-          simple, repeatable payment system residents can understand quickly and
-          administrators can manage without extra friction.
-        </p>
-
-        <p>
-          RentFray keeps the workflow centered on the payment experience.
-          Residents get a straightforward path to pay. Communities get a more
-          organized operational rhythm. Staff and boards spend less time chasing
-          scattered payment activity.
-        </p>
-
-        <p>
-          If you are looking for an HOA payment system that feels practical
-          rather than heavy, that focus is a major advantage.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          How This HOA Payment System Works
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Step 1:</strong> Create the community account and complete
-            the basic setup
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            HOA Recurring Payments
           </p>
-          <p>
-            <strong>Step 2:</strong> Receive the unique community code
+
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            HOA Payment System for Recurring Dues
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            Homeowners associations may collect the same dues or recurring
+            community charges from many homeowner accounts during each billing
+            cycle.
           </p>
-          <p>
-            <strong>Step 3:</strong> Share that code with residents
+
+          <p className="mt-4 max-w-3xl text-slate-600">
+            RentFray provides a focused online payment system for collecting
+            recurring HOA payments, tracking homeowner balances, and monitoring
+            payment status without a monthly software subscription.
           </p>
-          <p>
-            <strong>Step 4:</strong> Residents activate and make payments online
-          </p>
-          <p>
-            <strong>Step 5:</strong> The community runs on a cleaner recurring
-            payment flow with better visibility
-          </p>
-        </div>
+        </section>
 
-        <p className="mt-4 text-slate-600">
-          No long implementation process. No complicated onboarding maze. No
-          need to turn a recurring payment need into a giant software project.
-        </p>
-      </section>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Keep HOA Payments Connected to the Correct Homeowner Account
+          </h2>
 
-      {/* WHY SIMPLICITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters in an HOA Payment System
-        </h2>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A community may receive many payments during the same billing
+              period, but each one needs to stay associated with the appropriate
+              homeowner account.
+            </p>
 
-        <p>
-          Recurring payments only work smoothly when the process is easy to
-          understand and easy to repeat. If the system is confusing, residents
-          delay. If staff have to work around the platform, administrators lose
-          confidence. If the workflow feels bloated, everyone ends up doing more
-          manual work than they expected.
-        </p>
+            <p>
+              RentFray keeps recurring payment activity and balances organized
+              by account instead of leaving the board or manager to reconstruct
+              the payment picture from bank deposits and spreadsheet entries.
+            </p>
 
-        <p>
-          Simplicity is not a cosmetic benefit. It is what makes an HOA payment
-          system usable every month. The easier the process is to explain, the
-          easier it is to adopt consistently across the community.
-        </p>
-
-        <p>
-          RentFray is designed around that principle. The payment path should
-          feel obvious. The recurring workflow should feel lighter. The system
-          should make monthly operations easier instead of introducing more
-          moving parts.
-        </p>
-
-        <p className="font-medium">
-          A simpler payment system is usually a better payment system.
-        </p>
-      </section>
-
-      {/* SWITCHING MOMENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          When Communities Usually Start Looking for a Better HOA Payment System
-        </h2>
-
-        <p>
-          Most communities start searching for an HOA payment system when the
-          existing process becomes too fragmented or too manual to keep
-          tolerating.
-        </p>
-
-        <p>
-          Maybe payments are coming in through different channels. Maybe someone
-          is still updating spreadsheets by hand. Maybe the board wants a more
-          professional online payment option. Maybe the current routine works,
-          but only because someone is constantly patching gaps behind the scenes.
-        </p>
-
-        <p>
-          That is usually when a dedicated system becomes the right move. The
-          community is not trying to add more complexity. It is trying to stop
-          repeating the same administrative mess every cycle.
-        </p>
-
-        <p>
-          Once the payment workflow becomes more structured, the organization
-          usually feels more stable and easier to manage.
-        </p>
-      </section>
-
-      {/* SMALL/LARGE COMMUNITIES */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Useful for Smaller Associations and Larger Communities
-        </h2>
-
-        <p>
-          A strong HOA payment system should work whether the organization is
-          relatively small or managing a larger number of residents. Smaller
-          associations often need simplicity and affordability. Larger
-          communities often need consistency across more payments and more
-          administrative activity.
-        </p>
-
-        <p>
-          RentFray works for both because it stays focused on the recurring
-          payment workflow itself. It does not assume every association needs a
-          giant enterprise platform just to handle dues or recurring charges
-          more cleanly.
-        </p>
-
-        <p>
-          Smaller associations benefit because they can reduce manual processes.
-          Larger communities benefit because they can create a more uniform
-          payment structure that is easier for residents and administrators to
-          follow.
-        </p>
-      </section>
-
-      {/* COMPARISON */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          RentFray vs Other Ways to Handle HOA Payments
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">RentFray vs Checks</p>
-            <p className="mt-2">
-              Checks are familiar, but they slow down the payment cycle and add
-              handling work. A dedicated HOA payment system gives residents a
-              cleaner online path and gives administrators a more organized
-              recurring workflow.
+            <p>
+              That creates a clearer record of what each account owed, what was
+              paid, and what remains outstanding.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">RentFray vs Cash</p>
-            <p className="mt-2">
-              Cash creates tracking and recordkeeping challenges. A structured
-              online payment system creates a clearer and more professional
-              recurring payment process.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            HOA Dues, Assessments, and Recurring Community Charges
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Associations may collect regular monthly, quarterly, or other
+              recurring dues depending on how the community is structured.
+            </p>
+
+            <p>
+              Some communities may also have configured assessments or other
+              recurring charges that need to stay connected to individual
+              homeowner accounts.
+            </p>
+
+            <p>
+              RentFray is best suited to charges that can be represented as
+              recurring account obligations and tracked through the same payment
+              and balance workflow.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets can record information manually, but they do not
-              solve the actual payment workflow. Someone still has to collect,
-              confirm, and reconcile payments. RentFray helps organize the real
-              payment process itself.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What an HOA Payment System Needs to Track
+          </h2>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Homeowner Account</h3>
+              <p className="mt-2 text-slate-600">
+                Keep recurring payment activity associated with the appropriate
+                homeowner or resident account.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Amount Due</h3>
+              <p className="mt-2 text-slate-600">
+                Maintain recurring dues or configured charges according to the
+                community's setup.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Payment Status</h3>
+              <p className="mt-2 text-slate-600">
+                Distinguish completed payments from activity that is still
+                processing or requires attention.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Remaining Balance</h3>
+              <p className="mt-2 text-slate-600">
+                See what remains due after completed payments are applied to the
+                account.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Let Homeowners Pay Online Without an App Download
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              RentFray gives homeowners a browser-based way to submit recurring
+              community payments.
+            </p>
+
+            <p>
+              They do not need to install an app before accessing the payment
+              flow.
+            </p>
+
+            <p>
+              Payment activity remains connected to the account so the
+              association can review the transaction alongside the resulting
+              balance.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">RentFray vs Generic Transfer Apps</p>
-            <p className="mt-2">
-              Generic money-transfer apps are not true HOA payment systems. They
-              are not built around recurring community-payment workflows,
-              resident structure, or an organized administrative process.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            A Payment Receipt Is Not the Same as an Account Balance
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Knowing that a homeowner submitted money does not always mean the
+              account is fully current.
+            </p>
+
+            <p>
+              If an account owes $600 and a completed payment covers $450, the
+              association still needs to know that $150 remains due.
+            </p>
+
+            <p>
+              Tracking payments together with the account balance provides a
+              clearer picture than simply recording that a transaction
+              occurred.
             </p>
           </div>
+        </section>
 
-          <div>
-            <p className="font-semibold">RentFray vs Large Management Suites</p>
-            <p className="mt-2">
-              Larger software suites can bring more setup, more cost, and more
-              complexity than a community really needs if the main problem is
-              recurring payment organization. RentFray keeps the focus tighter,
-              which helps it stay easier to use.
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Payment Status Helps Boards and Managers Know What Needs Attention
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A homeowner with a submitted payment that is still processing is
+              different from an account with no payment activity.
+            </p>
+
+            <p>
+              Keeping payment status visible helps administrators distinguish
+              those situations before deciding which accounts require
+              follow-up.
+            </p>
+
+            <p>
+              That distinction becomes increasingly valuable when many
+              homeowner accounts are due during the same payment cycle.
             </p>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* TRUST */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Payment Clarity Matters for Residents and Administrators
-        </h2>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            HOA Payments vs Manual Tracking
+          </h2>
 
-        <p>
-          One of the biggest reasons recurring community payments feel messy is
-          that the payment path itself is unclear. When residents pay in
-          different ways, the administrative process turns into an after-the-fact
-          reconstruction exercise.
-        </p>
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="px-3 py-3 font-semibold">Task</th>
+                  <th className="px-3 py-3 font-semibold">Manual Process</th>
+                  <th className="px-3 py-3 font-semibold">
+                    Recurring Payment System
+                  </th>
+                </tr>
+              </thead>
 
-        <p>
-          A better system keeps the payment path more direct. Residents use a
-          clearer online process. Administrators have a more dependable
-          recurring routine. That makes payment tracking feel more trustworthy
-          because the workflow itself is more organized.
-        </p>
+              <tbody className="text-slate-600">
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Collect dues</td>
+                  <td className="px-3 py-3">
+                    Checks or separate payment methods
+                  </td>
+                  <td className="px-3 py-3">
+                    Consistent online payment path
+                  </td>
+                </tr>
 
-        <p>
-          RentFray supports that by giving communities a structured path for
-          online recurring payments and cleaner month-to-month visibility.
-        </p>
-      </section>
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Identify homeowner account</td>
+                  <td className="px-3 py-3">
+                    Match payment manually
+                  </td>
+                  <td className="px-3 py-3">
+                    Payment connected to account activity
+                  </td>
+                </tr>
 
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of a Better HOA Payment System
-        </h2>
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track balance</td>
+                  <td className="px-3 py-3">Calculated manually</td>
+                  <td className="px-3 py-3">
+                    Maintained with payment activity
+                  </td>
+                </tr>
 
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner recurring payment routine:</strong> Make each cycle
-            easier to manage.
+                <tr>
+                  <td className="px-3 py-3">Review payment status</td>
+                  <td className="px-3 py-3">
+                    Check payment records separately
+                  </td>
+                  <td className="px-3 py-3">
+                    Status visible in the payment workflow
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Where Dedicated HOA Management Software Goes Further
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Association management involves much more than collecting dues.
+            </p>
+
+            <p>
+              Full HOA platforms may provide accounting, budgeting, reserve
+              tracking, board portals, elections, violation management,
+              architectural requests, document storage, meeting tools,
+              communications, work orders, and other community-management
+              functions.
+            </p>
+
+            <p>
+              RentFray does not claim to replace those systems.
+            </p>
+
+            <p>
+              Its role is narrower: recurring online payments, configured
+              charges, homeowner balances, and payment-status visibility.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            When a Focused HOA Payment System May Be Enough
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Some associations already have workable processes for board
+              administration, records, accounting, and community operations.
+            </p>
+
+            <p>
+              Their main payment problem may simply be collecting recurring dues
+              online and maintaining a clearer picture of account balances.
+            </p>
+
+            <p>
+              In that situation, a focused payment platform can address the
+              collection workflow without requiring the association to replace
+              every other administrative process.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Secure HOA Payment Processing
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Payments submitted through RentFray are processed through Stripe.
+            </p>
+
+            <p>
+              RentFray does not store homeowner banking information or hold
+              homeowner funds. RentFray organizes the recurring payment workflow
+              while Stripe provides the payment-processing infrastructure.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            HOA Payments Without a Monthly Software Fee
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            RentFray costs $0 per month for associations, boards, and managers
+            using the payment platform.
           </p>
 
-          <p>
-            <strong>Better resident consistency:</strong> Give homeowners one
-            clearer way to pay online.
+          <p className="mt-3 text-slate-600">
+            Homeowners pay a small processing fee when they submit payments. The
+            association does not take on a monthly RentFray software
+            subscription.
           </p>
+        </section>
 
-          <p>
-            <strong>Less manual work:</strong> Reduce spreadsheet dependence and
-            patchwork payment handling.
-          </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
 
-          <p>
-            <strong>Better visibility:</strong> Make it easier to understand who
-            has paid and what still needs attention.
-          </p>
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-          <p>
-            <strong>More professional payment experience:</strong> A structured
-            system feels clearer and more dependable.
-          </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Payment Resources
+          </h2>
 
-          <p>
-            <strong>No monthly fee burden for the business:</strong> RentFray is
-            designed to stay free for the organization side.
-          </p>
-        </div>
-      </section>
-
-      {/* LONG TAIL */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best HOA Payment System?
-        </h2>
-
-        <p>
-          For many boards and managers, the best HOA payment system is not the
-          one with the most features. It is the one residents can actually use,
-          administrators can actually understand, and the community can actually
-          rely on each cycle without unnecessary friction.
-        </p>
-
-        <p>
-          That is why focused recurring-payment platforms often outperform
-          bloated systems. They keep the core workflow clear: collect payments
-          online, keep the payment cycle organized, and reduce the repeated
-          manual effort that makes administration harder than it should be.
-        </p>
-
-        <p>
-          If you are searching for an HOA payment system because the current
-          process feels fragmented, manual, or harder than it needs to be,
-          RentFray is built for exactly that.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is an HOA payment system?</strong>
-            <br />
-            An HOA payment system helps communities handle recurring homeowner
-            payments in a more organized and repeatable way.
-          </p>
-
-          <p>
-            <strong>Why use an HOA payment system?</strong>
-            <br />
-            It helps reduce manual payment handling, improve consistency, and
-            create a cleaner recurring payment routine.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for the organization?</strong>
-            <br />
-            Yes. RentFray is designed so the business side does not pay a
-            monthly fee.
-          </p>
-
-          <p>
-            <strong>Can residents pay online?</strong>
-            <br />
-            Yes. Residents can activate and make payments through the online
-            system.
-          </p>
-
-          <p>
-            <strong>Do residents need to download anything?</strong>
-            <br />
-            No. The payment flow works through the browser.
-          </p>
-
-          <p>
-            <strong>Is this useful for smaller associations?</strong>
-            <br />
-            Yes. Smaller associations benefit from having a cleaner recurring
-            payment system without needing a giant software platform.
-          </p>
-
-          <p>
-            <strong>Does it also work for larger communities?</strong>
-            <br />
-            Yes. Larger communities benefit from a more consistent recurring
-            payment workflow and less fragmented payment handling.
-          </p>
-
-          <p>
-            <strong>How do residents get started?</strong>
-            <br />
-            Residents use the community code to activate and make payments
-            through the online system.
-          </p>
-
-          <p>
-            <strong>Why not just use spreadsheets?</strong>
-            <br />
-            Spreadsheets still require manual updates and do not solve the
-            actual recurring payment workflow.
-          </p>
-
-          <p>
-            <strong>Why not just use a generic payment app?</strong>
-            <br />
-            Generic payment tools are not dedicated HOA payment systems built
-            around recurring community payments.
-          </p>
-
-          <p>
-            <strong>How fast can a community get started?</strong>
-            <br />
-            The goal is quick self-serve setup with minimal friction.
-          </p>
-
-          <p>
-            <strong>Is this only for HOAs?</strong>
-            <br />
-            No. It is also a strong fit anywhere structured recurring community
-            or property-related payments need to be collected online.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want the broader core page? Visit{" "}
+          <div className="mt-4 flex flex-col gap-3">
             <Link
               href="/online-rent-payment-system"
               className="text-blue-600 hover:underline"
             >
-              Online Rent Payment System
+              Online Payment System
             </Link>
-            .
-          </p>
 
-          <p>
-            Looking for the direct collection angle? See{" "}
             <Link
-              href="/collect-rent-online"
+              href="/rent-billing-system"
               className="text-blue-600 hover:underline"
             >
-              Collect Rent Online
+              Recurring Billing System
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the app-style page? Read{" "}
             <Link
-              href="/rent-payment-app"
+              href="/rent-tracking-software"
               className="text-blue-600 hover:underline"
             >
-              Rent Payment App
+              Payment and Balance Tracking
             </Link>
-            .
-          </p>
 
-          <p>
-            Need the landlord-focused version? Visit{" "}
-            <Link
-              href="/landlord-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Landlord Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the property-operations angle? Read{" "}
             <Link
               href="/property-management-payment-system"
               className="text-blue-600 hover:underline"
             >
               Property Management Payment System
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the billing angle? Read{" "}
             <Link
-              href="/rent-billing-system"
+              href="/commercial-property-rent-collection"
               className="text-blue-600 hover:underline"
             >
-              Rent Billing System
+              Commercial Property Rent Collection
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Collect Recurring HOA Dues Online
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            Keep homeowner payments, balances, and payment status organized
+            without a monthly RentFray software fee.
           </p>
 
-          <p>
-            Want the tracking angle? Visit{" "}
-            <Link
-              href="/rent-tracking-software"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Tracking Software
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use an HOA Payment System That Makes Recurring Payments Easier
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fees for the organization. No patchwork payment routine.
-          Just a cleaner way to handle recurring online payments.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }
