@@ -1,868 +1,644 @@
-// app/best-way-to-collect-rent/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title:
-    "Best Way to Collect Rent | Simple, Organized Online Rent Collection | RentFray",
-  description:
-    "Looking for the best way to collect rent? Learn why the strongest rent collection process is simple, organized, and easy for tenants to follow with RentFray.",
+const pagePath = "/best-way-to-collect-rent";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "Best Way to Collect Rent from Tenants | RentFray";
+
+const pageDescription =
+  "Compare the best ways to collect rent from tenants, including checks, cash, bank transfers, payment apps, and dedicated online rent collection systems.";
+
+const faqItems = [
+  {
+    question: "What is the best way to collect rent from tenants?",
+    answer:
+      "For many landlords, the best method is one that is easy for tenants to use, creates clear payment records, reduces manual reconciliation, and keeps tenant balances and payment status organized.",
+  },
+  {
+    question: "Are checks still a reasonable way to collect rent?",
+    answer:
+      "Yes. Checks can still work, especially for a small number of tenants, but they require physical handling, deposits, and manual recordkeeping.",
+  },
+  {
+    question: "Is cash a good way to collect rent?",
+    answer:
+      "Cash can work, but it requires careful receipt and recordkeeping procedures because there is no automatic electronic transaction record.",
+  },
+  {
+    question: "Can landlords collect rent by bank transfer?",
+    answer:
+      "Yes. Bank transfers can move rent electronically, but landlords may still need a separate system for identifying tenants, billing cycles, payment status, and remaining balances.",
+  },
+  {
+    question: "Are generic payment apps good for collecting rent?",
+    answer:
+      "They can be convenient for transferring money, but they generally provide less rent-specific structure than a dedicated system built around recurring tenant payments and balances.",
+  },
+  {
+    question: "How much does RentFray cost landlords?",
+    answer:
+      "RentFray has no monthly software fee for property owners and managers. Tenants pay a small processing fee when they submit payments.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/best-way-to-collect-rent",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "article",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Compare common rent collection methods and choose the best fit for your rental operation.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "Compare checks, cash, bank transfers, payment apps, and online rent collection systems.",
   },
 };
 
 export default function BestWayToCollectRentPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Best Way to Collect Rent — A Simpler, Cleaner Way to Run the Monthly
-          Rent Cycle
-        </h1>
-
-        <p className="mt-4 text-lg text-slate-600">
-          If you are searching for the best way to collect rent, you are
-          probably not looking for theory. You are looking for a process that
-          actually works every month without turning rent collection into a
-          repeated management headache.
-        </p>
-
-        <p className="mt-4 text-slate-700">
-          Most landlords and property owners are trying to solve the same core
-          problem. They want rent collection to feel organized, repeatable, and
-          easy to follow. They want tenants to know exactly how to pay. They
-          want fewer reminder texts, fewer side conversations, less spreadsheet
-          work, and less time spent piecing together what happened after the
-          fact.
-        </p>
-
-        <p className="mt-4 text-slate-700">
-          The problem is that a lot of rent collection methods only solve part
-          of the issue. Checks move money but create delay. Cash creates weak
-          records. Bank transfers still require manual matching. Generic payment
-          apps are not usually built around recurring rent workflows. Large
-          software platforms often feel heavier than the job itself.
-        </p>
-
-        <p className="mt-4 text-slate-700">
-          RentFray is built around a better answer. It gives landlords and
-          property owners a clean, self-serve way to collect rent online,
-          improve tenant payment clarity, reduce spreadsheet dependence, and
-          replace scattered rent habits with one direct recurring workflow that
-          is easier to trust month after month.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* INTENT BREAKDOWN */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search “Best Way to Collect Rent”
-        </h2>
-
-        <p>
-          Most landlords are not searching for the “best way” because they want
-          the most advanced tool. They are searching because the current process
-          is costing too much time, too much attention, or too much monthly
-          friction.
-        </p>
-
-        <p>Usually, they are really asking questions like:</p>
-
-        <ul className="space-y-2">
-          <li>• What is the easiest way to get tenants to pay on time?</li>
-          <li>• What is the cleanest way to track who paid and who did not?</li>
-          <li>• How do I stop relying on checks, cash, and spreadsheets?</li>
-          <li>• What rent collection setup is simple but still organized?</li>
-          <li>• How do I collect rent without software bloat?</li>
-        </ul>
-
-        <p>
-          That is the real search intent. People want a rent collection process
-          that feels lighter, clearer, and easier to repeat without constant
-          manual cleanup.
-        </p>
-
-        <p className="font-medium">
-          The best way to collect rent is usually the way that reduces friction
-          for both the tenant and the landlord.
-        </p>
-      </section>
-
-      {/* PROBLEM AMPLIFICATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why So Many Rent Collection Methods Keep Creating the Same Problems
-        </h2>
-
-        <p>
-          Most landlords do not struggle because they do not know rent is due.
-          They struggle because the process around rent is too fragmented.
-        </p>
-
-        <p>
-          One tenant pays by check. Another pays through a transfer. Another
-          wants to use a payment app. One payment gets written in a spreadsheet.
-          Another gets confirmed in a text thread. Another needs a reminder.
-          Another arrives late and now the landlord is double-checking the whole
-          month again.
-        </p>
-
-        <p>
-          That is what makes rent collection feel heavier than it should. The
-          problem is not only the payment. The problem is the lack of one clean,
-          recurring workflow.
-        </p>
-
-        <p>
-          When the process is loose, landlords spend too much time confirming,
-          matching, updating, reminding, and reconstructing the month after the
-          fact. Even if rent eventually comes in, the system still feels weak.
-        </p>
-
-        <p>
-          That is why the best way to collect rent is not just about moving
-          money. It is about building a monthly process strong enough that the
-          landlord does not have to keep manually holding it together.
-        </p>
-      </section>
-
-      {/* WHY USUAL METHODS FALL SHORT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why the Usual Ways of Collecting Rent Often Fall Short
-        </h2>
-
-        <p>
-          A lot of rent collection methods look reasonable on the surface. The
-          problem is what they ask the landlord to do every month behind the
-          scenes.
-        </p>
-
-        <div className="space-y-5">
-          <div>
-            <p className="font-semibold">Checks</p>
-            <p className="mt-2">
-              Checks are familiar, but they keep the process slower and more
-              manual. They require receiving, confirming, recording, and often
-              following up. They do not create a cleaner monthly workflow. They
-              just preserve an older one.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Cash</p>
-            <p className="mt-2">
-              Cash can feel simple in the moment, but it creates weak records,
-              more handling, and more room for confusion. It is one of the
-              hardest methods to keep organized cleanly.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Bank Transfers</p>
-            <p className="mt-2">
-              Transfers move money, but they still leave the landlord matching
-              payments manually, checking accounts, and keeping side notes. They
-              solve movement of money, not clarity of workflow.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets can hold records, but they do not actually run the
-              month. They document the cleanup after the process has already
-              become fragmented.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Generic Payment Apps</p>
-            <p className="mt-2">
-              Generic payment apps may move money quickly, but they are not
-              usually built for recurring landlord-tenant payment behavior or a
-              cleaner property workflow. They solve one moment, not the whole
-              month.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Large Property Software Platforms</p>
-            <p className="mt-2">
-              Big software can create more setup, more cost, and more complexity
-              than many landlords actually need. For a lot of owners, that is
-              not the best way to collect rent. It is just a different kind of
-              friction.
-            </p>
-          </div>
-        </div>
-
-        <p>
-          That is why the best rent collection method is usually not the
-          biggest, cheapest, or most feature-heavy option. It is the one that
-          makes the recurring monthly process easier to run.
-        </p>
-      </section>
-
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          The Best Way to Collect Rent Is Usually One Clear, Focused System
-        </h2>
-
-        <p>
-          Landlords often think they have to choose between two bad options:
-        </p>
-
-        <ul className="space-y-2">
-          <li>• Stay manual and keep patching the month together</li>
-          <li>• Adopt a giant software platform they do not actually want</li>
-        </ul>
-
-        <p>
-          But that is not the real choice.
-        </p>
-
-        <p>
-          The better answer is usually a focused rent collection system that
-          does the core job well without drowning the property in complexity.
-        </p>
-
-        <p>
-          That means:
-        </p>
-
-        <ul className="space-y-2">
-          <li>• One clear payment path for tenants</li>
-          <li>• Better monthly visibility</li>
-          <li>• Less manual follow-up</li>
-          <li>• Less spreadsheet dependence</li>
-          <li>• A simpler recurring workflow</li>
-          <li>• No unnecessary software bloat</li>
-        </ul>
-
-        <p>
-          RentFray is built around exactly that. It is self-serve, direct, easy
-          to explain, and designed to stay free for the business side. It helps
-          landlords create a cleaner monthly rent process without taking on a
-          giant system that feels heavier than the job itself.
-        </p>
-
-        <p className="font-medium">
-          The best way to collect rent is usually the way that removes monthly
-          work instead of just changing the shape of it.
-        </p>
-      </section>
-
-      {/* HOW IT SHOULD WORK */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          What the Best Rent Collection Process Usually Looks Like
-        </h2>
-
-        <div className="space-y-5 text-slate-700">
-          <div>
-            <p className="font-semibold">
-              Step 1: Give tenants one obvious way to pay
-            </p>
-            <p className="mt-2">
-              The stronger the payment path, the cleaner the month becomes.
-              Tenants should not be choosing from a mix of methods or needing
-              repeated explanations every cycle.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 2: Keep the workflow centered in one system
-            </p>
-            <p className="mt-2">
-              The more places the landlord has to check, the weaker the monthly
-              process becomes. The best rent collection method creates one
-              dependable workflow instead of several partial ones.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 3: Make payment status easier to understand
-            </p>
-            <p className="mt-2">
-              A strong rent system should make it easy to see what happened,
-              what is pending, and what still needs attention without digging
-              through reminders, bank accounts, and notes.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 4: Reduce manual tracking and follow-up
-            </p>
-            <p className="mt-2">
-              If the landlord still has to personally stitch the month together,
-              the system is not strong enough. The best process lowers the
-              amount of repeated monthly cleanup required.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 5: Keep the system simple enough to repeat every month
-            </p>
-            <p className="mt-2">
-              A rent collection process only helps if tenants can actually use
-              it and landlords can actually trust it. Simplicity is not a nice
-              bonus. It is part of what makes the system effective.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">
-              Step 6: Use a tool that focuses on the job instead of trying to be
-              everything
-            </p>
-            <p className="mt-2">
-              The best rent collection setup is usually focused. It does not try
-              to turn every landlord into a software operator. It keeps the
-              monthly cycle cleaner and easier to manage.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* SIMPLICITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Simplicity Is Usually the Biggest Advantage
-        </h2>
-
-        <p>
-          A lot of landlords think the best system should have the most
-          features. In practice, the best system is often the one that gets used
-          consistently because it feels obvious.
-        </p>
-
-        <p>
-          If the payment path is confusing, tenants delay. If the software is
-          too heavy, owners avoid it. If the workflow is fragmented, the
-          landlord ends up doing manual backup work anyway. Simplicity matters
-          because it makes the recurring monthly cycle easier to follow and
-          easier to trust.
-        </p>
-
-        <p>
-          RentFray is designed around that principle. The payment path should
-          feel direct. The recurring rent workflow should feel lighter. The
-          system should remove friction instead of burying it under more menus.
-        </p>
-
-        <p className="font-medium">
-          The best way to collect rent is usually the simplest system that
-          reliably gets the job done.
-        </p>
-      </section>
-
-      {/* WHEN THEY SWITCH */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          When Landlords Usually Realize the Current Method Is Not the Best One
-        </h2>
-
-        <p>
-          Most landlords do not go searching for a better rent collection method
-          because one payment was mildly inconvenient. They start looking
-          because the same problems keep repeating month after month.
-        </p>
-
-        <p>
-          Maybe you are still checking multiple places to confirm what happened.
-          Maybe you are still sending reminders manually. Maybe the spreadsheet
-          works, but only because you keep updating it constantly. Maybe the
-          current system technically functions, but only because you keep
-          carrying too much of the process yourself.
-        </p>
-
-        <p>
-          That is usually the tipping point. You are not looking for more
-          software. You are looking for relief from repeated monthly friction.
-        </p>
-
-        <p>
-          Once rent collection moves into one cleaner recurring workflow, the
-          month becomes easier to read, easier to manage, and easier to trust.
-          That is what most landlords are really after when they search for the
-          best way to collect rent.
-        </p>
-      </section>
-
-      {/* USE CASE SEGMENTATION */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          The Best Way to Collect Rent Depends on the Property — But the Core
-          Need Stays the Same
-        </h2>
-
-        <p>
-          Different property types may have different tenant mixes and operating
-          styles, but the strongest rent collection process usually comes back
-          to the same fundamentals: one clear payment path, less manual clutter,
-          and better monthly visibility.
-        </p>
-
-        <div className="space-y-5">
-          <div>
-            <p className="font-semibold">Small Landlords</p>
-            <p className="mt-2">
-              Small landlords usually do not need a giant property platform.
-              They need a direct system that makes monthly rent collection feel
-              easier, not heavier.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Duplexes and Small Rentals</p>
-            <p className="mt-2">
-              Small properties often stay manual the longest, which makes them
-              especially vulnerable to monthly clutter. A cleaner recurring
-              process often creates a big quality-of-life improvement.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Apartment Properties</p>
-            <p className="mt-2">
-              Apartments benefit from consistency. The more tenants involved,
-              the more important it becomes to centralize the payment process in
-              one clear system.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Parks and Monthly Properties</p>
-            <p className="mt-2">
-              Mobile home parks, RV parks, and similar recurring monthly
-              properties often feel the cost of weak payment systems very
-              directly because the same cycle repeats across many residents.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">Owner-Managed Properties</p>
-            <p className="mt-2">
-              If the owner is close to day-to-day operations, a better rent
-              collection process can immediately reduce mental load and repeated
-              admin work.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* COMPARISON */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Best Way to Collect Rent vs the Usual Rent Collection Methods
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">One Clear Rent System vs Checks</p>
-            <p className="mt-2">
-              Checks keep the process slower and more manual. A cleaner online
-              system makes payment status easier to see and easier to trust.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">One Clear Rent System vs Cash</p>
-            <p className="mt-2">
-              Cash creates weaker records and more handling problems. A
-              structured online workflow creates stronger monthly visibility.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">One Clear Rent System vs Bank Transfers</p>
-            <p className="mt-2">
-              Transfers still leave the landlord checking, matching, and noting
-              what happened manually. A focused rent workflow lowers the amount
-              of reconstruction required.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">One Clear Rent System vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets document the month after someone updates them. A
-              stronger rent collection process helps make the month cleaner from
-              the start.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">One Clear Rent System vs Payment Apps</p>
-            <p className="mt-2">
-              Generic payment apps may move money, but they are not usually
-              built around recurring landlord-tenant payment behavior. A
-              rent-specific system is stronger because it matches the actual
-              monthly job.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">One Clear Rent System vs Large Software</p>
-            <p className="mt-2">
-              Large software can create more setup, more cost, and more
-              complexity than many landlords need. A focused system often works
-              better because it removes friction instead of adding more.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* TRUST / CLARITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Clarity Is What the Best Rent Collection Process Actually Delivers
-        </h2>
-
-        <p>
-          The biggest strength of a better rent collection method is not just
-          convenience. It is clarity.
-        </p>
-
-        <p>
-          If the landlord still has to ask the same questions every month, the
-          system is not strong enough. Who paid? What is pending? What still
-          needs attention? Which note is current? Those answers should not
-          require checking multiple places and manually rebuilding the month.
-        </p>
-
-        <p>
-          That is why the best rent collection system matters. Not because
-          landlords need more software, but because they need fewer question
-          marks in the monthly cycle.
-        </p>
-
-        <p className="font-medium">
-          Better clarity is what turns rent collection from a repeated chore
-          into a process you can actually rely on.
-        </p>
-      </section>
-
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of Using the Best Way to Collect Rent
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner monthly workflow:</strong> Stop piecing the month
-            together from checks, notes, reminders, and spreadsheets.
+    <>
+      <Script
+        id="best-way-to-collect-rent-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
+
+      <Script
+        id="best-way-to-collect-rent-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
+
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Rent Collection Guide
           </p>
 
-          <p>
-            <strong>Better payment visibility:</strong> Make it easier to see
-            who paid, what happened, and what still needs attention.
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Best Way to Collect Rent from Tenants
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            There is no single rent collection method that is best for every
+            landlord. A landlord with two tenants may be perfectly comfortable
+            with checks or bank transfers, while someone managing dozens of
+            recurring payments may benefit from a dedicated online rent
+            collection system.
           </p>
 
-          <p>
-            <strong>Less manual follow-up:</strong> Reduce the recurring admin
-            work that weak rent systems create.
+          <p className="mt-4 max-w-3xl text-slate-600">
+            The best choice is the one that fits your property while keeping
+            payments easy for tenants, records clear, and monthly
+            reconciliation manageable.
+          </p>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What Makes a Rent Collection Method Good?
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            Before comparing specific methods, evaluate them using the same
+            basic criteria.
           </p>
 
-          <p>
-            <strong>Less spreadsheet dependence:</strong> Stop relying on manual
-            recordkeeping as the engine of the process.
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Tenant Convenience</h3>
+              <p className="mt-2 text-slate-600">
+                Tenants should clearly understand how and where to pay.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Reliable Records</h3>
+              <p className="mt-2 text-slate-600">
+                Each payment should leave a clear record that can be tied to
+                the correct tenant and billing cycle.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Low Administrative Work</h3>
+              <p className="mt-2 text-slate-600">
+                The method should not require unnecessary payment matching,
+                deposit handling, or repeated data entry.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Balance Visibility</h3>
+              <p className="mt-2 text-slate-600">
+                You should be able to determine what each tenant still owes
+                after payments are recorded.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Recurring Use</h3>
+              <p className="mt-2 text-slate-600">
+                Rent happens month after month, so the method should be easy to
+                repeat consistently.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Appropriate Cost</h3>
+              <p className="mt-2 text-slate-600">
+                Consider both direct fees and the administrative time required
+                to operate the system.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Common Ways to Collect Rent
+          </h2>
+
+          <div className="mt-6 space-y-6">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="text-lg font-semibold">Checks</h3>
+
+              <p className="mt-2 text-slate-600">
+                Checks remain a workable option for landlords who have a small
+                number of tenants and do not mind handling deposits manually.
+              </p>
+
+              <p className="mt-3 text-slate-600">
+                The tradeoff is administrative work. Checks must be received,
+                deposited, matched to the correct tenant, and recorded in your
+                rent ledger.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="text-lg font-semibold">Cash</h3>
+
+              <p className="mt-2 text-slate-600">
+                Cash is immediate and does not require electronic payment
+                processing.
+              </p>
+
+              <p className="mt-3 text-slate-600">
+                However, landlords need a consistent receipt process and
+                accurate records because cash does not automatically create an
+                electronic transaction history.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="text-lg font-semibold">Bank Transfers</h3>
+
+              <p className="mt-2 text-slate-600">
+                Direct bank transfers can be convenient and remove the need to
+                handle paper payments.
+              </p>
+
+              <p className="mt-3 text-slate-600">
+                The landlord may still need to identify the payment, match it
+                to the correct tenant and billing cycle, and maintain balances
+                in another system.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="text-lg font-semibold">
+                Generic Payment Apps
+              </h3>
+
+              <p className="mt-2 text-slate-600">
+                General-purpose payment apps can provide an easy way for two
+                people to transfer money.
+              </p>
+
+              <p className="mt-3 text-slate-600">
+                Their limitation for rent collection is context. They are
+                usually built around individual transactions rather than
+                recurring rent obligations, tenant balances, and property
+                records.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="text-lg font-semibold">
+                Dedicated Online Rent Collection
+              </h3>
+
+              <p className="mt-2 text-slate-600">
+                Dedicated rent collection systems connect the payment process
+                with the tenant's rental account.
+              </p>
+
+              <p className="mt-3 text-slate-600">
+                Depending on the system, that can include recurring rent,
+                online payment processing, tenant balances, and payment-status
+                tracking in the same workflow.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Rent Collection Methods Compared
+          </h2>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="px-3 py-3 font-semibold">Method</th>
+                  <th className="px-3 py-3 font-semibold">Online</th>
+                  <th className="px-3 py-3 font-semibold">
+                    Manual Recordkeeping
+                  </th>
+                  <th className="px-3 py-3 font-semibold">
+                    Rent-Specific Tracking
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="text-slate-600">
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Check</td>
+                  <td className="px-3 py-3">No</td>
+                  <td className="px-3 py-3">Yes</td>
+                  <td className="px-3 py-3">No</td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Cash</td>
+                  <td className="px-3 py-3">No</td>
+                  <td className="px-3 py-3">Yes</td>
+                  <td className="px-3 py-3">No</td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Bank transfer</td>
+                  <td className="px-3 py-3">Yes</td>
+                  <td className="px-3 py-3">Usually</td>
+                  <td className="px-3 py-3">Usually no</td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Generic payment app</td>
+                  <td className="px-3 py-3">Yes</td>
+                  <td className="px-3 py-3">Often</td>
+                  <td className="px-3 py-3">Usually no</td>
+                </tr>
+
+                <tr>
+                  <td className="px-3 py-3">
+                    Dedicated rent collection system
+                  </td>
+                  <td className="px-3 py-3">Yes</td>
+                  <td className="px-3 py-3">
+                    Reduced when tracking is integrated
+                  </td>
+                  <td className="px-3 py-3">Yes</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Best Way to Collect Rent for a Small Landlord
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A landlord with only one or two tenants may not need dedicated
+              software if the existing payment method is easy to manage.
+            </p>
+
+            <p>
+              If payments arrive reliably through one method and maintaining
+              the records only takes a few minutes each month, a simple manual
+              process may be perfectly adequate.
+            </p>
+
+            <p>
+              Dedicated software becomes more attractive when the landlord
+              wants payment collection, balances, and payment status connected
+              rather than managed separately.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Best Way to Collect Rent from Multiple Tenants
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              As the number of tenants grows, consistency becomes more
+              important.
+            </p>
+
+            <p>
+              Ten different tenants paying through several unrelated methods
+              can create a larger reconciliation job than ten tenants using one
+              common payment process.
+            </p>
+
+            <p>
+              For multi-unit properties, a centralized online system can make
+              it easier to match payments to tenant accounts and see which
+              balances still require attention.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/collect-rent-online"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn how to collect rent online →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            The Best Payment Method Is Not Always the Best Rent System
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              It is useful to separate two questions: how should the tenant move
+              the money, and how should the landlord manage the rent account?
+            </p>
+
+            <p>
+              A bank transfer may be an excellent way to move money while still
+              leaving the landlord with separate work for billing, balances,
+              and recordkeeping.
+            </p>
+
+            <p>
+              A dedicated rent system addresses both sides by connecting the
+              payment with the tenant account and recurring rent obligation.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Why Payment Status Matters
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Online payment activity does not always move directly from
+              submitted to completed.
+            </p>
+
+            <p>
+              A good rent collection workflow should let the landlord
+              distinguish payment activity that is still processing from a
+              completed payment rather than treating both as the same thing.
+            </p>
+
+            <p>
+              That distinction helps keep tenant balances and monthly records
+              accurate.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Keep Rent Collection and Tracking Connected
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              The more often payment information has to be copied from one
+              system into another, the more administrative work the landlord
+              has to perform.
+            </p>
+
+            <p>
+              Connecting collection and tracking means the payment activity,
+              tenant account, and resulting balance can live in the same
+              workflow.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/rent-tracking-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn about rent tracking software →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What About Full Property Management Software?
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Full property-management software may be the best choice if you
+              also need accounting, leasing, maintenance management, screening,
+              documents, and other operational features.
+            </p>
+
+            <p>
+              If your main need is collecting and tracking rent, a focused
+              payment system may be easier to adopt because it solves a smaller
+              problem.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/rent-collection-software-alternative"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Compare rent collection software alternatives →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            How RentFray Approaches Rent Collection
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            RentFray is built as a focused online rent collection system for
+            property owners and managers. It combines recurring rent, tenant
+            balances, payment status, and online payment collection without
+            requiring a full property-management suite.
           </p>
 
-          <p>
-            <strong>More professional tenant experience:</strong> Give tenants
-            one clear way to pay and one clearer monthly process to follow.
+          <p className="mt-3 text-slate-600">
+            Payments are processed through Stripe. RentFray does not store
+            tenant banking information or hold tenant funds.
           </p>
 
-          <p>
-            <strong>Better monthly rhythm:</strong> Make the rent cycle easier
-            to repeat without repeated confusion.
+          <p className="mt-3 text-slate-600">
+            RentFray costs $0 per month for property owners and managers.
+            Tenants pay a small processing fee when they submit payments.
           </p>
 
-          <p>
-            <strong>Self-serve setup:</strong> Improve the process without
-            turning it into a long implementation project.
-          </p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:gap-6">
+            <Link
+              href="/free-rent-collection-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Explore free rent collection software →
+            </Link>
 
-          <p>
-            <strong>No monthly fee burden for the business:</strong> RentFray is
-            designed to stay free for the landlord or property owner on the
-            business side.
-          </p>
-        </div>
-      </section>
-
-      {/* LONG TAIL CAPTURE */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best Way to Collect Rent from Tenants?
-        </h2>
-
-        <p>
-          For many landlords, the best way to collect rent is not the most
-          advanced platform or the most old-school manual process. It is the
-          system tenants can actually follow, landlords can actually trust, and
-          properties can actually rely on every month without unnecessary
-          friction.
-        </p>
-
-        <p>
-          That is why focused rent collection platforms often outperform both
-          patchwork manual routines and bloated software. They keep the core
-          workflow clear: collect rent online, reduce manual tracking, and make
-          the monthly cycle easier to manage.
-        </p>
-
-        <p>If you are searching for phrases like these, you are in the right place:</p>
-
-        <ul className="space-y-2">
-          <li>• best way to collect rent</li>
-          <li>• easiest way to collect rent from tenants</li>
-          <li>• best rent collection method for landlords</li>
-          <li>• simple online rent collection system</li>
-          <li>• cleanest way to collect rent monthly</li>
-          <li>• best rent payment setup for landlords</li>
-          <li>• organized tenant payment system</li>
-          <li>• how landlords should collect rent</li>
-        </ul>
-
-        <p>
-          RentFray is built for exactly that kind of search intent. It is not
-          trying to be everything. It is trying to make one critical part of
-          property operations much easier: collecting rent in a way that is
-          cleaner, simpler, and easier to trust.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions About the Best Way to Collect Rent
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is the best way to collect rent?</strong>
-            <br />
-            For many landlords, the best way is one clear, organized rent
-            collection system that gives tenants an obvious payment path and
-            gives the landlord better monthly visibility.
-          </p>
-
-          <p>
-            <strong>Are checks still a good way to collect rent?</strong>
-            <br />
-            They can work, but they usually keep the process slower and more
-            manual than it needs to be.
-          </p>
-
-          <p>
-            <strong>Is online rent collection better than cash?</strong>
-            <br />
-            In most cases, yes. A cleaner online workflow usually creates
-            stronger records and better monthly visibility than cash-based
-            collection.
-          </p>
-
-          <p>
-            <strong>Why are spreadsheets not enough?</strong>
-            <br />
-            Spreadsheets can hold information, but they do not create a cleaner
-            recurring process on their own. Someone still has to update and
-            verify everything manually.
-          </p>
-
-          <p>
-            <strong>Do generic payment apps solve rent collection well?</strong>
-            <br />
-            They may move money, but they are not usually built around recurring
-            property workflows and a cleaner landlord-side monthly process.
-          </p>
-
-          <p>
-            <strong>Do I need large property software to collect rent well?</strong>
-            <br />
-            No. Many landlords are better served by a focused, lightweight rent
-            collection platform than by a bloated all-in-one system.
-          </p>
-
-          <p>
-            <strong>Can small landlords benefit from a better rent system?</strong>
-            <br />
-            Yes. Small landlords often benefit the most because they usually
-            feel the monthly admin burden directly.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for landlords?</strong>
-            <br />
-            Yes. RentFray is designed so the business side does not carry a
-            monthly fee burden.
-          </p>
-
-          <p>
-            <strong>Do tenants need to download anything?</strong>
-            <br />
-            No. The goal is a browser-based experience that is easy for tenants
-            to use.
-          </p>
-
-          <p>
-            <strong>What is the main advantage of a cleaner rent workflow?</strong>
-            <br />
-            The biggest advantage is turning a scattered monthly routine into a
-            cleaner, more repeatable process that is easier to trust.
-          </p>
-
-          <p>
-            <strong>How fast can I get started?</strong>
-            <br />
-            The goal is quick self-serve setup with minimal friction for both
-            landlords and tenants.
-          </p>
-
-          <p>
-            <strong>What makes a rent collection system “the best”?</strong>
-            <br />
-            Usually, it is not about having the most features. It is about
-            making the monthly cycle clearer, simpler, and easier to manage.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want the broader core page? Visit{" "}
             <Link
               href="/online-rent-payment-system"
-              className="text-blue-600 hover:underline"
+              className="font-semibold text-blue-600 hover:underline"
             >
-              Online Rent Payment System
+              Explore the online rent payment system →
             </Link>
-            .
-          </p>
+          </div>
+        </section>
 
-          <p>
-            Looking for the direct collection angle? See{" "}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
+
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Rent Collection Resources
+          </h2>
+
+          <div className="mt-4 flex flex-col gap-3">
             <Link
               href="/collect-rent-online"
               className="text-blue-600 hover:underline"
             >
               Collect Rent Online
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the app-style version? Read{" "}
-            <Link
-              href="/rent-payment-app"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Payment App
-            </Link>
-            .
-          </p>
-
-          <p>
-            Need the landlord-focused version? Visit{" "}
-            <Link
-              href="/landlord-payment-system"
-              className="text-blue-600 hover:underline"
-            >
-              Landlord Payment System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the billing angle? Read{" "}
-            <Link
-              href="/rent-billing-system"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Billing System
-            </Link>
-            .
-          </p>
-
-          <p>
-            Need the tracking angle? Visit{" "}
-            <Link
-              href="/rent-tracking-software"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Tracking Software
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the payment guide? See{" "}
             <Link
               href="/how-to-collect-rent-online"
               className="text-blue-600 hover:underline"
             >
               How to Collect Rent Online
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the late-payment guide? Visit{" "}
+            <Link
+              href="/free-rent-collection-software"
+              className="text-blue-600 hover:underline"
+            >
+              Free Rent Collection Software
+            </Link>
+
+            <Link
+              href="/landlord-rent-payment-options"
+              className="text-blue-600 hover:underline"
+            >
+              Landlord Rent Payment Options
+            </Link>
+
+            <Link
+              href="/rent-collection-software-alternative"
+              className="text-blue-600 hover:underline"
+            >
+              Rent Collection Software Alternative
+            </Link>
+
             <Link
               href="/how-to-avoid-late-rent-payments"
               className="text-blue-600 hover:underline"
             >
               How to Avoid Late Rent Payments
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Want a Focused Way to Collect Rent Online?
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            RentFray combines online rent collection, recurring rent, tenant
+            balances, and payment status without a monthly software fee for
+            owners or managers.
           </p>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use the Best Way to Collect Rent — One That Actually Makes the Month
-          Easier
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fee for the business. No scattered payment routine. Just a
-          cleaner way to collect rent online and keep the monthly cycle
-          organized.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }
