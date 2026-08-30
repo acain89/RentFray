@@ -5,41 +5,101 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "rf_session";
 
-function isPublicRoute(pathname: string) {
+const PUBLIC_PAGE_ROUTES = [
+  "/",
+  "/setup",
+  "/offline",
+  "/how-it-works",
+  "/pricing",
+  "/security-payments",
+  "/why-rentfray",
+  "/is-rentfray-right-for-me",
+  "/faq",
+  "/property-code",
+  "/login",
+  "/manager/login",
+  "/tenant/login",
+  "/request-illustration",
+  "/role-select",
+
+  // SEO / AEO marketing pages
+  "/best-way-to-collect-rent",
+  "/buy-here-pay-here-payment-system",
+  "/campground-payment-system",
+  "/collect-rent-online",
+  "/commercial-property-rent-collection",
+  "/duplex-landlord-rent-collection",
+  "/easiest-way-for-tenants-to-pay-rent",
+  "/equipment-rental-payment-system",
+  "/free-rent-collection-software",
+  "/free-rent-collection-software-no-monthly-fee",
+  "/hoa-payment-system",
+  "/how-tenants-pay-rent-online",
+  "/how-to-avoid-late-rent-payments",
+  "/how-to-collect-rent-online",
+  "/how-to-manage-rent-without-software",
+  "/how-to-track-tenant-payments",
+  "/landlord-payment-system",
+  "/landlord-rent-payment-options",
+  "/manual-rent-tracking-vs-software",
+  "/marina-slip-payment-system",
+  "/mobile-home-park-rent-collection",
+  "/no-fee-rent-collection-system",
+  "/office-rent-payment-system",
+  "/online-rent-payment-system",
+  "/online-rent-payment-system-apartments",
+  "/property-management-payment-system",
+  "/rental-payment-platform",
+  "/rent-billing-system",
+  "/rent-collection-software-alternative",
+  "/rent-collection-software-landlords",
+  "/rent-payment-app",
+  "/rent-tracking-software",
+  "/rv-park-rent-collection",
+  "/self-storage-payment-system",
+  "/spreadsheet-vs-rent-software",
+  "/student-housing-rent-payment",
+  "/tenant-online-rent-payments",
+  "/tenant-payment-portal",
+  "/tenant-rent-payment-options",
+  "/trailer-park-rent-collection",
+  "/warehouse-rent-payment-system",
+
+  // Search-engine discovery files
+  "/robots.txt",
+  "/sitemap.xml",
+] as const;
+
+const PUBLIC_API_ROUTES = [
+  "/api/setup",
+  "/api/admin/session",
+  "/api/admin/properties/list",
+  "/api/admin/requests/list",
+  "/api/request-setup",
+  "/api/property/resolve",
+  "/api/public/property/lookup",
+  "/api/cron",
+  "/api/manager/session",
+  "/api/tenant/session",
+  "/api/tenant/activate",
+  "/api/maintenance/session",
+] as const;
+
+function matchesRoute(pathname: string, route: string): boolean {
+  if (route === "/") {
+    return pathname === "/";
+  }
+
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function isPublicRoute(pathname: string): boolean {
   return (
-    pathname === "/" ||
-    pathname === "/setup" ||
-    pathname === "/offline" ||
-    pathname.startsWith("/how-it-works") ||
-    pathname.startsWith("/pricing") ||
-    pathname.startsWith("/security-payments") ||
-    pathname.startsWith("/why-rentfray") ||
-    pathname.startsWith("/is-rentfray-right-for-me") ||
-    pathname.startsWith("/faq") ||
-    pathname.startsWith("/property-code") ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/manager/login") ||
-    pathname.startsWith("/tenant/login") ||
-    pathname.startsWith("/login/manager") ||
-    pathname.startsWith("/login/tenant") ||
-    pathname.startsWith("/login/maintenance") ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/request-illustration") ||
-    pathname.startsWith("/role-select") ||
-    pathname.startsWith("/api/setup") ||
-    pathname.startsWith("/api/admin/session") ||
-    pathname.startsWith("/api/admin/properties/list") ||
-    pathname.startsWith("/api/admin/requests/list") ||
-    pathname.startsWith("/api/request-setup") ||
-    pathname.startsWith("/api/property/resolve") ||
-    pathname.startsWith("/api/public/property/lookup") ||
-    pathname.startsWith("/api/cron") ||
-    pathname.startsWith("/api/manager/session") ||
-    pathname.startsWith("/api/tenant/session") ||
-    pathname.startsWith("/api/tenant/activate") ||
-    pathname.startsWith("/api/maintenance/session")
+    PUBLIC_PAGE_ROUTES.some((route) => matchesRoute(pathname, route)) ||
+    PUBLIC_API_ROUTES.some((route) => matchesRoute(pathname, route))
   );
 }
+
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
