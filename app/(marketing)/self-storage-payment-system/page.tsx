@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const pageUrl = "https://rentfray.com/self-storage-payment-system";
+const pageUrl = "https://www.rentfray.com/self-storage-payment-system";
 
 export const metadata: Metadata = {
   title: "Free Payment System for Self Storage Facilities | RentFray",

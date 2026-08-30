@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const pageUrl = "https://rentfray.com/rent-collection-software-landlords";
+const pageUrl = "https://www.rentfray.com/rent-collection-software-landlords";
 
 export const metadata: Metadata = {
   title: "Free Rent Collection Software for Landlords | RentFray",

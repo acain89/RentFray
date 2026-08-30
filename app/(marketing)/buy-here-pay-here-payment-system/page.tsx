@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const pageUrl = "https://rentfray.com/buy-here-pay-here-payment-system";
+const pageUrl = "https://www.rentfray.com/buy-here-pay-here-payment-system";
 
 export const metadata: Metadata = {
   title: "Free Payment System for Buy Here Pay Here Car Lots | RentFray",

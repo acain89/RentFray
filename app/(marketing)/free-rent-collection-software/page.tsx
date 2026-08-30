@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const siteUrl = "https://rentfray.com";
+const siteUrl = "https://www.rentfray.com";
 const pagePath = "/free-rent-collection-software";
 const pageUrl = `${siteUrl}${pagePath}`;
 const pageTitle = "Free Rent Collection Software | RentFray";

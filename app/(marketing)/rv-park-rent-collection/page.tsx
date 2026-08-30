@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const pageUrl = "https://rentfray.com/rv-park-rent-collection";
+const pageUrl = "https://www.rentfray.com/rv-park-rent-collection";
 
 export const metadata: Metadata = {
   title: "Free Rent Payment System for RV Parks | RentFray",
