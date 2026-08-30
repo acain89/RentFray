@@ -136,6 +136,92 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="border-y border-slate-200 bg-white py-12">
+        <div className="rfm-container">
+          <div className="mx-auto max-w-4xl">
+            <div className="mb-7">
+              <span className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Rent Collection Resources
+              </span>
+
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                Learn more about collecting rent online
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-slate-600">
+                Explore RentFray&apos;s guides to online rent payments, tenant
+                payment tracking, and rent collection software.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Link
+                href="/free-rent-collection-software"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Free Rent Collection Software
+              </Link>
+
+              <Link
+                href="/online-rent-payment-system"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Online Rent Payment System
+              </Link>
+
+              <Link
+                href="/collect-rent-online"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Collect Rent Online
+              </Link>
+
+              <Link
+                href="/rent-collection-software-landlords"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Rent Collection for Landlords
+              </Link>
+
+              <Link
+                href="/landlord-payment-system"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Landlord Payment System
+              </Link>
+
+              <Link
+                href="/tenant-payment-portal"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Tenant Payment Portal
+              </Link>
+
+              <Link
+                href="/rent-payment-app"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Rent Payment App
+              </Link>
+
+              <Link
+                href="/rent-tracking-software"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Rent Tracking Software
+              </Link>
+
+              <Link
+                href="/free-rent-collection-software-no-monthly-fee"
+                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                No Monthly Fee Rent Software
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="rfm-final-cta">
         <div className="rfm-container">
           <span>Ready when you are</span>
