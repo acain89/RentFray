@@ -1,626 +1,572 @@
-﻿// app/rent-tracking-software/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title: "Rent Tracking Software | Simple Online Rent Tracking | RentFray",
-  description:
-    "Simple rent tracking software for landlords and property managers. Track rent payments online, reduce manual work, and stay organized without monthly fees for the business.",
+const pagePath = "/rent-tracking-software";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "Rent Tracking Software for Payments and Balances | RentFray";
+
+const pageDescription =
+  "Rent tracking software for landlords and property managers. See tenant balances, track payment status, identify what is paid and unpaid, and keep recurring rent organized.";
+
+const faqItems = [
+  {
+    question: "What is rent tracking software?",
+    answer:
+      "Rent tracking software helps landlords and property managers monitor tenant balances, payment status, and recurring rent so they can see what has been paid and what still needs attention.",
+  },
+  {
+    question: "Can RentFray show which tenants have paid?",
+    answer:
+      "Yes. RentFray gives landlords and property managers payment-status and balance visibility across tenant accounts.",
+  },
+  {
+    question: "Can RentFray track outstanding tenant balances?",
+    answer:
+      "Yes. Tenant balances are part of the RentFray rent collection workflow, helping managers see what is still owed.",
+  },
+  {
+    question: "Does RentFray also collect rent online?",
+    answer:
+      "Yes. RentFray combines online rent collection with payment and balance tracking so the payment workflow and the tracking workflow stay connected.",
+  },
+  {
+    question: "Is RentFray free for landlords and property managers?",
+    answer:
+      "Yes. RentFray has no monthly software fee for property owners or managers. Tenants pay a small processing fee when they submit payments.",
+  },
+  {
+    question: "How are rent payments processed?",
+    answer:
+      "RentFray uses Stripe to securely process payments. RentFray does not store tenant banking information or hold tenant funds.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/rent-tracking-software",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "website",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Track tenant balances and payment status so you can quickly see what is paid, what is unpaid, and what needs attention.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "Rent tracking software for tenant balances and payment status.",
   },
 };
 
 export default function RentTrackingSoftwarePage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Rent Tracking Software â€” A Simpler Way to See Whatâ€™s Paid and Whatâ€™s Not
-        </h1>
+    <>
+      <Script
+        id="rent-tracking-software-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are looking for rent tracking software, you probably want one
-          thing above all: clarity. You want to know who paid, who has not paid,
-          what still needs attention, and whether your monthly rent collection
-          process is actually under control.
-        </p>
+      <Script
+        id="rent-tracking-software-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          RentFray is built to make that easier. It gives landlords and property
-          managers a simpler online rent collection system with cleaner payment
-          visibility, less manual tracking, and a payment process tenants can
-          actually follow.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* WHAT PEOPLE MEAN */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What Most People Really Mean by Rent Tracking Software
-        </h2>
-
-        <p>
-          Most people searching for rent tracking software are not looking for a
-          giant accounting platform. They are looking for a practical system that
-          helps them stay organized around rent payments every month.
-        </p>
-
-        <p>Usually that means they want software that helps them:</p>
-
-        <ul className="space-y-2">
-          <li>â€¢ Track rent payments without relying on memory</li>
-          <li>â€¢ See which tenants have paid and which have not</li>
-          <li>â€¢ Reduce spreadsheet work and manual note-taking</li>
-          <li>â€¢ Keep recurring rent collection organized</li>
-          <li>â€¢ Avoid messy payment methods and inconsistent records</li>
-        </ul>
-
-        <p>
-          That is where many tools fail. They either give you a bloated system
-          full of features you do not need, or they leave you doing the hardest
-          part manually: figuring out what actually happened with rent payments.
-        </p>
-
-        <p className="font-medium">
-          Good rent tracking software should reduce confusion, not add to it.
-        </p>
-      </section>
-
-      {/* WHY TRACKING MATTERS */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Rent Tracking Matters So Much
-        </h2>
-
-        <p>
-          Rent collection is not just about receiving money. It is also about
-          knowing what has happened, what is still outstanding, and what needs
-          follow-up. Without strong rent tracking, landlords and managers end up
-          spending time reconstructing the month by hand.
-        </p>
-
-        <p>
-          That usually means checking texts, digging through emails, comparing
-          notes, updating spreadsheets, and trying to remember which tenant paid
-          through which method. That kind of process works until it doesnâ€™t.
-        </p>
-
-        <p>
-          Once the number of tenants grows, or once payment methods become mixed,
-          the lack of a clear tracking system starts creating real operational
-          drag. Even small landlords feel it. Larger properties feel it even
-          more.
-        </p>
-
-        <p>
-          Proper rent tracking software fixes that by making payment visibility
-          part of the system itself instead of something you have to piece
-          together afterward.
-        </p>
-      </section>
-
-      {/* POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Rent Tracking Software Works Best When It Is Tied to the Payment Flow
-        </h2>
-
-        <p>
-          The strongest rent tracking software is not just a recordkeeping tool.
-          It is part of a real rent collection system. That matters because the
-          cleaner the payment flow is, the cleaner the tracking becomes.
-        </p>
-
-        <p>
-          RentFray takes that approach. Instead of making landlords collect rent
-          one way and track it another way, it combines the payment process and
-          the payment visibility into one simpler system.
-        </p>
-
-        <p>
-          That means tenants have a direct way to pay online, and properties have
-          a cleaner way to see what is happening. The result is less manual
-          tracking, less guessing, and less time spent trying to reconstruct the
-          payment picture.
-        </p>
-
-        <p>
-          If you are searching for rent tracking software because spreadsheets or
-          mixed payment methods are wearing you down, that integrated model is
-          the real advantage.
-        </p>
-      </section>
-
-      {/* WHAT IT SHOULD DO */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What Good Rent Tracking Software Should Actually Help You Do
-        </h2>
-
-        <p>
-          A useful rent tracking system should help owners and managers stay on
-          top of monthly payment activity without turning the process into a
-          second job.
-        </p>
-
-        <ul className="space-y-2">
-          <li>â€¢ Track who paid rent</li>
-          <li>â€¢ See who has not paid yet</li>
-          <li>â€¢ Keep monthly payment flow more organized</li>
-          <li>â€¢ Reduce spreadsheet dependence</li>
-          <li>â€¢ Cut down on manual payment follow-up</li>
-          <li>â€¢ Give tenants a cleaner way to pay online</li>
-          <li>â€¢ Create a more repeatable monthly process</li>
-        </ul>
-
-        <p>
-          That is the real purpose of rent tracking software. It should create
-          visibility and consistency around recurring payments, not drown you in
-          complexity.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          How RentFray Helps Track Rent Payments
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Step 1:</strong> Set up the property and basic account details
-          </p>
-          <p>
-            <strong>Step 2:</strong> Get the unique property code
-          </p>
-          <p>
-            <strong>Step 3:</strong> Share the code with tenants
-          </p>
-          <p>
-            <strong>Step 4:</strong> Tenants activate and make rent payments online
-          </p>
-          <p>
-            <strong>Step 5:</strong> Payment activity becomes easier to see and
-            track in one structured system
-          </p>
-        </div>
-
-        <p className="mt-4 text-slate-600">
-          The point is not to create more software steps. The point is to make
-          rent tracking easier because the payment process itself is cleaner.
-        </p>
-      </section>
-
-      {/* PROBLEM WITH MANUAL TRACKING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Manual Rent Tracking Breaks Down
-        </h2>
-
-        <p>
-          Manual rent tracking usually starts innocently. A landlord keeps a
-          spreadsheet. A manager writes notes. Someone checks a bank account and
-          marks down who paid. For a while, it feels manageable.
-        </p>
-
-        <p>
-          But manual tracking gets weaker as soon as real-world inconsistency
-          enters the picture. Different payment dates, different payment methods,
-          partial communication, missed updates, and simple human error all make
-          the process harder to trust.
-        </p>
-
-        <p>
-          The result is not just inconvenience. It is uncertainty. Once you stop
-          feeling confident in your rent tracking, every follow-up conversation
-          with a tenant becomes more awkward, and every monthly closeout becomes
-          more stressful.
-        </p>
-
-        <p>
-          That is why rent tracking software matters. It creates a more reliable
-          operational picture.
-        </p>
-      </section>
-
-      {/* SMALL LANDLORD ANGLE */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Helpful for Small Landlords Who Are Tired of Spreadsheets
-        </h2>
-
-        <p>
-          Small landlords often feel like they should be able to manage rent
-          tracking manually, especially if they only have a few units. But that
-          is usually where quiet monthly friction builds up.
-        </p>
-
-        <p>
-          A few units still means recurring payments, tenant communication,
-          follow-up when something is late, and the need to know exactly what is
-          going on. If the tracking process is messy, the portfolio feels messier
-          than it should.
-        </p>
-
-        <p>
-          Good rent tracking software gives smaller operators a way to stay
-          organized without paying for a giant software stack. It turns a fragile
-          manual process into a cleaner recurring system.
-        </p>
-
-        <p>
-          That is a big upgrade even for landlords with just a handful of tenants.
-        </p>
-      </section>
-
-      {/* LARGER PROPERTY ANGLE */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Even More Valuable for Larger Properties and Teams
-        </h2>
-
-        <p>
-          Larger properties and management teams need payment visibility even
-          more. Once multiple staff members, more tenants, and more monthly
-          activity are involved, weak rent tracking creates real operational
-          problems.
-        </p>
-
-        <p>
-          A strong rent tracking system helps make the process more uniform. It
-          reduces the chances that someone is checking one source while someone
-          else is updating another. It helps managers rely on a more consistent
-          monthly rhythm.
-        </p>
-
-        <p>
-          RentFray supports that by keeping the rent collection flow direct and
-          giving properties a more structured way to view payment activity.
-        </p>
-      </section>
-
-      {/* COMPARISONS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          RentFray vs Other Ways to Track Rent Payments
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets can store information, but they depend on manual entry
-              and constant upkeep. They also do not solve the payment workflow
-              itself. RentFray helps create a cleaner payment path and better
-              visibility around what happened.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Checks and Paper Records</p>
-            <p className="mt-2">
-              Checks and handwritten records are slow, fragmented, and easy to
-              mishandle. A digital rent tracking system provides a clearer monthly
-              picture and reduces the need to reconstruct events manually.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Venmo or Cash App</p>
-            <p className="mt-2">
-              Generic transfer apps are not true rent tracking software. They may
-              move money, but they are not built to give landlords and managers a
-              clean, property-specific rent tracking workflow.
-            </p>
-          </div>
-
-          <div>
-            <p className="font-semibold">RentFray vs Large Software Platforms</p>
-            <p className="mt-2">
-              Large property software systems can offer many features, but they
-              often bring more complexity than necessary. RentFray stays more
-              focused on rent collection and payment visibility, which helps it
-              stay easier to use.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of Better Rent Tracking Software
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Clearer payment visibility:</strong> Know more easily who has
-            paid and who has not.
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Rent Payment Tracking
           </p>
 
-          <p>
-            <strong>Less manual work:</strong> Spend less time updating sheets
-            and chasing down scattered information.
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Rent Tracking Software to See What’s Paid and What’s Not
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            RentFray helps landlords and property managers track tenant
+            balances and payment status so they can quickly see what has been
+            paid, what is still owed, and which accounts need attention.
           </p>
 
-          <p>
-            <strong>More consistent monthly operations:</strong> Make rent
-            collection easier to repeat every month.
-          </p>
-
-          <p>
-            <strong>Cleaner tenant payment flow:</strong> Tenants use a more
-            direct online rent payment system.
-          </p>
-
-          <p>
-            <strong>Less stress:</strong> Reduce the uncertainty that comes from
-            fragmented tracking methods.
-          </p>
-
-          <p>
-            <strong>No monthly fee burden for the business:</strong> RentFray is
-            designed to stay free for landlords and property owners.
-          </p>
-        </div>
-      </section>
-
-      {/* TRUST */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Tracking Feels More Trustworthy When the Payment Process Is Cleaner
-        </h2>
-
-        <p>
-          One of the biggest reasons landlords lose confidence in their records is
-          that the payment process itself is scattered. Some payments happen one
-          way, some another, and the tracking layer becomes an afterthought.
-        </p>
-
-        <p>
-          A better system fixes that by making payment flow and payment visibility
-          work together. When tenants pay through a structured process, rent
-          tracking becomes easier to trust.
-        </p>
-
-        <p>
-          That trust matters because it changes how owners and managers operate.
-          Instead of wondering whether the records are current, they can move with
-          more confidence.
-        </p>
-      </section>
-
-      {/* LONG TAIL */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best Way to Track Rent Payments?
-        </h2>
-
-        <p>
-          For many landlords and property managers, the best way to track rent
-          payments is not to bolt a tracking tool onto a messy payment process.
-          It is to use a system that makes the payment workflow itself more
-          organized from the start.
-        </p>
-
-        <p>
-          That is why focused rent tracking software can be so effective. Instead
-          of giving you more administrative work, it reduces the disorder behind
-          the work. It helps create a rent collection process that is easier to
-          see, easier to manage, and easier to repeat.
-        </p>
-
-        <p>
-          If you are searching for rent tracking software because you are tired of
-          spreadsheets, inconsistent payment methods, or monthly uncertainty,
-          RentFray is built for exactly that problem.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Frequently Asked Questions</h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is rent tracking software?</strong>
-            <br />
-            Rent tracking software helps landlords and property managers track
-            rent payments, see payment status more clearly, and stay organized
-            around recurring monthly collections.
-          </p>
-
-          <p>
-            <strong>Why use rent tracking software?</strong>
-            <br />
-            It helps reduce spreadsheet dependence, manual updates, and payment
-            confusion while making rent collection more visible.
-          </p>
-
-          <p>
-            <strong>Does RentFray only track payments?</strong>
-            <br />
-            No. It also supports the online payment process itself, which helps
-            make tracking cleaner and easier.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for landlords?</strong>
-            <br />
-            Yes. RentFray is designed so the business side does not pay a monthly
-            fee.
-          </p>
-
-          <p>
-            <strong>Can tenants pay online?</strong>
-            <br />
-            Yes. Tenants can use the online system to make rent payments.
-          </p>
-
-          <p>
-            <strong>Is this better than spreadsheets?</strong>
-            <br />
-            Yes. Spreadsheets require manual upkeep and do not solve the payment
-            process itself.
-          </p>
-
-          <p>
-            <strong>Is this useful for small landlords?</strong>
-            <br />
-            Yes. Small landlords often benefit a lot from having a cleaner rent
-            tracking system.
-          </p>
-
-          <p>
-            <strong>Is this useful for larger properties too?</strong>
-            <br />
-            Yes. Larger properties benefit from more consistent payment
-            visibility and less fragmented tracking.
-          </p>
-
-          <p>
-            <strong>How do tenants get started?</strong>
-            <br />
-            Tenants use the property code to activate and pay through the online
-            system.
-          </p>
-
-          <p>
-            <strong>Why not just use a generic payment app?</strong>
-            <br />
-            Generic apps are not true rent tracking software and are not built
-            around structured recurring rent workflows.
-          </p>
-
-          <p>
-            <strong>How fast can I get started?</strong>
-            <br />
-            The goal is fast self-serve setup with minimal friction.
-          </p>
-
-          <p>
-            <strong>What kinds of properties can use RentFray?</strong>
-            <br />
-            Apartments, small rental portfolios, mobile home parks, RV parks,
-            self-storage facilities, and other recurring-payment properties can
-            all use RentFray.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want a broader overview? Visit{" "}
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/online-rent-payment-system"
-              className="text-blue-600 hover:underline"
+              href="/setup"
+              className="rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700"
             >
-              Online Rent Payment System
+              Create a Free Account
             </Link>
-            .
-          </p>
 
-          <p>
-            Looking for a page focused on collecting rent digitally? See{" "}
+            <Link
+              href="/free-rent-collection-software"
+              className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              See RentFray Overview
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Know Who Paid. Know Who Hasn’t.
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Collecting rent is only part of the job. Landlords and property
+              managers also need a reliable way to see the current state of
+              every tenant account.
+            </p>
+
+            <p>
+              Without a dedicated tracking system, answering a simple question
+              like “Who still owes rent?” can mean checking payment records,
+              bank activity, spreadsheets, messages, and handwritten notes.
+            </p>
+
+            <p>
+              RentFray keeps rent collection and account visibility connected
+              so the payment picture is easier to understand without
+              reconstructing it manually.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What You Can Track With RentFray
+          </h2>
+
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Tenant Balances</h3>
+              <p className="mt-2 text-slate-600">
+                See the balance associated with each tenant account so the
+                amount still owed remains visible.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Payment Status</h3>
+              <p className="mt-2 text-slate-600">
+                Monitor payment status so you can distinguish accounts that
+                are paid from those that still need attention.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Recurring Rent</h3>
+              <p className="mt-2 text-slate-600">
+                Keep recurring rent organized around the tenant and property
+                instead of maintaining separate monthly records.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">Online Payment Activity</h3>
+              <p className="mt-2 text-slate-600">
+                Keep payment activity connected to the same rent collection
+                system used to manage tenant accounts.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Why Tracking Rent Separately Creates More Work
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A common manual workflow is to collect rent through one method
+              and record it somewhere else. A tenant pays, the landlord
+              verifies the payment, and then somebody updates a spreadsheet,
+              ledger, or note.
+            </p>
+
+            <p>
+              That creates two separate jobs: collecting the payment and
+              maintaining the record of the payment.
+            </p>
+
+            <p>
+              It also creates opportunities for the two records to disagree.
+              A payment may have occurred while the spreadsheet was never
+              updated, or a manual entry may not reflect the current tenant
+              balance.
+            </p>
+
+            <p>
+              RentFray keeps payment collection and rent tracking in the same
+              workflow so managers have less information to reconcile
+              manually.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Track Rent by Tenant Instead of by Transaction
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A bank statement or general payment app can show that money
+              moved, but a landlord needs to understand the tenant account
+              behind that transaction.
+            </p>
+
+            <p>
+              Rent tracking is more useful when the information is organized
+              around the rental relationship: the tenant, the amount owed, the
+              payment activity, and the remaining balance.
+            </p>
+
+            <p>
+              That makes the system useful for managing rent rather than
+              simply reviewing a list of transactions.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Payment Status Gives You More Than Paid or Unpaid
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Online payments are not always instantaneous. A payment can move
+              through different stages before its final outcome is known.
+            </p>
+
+            <p>
+              RentFray keeps payment status visible so landlords and managers
+              can understand the current state of a tenant account instead of
+              treating every submitted payment as immediately complete.
+            </p>
+
+            <p>
+              That distinction matters when deciding which accounts actually
+              require follow-up.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Rent Tracking Software vs a Spreadsheet
+          </h2>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="px-3 py-3 font-semibold">Task</th>
+                  <th className="px-3 py-3 font-semibold">Spreadsheet</th>
+                  <th className="px-3 py-3 font-semibold">RentFray</th>
+                </tr>
+              </thead>
+
+              <tbody className="text-slate-600">
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Record rent information</td>
+                  <td className="px-3 py-3">Manual entry</td>
+                  <td className="px-3 py-3">
+                    Connected to the rent workflow
+                  </td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track tenant balances</td>
+                  <td className="px-3 py-3">
+                    Requires formulas or manual updates
+                  </td>
+                  <td className="px-3 py-3">Built into the system</td>
+                </tr>
+
+                <tr className="border-b border-slate-200">
+                  <td className="px-3 py-3">Track payment status</td>
+                  <td className="px-3 py-3">
+                    Must be checked and entered manually
+                  </td>
+                  <td className="px-3 py-3">
+                    Connected to payment activity
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-3 py-3">Collect rent online</td>
+                  <td className="px-3 py-3">No</td>
+                  <td className="px-3 py-3">Yes</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/spreadsheet-vs-rent-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Compare spreadsheets and rent software →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Track Payments Where You Collect Payments
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              RentFray does not treat tracking as a separate administrative
+              tool. Tenants can submit rent online through the same platform
+              landlords and managers use to monitor rent accounts.
+            </p>
+
+            <p>
+              Keeping collection and tracking together reduces the need to
+              copy payment information from one system into another.
+            </p>
+          </div>
+
+          <div className="mt-5">
             <Link
               href="/collect-rent-online"
-              className="text-blue-600 hover:underline"
+              className="font-semibold text-blue-600 hover:underline"
             >
-              Collect Rent Online
+              Learn about collecting rent online →
             </Link>
-            .
-          </p>
+          </div>
+        </section>
 
-          <p>
-            Want the app-style angle? Read{" "}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Useful Across Multiple Units and Tenants
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Tracking becomes increasingly important as the number of tenant
+              accounts grows. Instead of remembering the status of a few
+              payments, managers need a consistent view across the property.
+            </p>
+
+            <p>
+              RentFray helps organize tenant balances and payment status so
+              managers can review rent collection without checking each
+              payment method individually.
+            </p>
+          </div>
+
+          <div className="mt-5">
             <Link
-              href="/rent-payment-app"
-              className="text-blue-600 hover:underline"
+              href="/property-management-payment-system"
+              className="font-semibold text-blue-600 hover:underline"
             >
-              Rent Payment App
+              See property-management payment tracking →
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Secure Online Payments Through Stripe
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              RentFray uses Stripe to securely process online rent payments.
+              RentFray does not store tenant banking information or hold
+              tenant funds.
+            </p>
+
+            <p>
+              RentFray provides the rent collection, tenant-balance, and
+              payment-status experience while Stripe handles the underlying
+              payment processing.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Rent Tracking Without a Monthly Software Fee
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            RentFray costs $0 per month for property owners and managers.
+            There is no monthly software subscription required to use the rent
+            collection and tracking platform.
           </p>
 
-          <p>
-            Need a landlord-focused page? Visit{" "}
+          <p className="mt-3 text-slate-600">
+            Tenants pay a small processing fee when they submit payments.
+          </p>
+
+          <div className="mt-5">
             <Link
-              href="/landlord-payment-system"
+              href="/free-rent-collection-software-no-monthly-fee"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn more about RentFray pricing →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Rent Tracking Software vs Rent Collection Software
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              The two categories overlap, but the search intent is different.
+              Rent tracking software emphasizes visibility: balances, payment
+              status, paid accounts, unpaid accounts, and records.
+            </p>
+
+            <p>
+              Rent collection software emphasizes the broader process of
+              accepting and managing recurring rent payments.
+            </p>
+
+            <p>
+              RentFray combines both functions, but this page focuses
+              specifically on the tracking side of that workflow.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/rent-collection-software-landlords"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Explore rent collection software for landlords →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
+
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Rent Tracking Resources
+          </h2>
+
+          <div className="mt-4 flex flex-col gap-3">
+            <Link
+              href="/how-to-track-tenant-payments"
               className="text-blue-600 hover:underline"
             >
-              Landlord Payment System
+              How to Track Tenant Payments
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the property-operations angle? Read{" "}
+            <Link
+              href="/manual-rent-tracking-vs-software"
+              className="text-blue-600 hover:underline"
+            >
+              Manual Rent Tracking vs Software
+            </Link>
+
+            <Link
+              href="/spreadsheet-vs-rent-software"
+              className="text-blue-600 hover:underline"
+            >
+              Spreadsheet vs Rent Software
+            </Link>
+
             <Link
               href="/property-management-payment-system"
               className="text-blue-600 hover:underline"
             >
               Property Management Payment System
             </Link>
-            .
-          </p>
 
-          <p>
-            Want the tenant-side experience? Visit{" "}
             <Link
-              href="/tenant-payment-portal"
+              href="/online-rent-payment-system"
               className="text-blue-600 hover:underline"
             >
-              Tenant Payment Portal
+              Online Rent Payment System
             </Link>
-            .
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            See What’s Paid and What Still Needs Attention
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            Use RentFray to collect rent online while keeping tenant balances
+            and payment status visible in the same system.
           </p>
 
-          <p>
-            Interested in the pricing angle? Read{" "}
-            <Link
-              href="/free-rent-collection-software"
-              className="text-blue-600 hover:underline"
-            >
-              Free Rent Collection Software
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use Rent Tracking Software That Makes Monthly Collections Easier to See
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fees for landlords. No messy tracking routine. Just a simpler
-          way to collect rent online and stay organized.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }

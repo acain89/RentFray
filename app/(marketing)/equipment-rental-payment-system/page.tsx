@@ -1,4 +1,4 @@
-﻿// app/equipment-rental-payment-system/page.tsx
+// app/equipment-rental-payment-system/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function EquipmentRentalPaymentSystemPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Equipment Rental Payment System â€” A Simpler Way to Collect Recurring
+          Equipment Rental Payment System — A Simpler Way to Collect Recurring
           Rental Payments Online
         </h1>
 
@@ -77,13 +77,13 @@ export default function EquipmentRentalPaymentSystemPage() {
         <p>Usually, what they actually want is simple:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ One clear way to collect equipment rental payments online</li>
-          <li>â€¢ Better visibility into who has paid and who has not</li>
-          <li>â€¢ Less dependence on checks, cash, and manual follow-up</li>
-          <li>â€¢ A more repeatable recurring collection workflow</li>
-          <li>â€¢ Fewer spreadsheets and fewer disconnected systems</li>
-          <li>â€¢ A payment process that feels easy to explain and easy to repeat</li>
-          <li>â€¢ A tool that does not require training just to use it</li>
+          <li>• One clear way to collect equipment rental payments online</li>
+          <li>• Better visibility into who has paid and who has not</li>
+          <li>• Less dependence on checks, cash, and manual follow-up</li>
+          <li>• A more repeatable recurring collection workflow</li>
+          <li>• Fewer spreadsheets and fewer disconnected systems</li>
+          <li>• A payment process that feels easy to explain and easy to repeat</li>
+          <li>• A tool that does not require training just to use it</li>
         </ul>
 
         <p>
@@ -144,7 +144,7 @@ export default function EquipmentRentalPaymentSystemPage() {
       {/* PAIN AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Just the Payment â€” It Is the Friction Around
+          The Real Problem Is Not Just the Payment — It Is the Friction Around
           It
         </h2>
 
@@ -158,12 +158,12 @@ export default function EquipmentRentalPaymentSystemPage() {
         <p>Every workaround adds drag:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ Checking different places to confirm whether money arrived</li>
-          <li>â€¢ Sending reminders manually</li>
-          <li>â€¢ Updating spreadsheets after the fact</li>
-          <li>â€¢ Matching payments to customers by hand</li>
-          <li>â€¢ Explaining payment instructions repeatedly</li>
-          <li>â€¢ Rebuilding a reliable billing picture from scattered data</li>
+          <li>• Checking different places to confirm whether money arrived</li>
+          <li>• Sending reminders manually</li>
+          <li>• Updating spreadsheets after the fact</li>
+          <li>• Matching payments to customers by hand</li>
+          <li>• Explaining payment instructions repeatedly</li>
+          <li>• Rebuilding a reliable billing picture from scattered data</li>
         </ul>
 
         <p>
@@ -596,14 +596,14 @@ export default function EquipmentRentalPaymentSystemPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ best equipment rental payment system</li>
-          <li>â€¢ equipment rental payment software</li>
-          <li>â€¢ online equipment rental payments</li>
-          <li>â€¢ recurring rental payment platform</li>
-          <li>â€¢ simple equipment rental billing system</li>
-          <li>â€¢ free equipment rental payment platform</li>
-          <li>â€¢ how to collect recurring rental payments online</li>
-          <li>â€¢ easy payment system for equipment rental businesses</li>
+          <li>• best equipment rental payment system</li>
+          <li>• equipment rental payment software</li>
+          <li>• online equipment rental payments</li>
+          <li>• recurring rental payment platform</li>
+          <li>• simple equipment rental billing system</li>
+          <li>• free equipment rental payment platform</li>
+          <li>• how to collect recurring rental payments online</li>
+          <li>• easy payment system for equipment rental businesses</li>
         </ul>
 
         <p>

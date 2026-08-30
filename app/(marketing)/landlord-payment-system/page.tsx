@@ -1,676 +1,502 @@
-﻿// app/landlord-payment-system/page.tsx
-
+import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
-export const metadata = {
-  title: "Landlord Payment System | Free Online Rent Collection | RentFray",
-  description:
-    "A landlord payment system built for simple online rent collection. No monthly fees for landlords. Tenants pay online, owners get paid directly, and setup stays easy.",
+const pagePath = "/landlord-payment-system";
+const pageUrl = `https://www.rentfray.com${pagePath}`;
+
+const pageTitle = "Landlord Payment System for Online Rent Payments | RentFray";
+
+const pageDescription =
+  "A landlord payment system for collecting rent online. Give tenants a consistent payment process, track payment status and balances, and receive rent through Stripe.";
+
+const faqItems = [
+  {
+    question: "What is a landlord payment system?",
+    answer:
+      "A landlord payment system gives property owners a structured way to accept rent payments from tenants and keep payment activity connected to tenant balances and recurring rent.",
+  },
+  {
+    question: "How do tenants pay rent through RentFray?",
+    answer:
+      "Tenants use RentFray's online payment flow to access their rent information and submit payment through a web browser.",
+  },
+  {
+    question: "How are RentFray payments processed?",
+    answer:
+      "RentFray uses Stripe to securely process payments. RentFray does not store tenant banking information or hold tenant funds.",
+  },
+  {
+    question: "Can landlords track payment status?",
+    answer:
+      "Yes. RentFray gives landlords visibility into tenant balances and payment status so they can see what has been paid and what still needs attention.",
+  },
+  {
+    question: "Is there a monthly fee for landlords?",
+    answer:
+      "No. RentFray has no monthly software fee for landlords or property managers. Tenants pay a small processing fee when they submit payments.",
+  },
+  {
+    question: "Do tenants need to download an app?",
+    answer:
+      "No. RentFray works through a web browser, so tenants do not need to install a separate mobile app to pay rent.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${pageUrl}#webpage`,
+  url: pageUrl,
+  name: pageTitle,
+  description: pageDescription,
+  about: {
+    "@id": "https://www.rentfray.com/#software",
+  },
+  publisher: {
+    "@id": "https://www.rentfray.com/#organization",
+  },
+};
+
+export const metadata: Metadata = {
+  title: {
+    absolute: pageTitle,
+  },
+  description: pageDescription,
   alternates: {
-    canonical: "/landlord-payment-system",
+    canonical: pagePath,
+  },
+  openGraph: {
+    type: "website",
+    url: pagePath,
+    siteName: "RentFray",
+    title: pageTitle,
+    description:
+      "Collect rent through a consistent online payment process while keeping tenant balances and payment status easier to track.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "An online landlord payment system for collecting and tracking rent.",
   },
 };
 
 export default function LandlordPaymentSystemPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      {/* HERO */}
-      <section className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Landlord Payment System â€” Simple, Direct, and Built for Real Rent Collection
-        </h1>
+    <>
+      <Script
+        id="landlord-payment-system-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
 
-        <p className="mt-4 text-lg text-slate-600">
-          If you are looking for a landlord payment system, you probably want a
-          straightforward way to collect rent online, track what has been paid,
-          and stop relying on checks, cash, or scattered payment methods.
-          RentFray is built for exactly that.
-        </p>
+      <Script
+        id="landlord-payment-system-webpage"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(webPageSchema),
+        }}
+      />
 
-        <p className="mt-4 text-slate-700">
-          It gives landlords and property operators a clean online rent payment
-          system without unnecessary software bloat, confusing setup, or monthly
-          subscription costs for the business. Tenants get a simple way to pay.
-          Owners get a more organized way to collect and manage recurring rent
-          payments.
-        </p>
-
-        <div className="mt-6">
-          <Link
-            href="/"
-            className="inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-          >
-            Start Free
-          </Link>
-        </div>
-      </section>
-
-      {/* INTENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          What a Good Landlord Payment System Should Actually Do
-        </h2>
-
-        <p>
-          A landlord payment system should make rent collection easier, not more
-          complicated. At the most basic level, it should help landlords collect
-          rent payments online, give tenants a reliable way to pay, and reduce
-          the amount of manual tracking required every month.
-        </p>
-
-        <p>
-          But many platforms lose sight of that. They add layers of features,
-          force users through heavy onboarding, and turn a basic operational need
-          into a software project. That creates friction for landlords and
-          confusion for tenants.
-        </p>
-
-        <p>
-          The best landlord payment system is the one that feels obvious. Tenants
-          should know how to pay. Owners should know where the money goes.
-          Managers should be able to see what is happening without digging through
-          a maze of tools.
-        </p>
-
-        <p className="font-medium">
-          That is the standard RentFray is built around.
-        </p>
-      </section>
-
-      {/* PROBLEM */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Landlords Need a Better Payment System
-        </h2>
-
-        <p>
-          Traditional rent collection methods create constant drag. Checks arrive
-          late. Cash payments are hard to document. Manual reminders take time.
-          Spreadsheet tracking depends on somebody entering everything correctly
-          every single month.
-        </p>
-
-        <p>
-          Even when landlords move to digital tools, the process often stays
-          messy. One tenant sends money one way, another tenant uses a different
-          method, and the landlord still ends up manually reconciling everything.
-        </p>
-
-        <p>
-          A proper landlord payment system solves that by replacing scattered
-          payment habits with one consistent online rent collection flow. That is
-          what makes a real difference: not just digital payments, but a
-          structured payment process.
-        </p>
-
-        <p>
-          Once the payment system is clear and repeatable, rent collection becomes
-          easier to manage, easier to explain, and easier to scale.
-        </p>
-      </section>
-
-      {/* CORE POSITIONING */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          A Landlord Payment System Focused on Rent Collection First
-        </h2>
-
-        <p>
-          RentFray is not trying to be every kind of real estate software at
-          once. It is a focused rent payment platform built around one critical
-          job: helping landlords collect rent online in a clean, reliable way.
-        </p>
-
-        <p>
-          That focus matters. It means the payment flow can stay simple. It means
-          tenants are not overwhelmed. It means owners and managers can understand
-          the system quickly instead of trying to decode a bloated dashboard.
-        </p>
-
-        <p>
-          If what you need is a landlord payment system, not a giant enterprise
-          platform, a focused approach is usually the stronger one. You get the
-          benefit of online rent payments without carrying the cost and complexity
-          of features you never asked for.
-        </p>
-
-        <p>
-          RentFray is built to feel like a direct answer to the real problem:
-          collecting recurring rent payments consistently.
-        </p>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          How This Landlord Payment System Works
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Step 1:</strong> Create your property and basic account setup
+      <main className="mx-auto max-w-5xl px-6 py-12 text-slate-900">
+        <section className="mb-12">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Online Payments for Landlords
           </p>
-          <p>
-            <strong>Step 2:</strong> Receive your property code
+
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            A Landlord Payment System Built for Rent
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-lg text-slate-600">
+            RentFray gives landlords a consistent way to accept rent online,
+            keep payments connected to tenant balances, and monitor payment
+            status without relying on checks, cash, or scattered transfer
+            apps.
           </p>
-          <p>
-            <strong>Step 3:</strong> Share the code with tenants
-          </p>
-          <p>
-            <strong>Step 4:</strong> Tenants activate and make payments online
-          </p>
-          <p>
-            <strong>Step 5:</strong> Payments are processed and routed to your
-            connected payout account
-          </p>
-        </div>
 
-        <p className="mt-4 text-slate-600">
-          No long onboarding call. No complicated training process. No need to
-          learn an oversized software system just to accept rent.
-        </p>
-      </section>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/setup"
+              className="rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700"
+            >
+              Create a Free Account
+            </Link>
 
-      {/* WHY SIMPLICITY */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters in a Landlord Payment System
-        </h2>
+            <Link
+              href="/online-rent-payment-system"
+              className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              Online Payment System Overview
+            </Link>
+          </div>
+        </section>
 
-        <p>
-          The more friction a payment system creates, the harder it is for both
-          landlords and tenants to use consistently. If setup feels technical,
-          owners hesitate. If the payment path feels confusing, tenants delay.
-          If the system feels bloated, nobody enjoys using it.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            What a Landlord Payment System Actually Does
+          </h2>
 
-        <p>
-          Simplicity is not a cosmetic feature. It is a performance advantage.
-          A simpler landlord payment system is easier to adopt, easier to explain,
-          and easier to repeat every month.
-        </p>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              A landlord payment system is more than a way to move money from
+              a tenant to a property owner. Rent payments happen repeatedly,
+              and each payment belongs to a specific tenant, balance, and
+              rental account.
+            </p>
 
-        <p>
-          RentFray is designed around that idea. The system should not require a
-          manual, a tutorial library, or an implementation project. It should
-          feel like common sense.
-        </p>
+            <p>
+              A dedicated system keeps that payment process structured.
+              Tenants get a consistent way to submit rent, while landlords get
+              a clearer view of payment activity and outstanding balances.
+            </p>
 
-        <p className="font-medium">
-          That kind of clarity helps rent collection happen on time and with less
-          resistance.
-        </p>
-      </section>
+            <p>
+              That is the role RentFray is designed to fill: a focused payment
+              system for recurring rent collection rather than a
+              general-purpose money transfer tool.
+            </p>
+          </div>
+        </section>
 
-      {/* SWITCHING MOMENT */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          When Most Landlords Start Looking for a Better Payment System
-        </h2>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            How Rent Payments Work With RentFray
+          </h2>
 
-        <p>
-          Most landlords do not start their search because they suddenly want
-          software. They start searching because the current process is wearing
-          them down.
-        </p>
+          <div className="mt-6 space-y-5">
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">1. Set Up the Property</h3>
+              <p className="mt-2 text-slate-600">
+                The landlord creates the property and configures the
+                information RentFray needs to organize recurring rent.
+              </p>
+            </div>
 
-        <p>
-          Maybe checks keep showing up late. Maybe tenants are paying in
-          inconsistent ways. Maybe the landlord is manually updating records and
-          hoping nothing gets missed. Maybe the current system technically works,
-          but feels chaotic every single month.
-        </p>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">
+                2. Tenants Access the Payment Flow
+              </h3>
+              <p className="mt-2 text-slate-600">
+                Tenants use the property information provided by the landlord
+                to access RentFray and reach their online rent payment
+                experience.
+              </p>
+            </div>
 
-        <p>
-          That is usually the point where a landlord payment system starts to make
-          sense. It is no longer about adding technology for the sake of it. It
-          is about reducing confusion, tightening the process, and making rent
-          collection more predictable.
-        </p>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">3. The Tenant Submits Payment</h3>
+              <p className="mt-2 text-slate-600">
+                The tenant submits the rent payment online through the
+                browser-based payment flow.
+              </p>
+            </div>
 
-        <p>
-          Once landlords move to a dedicated online rent payment system, they
-          usually notice the same thing: fewer moving parts, better visibility,
-          and less monthly friction.
-        </p>
-      </section>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">
+                4. Stripe Processes the Payment
+              </h3>
+              <p className="mt-2 text-slate-600">
+                Payments are securely processed through Stripe. RentFray does
+                not store tenant banking information or hold tenant funds.
+              </p>
+            </div>
 
-      {/* SMALL LANDLORD */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          A Strong Fit for Small Landlords
-        </h2>
+            <div className="rounded-xl border border-slate-200 p-5">
+              <h3 className="font-semibold">
+                5. The Landlord Tracks the Account
+              </h3>
+              <p className="mt-2 text-slate-600">
+                RentFray keeps tenant balances and payment status visible so
+                the landlord can see which accounts are current and which
+                still need attention.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <p>
-          Small landlords often face a frustrating choice. On one side, manual
-          methods like checks, cash, and spreadsheets create ongoing hassle. On
-          the other side, many software tools feel too big, too expensive, or too
-          technical for a small operation.
-        </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Why a Dedicated Rent Payment System Is Different
+          </h2>
 
-        <p>
-          A good landlord payment system closes that gap. It gives small landlords
-          a clean way to collect rent online without forcing them into a heavy
-          software environment they do not need.
-        </p>
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Checks, cash, bank transfers, and general payment apps can all
+              move money. The problem is that the landlord may still need a
+              separate system to determine what the payment was for, update a
+              balance, and keep track of who has or has not paid.
+            </p>
 
-        <p>
-          RentFray is especially useful in that middle ground. It helps smaller
-          operators run a more professional, consistent payment process while
-          keeping the experience simple for both the landlord and the tenant.
-        </p>
-
-        <p>
-          If you only have a few units, simplicity matters even more. You do not
-          need extra layers. You need a system that works.
-        </p>
-      </section>
-
-      {/* LARGER OPERATORS */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Also Built for Landlords and Operators with More Units
-        </h2>
-
-        <p>
-          Larger landlords and property operators have a different version of the
-          same problem. They may already have more people involved, more tenants
-          paying every month, and more operational complexity to manage.
-        </p>
-
-        <p>
-          In those cases, consistency becomes critical. A landlord payment system
-          should make the rent collection flow more uniform, not more scattered.
-          It should help tenants use one process, help managers see one system,
-          and help the property run with fewer payment surprises.
-        </p>
-
-        <p>
-          RentFray supports that by focusing on direct, structured online rent
-          collection rather than trying to bury the payment process under layers
-          of unrelated tools.
-        </p>
-      </section>
-
-      {/* PROPERTY TYPES */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Property Types That Can Use This Payment System
-        </h2>
-
-        <p>
-          RentFray works well anywhere recurring rent or tenant payments need to
-          be collected in a structured way.
-        </p>
-
-        <ul className="space-y-2">
-          <li>â€¢ Apartment buildings and apartment communities</li>
-          <li>â€¢ Duplexes and small rental portfolios</li>
-          <li>â€¢ Mobile home parks</li>
-          <li>â€¢ RV parks</li>
-          <li>â€¢ Self-storage facilities</li>
-          <li>â€¢ Mixed portfolios with multiple property types</li>
-        </ul>
-
-        <p>
-          The exact property type matters less than the payment pattern. If you
-          need recurring payments collected clearly and consistently, a landlord
-          payment system like RentFray can help.
-        </p>
-      </section>
-
-      {/* TRUST MONEY FLOW */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Where the Money Goes and Why That Clarity Matters
-        </h2>
-
-        <p>
-          One of the most important questions landlords have about any payment
-          system is simple: where does the money go after the tenant pays?
-        </p>
-
-        <p>
-          With RentFray, payments are processed securely and routed to the
-          connected payout account for the property. That keeps the money flow
-          direct and easier to understand.
-        </p>
-
-        <p>
-          Clarity here matters. A landlord payment system should not feel vague
-          about how rent payments move. It should give owners confidence that the
-          payment path is structured, legitimate, and built for actual rent
-          collection rather than casual peer-to-peer transfers.
-        </p>
-
-        <p>
-          Tenants benefit from that too. A clearer payment path feels more
-          professional and more trustworthy than improvised payment habits.
-        </p>
-      </section>
-
-      {/* COMPARISONS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          RentFray vs Other Ways Landlords Collect Rent
-        </h2>
-
-        <div className="space-y-6 text-slate-700">
-          <div>
-            <p className="font-semibold">RentFray vs Checks</p>
-            <p className="mt-2">
-              Checks are familiar, but they are slow and easy to delay. They also
-              create extra handling and tracking work. A landlord payment system
-              replaces that with a direct online payment path that is easier to
-              repeat each month.
+            <p>
+              RentFray is built around the rental relationship. The payment
+              process and the information a landlord needs to manage rent live
+              in the same system.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Cash</p>
-            <p className="mt-2">
-              Cash is difficult to document cleanly and easy to mishandle from a
-              recordkeeping standpoint. Online rent collection gives landlords a
-              stronger structure and a clearer transaction trail.
+          <div className="mt-5">
+            <Link
+              href="/landlord-rent-payment-options"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Compare landlord rent payment options →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Payment Visibility After the Tenant Pays
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Receiving the payment is only part of rent collection.
+              Landlords also need to know whether a payment is still
+              processing, whether the tenant has an outstanding balance, and
+              which accounts require attention.
+            </p>
+
+            <p>
+              RentFray keeps payment status and tenant balances visible so the
+              landlord does not have to reconstruct the month from bank
+              deposits, messages, and a separate spreadsheet.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Venmo or Cash App</p>
-            <p className="mt-2">
-              Generic money transfer apps may look convenient, but they are not a
-              true landlord payment system. They are not built around rent
-              collection workflows, property-specific payment structure, or a
-              dedicated tenant payment experience.
+          <div className="mt-5">
+            <Link
+              href="/rent-tracking-software"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn about rent payment tracking →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Secure Payment Processing Through Stripe
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              RentFray uses Stripe for payment processing. This gives the
+              payment flow established payment infrastructure while allowing
+              RentFray to stay focused on the rent collection experience.
+            </p>
+
+            <p>
+              RentFray does not store tenant banking information and does not
+              hold tenant funds.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            One Payment Process Instead of Several
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Rent collection becomes harder to follow when one tenant pays by
+              check, another uses a transfer app, and another uses a different
+              method entirely. The landlord ends up managing both the money
+              and the collection process around it.
+            </p>
+
+            <p>
+              A dedicated landlord payment system creates a consistent process
+              tenants can use each month. That consistency makes payment
+              activity easier to understand and reduces the number of separate
+              places a landlord has to check.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            No App Download Required for Tenants
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              Tenants can use RentFray through a web browser. They do not need
+              to install a dedicated mobile app simply to submit their rent
+              payment.
+            </p>
+
+            <p>
+              That keeps the tenant side focused on the task that matters:
+              accessing their rent information and making the payment.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">RentFray vs Spreadsheets</p>
-            <p className="mt-2">
-              Spreadsheets can help you record information manually, but they do
-              not solve the actual payment process. Landlords still have to chase
-              money, confirm receipts, and update records by hand. RentFray makes
-              the payment process itself more organized.
+          <div className="mt-5">
+            <Link
+              href="/tenant-payment-portal"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              See the tenant payment experience →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            $0 Monthly Software Fee for Landlords
+          </h2>
+
+          <p className="mt-4 text-slate-600">
+            RentFray has no monthly software fee for landlords or property
+            managers. There is no recurring software subscription required to
+            use the rent collection platform.
+          </p>
+
+          <p className="mt-3 text-slate-600">
+            Tenants pay a small processing fee when they submit payments.
+          </p>
+
+          <div className="mt-5">
+            <Link
+              href="/free-rent-collection-software-no-monthly-fee"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Learn about the RentFray pricing model →
+            </Link>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Payment System or Rent Collection Software?
+          </h2>
+
+          <div className="mt-4 space-y-4 text-slate-600">
+            <p>
+              The terms overlap, but they describe slightly different needs.
+              A landlord searching for a payment system is usually focused on
+              how tenants submit money and how the landlord receives and
+              monitors those payments.
+            </p>
+
+            <p>
+              Rent collection software describes the broader workflow around
+              recurring rent, including balances, payment status, and ongoing
+              account management.
+            </p>
+
+            <p>
+              RentFray handles both, but separating the concepts makes it
+              easier to choose the information most relevant to what you are
+              trying to solve.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">
-              RentFray vs Large Property Management Software
-            </p>
-            <p className="mt-2">
-              Large software platforms can be useful in some cases, but they often
-              bring more setup, more cost, and more complexity than a landlord
-              really needs if the main goal is online rent collection. RentFray
-              stays more focused, which helps it stay simpler.
-            </p>
+          <div className="mt-5">
+            <Link
+              href="/rent-collection-software-landlords"
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Explore rent collection software for landlords →
+            </Link>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* BENEFITS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Benefits of a Dedicated Landlord Payment System
-        </h2>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
 
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>Cleaner monthly rent collection:</strong> Tenants have one
-            clear way to pay instead of a mix of methods.
-          </p>
+          <div className="mt-6 space-y-6">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-semibold">{item.question}</h3>
+                <p className="mt-2 text-slate-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-          <p>
-            <strong>Better payment visibility:</strong> Landlords can more easily
-            see what is happening and reduce guesswork.
-          </p>
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Related Rent Payment Resources
+          </h2>
 
-          <p>
-            <strong>Less manual work:</strong> Fewer spreadsheets, fewer reminders,
-            and less ad hoc reconciliation.
-          </p>
-
-          <p>
-            <strong>More professional experience:</strong> A structured system
-            feels more legitimate to both owners and tenants.
-          </p>
-
-          <p>
-            <strong>Works across devices:</strong> Tenants can pay online from
-            a phone, tablet, or computer.
-          </p>
-
-          <p>
-            <strong>No monthly fee burden for landlords:</strong> RentFray is
-            designed to stay free for the business side.
-          </p>
-        </div>
-      </section>
-
-      {/* LONG TAIL */}
-      <section className="mb-12 space-y-4 text-slate-700">
-        <h2 className="text-2xl font-semibold">
-          Looking for the Best Payment System for Landlords?
-        </h2>
-
-        <p>
-          For many owners, the best payment system for landlords is not the
-          biggest platform. It is the system that tenants can actually use,
-          landlords can actually understand, and properties can actually run on
-          every single month without unnecessary friction.
-        </p>
-
-        <p>
-          That is why focused rent collection software often wins. Instead of
-          overwhelming landlords with everything under the sun, it makes the core
-          process clearer: collect rent online, track what is happening, and keep
-          the payment flow organized.
-        </p>
-
-        <p>
-          If you are searching for a landlord payment system because you are tired
-          of checks, cash, spreadsheets, or inconsistent digital methods, the
-          value of a simpler system becomes obvious very quickly.
-        </p>
-
-        <p>
-          RentFray is built for that exact moment.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">
-          Frequently Asked Questions
-        </h2>
-
-        <div className="space-y-4 text-slate-700">
-          <p>
-            <strong>What is a landlord payment system?</strong>
-            <br />
-            A landlord payment system is a platform that helps property owners
-            collect rent payments online and manage recurring payment flow more
-            clearly.
-          </p>
-
-          <p>
-            <strong>Why do landlords use online payment systems?</strong>
-            <br />
-            They reduce reliance on checks, cash, and manual tracking while making
-            rent collection more consistent.
-          </p>
-
-          <p>
-            <strong>Is RentFray free for landlords?</strong>
-            <br />
-            Yes. RentFray is designed so landlords do not pay a monthly fee.
-          </p>
-
-          <p>
-            <strong>Can tenants pay online from their phone?</strong>
-            <br />
-            Yes. The system works across devices, including phones.
-          </p>
-
-          <p>
-            <strong>Do tenants need to download an app?</strong>
-            <br />
-            No. The payment experience works through the browser.
-          </p>
-
-          <p>
-            <strong>Is this good for small landlords?</strong>
-            <br />
-            Yes. It is especially helpful for small landlords who want a simple,
-            direct online rent collection process.
-          </p>
-
-          <p>
-            <strong>Does this work for larger properties too?</strong>
-            <br />
-            Yes. It also works for landlords and operators with more units who
-            need a consistent payment system.
-          </p>
-
-          <p>
-            <strong>How do tenants start using it?</strong>
-            <br />
-            Tenants use the property code to activate and make payments through
-            the online system.
-          </p>
-
-          <p>
-            <strong>Why not just use Venmo or Cash App?</strong>
-            <br />
-            Those are generic transfer tools, not structured landlord payment
-            systems built for recurring rent collection.
-          </p>
-
-          <p>
-            <strong>Why not keep using spreadsheets?</strong>
-            <br />
-            Spreadsheets still require manual updates and do not solve the payment
-            process itself.
-          </p>
-
-          <p>
-            <strong>How fast can I get started?</strong>
-            <br />
-            The goal is quick self-serve setup with minimal friction.
-          </p>
-
-          <p>
-            <strong>What kinds of properties can use this?</strong>
-            <br />
-            Apartments, duplexes, mobile home parks, RV parks, self-storage
-            facilities, and other recurring-payment properties can all use RentFray.
-          </p>
-        </div>
-      </section>
-
-      {/* INTERNAL LINKS */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-semibold">Explore More</h2>
-
-        <div className="space-y-3 text-slate-700">
-          <p>
-            Want a broader overview? Visit{" "}
+          <div className="mt-4 flex flex-col gap-3">
             <Link
               href="/online-rent-payment-system"
               className="text-blue-600 hover:underline"
             >
               Online Rent Payment System
             </Link>
-            .
-          </p>
 
-          <p>
-            Looking for a page focused on collecting rent digitally? See{" "}
-            <Link
-              href="/collect-rent-online"
-              className="text-blue-600 hover:underline"
-            >
-              Collect Rent Online
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the app-style angle? Read{" "}
-            <Link
-              href="/rent-payment-app"
-              className="text-blue-600 hover:underline"
-            >
-              Rent Payment App
-            </Link>
-            .
-          </p>
-
-          <p>
-            Want the tenant-facing experience? Visit{" "}
-            <Link
-              href="/tenant-payment-portal"
-              className="text-blue-600 hover:underline"
-            >
-              Tenant Payment Portal
-            </Link>
-            .
-          </p>
-
-          <p>
-            Interested in the pricing model? Read{" "}
-            <Link
-              href="/free-rent-collection-software"
-              className="text-blue-600 hover:underline"
-            >
-              Free Rent Collection Software
-            </Link>
-            .
-          </p>
-
-          <p>
-            If you run apartments specifically, see{" "}
-            <Link
-              href="/online-rent-payment-system-apartments"
-              className="text-blue-600 hover:underline"
-            >
-              Online Rent Payment System for Apartments
-            </Link>
-            .
-          </p>
-
-          <p>
-            If you want a landlord-specific software page, visit{" "}
             <Link
               href="/rent-collection-software-landlords"
               className="text-blue-600 hover:underline"
             >
               Rent Collection Software for Landlords
             </Link>
-            .
+
+            <Link
+              href="/collect-rent-online"
+              className="text-blue-600 hover:underline"
+            >
+              Collect Rent Online
+            </Link>
+
+            <Link
+              href="/tenant-payment-portal"
+              className="text-blue-600 hover:underline"
+            >
+              Tenant Payment Portal
+            </Link>
+
+            <Link
+              href="/landlord-rent-payment-options"
+              className="text-blue-600 hover:underline"
+            >
+              Landlord Rent Payment Options
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-slate-900 p-7 text-white">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Give Your Property a Consistent Rent Payment Process
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-slate-200">
+            Use RentFray to collect rent online while keeping tenant balances
+            and payment status organized in one focused system.
           </p>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h3 className="text-xl font-semibold">
-          Use a Landlord Payment System That Keeps Rent Collection Simple
-        </h3>
-
-        <p className="mt-2 text-slate-600">
-          No monthly fees for landlords. No unnecessary complexity. Just a better
-          way to collect rent online.
-        </p>
-
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-white hover:bg-slate-800"
-        >
-          Create Free Account
-        </Link>
-      </section>
-    </main>
+          <Link
+            href="/setup"
+            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Create a Free Account
+          </Link>
+        </section>
+      </main>
+    </>
   );
 }

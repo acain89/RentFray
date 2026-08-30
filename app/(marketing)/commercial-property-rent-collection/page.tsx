@@ -1,4 +1,4 @@
-﻿// app/commercial-property-rent-collection/page.tsx
+// app/commercial-property-rent-collection/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function CommercialPropertyRentCollectionPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Commercial Property Rent Collection â€” A Simpler Way to Collect Rent
+          Commercial Property Rent Collection — A Simpler Way to Collect Rent
           Online
         </h1>
 
@@ -77,13 +77,13 @@ export default function CommercialPropertyRentCollectionPage() {
         <p>Usually, what they actually want is simple:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ One clear way for commercial tenants to pay rent online</li>
-          <li>â€¢ Better visibility into who has paid and who has not</li>
-          <li>â€¢ Less dependence on checks, cash, wires, and manual follow-up</li>
-          <li>â€¢ A more repeatable monthly collection workflow</li>
-          <li>â€¢ Fewer spreadsheets and fewer side systems</li>
-          <li>â€¢ A payment process that feels professional and easy to explain</li>
-          <li>â€¢ A tool that does not require training just to use it</li>
+          <li>• One clear way for commercial tenants to pay rent online</li>
+          <li>• Better visibility into who has paid and who has not</li>
+          <li>• Less dependence on checks, cash, wires, and manual follow-up</li>
+          <li>• A more repeatable monthly collection workflow</li>
+          <li>• Fewer spreadsheets and fewer side systems</li>
+          <li>• A payment process that feels professional and easy to explain</li>
+          <li>• A tool that does not require training just to use it</li>
         </ul>
 
         <p>
@@ -147,14 +147,14 @@ export default function CommercialPropertyRentCollectionPage() {
       {/* PAIN AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Rent Collection Itself â€” It Is the Friction
+          The Real Problem Is Not Rent Collection Itself — It Is the Friction
           Around It
         </h2>
 
         <p>
           Many owners tolerate a messy payment routine for too long because it
           technically works. Rent eventually comes in. Tenants eventually pay.
-          Records eventually get updated. But â€œeventuallyâ€ is where a lot of
+          Records eventually get updated. But “eventually” is where a lot of
           wasted time lives.
         </p>
 
@@ -163,12 +163,12 @@ export default function CommercialPropertyRentCollectionPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ Checking different places to confirm whether money arrived</li>
-          <li>â€¢ Sending reminders manually</li>
-          <li>â€¢ Updating spreadsheets after the fact</li>
-          <li>â€¢ Matching payments to tenants by hand</li>
-          <li>â€¢ Explaining payment instructions repeatedly</li>
-          <li>â€¢ Rebuilding a reliable picture of the month from scattered data</li>
+          <li>• Checking different places to confirm whether money arrived</li>
+          <li>• Sending reminders manually</li>
+          <li>• Updating spreadsheets after the fact</li>
+          <li>• Matching payments to tenants by hand</li>
+          <li>• Explaining payment instructions repeatedly</li>
+          <li>• Rebuilding a reliable picture of the month from scattered data</li>
         </ul>
 
         <p>
@@ -317,7 +317,7 @@ export default function CommercialPropertyRentCollectionPage() {
         <p>
           Maybe different tenants keep paying in different ways. Maybe payments
           technically arrive, but the recordkeeping process is scattered. Maybe
-          reminders have to be sent too often. Maybe the current method â€œworks,â€
+          reminders have to be sent too often. Maybe the current method “works,”
           but only because someone keeps manually holding it together every
           month.
         </p>
@@ -597,14 +597,14 @@ export default function CommercialPropertyRentCollectionPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ best way to collect commercial rent online</li>
-          <li>â€¢ commercial property rent collection software</li>
-          <li>â€¢ online rent payment system for commercial tenants</li>
-          <li>â€¢ how to track commercial tenant payments</li>
-          <li>â€¢ free commercial rent collection system</li>
-          <li>â€¢ easy commercial property payment platform</li>
-          <li>â€¢ simple commercial rent tracking system</li>
-          <li>â€¢ software for collecting commercial rent</li>
+          <li>• best way to collect commercial rent online</li>
+          <li>• commercial property rent collection software</li>
+          <li>• online rent payment system for commercial tenants</li>
+          <li>• how to track commercial tenant payments</li>
+          <li>• free commercial rent collection system</li>
+          <li>• easy commercial property payment platform</li>
+          <li>• simple commercial rent tracking system</li>
+          <li>• software for collecting commercial rent</li>
         </ul>
 
         <p>

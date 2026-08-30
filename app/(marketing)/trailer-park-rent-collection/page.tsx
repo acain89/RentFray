@@ -1,4 +1,4 @@
-﻿// app/trailer-park-rent-collection/page.tsx
+// app/trailer-park-rent-collection/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function TrailerParkRentCollectionPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Trailer Park Rent Collection â€” A Simpler Way to Collect Rent Online
+          Trailer Park Rent Collection — A Simpler Way to Collect Rent Online
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -76,13 +76,13 @@ export default function TrailerParkRentCollectionPage() {
         <p>Usually, what they actually want is simple:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ One clear way for residents to pay lot rent online</li>
-          <li>â€¢ Better visibility into who has paid and who has not</li>
-          <li>â€¢ Less dependence on checks, cash, and manual follow-up</li>
-          <li>â€¢ A more repeatable monthly collection workflow</li>
-          <li>â€¢ Fewer spreadsheets and fewer side systems</li>
-          <li>â€¢ A payment process that feels easy to explain and easy to repeat</li>
-          <li>â€¢ A tool that does not require training just to use it</li>
+          <li>• One clear way for residents to pay lot rent online</li>
+          <li>• Better visibility into who has paid and who has not</li>
+          <li>• Less dependence on checks, cash, and manual follow-up</li>
+          <li>• A more repeatable monthly collection workflow</li>
+          <li>• Fewer spreadsheets and fewer side systems</li>
+          <li>• A payment process that feels easy to explain and easy to repeat</li>
+          <li>• A tool that does not require training just to use it</li>
         </ul>
 
         <p>
@@ -142,7 +142,7 @@ export default function TrailerParkRentCollectionPage() {
       {/* PAIN AMPLIFICATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Real Problem Is Not Rent Itself â€” It Is the Friction Around It
+          The Real Problem Is Not Rent Itself — It Is the Friction Around It
         </h2>
 
         <p>
@@ -155,12 +155,12 @@ export default function TrailerParkRentCollectionPage() {
         <p>Every workaround adds drag:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ Checking different places to confirm whether money arrived</li>
-          <li>â€¢ Sending reminders manually</li>
-          <li>â€¢ Updating spreadsheets after the fact</li>
-          <li>â€¢ Matching payments to residents by hand</li>
-          <li>â€¢ Explaining payment instructions repeatedly</li>
-          <li>â€¢ Rebuilding a reliable picture of the month from scattered data</li>
+          <li>• Checking different places to confirm whether money arrived</li>
+          <li>• Sending reminders manually</li>
+          <li>• Updating spreadsheets after the fact</li>
+          <li>• Matching payments to residents by hand</li>
+          <li>• Explaining payment instructions repeatedly</li>
+          <li>• Rebuilding a reliable picture of the month from scattered data</li>
         </ul>
 
         <p>
@@ -584,14 +584,14 @@ export default function TrailerParkRentCollectionPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ best way to collect trailer park rent online</li>
-          <li>â€¢ trailer park rent collection software</li>
-          <li>â€¢ online trailer park rent payments</li>
-          <li>â€¢ mobile home park lot rent payment system</li>
-          <li>â€¢ simple trailer park rent tracking system</li>
-          <li>â€¢ free trailer park rent collection system</li>
-          <li>â€¢ how to track trailer park resident payments</li>
-          <li>â€¢ easy lot rent payment platform</li>
+          <li>• best way to collect trailer park rent online</li>
+          <li>• trailer park rent collection software</li>
+          <li>• online trailer park rent payments</li>
+          <li>• mobile home park lot rent payment system</li>
+          <li>• simple trailer park rent tracking system</li>
+          <li>• free trailer park rent collection system</li>
+          <li>• how to track trailer park resident payments</li>
+          <li>• easy lot rent payment platform</li>
         </ul>
 
         <p>

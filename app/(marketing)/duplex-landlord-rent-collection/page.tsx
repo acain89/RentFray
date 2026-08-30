@@ -1,4 +1,4 @@
-﻿// app/duplex-landlord-rent-collection/page.tsx
+// app/duplex-landlord-rent-collection/page.tsx
 
 import Link from "next/link";
 
@@ -17,7 +17,7 @@ export default function DuplexLandlordRentCollectionPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Duplex Landlord Rent Collection â€” A Simpler Way to Collect Rent Online
+          Duplex Landlord Rent Collection — A Simpler Way to Collect Rent Online
         </h1>
 
         <p className="mt-4 text-lg text-slate-600">
@@ -60,11 +60,11 @@ export default function DuplexLandlordRentCollectionPage() {
         <p>Usually, what they really want is simple:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ A clear way for tenants to pay rent online</li>
-          <li>â€¢ Less dependence on checks, cash, and manual reminders</li>
-          <li>â€¢ Better visibility into who has paid and who has not</li>
-          <li>â€¢ Less spreadsheet work and less payment confusion</li>
-          <li>â€¢ A rent collection process that feels easy to repeat each month</li>
+          <li>• A clear way for tenants to pay rent online</li>
+          <li>• Less dependence on checks, cash, and manual reminders</li>
+          <li>• Better visibility into who has paid and who has not</li>
+          <li>• Less spreadsheet work and less payment confusion</li>
+          <li>• A rent collection process that feels easy to repeat each month</li>
         </ul>
 
         <p>

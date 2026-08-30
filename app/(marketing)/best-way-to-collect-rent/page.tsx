@@ -1,4 +1,4 @@
-﻿// app/best-way-to-collect-rent/page.tsx
+// app/best-way-to-collect-rent/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function BestWayToCollectRentPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Best Way to Collect Rent â€” A Simpler, Cleaner Way to Run the Monthly
+          Best Way to Collect Rent — A Simpler, Cleaner Way to Run the Monthly
           Rent Cycle
         </h1>
 
@@ -67,11 +67,11 @@ export default function BestWayToCollectRentPage() {
       {/* INTENT BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search â€œBest Way to Collect Rentâ€
+          What People Usually Mean When They Search “Best Way to Collect Rent”
         </h2>
 
         <p>
-          Most landlords are not searching for the â€œbest wayâ€ because they want
+          Most landlords are not searching for the “best way” because they want
           the most advanced tool. They are searching because the current process
           is costing too much time, too much attention, or too much monthly
           friction.
@@ -80,11 +80,11 @@ export default function BestWayToCollectRentPage() {
         <p>Usually, they are really asking questions like:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ What is the easiest way to get tenants to pay on time?</li>
-          <li>â€¢ What is the cleanest way to track who paid and who did not?</li>
-          <li>â€¢ How do I stop relying on checks, cash, and spreadsheets?</li>
-          <li>â€¢ What rent collection setup is simple but still organized?</li>
-          <li>â€¢ How do I collect rent without software bloat?</li>
+          <li>• What is the easiest way to get tenants to pay on time?</li>
+          <li>• What is the cleanest way to track who paid and who did not?</li>
+          <li>• How do I stop relying on checks, cash, and spreadsheets?</li>
+          <li>• What rent collection setup is simple but still organized?</li>
+          <li>• How do I collect rent without software bloat?</li>
         </ul>
 
         <p>
@@ -226,8 +226,8 @@ export default function BestWayToCollectRentPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ Stay manual and keep patching the month together</li>
-          <li>â€¢ Adopt a giant software platform they do not actually want</li>
+          <li>• Stay manual and keep patching the month together</li>
+          <li>• Adopt a giant software platform they do not actually want</li>
         </ul>
 
         <p>
@@ -244,12 +244,12 @@ export default function BestWayToCollectRentPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ One clear payment path for tenants</li>
-          <li>â€¢ Better monthly visibility</li>
-          <li>â€¢ Less manual follow-up</li>
-          <li>â€¢ Less spreadsheet dependence</li>
-          <li>â€¢ A simpler recurring workflow</li>
-          <li>â€¢ No unnecessary software bloat</li>
+          <li>• One clear payment path for tenants</li>
+          <li>• Better monthly visibility</li>
+          <li>• Less manual follow-up</li>
+          <li>• Less spreadsheet dependence</li>
+          <li>• A simpler recurring workflow</li>
+          <li>• No unnecessary software bloat</li>
         </ul>
 
         <p>
@@ -409,7 +409,7 @@ export default function BestWayToCollectRentPage() {
       {/* USE CASE SEGMENTATION */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Best Way to Collect Rent Depends on the Property â€” But the Core
+          The Best Way to Collect Rent Depends on the Property — But the Core
           Need Stays the Same
         </h2>
 
@@ -634,14 +634,14 @@ export default function BestWayToCollectRentPage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ best way to collect rent</li>
-          <li>â€¢ easiest way to collect rent from tenants</li>
-          <li>â€¢ best rent collection method for landlords</li>
-          <li>â€¢ simple online rent collection system</li>
-          <li>â€¢ cleanest way to collect rent monthly</li>
-          <li>â€¢ best rent payment setup for landlords</li>
-          <li>â€¢ organized tenant payment system</li>
-          <li>â€¢ how landlords should collect rent</li>
+          <li>• best way to collect rent</li>
+          <li>• easiest way to collect rent from tenants</li>
+          <li>• best rent collection method for landlords</li>
+          <li>• simple online rent collection system</li>
+          <li>• cleanest way to collect rent monthly</li>
+          <li>• best rent payment setup for landlords</li>
+          <li>• organized tenant payment system</li>
+          <li>• how landlords should collect rent</li>
         </ul>
 
         <p>
@@ -740,7 +740,7 @@ export default function BestWayToCollectRentPage() {
           </p>
 
           <p>
-            <strong>What makes a rent collection system â€œthe bestâ€?</strong>
+            <strong>What makes a rent collection system “the best”?</strong>
             <br />
             Usually, it is not about having the most features. It is about
             making the monthly cycle clearer, simpler, and easier to manage.
@@ -846,7 +846,7 @@ export default function BestWayToCollectRentPage() {
       {/* CTA */}
       <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
         <h3 className="text-xl font-semibold">
-          Use the Best Way to Collect Rent â€” One That Actually Makes the Month
+          Use the Best Way to Collect Rent — One That Actually Makes the Month
           Easier
         </h3>
 

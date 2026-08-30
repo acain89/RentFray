@@ -1,4 +1,4 @@
-﻿// app/how-to-track-tenant-payments/page.tsx
+// app/how-to-track-tenant-payments/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function HowToTrackTenantPaymentsPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          How to Track Tenant Payments â€” A Simpler Way to Stop Rebuilding the
+          How to Track Tenant Payments — A Simpler Way to Stop Rebuilding the
           Month by Hand
         </h1>
 
@@ -57,8 +57,8 @@ export default function HowToTrackTenantPaymentsPage() {
       {/* INTENT BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search â€œHow to Track Tenant
-          Paymentsâ€
+          What People Usually Mean When They Search “How to Track Tenant
+          Payments”
         </h2>
 
         <p>
@@ -68,12 +68,12 @@ export default function HowToTrackTenantPaymentsPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ How do I know exactly who paid?</li>
-          <li>â€¢ How do I stop checking multiple places every month?</li>
-          <li>â€¢ How do I reduce spreadsheet work?</li>
-          <li>â€¢ How do I keep payment records organized?</li>
-          <li>â€¢ How do I track late or missing payments more clearly?</li>
-          <li>â€¢ How do I make the monthly process easier to repeat?</li>
+          <li>• How do I know exactly who paid?</li>
+          <li>• How do I stop checking multiple places every month?</li>
+          <li>• How do I reduce spreadsheet work?</li>
+          <li>• How do I keep payment records organized?</li>
+          <li>• How do I track late or missing payments more clearly?</li>
+          <li>• How do I make the monthly process easier to repeat?</li>
         </ul>
 
         <p>
@@ -227,11 +227,11 @@ export default function HowToTrackTenantPaymentsPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ One clear path for tenant payments</li>
-          <li>â€¢ Better visibility into status</li>
-          <li>â€¢ Less manual matching and updating</li>
-          <li>â€¢ Less dependence on scattered notes</li>
-          <li>â€¢ A simpler recurring workflow</li>
+          <li>• One clear path for tenant payments</li>
+          <li>• Better visibility into status</li>
+          <li>• Less manual matching and updating</li>
+          <li>• Less dependence on scattered notes</li>
+          <li>• A simpler recurring workflow</li>
         </ul>
 
         <p>
@@ -619,14 +619,14 @@ export default function HowToTrackTenantPaymentsPage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ how to track tenant payments</li>
-          <li>â€¢ best way to track rent payments</li>
-          <li>â€¢ simple tenant payment tracking system</li>
-          <li>â€¢ how landlords track tenant rent payments</li>
-          <li>â€¢ rent payment tracker for landlords</li>
-          <li>â€¢ easiest way to keep track of tenant payments</li>
-          <li>â€¢ online tenant payment tracking system</li>
-          <li>â€¢ landlord rent payment records</li>
+          <li>• how to track tenant payments</li>
+          <li>• best way to track rent payments</li>
+          <li>• simple tenant payment tracking system</li>
+          <li>• how landlords track tenant rent payments</li>
+          <li>• rent payment tracker for landlords</li>
+          <li>• easiest way to keep track of tenant payments</li>
+          <li>• online tenant payment tracking system</li>
+          <li>• landlord rent payment records</li>
         </ul>
 
         <p>

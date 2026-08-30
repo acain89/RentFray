@@ -1,4 +1,4 @@
-﻿// app/how-to-manage-rent-without-software/page.tsx
+// app/how-to-manage-rent-without-software/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          How to Manage Rent Without Software â€” And Why Manual Rent Management
+          How to Manage Rent Without Software — And Why Manual Rent Management
           Eventually Gets Harder Than It Looks
         </h1>
 
@@ -67,8 +67,8 @@ export default function HowToManageRentWithoutSoftwarePage() {
       {/* INTENT BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search â€œHow to Manage Rent Without
-          Softwareâ€
+          What People Usually Mean When They Search “How to Manage Rent Without
+          Software”
         </h2>
 
         <p>
@@ -81,11 +81,11 @@ export default function HowToManageRentWithoutSoftwarePage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ Can I keep rent collection simple without using a huge platform?</li>
-          <li>â€¢ Do I really need property management software to stay organized?</li>
-          <li>â€¢ Is there a lightweight way to handle monthly payments?</li>
-          <li>â€¢ How do I avoid software bloat but still keep records clean?</li>
-          <li>â€¢ How long can I keep doing this manually before it becomes a mess?</li>
+          <li>• Can I keep rent collection simple without using a huge platform?</li>
+          <li>• Do I really need property management software to stay organized?</li>
+          <li>• Is there a lightweight way to handle monthly payments?</li>
+          <li>• How do I avoid software bloat but still keep records clean?</li>
+          <li>• How long can I keep doing this manually before it becomes a mess?</li>
         </ul>
 
         <p>
@@ -96,7 +96,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
         </p>
 
         <p className="font-medium">
-          The truth is that most landlords do not want â€œno software.â€ They want
+          The truth is that most landlords do not want “no software.” They want
           no unnecessary software.
         </p>
       </section>
@@ -146,11 +146,11 @@ export default function HowToManageRentWithoutSoftwarePage() {
       {/* WHY OLD METHODS FAIL */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What â€œManaging Rent Without Softwareâ€ Usually Turns Into
+          What “Managing Rent Without Software” Usually Turns Into
         </h2>
 
         <p>
-          Most manual rent systems are not truly â€œsoftware-free.â€ They just use
+          Most manual rent systems are not truly “software-free.” They just use
           the wrong tools for the job.
         </p>
 
@@ -215,7 +215,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
 
         <p>
           So yes, you can manage rent without big property software. But the
-          usual â€œmanualâ€ alternatives often become a scattered system of partial
+          usual “manual” alternatives often become a scattered system of partial
           tools that still leave you doing the hard part yourself.
         </p>
       </section>
@@ -223,8 +223,8 @@ export default function HowToManageRentWithoutSoftwarePage() {
       {/* POSITIONING */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          The Better Answer Is Usually Not â€œNo Software.â€ It Is â€œNo Software
-          Bloat.â€
+          The Better Answer Is Usually Not “No Software.” It Is “No Software
+          Bloat.”
         </h2>
 
         <p>
@@ -233,8 +233,8 @@ export default function HowToManageRentWithoutSoftwarePage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ Stay fully manual and keep patching the month together</li>
-          <li>â€¢ Buy a giant property management platform they do not actually want</li>
+          <li>• Stay fully manual and keep patching the month together</li>
+          <li>• Buy a giant property management platform they do not actually want</li>
         </ul>
 
         <p>
@@ -257,8 +257,8 @@ export default function HowToManageRentWithoutSoftwarePage() {
 
         <p>
           So if your real goal is to manage rent simply, the answer is usually
-          not â€œavoid all software forever.â€ The answer is â€œuse the lightest,
-          clearest system that actually removes work.â€
+          not “avoid all software forever.” The answer is “use the lightest,
+          clearest system that actually removes work.”
         </p>
       </section>
 
@@ -308,7 +308,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
             </p>
             <p className="mt-2">
               A lot of landlords wait too long to change because the manual
-              process still â€œsort of works.â€ But if you are rebuilding the
+              process still “sort of works.” But if you are rebuilding the
               month, double-checking records, or constantly chasing clarity,
               manual management is already costing you.
             </p>
@@ -344,7 +344,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
       {/* SIMPLICITY */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          Why Simplicity Matters More Than â€œDoing It Yourselfâ€
+          Why Simplicity Matters More Than “Doing It Yourself”
         </h2>
 
         <p>
@@ -397,8 +397,8 @@ export default function HowToManageRentWithoutSoftwarePage() {
         </p>
 
         <p>
-          That is usually the tipping point. You are not looking for â€œmore
-          software.â€ You are looking for relief from repeated manual friction.
+          That is usually the tipping point. You are not looking for “more
+          software.” You are looking for relief from repeated manual friction.
         </p>
 
         <p>
@@ -514,7 +514,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
           <div>
             <p className="font-semibold">Manual Reminders vs Cleaner Recurring Process</p>
             <p className="mt-2">
-              Manual reminders keep the landlord too close to every monthâ€™s
+              Manual reminders keep the landlord too close to every month’s
               friction points. Cleaner systems reduce how often that kind of
               follow-up becomes necessary.
             </p>
@@ -635,14 +635,14 @@ export default function HowToManageRentWithoutSoftwarePage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ how to manage rent without software</li>
-          <li>â€¢ simple rent collection without big software</li>
-          <li>â€¢ best way to manage rent manually</li>
-          <li>â€¢ how landlords collect rent without property management software</li>
-          <li>â€¢ manage rent without spreadsheets</li>
-          <li>â€¢ lightweight rent collection system</li>
-          <li>â€¢ simple online rent collection for landlords</li>
-          <li>â€¢ no software bloat rent system</li>
+          <li>• how to manage rent without software</li>
+          <li>• simple rent collection without big software</li>
+          <li>• best way to manage rent manually</li>
+          <li>• how landlords collect rent without property management software</li>
+          <li>• manage rent without spreadsheets</li>
+          <li>• lightweight rent collection system</li>
+          <li>• simple online rent collection for landlords</li>
+          <li>• no software bloat rent system</li>
         </ul>
 
         <p>

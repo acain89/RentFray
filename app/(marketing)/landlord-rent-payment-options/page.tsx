@@ -1,4 +1,4 @@
-﻿// app/landlord-rent-payment-options/page.tsx
+// app/landlord-rent-payment-options/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function LandlordRentPaymentOptionsPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Landlord Rent Payment Options â€” Which Ones Actually Make Monthly Rent
+          Landlord Rent Payment Options — Which Ones Actually Make Monthly Rent
           Collection Easier?
         </h1>
 
@@ -66,8 +66,8 @@ export default function LandlordRentPaymentOptionsPage() {
       {/* INTENT BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search â€œLandlord Rent Payment
-          Optionsâ€
+          What People Usually Mean When They Search “Landlord Rent Payment
+          Options”
         </h2>
 
         <p>
@@ -79,11 +79,11 @@ export default function LandlordRentPaymentOptionsPage() {
         <p>Usually, they are asking things like:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ What is the best way for tenants to pay rent?</li>
-          <li>â€¢ Which rent payment method is easiest for landlords to manage?</li>
-          <li>â€¢ What options reduce late payments and manual follow-up?</li>
-          <li>â€¢ How do I stop relying on checks, cash, and spreadsheets?</li>
-          <li>â€¢ What is the cleanest online rent payment option?</li>
+          <li>• What is the best way for tenants to pay rent?</li>
+          <li>• Which rent payment method is easiest for landlords to manage?</li>
+          <li>• What options reduce late payments and manual follow-up?</li>
+          <li>• How do I stop relying on checks, cash, and spreadsheets?</li>
+          <li>• What is the cleanest online rent payment option?</li>
         </ul>
 
         <p>
@@ -134,15 +134,15 @@ export default function LandlordRentPaymentOptionsPage() {
 
         <p>
           That is why landlords who are serious about simplifying rent
-          collection usually stop asking only â€œHow can tenants pay?â€ and start
-          asking â€œWhich option actually makes the month easier to manage?â€
+          collection usually stop asking only “How can tenants pay?” and start
+          asking “Which option actually makes the month easier to manage?”
         </p>
       </section>
 
       {/* OPTION BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          Common Landlord Rent Payment Options â€” and Where They Usually Fall
+          Common Landlord Rent Payment Options — and Where They Usually Fall
           Short
         </h2>
 
@@ -237,11 +237,11 @@ export default function LandlordRentPaymentOptionsPage() {
         <p>That means:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ One obvious path for tenants to pay rent</li>
-          <li>â€¢ Better visibility into what has been paid</li>
-          <li>â€¢ Less manual matching and spreadsheet work</li>
-          <li>â€¢ Less dependence on checks, cash, and side notes</li>
-          <li>â€¢ A recurring process that is easier to repeat every month</li>
+          <li>• One obvious path for tenants to pay rent</li>
+          <li>• Better visibility into what has been paid</li>
+          <li>• Less manual matching and spreadsheet work</li>
+          <li>• Less dependence on checks, cash, and side notes</li>
+          <li>• A recurring process that is easier to repeat every month</li>
         </ul>
 
         <p>
@@ -313,7 +313,7 @@ export default function LandlordRentPaymentOptionsPage() {
               Step 5: Avoid software that feels heavier than the job
             </p>
             <p className="mt-2">
-              The answer is not always â€œmore software.â€ It is better software.
+              The answer is not always “more software.” It is better software.
               A focused rent system often works better than a bloated all-in-one
               platform.
             </p>
@@ -392,8 +392,8 @@ export default function LandlordRentPaymentOptionsPage() {
         </p>
 
         <p>
-          That is usually the tipping point. You are not just looking for â€œmore
-          ways to get paid.â€ You are looking for a way to stop carrying so much
+          That is usually the tipping point. You are not just looking for “more
+          ways to get paid.” You are looking for a way to stop carrying so much
           of the monthly process yourself.
         </p>
 
@@ -467,7 +467,7 @@ export default function LandlordRentPaymentOptionsPage() {
       {/* COMPARISON */}
       <section className="mb-12">
         <h2 className="mb-4 text-2xl font-semibold">
-          Landlord Rent Payment Options â€” Side by Side
+          Landlord Rent Payment Options — Side by Side
         </h2>
 
         <div className="space-y-6 text-slate-700">
@@ -632,14 +632,14 @@ export default function LandlordRentPaymentOptionsPage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ landlord rent payment options</li>
-          <li>â€¢ best rent payment method for landlords</li>
-          <li>â€¢ easiest way for tenants to pay rent</li>
-          <li>â€¢ online rent payment options for landlords</li>
-          <li>â€¢ simple rent collection options</li>
-          <li>â€¢ best tenant payment system for landlords</li>
-          <li>â€¢ rent payment methods for rental properties</li>
-          <li>â€¢ organized online rent collection option</li>
+          <li>• landlord rent payment options</li>
+          <li>• best rent payment method for landlords</li>
+          <li>• easiest way for tenants to pay rent</li>
+          <li>• online rent payment options for landlords</li>
+          <li>• simple rent collection options</li>
+          <li>• best tenant payment system for landlords</li>
+          <li>• rent payment methods for rental properties</li>
+          <li>• organized online rent collection option</li>
         </ul>
 
         <p>

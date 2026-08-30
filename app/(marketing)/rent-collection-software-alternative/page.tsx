@@ -1,4 +1,4 @@
-﻿// app/rent-collection-software-alternatives/page.tsx
+// app/rent-collection-software-alternatives/page.tsx
 
 import Link from "next/link";
 
@@ -18,7 +18,7 @@ export default function RentCollectionSoftwareAlternativesPage() {
       {/* HERO */}
       <section className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Rent Collection Software Alternatives â€” A Simpler Way to Collect Rent
+          Rent Collection Software Alternatives — A Simpler Way to Collect Rent
           Without the Usual Software Bloat
         </h1>
 
@@ -47,7 +47,7 @@ export default function RentCollectionSoftwareAlternativesPage() {
 
         <p className="mt-4 text-slate-700">
           In other words, the best rent collection software alternative is
-          usually not â€œmore software.â€ It is less friction.
+          usually not “more software.” It is less friction.
         </p>
 
         <div className="mt-6">
@@ -63,8 +63,8 @@ export default function RentCollectionSoftwareAlternativesPage() {
       {/* INTENT BREAKDOWN */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          What People Usually Mean When They Search â€œRent Collection Software
-          Alternativesâ€
+          What People Usually Mean When They Search “Rent Collection Software
+          Alternatives”
         </h2>
 
         <p>
@@ -73,16 +73,16 @@ export default function RentCollectionSoftwareAlternativesPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ Is there a simpler way to collect rent without using bloated software?</li>
-          <li>â€¢ Can I replace checks, spreadsheets, and payment confusion without buying a giant platform?</li>
-          <li>â€¢ What is a better alternative to heavy rent collection software?</li>
-          <li>â€¢ Is there a self-serve option that landlords can actually use easily?</li>
-          <li>â€¢ Can I get a cleaner monthly workflow without paying for software overload?</li>
+          <li>• Is there a simpler way to collect rent without using bloated software?</li>
+          <li>• Can I replace checks, spreadsheets, and payment confusion without buying a giant platform?</li>
+          <li>• What is a better alternative to heavy rent collection software?</li>
+          <li>• Is there a self-serve option that landlords can actually use easily?</li>
+          <li>• Can I get a cleaner monthly workflow without paying for software overload?</li>
         </ul>
 
         <p>
           That is the real intent behind the search. Most landlords do not want
-          â€œalternativesâ€ just for the sake of alternatives. They want a rent
+          “alternatives” just for the sake of alternatives. They want a rent
           collection process that feels lighter, clearer, and easier to trust.
         </p>
 
@@ -127,8 +127,8 @@ export default function RentCollectionSoftwareAlternativesPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ It leaves too much of the process manual</li>
-          <li>â€¢ It replaces manual work with software bloat</li>
+          <li>• It leaves too much of the process manual</li>
+          <li>• It replaces manual work with software bloat</li>
         </ul>
 
         <p>
@@ -140,7 +140,7 @@ export default function RentCollectionSoftwareAlternativesPage() {
       {/* WHY COMMON OPTIONS FALL SHORT */}
       <section className="mb-12 space-y-4 text-slate-700">
         <h2 className="text-2xl font-semibold">
-          Why Many Rent Collection â€œSolutionsâ€ Still Fall Short
+          Why Many Rent Collection “Solutions” Still Fall Short
         </h2>
 
         <p>
@@ -197,7 +197,7 @@ export default function RentCollectionSoftwareAlternativesPage() {
           </div>
 
           <div>
-            <p className="font-semibold">â€œFreeâ€ Tools That Create More Work</p>
+            <p className="font-semibold">“Free” Tools That Create More Work</p>
             <p className="mt-2">
               Some free tools sound appealing, but if they still leave you
               using reminders, notes, spreadsheets, and side processes to hold
@@ -226,8 +226,8 @@ export default function RentCollectionSoftwareAlternativesPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ Stay with a messy manual process</li>
-          <li>â€¢ Switch to a giant property software platform</li>
+          <li>• Stay with a messy manual process</li>
+          <li>• Switch to a giant property software platform</li>
         </ul>
 
         <p>
@@ -244,12 +244,12 @@ export default function RentCollectionSoftwareAlternativesPage() {
         </p>
 
         <ul className="space-y-2">
-          <li>â€¢ One clear payment path for tenants</li>
-          <li>â€¢ Better monthly payment visibility</li>
-          <li>â€¢ Less spreadsheet work</li>
-          <li>â€¢ Less manual follow-up</li>
-          <li>â€¢ No software bloat</li>
-          <li>â€¢ A cleaner self-serve experience</li>
+          <li>• One clear payment path for tenants</li>
+          <li>• Better monthly payment visibility</li>
+          <li>• Less spreadsheet work</li>
+          <li>• Less manual follow-up</li>
+          <li>• No software bloat</li>
+          <li>• A cleaner self-serve experience</li>
         </ul>
 
         <p>
@@ -395,8 +395,8 @@ export default function RentCollectionSoftwareAlternativesPage() {
         </p>
 
         <p>
-          That is usually the tipping point. You are not looking for â€œadvanced
-          features.â€ You are looking for relief from repeated admin clutter.
+          That is usually the tipping point. You are not looking for “advanced
+          features.” You are looking for relief from repeated admin clutter.
         </p>
 
         <p>
@@ -631,14 +631,14 @@ export default function RentCollectionSoftwareAlternativesPage() {
         <p>If you are searching for phrases like these, you are in the right place:</p>
 
         <ul className="space-y-2">
-          <li>â€¢ rent collection software alternatives</li>
-          <li>â€¢ best alternative to rent collection software</li>
-          <li>â€¢ simpler rent collection platform</li>
-          <li>â€¢ rent payment software without bloat</li>
-          <li>â€¢ lightweight rent collection system</li>
-          <li>â€¢ easy online rent collection for landlords</li>
-          <li>â€¢ landlord software alternative for collecting rent</li>
-          <li>â€¢ self-serve rent collection system</li>
+          <li>• rent collection software alternatives</li>
+          <li>• best alternative to rent collection software</li>
+          <li>• simpler rent collection platform</li>
+          <li>• rent payment software without bloat</li>
+          <li>• lightweight rent collection system</li>
+          <li>• easy online rent collection for landlords</li>
+          <li>• landlord software alternative for collecting rent</li>
+          <li>• self-serve rent collection system</li>
         </ul>
 
         <p>
