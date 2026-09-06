@@ -8,11 +8,13 @@ export default function TenantInstructionsPage() {
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
             RentFray
           </div>
+
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
             Tenant Instructions
           </h1>
+
           <p className="mt-2 text-sm text-slate-600">
-            Follow these 6 easy steps to access your tenant portal.
+            Follow these easy steps to access your tenant portal.
           </p>
         </div>
 
@@ -22,29 +24,51 @@ export default function TenantInstructionsPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-            <div className="font-semibold">2) Click on "Enter your property."</div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
-              3) Type in the property code management gives you.
+              2) Click "Sign In"{" "}
+              <span className="font-normal text-slate-600">
+                (top-right corner of the screen).
+              </span>
             </div>
+
             <div className="mt-4 text-sm text-slate-600">Property Code:</div>
+
             <div className="mt-2 h-10 rounded-xl border border-dashed border-slate-400 bg-white" />
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
-  5) Select Tier{" "}
-  <span className="inline-block w-12 border-b border-slate-400 mx-1" />{" "}
-  ${" "}
-  <span className="inline-block w-16 border-b border-slate-400 mx-1" />{" "}
-  and create your account.
-</div>
-</div>
+              3) First time using RentFray?
+            </div>
+
+            <div className="mt-2 font-semibold">
+              Click "First Time Tenant Use" to create your account.
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
-              6) Use your login to view and pay balances, and submit maintenance requests.
+              4) Select your Tier{" "}
+              <span className="mx-1 inline-block w-12 border-b border-slate-400" />{" "}
+              ${" "}
+              <span className="mx-1 inline-block w-16 border-b border-slate-400" />
+            </div>
+
+            <div className="mt-2 text-sm text-slate-600">
+              Then follow the prompts to create your account.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+            <div className="font-semibold">
+              5) After creating your account, click "Tenant" to log in.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+            <div className="font-semibold">
+              6) Going forward, click "Tenant" and use your login to view your
+              balance and make payments.
             </div>
           </div>
         </div>
