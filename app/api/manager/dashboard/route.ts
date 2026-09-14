@@ -10,7 +10,7 @@ import {
 
 import { formatCentsToDollars } from "@/lib/billingConfig";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
-import { getUnitStatus } from "@/lib/unitStatusEngine";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -736,7 +736,7 @@ for (const unit of units) {
     let manualPaidCount = 0;
     let totalPaidCount = 0;
 
-    const resolvedUnits = units.map((unit: DashboardUnit) => {
+    const resolvedUnits = await Promise.all(units.map(async (unit: DashboardUnit) => {
       const assignment = unit.tenantAssignments[0] ?? null;
 
       if (!assignment) {
@@ -763,17 +763,6 @@ for (const unit of units) {
 
       occupiedUnits++;
 
-      const effective = resolveEffectiveBillingSettings({
-        tier: unit.tier,
-        propertySettings: property.settings,
-      });
-
-      const rentDates = getRentDateSummary({
-        ...effective,
-        now,
-        rentFrayStartDate: property.rentFrayStartDate,
-      });
-
       const unitPayments = paymentsByUnit.get(unit.id) ?? [];
       const unitLedgerEntries = ledgerEntriesByUnit.get(unit.id) ?? [];
       const unitNextEntries = nextEntriesByUnit.get(unit.id) ?? [];
@@ -783,81 +772,40 @@ for (const unit of units) {
           !entry.tenantAssignmentId || entry.tenantAssignmentId === assignment.id
       );
 
-      const ledger = buildLedgerSummary({
-        entries: assignmentLedgerEntries,
+      const financialState = await getUnitFinancialState({
+        propertyId: property.id,
+        unitId: unit.id,
+        tenantAssignmentId: assignment.id,
+        tier: unit.tier,
+        propertySettings: property.settings,
         rentFrayStartDate: property.rentFrayStartDate,
+        now,
       });
 
-      const rawLedgerBalanceCents = Math.max(0, ledger.balanceCents);
+      const rentDates = financialState.rentDates;
+      const ledger = financialState.ledgerSummary;
+      const rawLedgerBalanceCents = financialState.ledgerBalanceCents;
+      const isDelinquent = financialState.isDelinquent;
+      const daysPastDue = financialState.daysPastDue;
+      const unitStatus = financialState.status;
 
       const assignmentPayments = unitPayments.filter(
-  (payment) => payment.tenantAssignmentId === assignment.id
-);
+        (payment) => payment.tenantAssignmentId === assignment.id
+      );
 
-const cyclePayments = assignmentPayments.filter(
-  (payment) => payment.billingCycle === rentDates.billingCycle
-);
-
-const cyclePaymentFlags = getCyclePaymentFlags(
-  assignmentPayments.filter(
-    (payment) =>
-      payment.billingCycle === rentDates.billingCycle ||
-      String(payment.status ?? "").toUpperCase() === "PENDING"
-  )
-);
-
-      const effectiveBalanceCents = cyclePaymentFlags.hasPendingPayment
-        ? 0
-        : rawLedgerBalanceCents;
-
-      const dueDate = parseDateOnly(rentDates.dueDate);
-      const graceEndsOn = parseDateOnly(rentDates.graceEndsOn);
-
-      const isPastGracePeriod =
-        !cyclePaymentFlags.hasPendingPayment &&
-        effectiveBalanceCents > 0 &&
-        rentDates.isDelinquent === true;
-
-      const isWithinGracePeriod =
-        !cyclePaymentFlags.hasPendingPayment &&
-        effectiveBalanceCents > 0 &&
-        !isPastGracePeriod;
-
-      const daysPastDue =
-        isPastGracePeriod && dueDate ? diffDays(now, dueDate) : 0;
-
-      const isDelinquent = isPastGracePeriod;
+      const cyclePayments = assignmentPayments.filter(
+        (payment) => payment.billingCycle === rentDates.billingCycle
+      );
 
       const paidCyclePayments = cyclePayments.filter(
         (payment) => String(payment.status).toUpperCase() === "PAID"
       );
 
-const currentCycleExpectedCents = assignmentLedgerEntries
-  .filter((entry) => {
-    if (entry.billingCycle !== rentDates.billingCycle) {
-      return false;
-    }
+      const currentCycleExpectedCents =
+        ledger.currentCycleRentChargesCents +
+        ledger.currentCycleRecurringChargesCents;
 
-    const entryType = normalizeLedgerEntryType(entry.entryType);
-    const chargeType = String(entry.chargeType ?? "")
-      .trim()
-      .toUpperCase();
-
-    return (
-      entryType === "CHARGE" &&
-      chargeType !== "PROCESSING_FEE" &&
-      chargeType !== "LATE_FEE" &&
-      chargeType !== "LATE_FEE_INITIAL" &&
-      chargeType !== "LATE_FEE_DAILY"
-    );
-  })
-  .reduce(
-    (sum, entry) =>
-      sum + Math.max(0, toSafeInteger(entry.amountCents)),
-    0
-  );    
-
-totalExpectedCents += Math.max(0, currentCycleExpectedCents);
+      totalExpectedCents += Math.max(0, currentCycleExpectedCents);
 
       const cyclePaidCents = paidCyclePayments.reduce(
         (sum, payment) => sum + Math.max(0, toSafeInteger(payment.amountCents)),
@@ -867,20 +815,23 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
       totalCollectedCents += cyclePaidCents;
 
       totalLateFeesCollectedCents += getLateFeesCollectedCents({
-  entries: assignmentLedgerEntries,
-  billingCycle: rentDates.billingCycle,
-  paidCents: cyclePaidCents,
-});
+        entries: assignmentLedgerEntries,
+        billingCycle: rentDates.billingCycle,
+        paidCents: cyclePaidCents,
+      });
 
-      if (!cyclePaymentFlags.hasPendingPayment && isDelinquent) {
+      if (!financialState.hasPendingPayment && isDelinquent) {
         delinquentCount++;
       }
 
-      if (cyclePaymentFlags.hasPendingPayment) {
+      if (financialState.hasPendingPayment) {
         // Pending = neither paid nor unpaid.
       } else if (rawLedgerBalanceCents > 0) {
         unpaidUnitsCount++;
-      } else {
+      } else if (
+        currentCycleExpectedCents > 0 &&
+        financialState.hasPaidPayment
+      ) {
         totalPaidCount++;
 
         const hasManual = paidCyclePayments.some(
@@ -897,15 +848,6 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
         }
       }
 
-      const unitStatus = getUnitStatus({
-        balanceCents: effectiveBalanceCents,
-        hasPendingPayment: cyclePaymentFlags.hasPendingPayment,
-        hasFailedPayment: cyclePaymentFlags.hasFailedPayment,
-        hasReversedPayment: cyclePaymentFlags.hasReversedPayment,
-        isDelinquent,
-        isWithinGracePeriod,
-      });
-
       return {
         unitId: unit.id,
         unitNumber: unit.unitNumber,
@@ -919,7 +861,7 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
         totalPaid: formatCentsToDollars(ledger.totalPaidCents),
         isDelinquent,
         daysPastDue,
-        paymentStatus: unitStatus.paymentStatus,
+        paymentStatus: financialState.paymentStatus,
         displayStatus: unitStatus.status,
         statusColor: unitStatus.color,
         statusLabel: unitStatus.label,
@@ -942,7 +884,7 @@ totalExpectedCents += Math.max(0, currentCycleExpectedCents);
             billingCycle: entry.billingCycle,
           })),
       };
-    });
+    }));
 
     const totalExpected = Math.round(totalExpectedCents) / 100;
     const totalCollected = Math.round(totalCollectedCents) / 100;

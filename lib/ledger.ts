@@ -15,6 +15,8 @@ export type LedgerSummary = {
   currentCycleRentChargesCents: number;
   currentCycleLateFeeChargesCents: number;
   currentCycleRecurringChargesCents: number;
+  priorCycleOutstandingCents: number;
+  oldestOutstandingDueDate: Date | null;
 
   positiveAdjustmentsCents: number;
   negativeAdjustmentsCents: number;
@@ -27,6 +29,7 @@ export type LedgerSummary = {
   currentCycleRentCharges: number;
   currentCycleLateFeeCharges: number;
   currentCycleRecurringCharges: number;
+  priorCycleOutstanding: number;
 
   positiveAdjustments: number;
   negativeAdjustments: number;
@@ -128,6 +131,14 @@ function toSafeInteger(value: unknown): number {
   return Math.trunc(amount);
 }
 
+function isPriorBillingCycle(
+  entryBillingCycle: string | null,
+  currentBillingCycle?: string
+): boolean {
+  if (!currentBillingCycle || !entryBillingCycle) return false;
+  return entryBillingCycle < currentBillingCycle;
+}
+
 function getSignedImpactCents(
   entryType: LedgerEntryType,
   amountCents: number,
@@ -168,6 +179,7 @@ function getSignedImpactCents(
  * - Voided entries do not count.
  * - Future-dated entries after `asOf` do not count.
  * - The ledger does not silently hide invalid pre-start entries.
+ * - Reductions are applied FIFO against the oldest outstanding obligations.
  */
 export async function getUnitLedgerSummary(
   input: LedgerSummaryInput
@@ -252,6 +264,13 @@ export async function getUnitLedgerSummary(
   let currentCycleRentChargesCents = 0;
   let currentCycleLateFeeChargesCents = 0;
   let currentCycleRecurringChargesCents = 0;
+
+  const outstandingBuckets: Array<{
+    billingCycle: string | null;
+    effectiveDate: Date;
+    amountCents: number;
+  }> = [];
+
   let positiveAdjustmentsCents = 0;
   let negativeAdjustmentsCents = 0;
 
@@ -271,12 +290,21 @@ export async function getUnitLedgerSummary(
       continue;
     }
 
-    if (status === "PENDING") {
+    const isCurrentCyclePayment =
+      !input.billingCycle ||
+      payment.billingCycle === input.billingCycle;
+
+    if (
+      isCurrentCyclePayment &&
+      status === "PENDING"
+    ) {
       hasPendingPayment = true;
 
       pendingPaymentAmountCents += Math.max(
         0,
-        Math.abs(toSafeInteger(payment.amountCents))
+        Math.abs(
+          toSafeInteger(payment.amountCents)
+        )
       );
     }
 
@@ -318,60 +346,100 @@ export async function getUnitLedgerSummary(
       entry.payment?.status
     );
 
-    balanceCents += getSignedImpactCents(
-      entryType,
-      rawAmountCents,
-      paymentStatus
-    );
+    const signedImpactCents =
+      getSignedImpactCents(
+        entryType,
+        rawAmountCents,
+        paymentStatus
+      );
+
+    balanceCents += signedImpactCents;
+
+    /*
+     * FIFO outstanding-balance tracking.
+     *
+     * Positive ledger impacts create an obligation bucket.
+     * Negative impacts consume the oldest remaining bucket first.
+     *
+     * This allows the ledger to answer not only "what is owed?"
+     * but also "how old is the oldest debt that is still owed?"
+     */
+    if (signedImpactCents > 0) {
+      outstandingBuckets.push({
+        billingCycle: entry.billingCycle,
+        effectiveDate: entry.effectiveDate,
+        amountCents: signedImpactCents,
+      });
+    } else if (signedImpactCents < 0) {
+      let remainingCreditCents =
+        Math.abs(signedImpactCents);
+
+      for (const bucket of outstandingBuckets) {
+        if (remainingCreditCents <= 0) break;
+        if (bucket.amountCents <= 0) continue;
+
+        const appliedCents = Math.min(
+          bucket.amountCents,
+          remainingCreditCents
+        );
+
+        bucket.amountCents -= appliedCents;
+        remainingCreditCents -= appliedCents;
+      }
+    }
 
     switch (entryType) {
-     case "CHARGE": {
-  const chargeAmountCents = Math.abs(rawAmountCents);
-  totalChargesCents += chargeAmountCents;
+      case "CHARGE": {
+        const chargeAmountCents =
+          Math.abs(rawAmountCents);
 
-  if (
-    input.billingCycle &&
-    entry.billingCycle === input.billingCycle
-  ) {
-    const chargeType = String(
-      entry.chargeType ?? ""
-    )
-      .trim()
-      .toUpperCase();
+        totalChargesCents +=
+          chargeAmountCents;
 
-    if (chargeType === "RENT") {
-      currentCycleRentChargesCents +=
-        chargeAmountCents;
-    } else if (
-      chargeType === "LATE_FEE" ||
-      chargeType === "LATE_FEE_INITIAL" ||
-      chargeType === "LATE_FEE_DAILY"
-    ) {
-      currentCycleLateFeeChargesCents +=
-        chargeAmountCents;
-    } else if (
-      chargeType === "RECURRING_FEE" ||
-      chargeType === "RECURRING_CHARGE"
-    ) {
-      currentCycleRecurringChargesCents +=
-        chargeAmountCents;
-    }
-  }
+        if (
+          input.billingCycle &&
+          entry.billingCycle === input.billingCycle
+        ) {
+          const chargeType = String(
+            entry.chargeType ?? ""
+          )
+            .trim()
+            .toUpperCase();
 
-  break;
-}
+          if (chargeType === "RENT") {
+            currentCycleRentChargesCents +=
+              chargeAmountCents;
+          } else if (
+            chargeType === "LATE_FEE" ||
+            chargeType === "LATE_FEE_INITIAL" ||
+            chargeType === "LATE_FEE_DAILY"
+          ) {
+            currentCycleLateFeeChargesCents +=
+              chargeAmountCents;
+          } else if (
+            chargeType === "RECURRING_FEE" ||
+            chargeType === "RECURRING_CHARGE"
+          ) {
+            currentCycleRecurringChargesCents +=
+              chargeAmountCents;
+          }
+        }
+
+        break;
+      }
 
       case "CREDIT":
-        totalCreditsCents += Math.abs(rawAmountCents);
+        totalCreditsCents +=
+          Math.abs(rawAmountCents);
         break;
 
       case "ADJUSTMENT":
         if (rawAmountCents > 0) {
-          positiveAdjustmentsCents += rawAmountCents;
+          positiveAdjustmentsCents +=
+            rawAmountCents;
         } else if (rawAmountCents < 0) {
-          negativeAdjustmentsCents += Math.abs(
-            rawAmountCents
-          );
+          negativeAdjustmentsCents +=
+            Math.abs(rawAmountCents);
         }
         break;
 
@@ -383,13 +451,16 @@ export async function getUnitLedgerSummary(
         const paymentAmountCents =
           Math.abs(rawAmountCents);
 
-        totalPaidCents += paymentAmountCents;
+        totalPaidCents +=
+          paymentAmountCents;
 
         const effectiveDate = toSafeDate(
           entry.effectiveDate
         );
 
-        const createdAt = toSafeDate(entry.createdAt);
+        const createdAt = toSafeDate(
+          entry.createdAt
+        );
 
         if (!effectiveDate || !createdAt) {
           break;
@@ -399,11 +470,15 @@ export async function getUnitLedgerSummary(
           lastPaymentDate === null ||
           effectiveDate.getTime() >
             lastPaymentDate.getTime() ||
-          (effectiveDate.getTime() ===
-            lastPaymentDate.getTime() &&
-            (lastPaymentCreatedAt === null ||
+          (
+            effectiveDate.getTime() ===
+              lastPaymentDate.getTime() &&
+            (
+              lastPaymentCreatedAt === null ||
               createdAt.getTime() >
-                lastPaymentCreatedAt.getTime()));
+                lastPaymentCreatedAt.getTime()
+            )
+          );
 
         if (isLaterPayment) {
           lastPaymentDate = effectiveDate;
@@ -411,6 +486,7 @@ export async function getUnitLedgerSummary(
           lastPaymentAmountCents =
             paymentAmountCents;
         }
+
         break;
     }
   }
@@ -418,6 +494,36 @@ export async function getUnitLedgerSummary(
   const netAdjustmentsCents =
     positiveAdjustmentsCents -
     negativeAdjustmentsCents;
+
+  /*
+   * Because buckets were created in chronological ledger order and
+   * reductions were applied FIFO, the first bucket with money left
+   * is the oldest obligation that is still outstanding.
+   */
+  const oldestOutstandingDueDate =
+    outstandingBuckets.find(
+      (bucket) => bucket.amountCents > 0
+    )?.effectiveDate ?? null;
+
+  const priorCycleOutstandingCents =
+    input.billingCycle
+      ? outstandingBuckets.reduce(
+          (total, bucket) => {
+            if (
+              bucket.amountCents > 0 &&
+              isPriorBillingCycle(
+                bucket.billingCycle,
+                input.billingCycle
+              )
+            ) {
+              return total + bucket.amountCents;
+            }
+
+            return total;
+          },
+          0
+        )
+      : 0;
 
   return {
     balanceCents,
@@ -427,45 +533,69 @@ export async function getUnitLedgerSummary(
     currentCycleRentChargesCents,
     currentCycleLateFeeChargesCents,
     currentCycleRecurringChargesCents,
+    priorCycleOutstandingCents,
+    oldestOutstandingDueDate,
 
     positiveAdjustmentsCents,
     negativeAdjustmentsCents,
     netAdjustmentsCents,
 
-    balance: centsToDollars(balanceCents),
-    totalCharges: centsToDollars(
-      totalChargesCents
-    ),
-    totalCredits: centsToDollars(
-      totalCreditsCents
-    ),
-    totalPaid: centsToDollars(totalPaidCents),
-    currentCycleRentCharges: centsToDollars(
-    currentCycleRentChargesCents
-    ),
-    currentCycleLateFeeCharges: centsToDollars(
-    currentCycleLateFeeChargesCents
-    ),
-    currentCycleRecurringCharges: centsToDollars(
-    currentCycleRecurringChargesCents
-    ),
+    balance:
+      centsToDollars(balanceCents),
 
-    positiveAdjustments: centsToDollars(
-      positiveAdjustmentsCents
-    ),
-    negativeAdjustments: centsToDollars(
-      negativeAdjustmentsCents
-    ),
-    netAdjustments: centsToDollars(
-      netAdjustmentsCents
-    ),
+    totalCharges:
+      centsToDollars(totalChargesCents),
+
+    totalCredits:
+      centsToDollars(totalCreditsCents),
+
+    totalPaid:
+      centsToDollars(totalPaidCents),
+
+    currentCycleRentCharges:
+      centsToDollars(
+        currentCycleRentChargesCents
+      ),
+
+    currentCycleLateFeeCharges:
+      centsToDollars(
+        currentCycleLateFeeChargesCents
+      ),
+
+    currentCycleRecurringCharges:
+      centsToDollars(
+        currentCycleRecurringChargesCents
+      ),
+
+    priorCycleOutstanding:
+      centsToDollars(
+        priorCycleOutstandingCents
+      ),
+
+    positiveAdjustments:
+      centsToDollars(
+        positiveAdjustmentsCents
+      ),
+
+    negativeAdjustments:
+      centsToDollars(
+        negativeAdjustmentsCents
+      ),
+
+    netAdjustments:
+      centsToDollars(
+        netAdjustmentsCents
+      ),
 
     lastPaymentDate,
     lastPaymentAmountCents,
+
     lastPaymentAmount:
       lastPaymentAmountCents === null
         ? null
-        : centsToDollars(lastPaymentAmountCents),
+        : centsToDollars(
+            lastPaymentAmountCents
+          ),
 
     hasPendingPayment,
     pendingPaymentAmountCents,

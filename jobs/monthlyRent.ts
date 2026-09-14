@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient, type PropertyTierCharge } from "@prisma/client";
 import {
   assertTierBillingCalendar,
   BillingCalendarError,
@@ -6,7 +6,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   getBusinessDate,
-  getRentDateSummary,
+  getDueBillingCyclesThrough,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
@@ -55,14 +55,6 @@ type DueUnitPayload = {
   dueDate: Date;
 };
 
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function sameDay(a: Date, b: Date): boolean {
-  return startOfDay(a).getTime() === startOfDay(b).getTime();
-}
-
 function parseDateOnly(value: string): Date {
   const [yearRaw, monthRaw, dayRaw] = value.split("-");
   return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
@@ -72,12 +64,53 @@ function rentKey(unitId: string, billingCycle: string): string {
   return `${unitId}|${billingCycle}|RENT`;
 }
 
-function feeKey(unitId: string, billingCycle: string, memo: string): string {
-  return `${unitId}|${billingCycle}|RECURRING_FEE|${memo}`;
+function recurringMemoBucketKey(unitId: string, billingCycle: string): string {
+  return `${unitId}|${billingCycle}|RECURRING_FEE`;
+}
+
+function rentIdempotencyKey(unitId: string, billingCycle: string): string {
+  return `RENT:${unitId}:${billingCycle}`;
+}
+
+function unitRecurringFeeIdempotencyKey(
+  unitId: string,
+  billingCycle: string,
+  recurringFeeId: string
+): string {
+  return `UNIT_RECURRING_FEE:${unitId}:${billingCycle}:${recurringFeeId}`;
+}
+
+function tierRecurringFeeIdempotencyKey(
+  unitId: string,
+  billingCycle: string,
+  tierChargeId: string
+): string {
+  return `TIER_RECURRING_FEE:${unitId}:${billingCycle}:${tierChargeId}`;
 }
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function hasLegacyRecurringFee(
+  recurringMemosByBucket: Map<string, Set<string>>,
+  unitId: string,
+  billingCycle: string,
+  label: string
+): boolean {
+  const memos = recurringMemosByBucket.get(
+    recurringMemoBucketKey(unitId, billingCycle)
+  );
+
+  if (!memos) return false;
+
+  for (const memo of memos) {
+    if (memo === label || memo.startsWith(`${label} - `)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function acquireMonthlyRentLock(db: PrismaClient): Promise<boolean> {
@@ -113,6 +146,7 @@ async function createLedgerEntriesInChunks(
 
     const result = await prisma.ledgerEntry.createMany({
       data: chunk,
+      skipDuplicates: true,
     });
 
     created += result.count;
@@ -142,8 +176,6 @@ export async function runMonthlyRentJob(
       failures: [],
     };
   }
-
-  const today = getBusinessDate(asOf);
 
   let cursorId: string | undefined;
   let processedUnits = 0;
@@ -199,6 +231,33 @@ export async function runMonthlyRentJob(
       cursorId = units[units.length - 1]?.id;
       processedUnits += units.length;
 
+      const tierIds = Array.from(
+        new Set(
+          units
+            .map((unit) => unit.tier?.id ?? null)
+            .filter((tierId): tierId is string => Boolean(tierId))
+        )
+      );
+
+      const tierCharges =
+        tierIds.length > 0
+          ? await prisma.propertyTierCharge.findMany({
+              where: {
+                tierId: { in: tierIds },
+                isActive: true,
+              },
+              orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+            })
+          : [];
+
+      const tierChargesByTierId = new Map<string, PropertyTierCharge[]>();
+
+      for (const charge of tierCharges) {
+        const bucket = tierChargesByTierId.get(charge.tierId) ?? [];
+        bucket.push(charge);
+        tierChargesByTierId.set(charge.tierId, bucket);
+      }
+
       const dueUnitPayloads: DueUnitPayload[] = [];
 
       for (const unit of units) {
@@ -224,40 +283,50 @@ export async function runMonthlyRentJob(
 
           effective.dueDay = permanentDueDay;
 
-          const rentDates = getRentDateSummary({
-            ...effective,
-            now: today,
+          if (!unit.property.rentFrayStartDate) {
+            skippedNotDue++;
+            continue;
+          }
+
+          const dueCycles = getDueBillingCyclesThrough({
             rentFrayStartDate: unit.property.rentFrayStartDate,
+            dueDay: effective.dueDay,
+            now: asOf,
           });
 
-          if (!rentDates.hasStarted) {
+          if (dueCycles.length === 0) {
             skippedNotDue++;
             continue;
           }
 
-          const dueDate = parseDateOnly(rentDates.dueDate);
+          const assignmentStart = getBusinessDate(
+            assignment.moveInDate ?? assignment.createdAt
+          );
 
-          if (!sameDay(today, dueDate)) {
+          let unitHasEligibleCycle = false;
+
+          for (const cycle of dueCycles) {
+            const dueDate = parseDateOnly(cycle.dueDate);
+
+            if (assignmentStart.getTime() > dueDate.getTime()) {
+              skippedMoveInAfterDue++;
+              continue;
+            }
+
+            unitHasEligibleCycle = true;
+            dueUnits++;
+
+            dueUnitPayloads.push({
+              unit,
+              assignment,
+              billingCycle: cycle.billingCycle,
+              dueDate,
+            });
+          }
+
+          if (!unitHasEligibleCycle) {
             skippedNotDue++;
-            continue;
           }
-
-          if (
-            assignment.moveInDate &&
-            startOfDay(assignment.moveInDate).getTime() > dueDate.getTime()
-          ) {
-            skippedMoveInAfterDue++;
-            continue;
-          }
-
-          dueUnits++;
-
-          dueUnitPayloads.push({
-            unit,
-            assignment,
-            billingCycle: rentDates.billingCycle,
-            dueDate,
-          });
         } catch (error: unknown) {
           if (!(error instanceof BillingCalendarError)) {
             throw error;
@@ -283,14 +352,10 @@ export async function runMonthlyRentJob(
 
       if (dueUnitPayloads.length === 0) continue;
 
-      const dueUnitIds = dueUnitPayloads.map(
-        (item: DueUnitPayload) => item.unit.id
-      );
+      const dueUnitIds = dueUnitPayloads.map((item) => item.unit.id);
 
       const billingCycles = Array.from(
-        new Set(
-          dueUnitPayloads.map((item: DueUnitPayload) => item.billingCycle)
-        )
+        new Set(dueUnitPayloads.map((item) => item.billingCycle))
       );
 
       const existingEntries = await prisma.ledgerEntry.findMany({
@@ -306,13 +371,21 @@ export async function runMonthlyRentJob(
           billingCycle: true,
           chargeType: true,
           memo: true,
+          idempotencyKey: true,
         },
       });
 
       const existingRentKeys = new Set<string>();
-      const existingFeeKeys = new Set<string>();
+      const existingIdempotencyKeys = new Set<string>();
+      const recurringMemosByBucket = new Map<string, Set<string>>();
 
       for (const entry of existingEntries) {
+        if (entry.idempotencyKey) {
+          existingIdempotencyKeys.add(entry.idempotencyKey);
+        }
+
+        if (!entry.billingCycle) continue;
+
         const chargeType = String(entry.chargeType);
 
         if (chargeType === "RENT") {
@@ -321,9 +394,13 @@ export async function runMonthlyRentJob(
         }
 
         if (chargeType === "RECURRING_FEE") {
-          existingFeeKeys.add(
-            feeKey(entry.unitId, entry.billingCycle, entry.memo ?? "")
+          const bucketKey = recurringMemoBucketKey(
+            entry.unitId,
+            entry.billingCycle
           );
+          const bucket = recurringMemosByBucket.get(bucketKey) ?? new Set<string>();
+          bucket.add(entry.memo ?? "");
+          recurringMemosByBucket.set(bucketKey, bucket);
         }
       }
 
@@ -336,12 +413,17 @@ export async function runMonthlyRentJob(
         const baseRentCents = Math.max(0, unit.tier?.baseRentCents ?? 0);
 
         if (baseRentCents > 0) {
-          const key = rentKey(unit.id, billingCycle);
+          const legacyKey = rentKey(unit.id, billingCycle);
+          const idempotencyKey = rentIdempotencyKey(unit.id, billingCycle);
 
-          if (existingRentKeys.has(key)) {
+          if (
+            existingRentKeys.has(legacyKey) ||
+            existingIdempotencyKeys.has(idempotencyKey)
+          ) {
             existingChargesSkipped++;
           } else {
-            existingRentKeys.add(key);
+            existingRentKeys.add(legacyKey);
+            existingIdempotencyKeys.add(idempotencyKey);
 
             rentRows.push({
               propertyId: unit.propertyId,
@@ -353,6 +435,7 @@ export async function runMonthlyRentJob(
               billingCycle,
               effectiveDate: dueDate,
               memo: "Monthly Rent",
+              idempotencyKey,
             });
           }
         }
@@ -361,15 +444,30 @@ export async function runMonthlyRentJob(
           const amountCents = Math.max(0, fee.amountCents);
           if (amountCents <= 0) continue;
 
-          const memo = fee.label;
-          const key = feeKey(unit.id, billingCycle, memo);
+          const feeStartDate = getBusinessDate(fee.createdAt);
+          if (feeStartDate.getTime() > dueDate.getTime()) continue;
 
-          if (existingFeeKeys.has(key)) {
+          const memo = fee.label;
+          const idempotencyKey = unitRecurringFeeIdempotencyKey(
+            unit.id,
+            billingCycle,
+            fee.id
+          );
+
+          if (
+            existingIdempotencyKeys.has(idempotencyKey) ||
+            hasLegacyRecurringFee(
+              recurringMemosByBucket,
+              unit.id,
+              billingCycle,
+              memo
+            )
+          ) {
             existingChargesSkipped++;
             continue;
           }
 
-          existingFeeKeys.add(key);
+          existingIdempotencyKeys.add(idempotencyKey);
 
           recurringFeeRows.push({
             propertyId: unit.propertyId,
@@ -381,6 +479,46 @@ export async function runMonthlyRentJob(
             billingCycle,
             effectiveDate: dueDate,
             memo,
+            idempotencyKey,
+          });
+        }
+
+        const tierId = unit.tier?.id ?? null;
+        const applicableTierCharges = tierId
+          ? tierChargesByTierId.get(tierId) ?? []
+          : [];
+
+        for (const charge of applicableTierCharges) {
+          const amountCents = Math.max(0, charge.amountCents);
+          if (amountCents <= 0) continue;
+
+          const chargeStartDate = getBusinessDate(charge.effectiveDate);
+          if (chargeStartDate.getTime() > dueDate.getTime()) continue;
+
+          const idempotencyKey = tierRecurringFeeIdempotencyKey(
+            unit.id,
+            billingCycle,
+            charge.id
+          );
+
+          if (existingIdempotencyKeys.has(idempotencyKey)) {
+            existingChargesSkipped++;
+            continue;
+          }
+
+          existingIdempotencyKeys.add(idempotencyKey);
+
+          recurringFeeRows.push({
+            propertyId: unit.propertyId,
+            unitId: unit.id,
+            tenantAssignmentId: assignment.id,
+            entryType: "CHARGE",
+            chargeType: "RECURRING_FEE",
+            amountCents,
+            billingCycle,
+            effectiveDate: dueDate,
+            memo: charge.label,
+            idempotencyKey,
           });
         }
       }

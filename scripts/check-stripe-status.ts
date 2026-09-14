@@ -1,16 +1,22 @@
-import { PrismaClient } from "@prisma/client";
+﻿import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
-  const searchName = "Rosemont Berkeley Lake";
+  const propertyId = process.argv[2];
 
-  const property = await prisma.property.findFirst({
+  if (!propertyId) {
+    console.error("");
+    console.error("Usage:");
+    console.error("npx tsx scripts\check-stripe-status.ts <property-id>");
+    console.error("");
+    process.exitCode = 1;
+    return;
+  }
+
+  const property = await prisma.property.findUnique({
     where: {
-      name: {
-        contains: searchName,
-        mode: "insensitive",
-      },
+      id: propertyId,
     },
     select: {
       id: true,
@@ -37,7 +43,9 @@ async function main(): Promise<void> {
   });
 
   if (!property) {
-    console.log(`No property found matching "${searchName}".`);
+    console.log("");
+    console.log("No property found with ID: " + propertyId);
+    console.log("");
     return;
   }
 
@@ -46,14 +54,17 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log("========================================");
-  console.log(" RENTFRAY STRIPE STATUS — READ ONLY");
+  console.log(" RENTFRAY STRIPE STATUS - READ ONLY");
   console.log("========================================");
-  console.log(`Property:             ${property.name}`);
-  console.log(`Property code:        ${property.propertyCode}`);
-  console.log(`Property status:      ${property.status}`);
-  console.log(`Account created:      ${property.createdAt.toISOString()}`);
+  console.log("Property:             " + property.name);
+  console.log("Property ID:          " + property.id);
+  console.log("Property code:        " + (property.propertyCode ?? "NOT SET"));
+  console.log("Property status:      " + property.status);
+  console.log("Account created:      " + property.createdAt.toISOString());
   console.log("");
-  console.log(`Stripe account:       ${stripeAccountCreated ? "YES" : "NO"}`);
+  console.log(
+    "Stripe account:       " + (stripeAccountCreated ? "YES" : "NO"),
+  );
 
   if (!status) {
     console.log("Payment status row:   NOT FOUND");
@@ -65,29 +76,48 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Processor connected: ${status.processorConnected ? "YES" : "NO"}`,
+    "Processor connected:  " + (status.processorConnected ? "YES" : "NO"),
   );
-  console.log(`Bank connected:      ${status.bankConnected ? "YES" : "NO"}`);
-  console.log(`Charges enabled:     ${status.chargesEnabled ? "YES" : "NO"}`);
-  console.log(`Payouts enabled:     ${status.payoutsEnabled ? "YES" : "NO"}`);
+
   console.log(
-    `Stripe onboarding:   ${status.onboardingComplete ? "COMPLETE" : "INCOMPLETE"}`,
+    "Bank connected:       " + (status.bankConnected ? "YES" : "NO"),
   );
+
   console.log(
-    `Requirements due:    ${status.requirementsDue ? "YES" : "NO"}`,
+    "Charges enabled:      " + (status.chargesEnabled ? "YES" : "NO"),
   );
-  console.log(`Ready for live:       ${status.readyForLive ? "YES" : "NO"}`);
+
+  console.log(
+    "Payouts enabled:      " + (status.payoutsEnabled ? "YES" : "NO"),
+  );
+
+  console.log(
+    "Stripe onboarding:    " +
+      (status.onboardingComplete ? "COMPLETE" : "INCOMPLETE"),
+  );
+
+  console.log(
+    "Requirements due:     " + (status.requirementsDue ? "YES" : "NO"),
+  );
+
+  console.log(
+    "Ready for live:       " + (status.readyForLive ? "YES" : "NO"),
+  );
 
   if (status.requirementsSummary) {
-    console.log(`Requirements:         ${status.requirementsSummary}`);
+    console.log("Requirements:         " + status.requirementsSummary);
   }
 
   console.log(
-    `Last Stripe sync:     ${
-      status.lastSyncedAt
+    "Last Stripe sync:     " +
+      (status.lastSyncedAt
         ? status.lastSyncedAt.toISOString()
-        : "Never / not recorded"
-    }`,
+        : "Never / not recorded"),
+  );
+
+  console.log(
+    "Payment status update: " +
+      (status.updatedAt ? status.updatedAt.toISOString() : "Unknown"),
   );
 
   const fullyReady =

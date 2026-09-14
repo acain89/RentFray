@@ -134,6 +134,13 @@ async function main(): Promise<void> {
           portalActivated: true,
           createdAt: true,
           updatedAt: true,
+          tier: {
+            select: {
+              name: true,
+              baseRentCents: true,
+              isActive: true,
+            },
+          },
         },
       },
 
@@ -444,9 +451,22 @@ async function main(): Promise<void> {
     console.log("----------------------------------------------------");
 
     for (const unit of property.units) {
+      const effectiveBaseRentCents =
+        unit.baseRentCents ?? unit.tier?.baseRentCents ?? 0;
+      const rentSource =
+        unit.baseRentCents !== null && unit.baseRentCents !== undefined
+          ? "UNIT OVERRIDE"
+          : unit.tier
+            ? "TIER"
+            : "NONE";
+
       console.log(`Unit:                     ${unit.unitNumber}`);
       console.log(
-        `Base rent:                ${formatMoney(unit.baseRentCents)}`,
+        `Base rent:                ${formatMoney(effectiveBaseRentCents)}`,
+      );
+      console.log(`Rent source:              ${rentSource}`);
+      console.log(
+        `Tier:                     ${unit.tier?.name ?? "NOT SET"}`,
       );
       console.log(
         `Tenant portal activated:  ${yesNo(unit.portalActivated)}`,

@@ -32,6 +32,12 @@ export type RentDateSummary = {
   isDelinquent: boolean;
 };
 
+
+export type DueBillingCycle = {
+  billingCycle: string;
+  dueDate: string;
+};
+
 export type EffectiveBillingSettings = {
   dueDay: number;
   gracePeriodDays: number;
@@ -277,6 +283,53 @@ export function getBillingCycleKey(date: Date): string {
   return `${date.getFullYear()}-${String(
     date.getMonth() + 1
   ).padStart(2, "0")}`;
+}
+
+export function getDueBillingCyclesThrough(input: {
+  rentFrayStartDate: Date;
+  dueDay: number;
+  now?: Date;
+}): DueBillingCycle[] {
+  const rawNow = input.now ?? new Date();
+  const today = getBusinessDate(rawNow);
+  const dueDay = clampDueDay(input.dueDay);
+
+  let dueDate = createDateOnly(
+    input.rentFrayStartDate.getUTCFullYear(),
+    input.rentFrayStartDate.getUTCMonth() + 1,
+    input.rentFrayStartDate.getUTCDate()
+  );
+
+  const expectedStartDay = clampDay(
+    dueDate.getFullYear(),
+    dueDate.getMonth() + 1,
+    dueDay
+  );
+
+  if (dueDate.getDate() !== expectedStartDay) {
+    throw new Error(
+      [
+        "rentFrayStartDate must match the configured property due day.",
+        `start=${toDateOnlyString(dueDate)}`,
+        `startDay=${dueDate.getDate()}`,
+        `dueDay=${dueDay}`,
+        `expectedDay=${expectedStartDay}`,
+      ].join(" ")
+    );
+  }
+
+  const cycles: DueBillingCycle[] = [];
+
+  while (dueDate <= today) {
+    cycles.push({
+      billingCycle: getBillingCycleKey(dueDate),
+      dueDate: toDateOnlyString(dueDate),
+    });
+
+    dueDate = getNextScheduledDueDate(dueDate, dueDay);
+  }
+
+  return cycles;
 }
 
 export function getNextBillingCycleKey(

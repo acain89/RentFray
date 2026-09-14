@@ -315,6 +315,7 @@ model LedgerEntry {
   tenantAssignmentId        String?
   paymentId                 String?
   billingCycle              String?
+  idempotencyKey            String?           @unique
   entryType                 String
   chargeType                String?
   paymentMethod             String?
