@@ -206,7 +206,7 @@ export async function getUnitFinancialState(
         undefined,
 
       asOf:
-        now,
+        rawNow,
 
       billingCycle:
         rentDates.billingCycle,
