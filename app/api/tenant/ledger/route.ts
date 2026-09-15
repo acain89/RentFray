@@ -3,7 +3,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { getBusinessDate } from "@/lib/rentDates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +38,6 @@ export async function GET() {
       });
     }
 
-    const businessDate = getBusinessDate();
 
     const ledger = await prisma.ledgerEntry.findMany({
       where: {
@@ -48,7 +46,7 @@ export async function GET() {
         tenantAssignmentId: assignment.id,
         voidedAt: null,
         effectiveDate: {
-          lte: businessDate,
+          lte: new Date(),
         },
       },
       orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],

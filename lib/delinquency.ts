@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import {
+  getBusinessDate,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -119,11 +120,7 @@ const lateFeesOwedCents = Math.min(
   const isDelinquent =
     amountDueNowCents > 0 && rentDates.isDelinquent;
 
-  const today = new Date(
-    asOf.getFullYear(),
-    asOf.getMonth(),
-    asOf.getDate()
-  );
+ const today = getBusinessDate(asOf);
 
   const daysPastDue = isDelinquent ? diffDays(today, dueDate) : 0;
 

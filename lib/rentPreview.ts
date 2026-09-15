@@ -24,7 +24,7 @@ export function getRentPreview({
   marketRent,
   ledgerEntries,
 }: RentPreviewInput) {
-  const today = toDateOnly(new Date());
+  const rawNow = new Date();
 
   const rentDates = getRentDateSummary({
     dueDay: billingDay,
@@ -33,7 +33,7 @@ export function getRentPreview({
     lateFeeInitialCents: 0,
     lateFeeDailyCents: 0,
     maxLateFeeDays: 0,
-    now: today,
+    now: rawNow,
   });
 
 const cycleStart = parseDateOnly(rentDates.dueDate);
@@ -59,6 +59,6 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
     nextBillingDate,
     hasChargeThisCycle,
     upcomingCharge,
-    evaluatedAt: today,
+    evaluatedAt: rawNow,
   };
 }

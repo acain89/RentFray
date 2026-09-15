@@ -10,7 +10,6 @@ import { canMakePayments } from "@/lib/liveGating";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
 import {
-  getBusinessDate,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -226,7 +225,7 @@ const unitStatus = financialState.status;
 
     const latestPayment = tenantPayments[0] ?? null;
 
-       const businessDate = getBusinessDate();
+       const rawNow = new Date();
        const ledgerEntries = await prisma.ledgerEntry.findMany({
       where: {
        propertyId: session.propertyId,
@@ -242,7 +241,7 @@ const unitStatus = financialState.status;
 
        voidedAt: null,
        effectiveDate: {
-       lte: businessDate,
+       lte: rawNow,
         },
       },
       orderBy: [

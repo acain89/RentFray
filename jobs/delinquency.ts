@@ -9,7 +9,6 @@ import {
 import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 
 export async function runDelinquencyJob(asOf = new Date()) {
-  const today = getBusinessDate(asOf);
 
   const units = await prisma.unit.findMany({
     where: { isActive: true },
@@ -44,7 +43,7 @@ effective.dueDay = permanentDueDay;
 
     const rentDates = getRentDateSummary({
       ...effective,
-      now: today,
+      now: asOf,
       rentFrayStartDate: unit.property.rentFrayStartDate,
     });
 
@@ -53,7 +52,7 @@ effective.dueDay = permanentDueDay;
     const summary = await getUnitLedgerSummary({
       unitId: unit.id,
       tenantAssignmentId: assignment.id,
-      asOf: today,
+      asOf,
       billingCycle: rentDates.billingCycle,
     });
 

@@ -1,17 +1,15 @@
+// app/api/ledger/post-rent/route.ts
+
 import { NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
-import { Prisma } from "@prisma/client";
-import {
-  getBusinessDate,
-  getRentDateSummary,
-  resolveEffectiveBillingSettings,
-} from "@/lib/rentDates";
-import { assertTierBillingCalendar } from "@/lib/billingCalendar";
+import { runMonthlyRentJob } from "@/jobs/monthlyRent";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 type ApiSuccess<T> = {
   ok: true;
   data: T;
@@ -22,177 +20,149 @@ type ApiError = {
   error: string;
 };
 
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function getMonthLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function safeDate(d: Date): Date {
-  return Number.isNaN(d.getTime()) ? new Date() : d;
-}
-
 export async function POST() {
   try {
     const session = await getSession();
 
-    if (!session || !session.propertyId || !canManageFinancials(session.role)) {
+    if (
+      !session ||
+      !session.propertyId ||
+      !canManageFinancials(session.role)
+    ) {
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Unauthorized" },
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
         { status: 401 }
       );
     }
 
-    const property = await prisma.property.findUnique({
-      where: { id: session.propertyId },
-      include: {
-        settings: true,
-        units: {
-          where: { isActive: true },
-          include: {
-            tier: {
-              select: {
-                baseRentCents: true,
-                rentDueDay: true,
-                gracePeriodDays: true,
-                lateFeeInitialCents: true,
-                lateFeeDailyCents: true,
-                maxLateFeeDays: true,
-              },
-            },
-            tenantAssignments: {
-              where: { isCurrent: true },
-              orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-              take: 1,
-              select: { id: true },
-            },
-          },
-        },
-      },
-    });
+    const propertyId = session.propertyId;
+    const triggeredAt = new Date();
 
-    if (!property) {
+    /*
+     * IMPORTANT:
+     *
+     * Monthly rent and recurring obligations must have exactly one
+     * authoritative posting engine.
+     *
+     * Do not reproduce billing-cycle, due-date, assignment,
+     * recurring-charge, or idempotency logic in this route.
+     *
+     * runMonthlyRentJob() is the canonical obligation engine and
+     * receives the raw timestamp. It is responsible for:
+     *
+     * - RentFray business-date handling
+     * - locked billing-calendar enforcement
+     * - due-cycle determination
+     * - missed-cycle catch-up
+     * - tenant-assignment eligibility
+     * - base rent
+     * - unit recurring fees
+     * - tier recurring charges
+     * - ledger idempotency
+     *
+     * The propertyId scopes this manual trigger to the manager's
+     * authenticated property only.
+     */
+    const result = await runMonthlyRentJob(
+      triggeredAt,
+      propertyId
+    );
+
+    if (!result.ok) {
+      console.error(
+        "POST /api/ledger/post-rent canonical billing engine failed:",
+        result
+      );
+
       return NextResponse.json<ApiError>(
-        { ok: false, error: "Property not found" },
-        { status: 404 }
+        {
+          ok: false,
+          error: "Failed to post rent",
+        },
+        { status: 500 }
       );
     }
 
-    const now = getBusinessDate();
-    const effectiveDate = now;
-
-    let posted = 0;
-    let skipped = 0;
-
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      for (const unit of property.units) {
-        const assignment = unit.tenantAssignments[0] ?? null;
-
-        if (!assignment) {
-          skipped++;
-          continue;
-        }
-
-const permanentDueDay = assertTierBillingCalendar({
-  propertyId: property.id,
-  rentFrayStartDate: property.rentFrayStartDate,
-  propertySettingsDueDay: property.settings?.rentDueDay,
-  tier: unit.tier,
-});
-
-const effective = resolveEffectiveBillingSettings({
-  tier: unit.tier,
-  propertySettings: property.settings,
-});
-
-effective.dueDay = permanentDueDay;
-
-const rentDates = getRentDateSummary({
-         ...effective,
-         now,
-         rentFrayStartDate: property.rentFrayStartDate,
-         });
-
-        const billingCycle = rentDates.billingCycle;
-        const monthLabel = getMonthLabel(now);
-
-        const amountCents = unit.tier?.baseRentCents ?? 0;
-
-        if (amountCents <= 0) {
-          skipped++;
-          continue;
-        }
-
-        const exists = await tx.ledgerEntry.findFirst({
-          where: {
-            propertyId: property.id,
-            unitId: unit.id,
-            tenantAssignmentId: assignment.id,
-            entryType: "CHARGE",
-            chargeType: "RENT",
-            billingCycle,
-            voidedAt: null,
-          },
-          select: { id: true },
-        });
-
-        if (exists) {
-          skipped++;
-          continue;
-        }
-
-        await tx.ledgerEntry.create({
-          data: {
-            propertyId: property.id,
-            unitId: unit.id,
-            tenantAssignmentId: assignment.id,
-            entryType: "CHARGE",
-            chargeType: "RENT",
-            amountCents,
-            memo: `Monthly rent - ${monthLabel}`,
-            effectiveDate,
-            billingCycle,
-            createdByManagementUserId: session.managementUserId ?? null,
-          },
-        });
-
-        posted++;
-      }
-
-      await tx.auditLog.create({
-        data: {
-          propertyId: property.id,
-          actorType: "MANAGER",
-          actorManagementUserId: session.managementUserId ?? null,
-          action: "RENT_POSTED",
-          targetType: "PROPERTY",
-          targetId: property.id,
-          summary: `Rent posted on ${getMonthLabel(now)}`,
-          metadataJson: JSON.stringify({
-            posted,
-            skipped,
-            triggeredAt: effectiveDate.toISOString(),
-          }),
-        },
-      });
+    /*
+     * Preserve an audit record for the manager-triggered action.
+     *
+     * The financial entries themselves are created only by the
+     * canonical monthly obligation engine above.
+     */
+    await prisma.auditLog.create({
+      data: {
+        propertyId,
+        actorType: "MANAGER",
+        actorManagementUserId:
+          session.managementUserId ?? null,
+        action: "RENT_POSTED",
+        targetType: "PROPERTY",
+        targetId: propertyId,
+        summary: "Monthly obligations processed",
+        metadataJson: JSON.stringify({
+          triggeredAt: triggeredAt.toISOString(),
+          processedUnits: result.processedUnits,
+          dueUnits: result.dueUnits,
+          rentChargesCreated:
+            result.rentChargesCreated,
+          recurringFeeChargesCreated:
+            result.recurringFeeChargesCreated,
+          existingChargesSkipped:
+            result.existingChargesSkipped,
+          skippedNoTenant:
+            result.skippedNoTenant,
+          skippedNotDue:
+            result.skippedNotDue,
+          skippedMoveInAfterDue:
+            result.skippedMoveInAfterDue,
+          failedUnits: result.failedUnits,
+        }),
+      },
     });
 
-    return NextResponse.json<ApiSuccess<{ posted: number; skipped: number }>>({
+    /*
+     * Preserve the route's existing response shape so current UI
+     * callers do not need to change.
+     *
+     * "posted" remains rent charges specifically. Recurring charges
+     * are processed by the same canonical engine but are not counted
+     * as rent postings in this legacy response.
+     */
+    const posted = result.rentChargesCreated;
+
+    const skipped =
+      result.existingChargesSkipped +
+      result.skippedNoTenant +
+      result.skippedNotDue +
+      result.skippedMoveInAfterDue;
+
+    return NextResponse.json<
+      ApiSuccess<{
+        posted: number;
+        skipped: number;
+      }>
+    >({
       ok: true,
-      data: { posted, skipped },
+      data: {
+        posted,
+        skipped,
+      },
     });
-  } catch (error) {
-    console.error("POST /api/ledger/post-rent error:", error);
+  } catch (error: unknown) {
+    console.error(
+      "POST /api/ledger/post-rent error:",
+      error
+    );
 
     return NextResponse.json<ApiError>(
-      { ok: false, error: "Failed to post rent" },
+      {
+        ok: false,
+        error: "Failed to post rent",
+      },
       { status: 500 }
     );
   }
 }
-
