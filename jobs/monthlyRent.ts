@@ -6,6 +6,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   getBusinessDate,
+  getBusinessDateInstant,
   getDueBillingCyclesThrough,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -55,10 +56,6 @@ type DueUnitPayload = {
   dueDate: Date;
 };
 
-function parseDateOnly(value: string): Date {
-  const [yearRaw, monthRaw, dayRaw] = value.split("-");
-  return new Date(Number(yearRaw), Number(monthRaw) - 1, Number(dayRaw));
-}
 
 function rentKey(unitId: string, billingCycle: string): string {
   return `${unitId}|${billingCycle}|RENT`;
@@ -306,7 +303,7 @@ export async function runMonthlyRentJob(
           let unitHasEligibleCycle = false;
 
           for (const cycle of dueCycles) {
-            const dueDate = parseDateOnly(cycle.dueDate);
+            const dueDate = getBusinessDateInstant(cycle.dueDate);
 
             if (assignmentStart.getTime() > dueDate.getTime()) {
               skippedMoveInAfterDue++;

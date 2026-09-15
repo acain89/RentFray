@@ -3699,11 +3699,6 @@ await loadDashboard({ silent: true });
             description: "Change grace periods and late fee behavior.",
             panel: "gplf" as const,
           },
-          {
-            label: "Charges",
-            description: "Change the recurring charges like utilities or extra fees.",
-            panel: "charges" as const,
-          },
         ]}
         openPanel={openPanel}
       />

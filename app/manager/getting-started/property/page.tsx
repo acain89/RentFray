@@ -313,6 +313,9 @@ export default function PropertyInformationPage() {
                 <option value="MULTIFAMILY">
                   Apartments / Multifamily
                 </option>
+                <option value="RENT_HOUSES">
+                 Rent Houses
+                </option>
                 <option value="MOBILE_HOME">
                   Mobile Home Park
                 </option>

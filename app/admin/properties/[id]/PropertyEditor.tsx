@@ -204,9 +204,11 @@ export default function PropertyEditor({ property }: PropertyEditorProps) {
             onChange={(e) => setPropertyType(e.target.value)}
           >
             <option value="MULTIFAMILY">Multifamily</option>
+            <option value="RENT_HOUSES">Rent Houses</option>
             <option value="MOBILE_HOME">Mobile Home Park</option>
             <option value="RV_PARK">RV Park</option>
             <option value="SELF_STORAGE">Self Storage</option>
+            <option value="BHPH">Buy Here Pay Here Car Lot</option>
             <option value="OTHER">Other</option>
           </select>
         </div>

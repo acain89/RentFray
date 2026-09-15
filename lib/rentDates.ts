@@ -60,6 +60,105 @@ export function getBusinessDate(now: Date = new Date()): Date {
   return createDateOnly(year, month, day);
 }
 
+export function getBusinessDateInstant(
+  value: string
+): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+    String(value).trim()
+  );
+
+  if (!match) {
+    throw new Error(
+      `Invalid RentFray business date: ${value}`
+    );
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth(year, month)
+  ) {
+    throw new Error(
+      `Invalid RentFray business date: ${value}`
+    );
+  }
+
+  /*
+   * Convert midnight in America/Chicago to a real UTC instant.
+   *
+   * Start from UTC midnight for the requested calendar date, determine
+   * the Chicago UTC offset at that point, then apply the offset. Repeat
+   * once using the resulting instant so DST boundaries resolve correctly.
+   */
+  const utcMidnight = Date.UTC(
+    year,
+    month - 1,
+    day,
+    0,
+    0,
+    0,
+    0
+  );
+
+  const getOffsetMs = (instant: Date): number => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(instant);
+
+    const values: Record<string, string> = {};
+
+    for (const part of parts) {
+      if (part.type !== "literal") {
+        values[part.type] = part.value;
+      }
+    }
+
+    const representedAsUtc = Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour),
+      Number(values.minute),
+      Number(values.second)
+    );
+
+    return representedAsUtc - instant.getTime();
+  };
+
+  const firstOffset = getOffsetMs(
+    new Date(utcMidnight)
+  );
+
+  let result = new Date(
+    utcMidnight - firstOffset
+  );
+
+  const resolvedOffset = getOffsetMs(result);
+
+  if (resolvedOffset !== firstOffset) {
+    result = new Date(
+      utcMidnight - resolvedOffset
+    );
+  }
+
+  return result;
+}
+
 export function formatRentFrayDate(
   value: Date | string | null | undefined
 ): string {

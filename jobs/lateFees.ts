@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { BillingCalendarError } from "@/lib/billingCalendar";
-import { getBusinessDate } from "@/lib/rentDates";
+import {
+  getBusinessDate,
+  getBusinessDateInstant,
+} from "@/lib/rentDates";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
 function startOfDay(date: Date): Date {
@@ -9,23 +12,6 @@ function startOfDay(date: Date): Date {
 
 function isoDay(date: Date): string {
   return startOfDay(date).toISOString().slice(0, 10);
-}
-
-function parseDateOnly(value: string | null): Date | null {
-  if (!value) return null;
-
-  const [yearRaw, monthRaw, dayRaw] = value.split("-");
-  const year = Number(yearRaw);
-  const month = Number(monthRaw);
-  const day = Number(dayRaw);
-
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  const date = new Date(year, month - 1, day);
-
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function addDays(date: Date, days: number): Date {
@@ -177,17 +163,26 @@ export async function runLateFeesJob(
       continue;
     }
 
-    const initialLateFeeDate = parseDateOnly(
-      financialState.rentDates.initialLateFeeDate
-    );
+const initialLateFeeDate =
+  financialState.rentDates.initialLateFeeDate
+    ? getBusinessDateInstant(
+        financialState.rentDates.initialLateFeeDate
+      )
+    : null;
 
-    const dailyLateFeeStartDate = parseDateOnly(
-      financialState.rentDates.dailyLateFeeStartDate
-    );
+const dailyLateFeeStartDate =
+  financialState.rentDates.dailyLateFeeStartDate
+    ? getBusinessDateInstant(
+        financialState.rentDates.dailyLateFeeStartDate
+      )
+    : null;
 
-    const dailyLateFeeLastDate = parseDateOnly(
-      financialState.rentDates.dailyLateFeeLastDate
-    );
+const dailyLateFeeLastDate =
+  financialState.rentDates.dailyLateFeeLastDate
+    ? getBusinessDateInstant(
+        financialState.rentDates.dailyLateFeeLastDate
+      )
+    : null;
 
     const existingLateFees: Array<{
       chargeType: string | null;

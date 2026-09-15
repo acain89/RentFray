@@ -12,6 +12,7 @@ type PropertyType =
   | "RV_PARK"
   | "SELF_STORAGE"
   | "BHPH"
+  | "RENT_HOUSES"
   | "OTHER";
 
 type UpdatePropertyPayload = {
@@ -41,6 +42,7 @@ function normalizePropertyType(value: unknown): PropertyType {
     case "RV_PARK":
     case "SELF_STORAGE":
     case "BHPH":
+    case "RENT_HOUSES":
       return normalized;
     default:
       return "OTHER";
