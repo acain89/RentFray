@@ -114,14 +114,19 @@ if (!targetEmail) {
               </p>
             ) : (
               <>
-                <p className="text-sm leading-6 text-[#475569] sm:text-base">
-                  Click the verification link in the email to activate your
-                  RentFray manager account. The link expires in 24 hours.
+               <p className="text-sm leading-6 text-[#475569] sm:text-base">
+                Click the verification link in the email to activate your
+                RentFray manager account. The link expires in 24 hours.
                 </p>
 
-                <p className="mt-4 text-sm leading-6 text-[#64748b]">
-                  If you do not see the email, check your spam or junk folder.
-                </p>
+                <p className="mt-4 text-sm leading-6 text-[#475569]">
+                <strong>No credit card required.</strong> Verify your email to
+                continue setting up your free RentFray account.
+               </p>
+
+               <p className="mt-4 text-sm leading-6 text-[#64748b]">
+               If you do not see the email, check your spam or junk folder.
+               </p>
               </>
             )
           ) : (
