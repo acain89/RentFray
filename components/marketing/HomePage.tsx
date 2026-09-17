@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
 import MarketingFooter from "./MarketingFooter";
@@ -83,66 +83,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="rfm-steps">
-        <div className="rfm-container">
-          <div className="rfm-section-heading rfm-section-heading-center">
-            <span>Built-in maintenance portal</span>
-            <h2>Everyone stays on the same page.</h2>
-            <p>
-              Tenants can submit maintenance requests directly through
-              RentFray. Managers and maintenance personnel can view the
-              request, update its status, and keep progress visible through
-              their respective portals.
-            </p>
-          </div>
-
-          <div className="rfm-step-grid">
-            <article>
-              <div className="rfm-step-top">
-                <b>1</b>
-              </div>
-              <h3>Tenant reports the issue</h3>
-              <p>
-                The tenant submits a maintenance request from their
-                RentFray portal with the details of the problem.
-              </p>
-            </article>
-
-            <article>
-              <div className="rfm-step-top">
-                <b>2</b>
-              </div>
-              <h3>Maintenance sees it</h3>
-              <p>
-                Maintenance personnel can access assigned requests and
-                see what needs attention from their own portal.
-              </p>
-            </article>
-
-            <article>
-              <div className="rfm-step-top">
-                <b>3</b>
-              </div>
-              <h3>Progress is updated</h3>
-              <p>
-                As the request moves forward, its status and updates stay
-                current across RentFray.
-              </p>
-            </article>
-
-            <article>
-              <div className="rfm-step-top">
-                <b>4</b>
-              </div>
-              <h3>Managers stay informed</h3>
-              <p>
-                Managers can follow maintenance activity without relying
-                on phone calls, paper notes, or separate tracking systems.
-              </p>
-            </article>
-          </div>
-        </div>
-      </section>
 
       <section className="rfm-steps">
         <div className="rfm-container">
@@ -162,6 +102,30 @@ export default function HomePage() {
                 <p>{step.text}</p>
               </article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-slate-200 bg-slate-50 py-6">
+        <div className="rfm-container">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Maintenance requests, too.
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                Tenants can report maintenance issues directly through RentFray,
+                while managers and maintenance personnel track progress from
+                their own portals.
+              </p>
+            </div>
+
+            <Link
+              href="/maintenance"
+              className="shrink-0 font-semibold text-slate-900 hover:underline"
+            >
+              Learn about maintenance <ArrowIcon />
+            </Link>
           </div>
         </div>
       </section>
