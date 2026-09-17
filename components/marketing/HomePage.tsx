@@ -106,25 +106,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-slate-50 py-6">
+      <section className="bg-white py-5">
         <div className="rfm-container">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Maintenance requests, too.
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                Tenants can report maintenance issues directly through RentFray,
-                while managers and maintenance personnel track progress from
-                their own portals.
-              </p>
-            </div>
-
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm">
+            <span className="font-semibold text-slate-900">
+              Also included: Maintenance requests.
+            </span>
+            <span className="text-slate-500">
+              Tenants can report issues and managers can track progress.
+            </span>
             <Link
               href="/maintenance"
-              className="shrink-0 font-semibold text-slate-900 hover:underline"
+              className="whitespace-nowrap font-semibold text-slate-700 hover:text-slate-900 hover:underline"
             >
-              Learn about maintenance <ArrowIcon />
+              Learn more {"\u2192"}
             </Link>
           </div>
         </div>
@@ -142,7 +137,7 @@ export default function HomePage() {
       </section>
 
       <section className="rfm-pricing" id="pricing">
-        <div className="rfm-container rfm-pricing-panel">
+        <div className="rfm-container rfm-pricing-panel py-10 sm:py-12">
           <div>
             <span>Simple pricing</span>
             <h2>Free for businesses.<br />No fine print.</h2>
@@ -155,94 +150,11 @@ export default function HomePage() {
 
           <div className="rfm-price-details">
             <span><CheckIcon /> No contract</span>
-            <span><CheckIcon /> No trial expiration</span>
+            <span><CheckIcon /> No card required</span>
+            <span><CheckIcon /> No trial period</span>
             <span><CheckIcon /> No cancellation fee</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-slate-200 bg-white py-12">
-        <div className="rfm-container">
-          <div className="mx-auto max-w-4xl">
-            <div className="mb-7">
-              <span className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Rent Collection Resources
-              </span>
-
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Learn more about collecting rent online
-              </h2>
-
-              <p className="mt-3 max-w-2xl text-slate-600">
-                Explore RentFray&apos;s guides to online rent payments, tenant
-                payment tracking, and rent collection software.
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Link
-                href="/free-rent-collection-software"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Free Rent Collection Software
-              </Link>
-
-              <Link
-                href="/online-rent-payment-system"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Online Rent Payment System
-              </Link>
-
-              <Link
-                href="/collect-rent-online"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Collect Rent Online
-              </Link>
-
-              <Link
-                href="/rent-collection-software-landlords"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Rent Collection for Landlords
-              </Link>
-
-              <Link
-                href="/landlord-payment-system"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Landlord Payment System
-              </Link>
-
-              <Link
-                href="/tenant-payment-portal"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Tenant Payment Portal
-              </Link>
-
-              <Link
-                href="/rent-payment-app"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Rent Payment App
-              </Link>
-
-              <Link
-                href="/rent-tracking-software"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Rent Tracking Software
-              </Link>
-
-              <Link
-                href="/free-rent-collection-software-no-monthly-fee"
-                className="rounded-xl border border-slate-200 p-4 font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                No Monthly Fee Rent Software
-              </Link>
-            </div>
+            <span><CheckIcon /> No paid upgrades</span>
+            <span><CheckIcon /> No setup fee</span>
           </div>
         </div>
       </section>
