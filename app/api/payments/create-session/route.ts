@@ -7,7 +7,6 @@ import { canMakePayments } from "@/lib/liveGating";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
 
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -155,52 +154,67 @@ export async function POST(req: Request) {
     const assignment = unit.tenantAssignments[0] ?? null;
     const tenantAssignmentId = assignment?.id ?? null;
 
-const financialState = await getUnitFinancialState({
-  propertyId: property.id,
-  unitId: unit.id,
-  tenantAssignmentId,
-  tier: unit.tier,
-  propertySettings: property.settings,
-  rentFrayStartDate: property.rentFrayStartDate,
-});
+    const financialState = await getUnitFinancialState({
+      propertyId: property.id,
+      unitId: unit.id,
+      tenantAssignmentId,
+      tier: unit.tier,
+      propertySettings: property.settings,
+      rentFrayStartDate: property.rentFrayStartDate,
+    });
 
-const balanceCents = Math.max(
-  0,
-  toSafeInteger(
-    financialState.ledgerBalanceCents
-  )
-);
+    const balanceCents = Math.max(
+      0,
+      toSafeInteger(
+        financialState.ledgerBalanceCents
+      )
+    );
 
-if (balanceCents <= 0) {
-  return NextResponse.json<ApiError>(
-    {
-      ok: false,
-      error: "No balance due.",
-    },
-    { status: 400 }
-  );
-}
+    if (balanceCents <= 0) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error: "No balance due.",
+        },
+        { status: 400 }
+      );
+    }
 
-if (financialState.hasPendingPayment) {
-  return NextResponse.json<ApiError>(
-    {
-      ok: false,
-      error:
-        "A payment is already processing for this billing cycle.",
-    },
-    { status: 400 }
-  );
-}
+    if (financialState.hasPendingPayment) {
+      return NextResponse.json<ApiError>(
+        {
+          ok: false,
+          error:
+            "A payment is already processing for this billing cycle.",
+        },
+        { status: 400 }
+      );
+    }
 
-const processingFeeCents =
-  financialState.processingFeeCents;
+    const processingFeeCents =
+      financialState.processingFeeCents;
 
-const totalCents =
-  financialState.tenantTotalDueCents;
+    const totalCents =
+      financialState.tenantTotalDueCents;
 
-const billingCycle =
-  financialState.billingCycle;
+    const billingCycle =
+      financialState.billingCycle;
 
+    /*
+     * Create a payment ATTEMPT, not a processing payment.
+     *
+     * UNPAID means Stripe Checkout has been started but the tenant
+     * has not yet submitted an ACH payment.
+     *
+     * Stripe webhooks are the authority that move this record to:
+     *
+     *   PENDING -> ACH actually submitted / processing
+     *   PAID    -> ACH succeeded
+     *   FAILED  -> ACH failed
+     *
+     * This prevents an abandoned Checkout Session from appearing
+     * as a payment that is processing.
+     */
     const createdPayment =
       await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
@@ -212,6 +226,15 @@ const billingCycle =
             )
           `;
 
+          /*
+           * A real processing or completed payment blocks another
+           * payment for this billing cycle.
+           *
+           * UNPAID attempts intentionally do NOT block a new attempt.
+           * They represent Checkout Sessions that may have been
+           * cancelled, abandoned, expired, or otherwise never
+           * submitted to Stripe.
+           */
           const existing =
             await tx.payment.findFirst({
               where: {
@@ -220,13 +243,13 @@ const billingCycle =
                 ...(tenantAssignmentId
                   ? { tenantAssignmentId }
                   : {}),
+                billingCycle,
                 status: {
                   in: ["PENDING", "PAID"],
                 },
-                OR: [
-                  { status: "PENDING" },
-                  { billingCycle },
-                ],
+              },
+              select: {
+                id: true,
               },
             });
 
@@ -243,7 +266,7 @@ const billingCycle =
               billingCycle,
               amountCents: balanceCents,
               processingFeeCents,
-              status: "PENDING",
+              status: "UNPAID",
               paymentMethod: "ACH",
             },
           });
@@ -255,23 +278,23 @@ const billingCycle =
         {
           ok: false,
           error:
-            "A payment already exists for this billing cycle.",
+            "A payment is already processing or has already been paid for this billing cycle.",
         },
         { status: 400 }
       );
     }
 
-  const origin =
-  process.env.NODE_ENV === "production"
-    ? "https://rentfray.com"
-    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:10000";
+    const origin =
+      process.env.NODE_ENV === "production"
+        ? "https://rentfray.com"
+        : process.env.NEXT_PUBLIC_APP_URL ||
+          "http://localhost:10000";
 
     const paymentMetadata = {
       paymentId: createdPayment.id,
       propertyId: property.id,
       unitId: unit.id,
 
-      // CRITICAL FIX:
       tenantAssignmentId:
         tenantAssignmentId || "__NONE__",
 
@@ -293,93 +316,125 @@ const billingCycle =
         new Date().toISOString(),
     };
 
-    const checkoutSession =
-      await stripe.checkout.sessions.create({
-        mode: "payment",
+    let checkoutSession: Stripe.Checkout.Session;
 
-        payment_method_types: [
-          "us_bank_account",
-        ],
-
-        customer_creation:
-          "if_required",
-
-        payment_method_options: {
-          us_bank_account: {
-            verification_method:
-              "instant",
-            financial_connections: {
-              permissions: [
-                "payment_method",
-              ],
-            },
-          },
-        },
-
-        payment_intent_data: {
-          application_fee_amount:
-            processingFeeCents,
-
-          on_behalf_of:
-            property.stripeAccountId,
-
-          transfer_data: {
-            destination:
-              property.stripeAccountId,
-          },
-
-          metadata:
-            paymentMetadata,
-        },
-
-        metadata:
-          paymentMetadata,
-
-        line_items: [
+    try {
+      checkoutSession =
+        await stripe.checkout.sessions.create(
           {
-            price_data: {
-              currency: "usd",
+            mode: "payment",
 
-              product_data: {
-                name:
-                  `${property.name} Unit ${unit.unitNumber}`,
+            payment_method_types: [
+              "us_bank_account",
+            ],
+
+            customer_creation:
+              "if_required",
+
+            payment_method_options: {
+              us_bank_account: {
+                verification_method:
+                  "instant",
+                financial_connections: {
+                  permissions: [
+                    "payment_method",
+                  ],
+                },
+              },
+            },
+
+            payment_intent_data: {
+              application_fee_amount:
+                processingFeeCents,
+
+              on_behalf_of:
+                property.stripeAccountId,
+
+              transfer_data: {
+                destination:
+                  property.stripeAccountId,
               },
 
-              unit_amount:
-                balanceCents,
+              metadata:
+                paymentMetadata,
             },
 
-            quantity: 1,
-          },
+            metadata:
+              paymentMetadata,
 
-          ...(processingFeeCents > 0
-            ? [
-                {
-                  price_data: {
-                    currency:
-                      "usd",
+            line_items: [
+              {
+                price_data: {
+                  currency: "usd",
 
-                    product_data: {
-                      name:
-                        "Processing Fee",
-                    },
-
-                    unit_amount:
-                      processingFeeCents,
+                  product_data: {
+                    name:
+                      `${property.name} Unit ${unit.unitNumber}`,
                   },
 
-                  quantity: 1,
+                  unit_amount:
+                    balanceCents,
                 },
-              ]
-            : []),
-        ],
 
-        success_url:
-          `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+                quantity: 1,
+              },
 
-        cancel_url:
-          `${origin}/tenant/pay?checkout=cancelled`,
-      });
+              ...(processingFeeCents > 0
+                ? [
+                    {
+                      price_data: {
+                        currency:
+                          "usd",
+
+                        product_data: {
+                          name:
+                            "Processing Fee",
+                        },
+
+                        unit_amount:
+                          processingFeeCents,
+                      },
+
+                      quantity: 1,
+                    },
+                  ]
+                : []),
+            ],
+
+            success_url:
+              `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+
+            cancel_url:
+              `${origin}/tenant/pay?checkout=cancelled`,
+          },
+          {
+            /*
+             * If this exact server request is retried while Stripe is
+             * processing it, Stripe must return the same Checkout
+             * Session rather than creating another one.
+             */
+            idempotencyKey:
+              `rentfray-checkout-${createdPayment.id}`,
+          }
+        );
+    } catch (error) {
+      /*
+       * The database record represents only an unpaid attempt.
+       * If Stripe Session creation fails, preserve it as UNPAID.
+       *
+       * It will not suppress the tenant's balance or prevent a retry.
+       */
+      console.error(
+        "Stripe Checkout Session creation failed:",
+        {
+          paymentId:
+            createdPayment.id,
+          error,
+        }
+      );
+
+      throw error;
+    }
 
     await prisma.payment.update({
       where: {
@@ -389,6 +444,11 @@ const billingCycle =
         stripeSessionId:
           checkoutSession.id,
 
+        /*
+         * Checkout commonly has no PaymentIntent yet.
+         * The completed/processing webhook will attach the actual
+         * PaymentIntent once Stripe creates it.
+         */
         stripePaymentIntentId:
           typeof checkoutSession.payment_intent ===
           "string"
