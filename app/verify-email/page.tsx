@@ -23,18 +23,18 @@ function VerifyEmailContent() {
   const isInvalid = status === "invalid";
   const isError = status === "error";
 
-const [sending, setSending] = useState(false);
-const [message, setMessage] = useState("");
-const [error, setError] = useState("");
-const [resendEmail, setResendEmail] = useState(email);
+  const [sending, setSending] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [resendEmail, setResendEmail] = useState(email);
 
   async function resendVerification(): Promise<void> {
-const targetEmail = resendEmail.trim().toLowerCase();
+    const targetEmail = resendEmail.trim().toLowerCase();
 
-if (!targetEmail) {
-  setError("Enter the email address you used to create your account.");
-  return;
-}
+    if (!targetEmail) {
+      setError("Enter the email address you used to create your account.");
+      return;
+    }
 
     setSending(true);
     setMessage("");
@@ -55,13 +55,13 @@ if (!targetEmail) {
         setError(
           !result.ok && result.error
             ? result.error
-            : "Could not resend verification email."
+            : "Could not resend your account email."
         );
         return;
       }
 
       setMessage(
-        "If an unverified account exists for that email, a new verification link has been sent."
+        "If an account is waiting for activation at that email address, we sent a new email."
       );
     } catch {
       setError("Network error. Please try again.");
@@ -78,79 +78,140 @@ if (!targetEmail) {
             RENTFRAY
           </div>
 
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-4xl">
             {isInvalid
-              ? "Verification link expired"
+              ? "Your activation link expired"
               : isError
-                ? "Could not verify email"
-                : "Check your email"}
+                ? "We couldn't activate your account"
+                : initialSendFailed
+                  ? "Your account was created"
+                  : "Check your email for your Property Code"}
           </h1>
 
           <p className="mt-3 max-w-lg text-sm leading-6 text-[#475569] sm:text-base">
             {isInvalid ? (
-              "That verification link is invalid, expired, or has already been used."
+              "That activation link is invalid, expired, or has already been used."
             ) : isError ? (
-              "Something went wrong while verifying your email."
+              "Something went wrong while activating your account."
             ) : initialSendFailed ? (
               <>
-                Your account was created, but we could not send the verification
-                email to <strong>{email || "your email address"}</strong>.
+                We couldn&apos;t send your Property Code and activation link to{" "}
+                <strong>{email || "your email address"}</strong>. You can try
+                again below.
               </>
             ) : (
               <>
-                We sent a verification link to{" "}
-                <strong>{email || "your email address"}</strong>.
+                We sent your <strong>Property Code</strong> and activation link
+                to <strong>{email || "your email address"}</strong>.
               </>
             )}
           </p>
         </header>
 
         <section className="rounded-[28px] border border-[#cbd5e1] bg-white p-5 shadow-sm sm:p-7">
-          {!isInvalid && !isError ? (
-            initialSendFailed ? (
+          {!isInvalid && !isError && !initialSendFailed ? (
+            <>
               <p className="text-sm leading-6 text-[#475569] sm:text-base">
-                Click the button below to try sending the verification email
-                again.
+                Open the email and click{" "}
+                <strong className="text-[#0f172a]">Activate My Account</strong>{" "}
+                to continue. You&apos;ll be taken straight back to RentFray.
               </p>
-            ) : (
-              <>
-               <p className="text-sm leading-6 text-[#475569] sm:text-base">
-                Click the verification link in the email to activate your
-                RentFray manager account. The link expires in 24 hours.
-                </p>
 
-                <p className="mt-4 text-sm leading-6 text-[#475569]">
-                <strong>No credit card required.</strong> Verify your email to
-                continue setting up your free RentFray account.
-               </p>
+              <div className="mt-6 rounded-2xl border border-[#dbe3ea] bg-[#f8fafc] p-5">
+                <div className="text-sm font-semibold text-[#0f172a]">
+                  Your setup progress
+                </div>
 
-               <p className="mt-4 text-sm leading-6 text-[#64748b]">
-               If you do not see the email, check your spam or junk folder.
-               </p>
-              </>
-            )
+                <div className="mt-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#233143] text-sm font-bold text-white">
+                      ✓
+                    </div>
+                    <div className="pt-0.5">
+                      <div className="font-semibold text-[#0f172a]">
+                        Create your account
+                      </div>
+                      <div className="text-sm text-[#64748b]">Complete</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#233143] bg-white text-sm font-bold text-[#233143]">
+                      2
+                    </div>
+                    <div className="pt-0.5">
+                      <div className="font-semibold text-[#0f172a]">
+                        Activate your account
+                      </div>
+                      <div className="text-sm font-medium text-[#233143]">
+                        Check your email
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#cbd5e1] bg-white text-sm font-semibold text-[#64748b]">
+                      3
+                    </div>
+                    <div className="pt-0.5 text-[#475569]">
+                      Add your property &amp; rent rules
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#cbd5e1] bg-white text-sm font-semibold text-[#64748b]">
+                      4
+                    </div>
+                    <div className="pt-0.5 text-[#475569]">
+                      Connect your bank
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#cbd5e1] bg-white text-sm font-semibold text-[#64748b]">
+                      5
+                    </div>
+                    <div className="pt-0.5 text-[#475569]">
+                      Start collecting rent
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-[#eef3f7] px-4 py-3 text-center text-sm font-semibold text-[#334155]">
+                Most properties can be ready in about 10 minutes.
+              </div>
+
+              <p className="mt-5 text-center text-sm text-[#64748b]">
+                Don&apos;t see the email? Check your spam or junk folder.
+              </p>
+            </>
           ) : (
-            <p className="text-sm leading-6 text-[#475569] sm:text-base">
-              You can request a fresh verification link below.
-            </p>
+            <>
+              <p className="text-sm leading-6 text-[#475569] sm:text-base">
+                {initialSendFailed
+                  ? "Use the button below to send your Property Code and activation link again."
+                  : "Enter your email address below and we'll send you a fresh activation link."}
+              </p>
+
+              {(isInvalid || isError) && (
+                <label className="mt-5 block">
+                  <span className="mb-2 block text-sm font-semibold text-[#1e293b]">
+                    Email
+                  </span>
+
+                  <input
+                    type="email"
+                    value={resendEmail}
+                    autoComplete="email"
+                    onChange={(event) => setResendEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full rounded-2xl border border-[#cbd5e1] bg-white px-4 py-3 text-base text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#233143] focus:ring-4 focus:ring-[#233143]/10"
+                  />
+                </label>
+              )}
+            </>
           )}
-
-       {isInvalid || isError ? (
-  <label className="mt-5 block">
-    <span className="mb-2 block text-sm font-semibold text-[#1e293b]">
-      Email
-    </span>
-
-    <input
-      type="email"
-      value={resendEmail}
-      autoComplete="email"
-      onChange={(event) => setResendEmail(event.target.value)}
-      placeholder="you@example.com"
-      className="w-full rounded-2xl border border-[#cbd5e1] bg-white px-4 py-3 text-base text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#233143] focus:ring-4 focus:ring-[#233143]/10"
-    />
-  </label>
-) : null}
 
           {message ? (
             <div
@@ -172,17 +233,17 @@ if (!targetEmail) {
 
           {resendEmail ? (
             <button
-              type="button"
-              onClick={resendVerification}
-              disabled={sending}
-              className="mt-6 w-full rounded-2xl bg-[#233143] px-5 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-[#172234] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {sending ? "Sending..." : "Resend Verification Email"}
-            </button>
+            type="button"
+            onClick={resendVerification}
+            disabled={sending}
+           className="mx-auto mt-5 block text-sm font-semibold text-[#475569] underline decoration-[#94a3b8] underline-offset-4 transition hover:text-[#                0f172a] disabled:cursor-not-allowed disabled:opacity-60"
+           >
+         {sending ? "Sending..." : "Resend email"}
+          </button>
           ) : null}
 
           <p className="mt-5 text-center text-sm text-[#64748b]">
-            Already verified?{" "}
+            Already activated?{" "}
             <a
               href="/manager/login"
               className="font-semibold text-[#233143] underline-offset-4 hover:underline"
@@ -204,7 +265,7 @@ export default function VerifyEmailPage() {
           <div className="mx-auto w-full max-w-xl">
             <div className="rounded-[28px] border border-[#cbd5e1] bg-white p-5 shadow-sm sm:p-7">
               <p className="text-sm text-[#64748b]">
-                Loading verification page...
+                Loading your account...
               </p>
             </div>
           </div>

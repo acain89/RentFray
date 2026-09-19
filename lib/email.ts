@@ -49,6 +49,7 @@ export async function sendVerificationEmail(input: {
   managementUserId: string;
   email: string;
   displayName?: string | null;
+  propertyCode?: string | null;
 }): Promise<void> {
   const token = await createEmailVerificationToken(input.managementUserId);
 
@@ -57,21 +58,52 @@ export async function sendVerificationEmail(input: {
   )}`;
 
   const name = input.displayName?.trim() || "there";
+  const propertyCode = input.propertyCode?.trim() || "";
+
+  const subject = propertyCode
+    ? `Your RentFray Property Code: ${propertyCode}`
+    : "Activate your RentFray account";
+
+  const propertyCodeBlock = propertyCode
+    ? `
+      <div style="margin:28px 0;padding:24px;border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;text-align:center;">
+        <div style="font-size:13px;font-weight:700;letter-spacing:0.12em;color:#64748b;text-transform:uppercase;">
+          Your Property Code
+        </div>
+
+        <div style="font-size:42px;font-weight:800;letter-spacing:0.08em;margin-top:8px;color:#0f172a;">
+          ${escapeHtml(propertyCode)}
+        </div>
+      </div>
+    `
+    : "";
 
   const { error } = await resend.emails.send({
     from: EMAIL_FROM,
     to: input.email,
-    subject: "Verify your RentFray email",
+    subject,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#0f172a;">
-        <h1 style="font-size:28px;margin:0 0 16px;">Verify your email</h1>
+        <div style="font-size:13px;font-weight:700;letter-spacing:0.16em;color:#64748b;margin-bottom:18px;">
+          RENTFRAY
+        </div>
+
+        <h1 style="font-size:28px;line-height:1.2;margin:0 0 16px;">
+          Your RentFray account is ready to activate
+        </h1>
 
         <p style="font-size:16px;line-height:1.6;">
           Hi ${escapeHtml(name)},
         </p>
 
         <p style="font-size:16px;line-height:1.6;">
-          Confirm your email address to finish creating your RentFray manager account.
+          Your RentFray account has been created. Your Property Code is below.
+        </p>
+
+        ${propertyCodeBlock}
+
+        <p style="font-size:16px;line-height:1.6;">
+          Activate your account to continue setting up your property and start collecting rent.
         </p>
 
         <p style="margin:32px 0;">
@@ -79,12 +111,12 @@ export async function sendVerificationEmail(input: {
             href="${verificationUrl}"
             style="display:inline-block;background:#233143;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px;"
           >
-            Verify Email
+            Activate My Account
           </a>
         </p>
 
         <p style="font-size:14px;line-height:1.6;color:#64748b;">
-          This verification link expires in 24 hours.
+          This activation link expires in 24 hours.
         </p>
 
         <p style="font-size:14px;line-height:1.6;color:#64748b;">
@@ -95,7 +127,7 @@ export async function sendVerificationEmail(input: {
   });
 
   if (error) {
-    throw new Error(`Resend verification email failed: ${error.message}`);
+    throw new Error(`Resend activation email failed: ${error.message}`);
   }
 }
 
@@ -121,7 +153,7 @@ export async function sendWelcomeEmail(input: {
         </p>
 
         <p style="font-size:16px;line-height:1.6;">
-          Your RentFray manager account is verified and ready to use.
+          Your RentFray manager account is activated and ready to use.
         </p>
 
         <div style="margin:32px 0;padding:24px;border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;text-align:center;">

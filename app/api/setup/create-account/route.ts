@@ -204,11 +204,12 @@ export async function POST(req: Request) {
 let verificationEmailSent = true;
 
 try {
-  await sendVerificationEmail({
-    managementUserId: result.managementUserId,
-    email,
-    displayName,
-  });
+await sendVerificationEmail({
+  managementUserId: result.managementUserId,
+  email,
+  displayName,
+  propertyCode: result.propertyCode,
+});
 } catch (error) {
   verificationEmailSent = false;
   console.error("Initial verification email failed:", error);
