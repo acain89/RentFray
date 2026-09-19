@@ -402,7 +402,7 @@ export async function POST(req: Request) {
             ],
 
             success_url:
-              `${origin}/tenant/pay?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+            `${origin}/tenant/dashboard`,
 
             cancel_url:
               `${origin}/tenant/pay?checkout=cancelled`,

@@ -1,0 +1,1552 @@
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Homes by Jimmie
+Property ID:              cmu27xkso00097vd5skhot678
+Property code:            1428
+Property status:          READY
+Property type:            MULTIFAMILY
+Account created:          2026-09-15T05:15:36.457Z
+Property last updated:    2026-09-15T05:27:35.542Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    tbstoner82@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-15T05:15:36.464Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-09-15T00:00:00.000Z
+Setup acknowledged:       2026-09-15T05:24:55.566Z
+Rent due day:             15
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-15T05:20:10.526Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           YES
+Charges enabled:          YES
+Payouts enabled:          YES
+Stripe onboarding:        YES
+Requirements due:         NO
+Ready for live:           YES
+Last Stripe sync:         2026-09-15T18:09:21.440Z
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               1
+Units created:            1
+Tenant assignments:       1
+Unit recurring fees:      0
+Payment records:          1
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Tier 1
+Base rent:                $1500.00
+Configured unit count:    2
+Active unit count:        0
+Due day:                  15
+Grace period:             5 day(s)
+Initial late fee:         $50.00
+Daily late fee:           $10.00
+Max daily late-fee days:  5
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-15T05:16:59.504Z
+Last updated:             2026-09-15T05:20:10.530Z
+----------------------------------------------------
+
+LATEST UNITS CREATED
+----------------------------------------------------
+Unit:                     8836
+Base rent:                $1500.00
+Rent source:              TIER
+Tier:                     Tier 1
+Tenant portal activated:  YES
+Created:                  2026-09-15T05:27:34.747Z
+Last updated:             2026-09-15T05:27:34.747Z
+----------------------------------------------------
+
+LATEST TENANT ASSIGNMENTS
+----------------------------------------------------
+Unit:                     8836
+Current assignment:       YES
+Move-in date:             2026-09-15T05:27:34.713Z
+Created:                  2026-09-15T05:27:34.750Z
+Last updated:             2026-09-15T05:27:34.750Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    1
+Pending in latest 10:     1
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+LATEST PAYMENTS
+----------------------------------------------------
+Unit:                     8836
+Status:                   PENDING
+Amount:                   $1500.00
+Processing fee:           $9.95
+Method:                   ACH
+Billing cycle:            2026-09
+Created:                  2026-09-15T06:47:39.869Z
+Last updated:             2026-09-15T06:47:40.962Z
+Stripe intent:            NO
+Stripe session:           YES
+----------------------------------------------------
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+Gｔ Units have been added to RentFray.
+Gｔ Tenant assignments exist.
+
+HOMES BY JIMMIE CURRENTLY HAS A PAYMENT PROCESSING THROUGH RENTFRAY.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmu197s4q00814ipixxxh2ae5
+Property code:            8920
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-14T13:03:45.963Z
+Property last updated:    2026-09-14T13:03:45.963Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    keystoyourhome10100#@gmail.com
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-14T13:03:45.967Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-14T13:03:45.972Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtzq5ff4007c4ipinl9xm3c7
+Property code:            8154
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-13T11:22:17.297Z
+Property last updated:    2026-09-13T11:22:17.297Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    murphy.davidl@yahoo.com
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-13T11:22:17.300Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-13T11:22:17.303Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtyoutpj00724ipilje01tum
+Property code:            1132
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-12T17:58:16.807Z
+Property last updated:    2026-09-12T17:58:16.807Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    keyairalee28@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-12T17:58:16.810Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-12T17:58:16.813Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Payton Gin Center
+Property ID:              cmtx9x93j003e4ipij4zvou9b
+Property code:            8506
+Property status:          READY
+Property type:            OTHER
+Account created:          2026-09-11T18:12:29.648Z
+Property last updated:    2026-09-11T19:41:09.474Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    vikmalani@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-11T18:12:29.652Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-10-05T00:00:00.000Z
+Setup acknowledged:       2026-09-11T18:32:28.333Z
+Rent due day:             5
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-11T18:45:35.521Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           YES
+Charges enabled:          YES
+Payouts enabled:          YES
+Stripe onboarding:        YES
+Requirements due:         NO
+Ready for live:           YES
+Last Stripe sync:         2026-09-12T11:54:09.128Z
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               2
+Units created:            2
+Tenant assignments:       2
+Unit recurring fees:      0
+Payment records:          0
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Unit 1
+Base rent:                $5150.00
+Configured unit count:    5
+Active unit count:        0
+Due day:                  5
+Grace period:             0 day(s)
+Initial late fee:         $0.00
+Daily late fee:           $0.00
+Max daily late-fee days:  0
+Processing fee:           $0.00
+Active:                   NO
+Created:                  2026-09-11T18:16:29.688Z
+Last updated:             2026-09-11T19:06:51.073Z
+----------------------------------------------------
+Tier:                     4
+Base rent:                $2194.00
+Configured unit count:    4
+Active unit count:        1
+Due day:                  5
+Grace period:             5 day(s)
+Initial late fee:         $0.00
+Daily late fee:           $0.00
+Max daily late-fee days:  0
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-11T18:55:57.819Z
+Last updated:             2026-09-11T20:23:32.031Z
+----------------------------------------------------
+
+LATEST UNITS CREATED
+----------------------------------------------------
+Unit:                     4
+Base rent:                $2194.00
+Rent source:              TIER
+Tier:                     4
+Tenant portal activated:  YES
+Created:                  2026-09-11T20:24:28.283Z
+Last updated:             2026-09-11T20:24:28.283Z
+----------------------------------------------------
+Unit:                     1
+Base rent:                $2194.00
+Rent source:              TIER
+Tier:                     4
+Tenant portal activated:  NO
+Created:                  2026-09-11T19:41:08.822Z
+Last updated:             2026-09-11T22:55:51.248Z
+----------------------------------------------------
+
+LATEST TENANT ASSIGNMENTS
+----------------------------------------------------
+Unit:                     4
+Current assignment:       YES
+Move-in date:             2026-09-11T20:24:28.246Z
+Created:                  2026-09-11T20:24:28.287Z
+Last updated:             2026-09-11T20:24:28.287Z
+----------------------------------------------------
+Unit:                     1
+Current assignment:       NO
+Move-in date:             2026-09-11T19:41:08.772Z
+Created:                  2026-09-11T19:41:08.826Z
+Last updated:             2026-09-11T22:55:51.245Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+Gｔ Units have been added to RentFray.
+Gｔ Tenant assignments exist.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Holly Homestead
+Property ID:              cmtwmtsai002x4ipi46oznwa9
+Property code:            7581
+Property status:          SETUP
+Property type:            OTHER
+Account created:          2026-09-11T07:25:56.730Z
+Property last updated:    2026-09-13T19:36:12.045Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    smithfixandfeed@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-11T07:25:56.733Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-09-24T00:00:00.000Z
+Setup acknowledged:       NOT SET
+Rent due day:             24
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-13T19:37:43.530Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           YES
+Charges enabled:          YES
+Payouts enabled:          YES
+Stripe onboarding:        YES
+Requirements due:         NO
+Ready for live:           YES
+Last Stripe sync:         2026-09-15T15:34:23.134Z
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               1
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Tier 1
+Base rent:                $1200.00
+Configured unit count:    1
+Active unit count:        0
+Due day:                  24
+Grace period:             5 day(s)
+Initial late fee:         $50.00
+Daily late fee:           $10.00
+Max daily late-fee days:  10
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-13T19:37:05.041Z
+Last updated:             2026-09-13T19:37:43.526Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtwm1e00002n4ipi8djsc0fa
+Property code:            6454
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-11T07:03:51.840Z
+Property last updated:    2026-09-11T07:03:51.840Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    akunaraven@gmail.com
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-11T07:03:51.843Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-11T07:03:51.847Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtuqatsu002d4ipicbe83vhf
+Property code:            8119
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-09T23:27:38.335Z
+Property last updated:    2026-09-09T23:27:38.335Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    pattyhayden4@gmail.com
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-09T23:27:38.338Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-09T23:27:38.341Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtu933ai00234ipitek5ye1u
+Property code:            7949
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-09T15:25:43.914Z
+Property last updated:    2026-09-09T15:25:43.914Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    berfica2@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-09T15:25:43.917Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-09T15:25:43.920Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Henderson Village
+Property ID:              cmttcv3y5000l4ipipmjxd8ej
+Property code:            4009
+Property status:          SETUP
+Property type:            MULTIFAMILY
+Account created:          2026-09-09T00:23:43.806Z
+Property last updated:    2026-09-09T00:45:09.517Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    amiyamoor12@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-09T00:23:43.809Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-09-17T00:00:00.000Z
+Setup acknowledged:       2026-09-09T00:45:09.516Z
+Rent due day:             17
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-09T00:36:59.340Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           YES
+Charges enabled:          YES
+Payouts enabled:          YES
+Stripe onboarding:        YES
+Requirements due:         NO
+Ready for live:           YES
+Last Stripe sync:         2026-09-09T05:29:56.039Z
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               1
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Tier 1
+Base rent:                $941.00
+Configured unit count:    2
+Active unit count:        0
+Due day:                  17
+Grace period:             5 day(s)
+Initial late fee:         $25.00
+Daily late fee:           $0.00
+Max daily late-fee days:  0
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-09T00:25:47.004Z
+Last updated:             2026-09-09T00:48:34.020Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Hillside valley
+Property ID:              cmtsscqbe000b4ipie1fuaclq
+Property code:            9780
+Property status:          SETUP
+Property type:            MOBILE_HOME
+Account created:          2026-09-08T14:49:34.011Z
+Property last updated:    2026-09-08T14:50:19.945Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    shayhappy1234@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-08T14:49:34.013Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-08T14:49:34.016Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtsrnyut00014ipip543rq3a
+Property code:            4675
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-08T14:30:18.678Z
+Property last updated:    2026-09-08T14:30:18.678Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    shaquanshine0@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-08T14:30:18.681Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-08T14:30:18.684Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtoz62it0042107tesl8ere8
+Property code:            3458
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-05T22:49:15.846Z
+Property last updated:    2026-09-05T22:49:15.846Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    nailsgalleriapk@gmail.com
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-05T22:49:15.849Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-05T22:49:15.852Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Palos Hills
+Property ID:              cmto163at003a107t0ztyqbzj
+Property code:            3115
+Property status:          SETUP
+Property type:            MULTIFAMILY
+Account created:          2026-09-05T06:57:29.909Z
+Property last updated:    2026-09-05T07:02:20.607Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    a.bcentury21@yahoo.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-05T06:57:29.918Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-10-01T00:00:00.000Z
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-05T07:02:08.575Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         YES
+Ready for live:           NO
+Last Stripe sync:         2026-09-05T07:03:21.646Z
+Requirements summary:    requirements.past_due
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               1
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Palos
+Base rent:                $1400.00
+Configured unit count:    33
+Active unit count:        0
+Due day:                  1
+Grace period:             5 day(s)
+Initial late fee:         $100.00
+Daily late fee:           $5.00
+Max daily late-fee days:  10
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-05T07:00:06.992Z
+Last updated:             2026-09-05T07:02:08.578Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtltvd3y0030107t5gf0pvxh
+Property code:            1865
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-03T17:57:39.743Z
+Property last updated:    2026-09-03T17:57:39.743Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    m2tk2jones@aol.ccom
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-03T17:57:39.745Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-03T17:57:39.748Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 My Property
+Property ID:              cmtlq3wid002q107t9uz6hfdo
+Property code:            7380
+Property status:          SETUP
+Property type:            NOT SET
+Account created:          2026-09-03T16:12:19.669Z
+Property last updated:    2026-09-03T16:12:19.669Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    gksk36806@gmail.com
+Role:                     OWNER
+Email verified:           NO
+User created:             2026-09-03T16:12:19.672Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          NOT SET
+Setup acknowledged:       NOT SET
+Rent due day:             1
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      NO
+Setup complete:           NO
+Settings last updated:    2026-09-03T16:12:19.675Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    NO
+Processor connected:      NO
+Bank connected:           NO
+Charges enabled:          NO
+Payouts enabled:          NO
+Stripe onboarding:        NO
+Requirements due:         NO
+Ready for live:           NO
+Last Stripe sync:         NOT SET
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               0
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+-+ Hard-start billing date has NOT been set.
+-+ No rent tiers have been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Redwood Ridge
+Property ID:              cmti1igu60016107t68dq01bs
+Property code:            5418
+Property status:          SETUP
+Property type:            MULTIFAMILY
+Account created:          2026-09-01T02:20:30.270Z
+Property last updated:    2026-09-01T02:29:08.387Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    gennienedollison@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-01T02:20:30.273Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-09-03T00:00:00.000Z
+Setup acknowledged:       2026-09-01T02:29:08.386Z
+Rent due day:             3
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-01T02:24:26.455Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           YES
+Charges enabled:          YES
+Payouts enabled:          YES
+Stripe onboarding:        YES
+Requirements due:         NO
+Ready for live:           YES
+Last Stripe sync:         2026-09-01T14:30:10.382Z
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               1
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Tier 1
+Base rent:                $1598.00
+Configured unit count:    1
+Active unit count:        0
+Due day:                  3
+Grace period:             3 day(s)
+Initial late fee:         $100.00
+Daily late fee:           $0.00
+Max daily late-fee days:  0
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-01T02:23:18.969Z
+Last updated:             2026-09-01T02:24:26.458Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+
+
+====================================================
+ RENTFRAY PROPERTY G현 PRODUCTION ACTIVITY CHECK
+ READ ONLY
+====================================================
+
+PROPERTY
+----------------------------------------------------
+Property:                 Rosemont Berkeley lake
+Property ID:              cmthx4lxv0001107tbz2nqvkw
+Property code:            3117
+Property status:          SETUP
+Property type:            MULTIFAMILY
+Account created:          2026-09-01T00:17:45.236Z
+Property last updated:    2026-09-01T00:29:56.104Z
+
+ACCOUNT / MANAGEMENT USERS
+----------------------------------------------------
+Email:                    dpegues13@gmail.com
+Role:                     OWNER
+Email verified:           YES
+User created:             2026-09-01T00:17:45.239Z
+----------------------------------------------------
+
+SETUP / BILLING CALENDAR
+----------------------------------------------------
+Hard-start date:          2026-09-02T00:00:00.000Z
+Setup acknowledged:       2026-09-01T00:29:56.104Z
+Rent due day:             2
+Grace period:             0 day(s)
+Late fees enabled:        NO
+Onboarding complete:      YES
+Setup complete:           NO
+Settings last updated:    2026-09-01T00:24:03.365Z
+
+STRIPE
+----------------------------------------------------
+Stripe account exists:    YES
+Processor connected:      YES
+Bank connected:           YES
+Charges enabled:          YES
+Payouts enabled:          YES
+Stripe onboarding:        YES
+Requirements due:         NO
+Ready for live:           YES
+Last Stripe sync:         2026-09-01T18:00:51.351Z
+
+CONFIGURATION PROGRESS
+----------------------------------------------------
+Declared unit count:      0
+Management users:         1
+Rent tiers:               1
+Units created:            0
+Tenant assignments:       0
+Unit recurring fees:      0
+Payment records:          0
+
+RENT TIERS
+----------------------------------------------------
+Tier:                     Tier 1
+Base rent:                $1601.71
+Configured unit count:    1
+Active unit count:        0
+Due day:                  2
+Grace period:             3 day(s)
+Initial late fee:         $200.00
+Daily late fee:           $100.00
+Max daily late-fee days:  9
+Processing fee:           $0.00
+Active:                   YES
+Created:                  2026-09-01T00:19:09.021Z
+Last updated:             2026-09-01T00:24:03.368Z
+----------------------------------------------------
+
+PAYMENT ACTIVITY
+----------------------------------------------------
+Total payment records:    0
+Pending in latest 10:     0
+Paid in latest 10:        0
+Failed in latest 10:      0
+
+====================================================
+ CURRENT ASSESSMENT
+====================================================
+Gｔ Hard-start billing date has been set.
+Gｔ At least one rent tier has been configured.
+-+ No units have been added yet.
+-+ No tenant assignments exist yet.
+
+No payment attempts have been created yet.
+====================================================
+

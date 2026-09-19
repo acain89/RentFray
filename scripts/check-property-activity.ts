@@ -76,17 +76,18 @@ async function main(): Promise<void> {
         },
       },
 
-            managementUsers: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        select: {
-          email: true,
-          role: true,
-          emailVerifiedAt: true,
-          createdAt: true,
-        },
-      },
+managementUsers: {
+  orderBy: {
+    createdAt: "asc",
+  },
+  select: {
+    displayName: true,
+    email: true,
+    role: true,
+    emailVerifiedAt: true,
+    createdAt: true,
+  },
+},
 
 
       _count: {
@@ -234,22 +235,24 @@ async function main(): Promise<void> {
   console.log("ACCOUNT / MANAGEMENT USERS");
   console.log("----------------------------------------------------");
 
-  if (property.managementUsers.length > 0) {
-    for (const user of property.managementUsers) {
-      console.log(`Email:                    ${user.email}`);
-      console.log(`Role:                     ${user.role}`);
-      console.log(
-        `Email verified:           ${yesNo(Boolean(user.emailVerifiedAt))}`,
-      );
-      console.log(
-        `User created:             ${formatDate(user.createdAt)}`,
-      );
-      console.log("----------------------------------------------------");
-    }
-  } else {
-    console.log("No management users found.");
+if (property.managementUsers.length > 0) {
+  for (const user of property.managementUsers) {
+    console.log(
+      `Manager name:             ${user.displayName ?? "NOT SET"}`,
+    );
+    console.log(`Email:                    ${user.email ?? "NOT SET"}`);
+    console.log(`Role:                     ${user.role}`);
+    console.log(
+      `Email verified:           ${yesNo(Boolean(user.emailVerifiedAt))}`,
+    );
+    console.log(
+      `User created:             ${formatDate(user.createdAt)}`,
+    );
+    console.log("----------------------------------------------------");
   }
-
+} else {
+  console.log("No management users found.");
+}
   console.log("");
   console.log("SETUP / BILLING CALENDAR");
   console.log("----------------------------------------------------");
