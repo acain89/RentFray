@@ -3,6 +3,21 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+declare global {
+  interface Window {
+    gtag?: (
+      command: "event",
+      eventName: string,
+eventParameters?: {
+  send_to?: string;
+  value?: number;
+  currency?: string;
+  event_callback?: () => void;
+}
+    ) => void;
+  }
+}
+
 type CreateAccountResponse =
   | {
       ok: true;
@@ -125,8 +140,32 @@ export default function SetupPage() {
         return;
       }
 
-      router.push(result.redirectTo || "/manager/dashboard");
-      router.refresh();
+const redirectTo = result.redirectTo || "/manager/dashboard";
+
+if (typeof window !== "undefined" && typeof window.gtag === "function") {
+  let redirected = false;
+
+  const redirect = (): void => {
+    if (redirected) return;
+    redirected = true;
+
+    router.push(redirectTo);
+    router.refresh();
+  };
+
+  window.gtag("event", "conversion", {
+    send_to: "AW-18311599021/pEm4CN7u_okdEK2n05tE",
+    value: 1.0,
+    currency: "USD",
+    event_callback: redirect,
+  });
+
+  window.setTimeout(redirect, 1000);
+  return;
+}
+
+router.push(redirectTo);
+router.refresh();
     } catch {
       setError("Network error. Please try again.");
     } finally {
