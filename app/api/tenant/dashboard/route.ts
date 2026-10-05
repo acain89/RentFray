@@ -90,7 +90,8 @@ await refreshSessionCookie(session);
       !session ||
       session.role !== "TENANT" ||
       !session.unitId ||
-      !session.propertyId
+      !session.propertyId ||
+      !session.tenantAssignmentId
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -150,9 +151,11 @@ if (
 
  const currentAssignment = await prisma.tenantAssignment.findFirst({
       where: {
+        id: session.tenantAssignmentId,
         propertyId: session.propertyId,
         unitId: unit.id,
         isCurrent: true,
+        OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
       },
       orderBy: {
         createdAt: "desc",
@@ -162,7 +165,11 @@ if (
       },
     });
 
-    const currentAssignmentId = currentAssignment?.id ?? null;
+    if (!currentAssignment) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const currentAssignmentId = currentAssignment.id;
 
    const financialState = await getUnitFinancialState({
   propertyId: session.propertyId,

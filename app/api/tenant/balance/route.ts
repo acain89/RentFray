@@ -10,23 +10,29 @@ export async function GET() {
   try {
     const session = await requireRole("TENANT");
 
-    if (!session.propertyId || !session.unitId) {
+    if (!session.propertyId || !session.unitId || !session.tenantAssignmentId) {
       return NextResponse.json({ error: "Invalid session." }, { status: 401 });
     }
 
     const assignment = await prisma.tenantAssignment.findFirst({
   where: {
+    id: session.tenantAssignmentId,
     propertyId: session.propertyId,
     unitId: session.unitId,
     isCurrent: true,
+    OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
   },
   orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
   select: { id: true },
 });
 
+if (!assignment) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
 const summary = await getUnitLedgerSummary({
   unitId: session.unitId,
-  tenantAssignmentId: assignment?.id ?? undefined,
+  tenantAssignmentId: assignment.id,
   asOf: new Date(),
 });
 

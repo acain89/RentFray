@@ -15,27 +15,26 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { propertyId, unitId } = session;
+    const { propertyId, unitId, tenantAssignmentId } = session;
 
-    if (!propertyId || !unitId) {
+    if (!propertyId || !unitId || !tenantAssignmentId) {
       return NextResponse.json({ error: "Invalid session." }, { status: 401 });
     }
 
     const assignment = await prisma.tenantAssignment.findFirst({
       where: {
+        id: tenantAssignmentId,
         propertyId,
         unitId,
         isCurrent: true,
+        OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
       },
       orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
       select: { id: true },
     });
 
     if (!assignment) {
-      return NextResponse.json({
-        ok: true,
-        ledger: [],
-      });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
 

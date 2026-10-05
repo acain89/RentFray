@@ -71,7 +71,8 @@ export async function POST(req: Request) {
       !session ||
       session.role !== "TENANT" ||
       !session.unitId ||
-      !session.propertyId
+      !session.propertyId ||
+      !session.tenantAssignmentId
     ) {
       return NextResponse.json<ApiError>(
         {
@@ -100,7 +101,11 @@ export async function POST(req: Request) {
         },
         tenantAssignments: {
           where: {
+            id: session.tenantAssignmentId,
+            propertyId: session.propertyId,
+            unitId: session.unitId,
             isCurrent: true,
+            OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
           },
           orderBy: [
             { moveInDate: "desc" },
@@ -151,8 +156,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const assignment = unit.tenantAssignments[0] ?? null;
-    const tenantAssignmentId = assignment?.id ?? null;
+    const assignment = unit.tenantAssignments.find((item: { id: string }) => item.id === session.tenantAssignmentId);
+    if (!assignment) {
+      return NextResponse.json<ApiError>({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const tenantAssignmentId = assignment.id;
 
     const financialState = await getUnitFinancialState({
       propertyId: property.id,

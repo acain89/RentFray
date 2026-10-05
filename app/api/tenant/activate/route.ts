@@ -45,6 +45,7 @@ class TenantActivationError extends Error {
 type ActivationResult = {
   propertyId: string;
   unitId: string;
+  tenantAssignmentId: string;
 };
 
 function clean(value: unknown): string {
@@ -596,6 +597,7 @@ export async function POST(req: Request) {
         return {
           propertyId: property.id,
           unitId: savedUnit.id,
+          tenantAssignmentId: tenantAssignment.id,
         };
       },
       {
@@ -631,6 +633,7 @@ export async function POST(req: Request) {
       role: "TENANT",
       propertyId: activation.propertyId,
       unitId: activation.unitId,
+      tenantAssignmentId: activation.tenantAssignmentId,
     });
 
     await setSessionCookie(token);

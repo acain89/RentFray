@@ -122,10 +122,26 @@ export async function POST(req: Request) {
 
     await clearPinAttempts(unit.id);
 
+    const assignment = await prisma.tenantAssignment.findFirst({
+      where: {
+        propertyId: property.id,
+        unitId: unit.id,
+        isCurrent: true,
+        OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
+      },
+      orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
+      select: { id: true },
+    });
+
+    if (!assignment) {
+      return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
+    }
+
     const token = createSessionToken({
       role: "TENANT",
       propertyId: property.id,
       unitId: unit.id,
+      tenantAssignmentId: assignment.id,
     });
 
     await setSessionCookie(token);
