@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
+import { getSession, requireRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ function generateCode() {
 ========================= */
 async function approveRequest(formData: FormData) {
   "use server";
+
+  await requireRole("ADMIN");
 
   const id = String(formData.get("id") || "").trim();
   if (!id) {
@@ -89,6 +92,8 @@ async function approveRequest(formData: FormData) {
 async function rejectRequest(formData: FormData) {
   "use server";
 
+  await requireRole("ADMIN");
+
   const id = String(formData.get("id") || "").trim();
   if (!id) {
     throw new Error("Missing request id");
@@ -102,6 +107,9 @@ async function rejectRequest(formData: FormData) {
 }
 
 export default async function AdminRequestsPage() {
+  const session = await getSession();
+  if (!session || session.role !== "ADMIN") redirect("/login/admin");
+
   const requests = await prisma.setupRequest.findMany({
     orderBy: { createdAt: "desc" },
     select: {

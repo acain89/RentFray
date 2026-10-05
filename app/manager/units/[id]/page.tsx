@@ -186,6 +186,7 @@ export default async function UnitDetail({ params }: Props) {
         orderBy: [{ createdAt: "desc" }],
       },
       notes: {
+  where: { propertyId: session.propertyId },
   orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
 },
 

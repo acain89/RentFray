@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
 
-    if (!session || !session.propertyId) {
+    if (!session || !session.propertyId || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Unauthorized" },
         { status: 401 }
@@ -48,6 +48,14 @@ export async function GET(req: NextRequest) {
         { ok: false, error: "Missing unitId" },
         { status: 400 }
       );
+    }
+
+    const unit = await prisma.unit.findFirst({
+      where: { id: unitId, propertyId: session.propertyId },
+      select: { id: true },
+    });
+    if (!unit) {
+      return NextResponse.json<ApiError>({ ok: false, error: "Unit not found" }, { status: 404 });
     }
 
     const notes = await prisma.unitNote.findMany({
@@ -82,7 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
 
-    if (!session || !session.propertyId) {
+    if (!session || !session.propertyId || !["OWNER", "MANAGER"].includes(session.role)) {
       return NextResponse.json<ApiError>(
         { ok: false, error: "Unauthorized" },
         { status: 401 }
@@ -111,6 +119,7 @@ export async function POST(req: NextRequest) {
         where: {
           id: noteId,
           propertyId: session.propertyId,
+          unit: { propertyId: session.propertyId },
         },
       });
 
@@ -121,8 +130,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const suppliedUnitId = clean(body.unitId);
+      if (suppliedUnitId && suppliedUnitId !== existing.unitId) {
+        return NextResponse.json<ApiError>({ ok: false, error: "Note not found" }, { status: 404 });
+      }
+
       const updated = await prisma.unitNote.update({
-        where: { id: noteId },
+        where: { id: noteId, propertyId: session.propertyId, unit: { propertyId: session.propertyId } },
         data: {
           isPinned: !existing.isPinned,
         },
@@ -156,9 +170,17 @@ export async function POST(req: NextRequest) {
 
     const content = clampContent(contentRaw);
 
+    const unit = await prisma.unit.findFirst({
+      where: { id: unitId, propertyId: session.propertyId },
+      select: { id: true },
+    });
+    if (!unit) {
+      return NextResponse.json<ApiError>({ ok: false, error: "Unit not found" }, { status: 404 });
+    }
+
     const note = await prisma.unitNote.create({
       data: {
-        unitId,
+        unitId: unit.id,
         propertyId: session.propertyId,
         content,
         noteType: ["GENERAL", "PAYMENT", "SYSTEM"].includes(noteType)

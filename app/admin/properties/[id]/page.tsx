@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import AdminSupportTools from "@/components/admin/AdminSupportTools";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,9 @@ export default async function PropertyDashboard({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await getSession();
+  if (!session || session.role !== "ADMIN") redirect("/login/admin");
+
   const { id } = await params;
 
   if (!id) {
