@@ -7,6 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AuthThrottleBucket {
+  key             String   @id
+  attemptCount    Int
+  windowExpiresAt DateTime @db.Timestamptz(3)
+
+  @@index([windowExpiresAt])
+}
+
 model AdminAccess {
   id         String    @id @default(cuid())
   codeHash   String

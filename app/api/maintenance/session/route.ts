@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { admitMaintenanceLogin } from "@/lib/authThrottle";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
@@ -68,14 +69,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const property = await prisma.property.findUnique({
-      where: { propertyCode },
-      select: {
-        id: true,
-        status: true,
-        isActive: true,
-      },
-    });
+    const admission = await admitMaintenanceLogin(propertyCode);
+    if (!admission.admitted) {
+      return NextResponse.json<MaintenanceLoginErrorResponse>(
+        { ok: false, error: "Too many login attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(admission.retryAfter) } }
+      );
+    }
+    const property = admission.property;
 
     if (!property || !property.isActive) {
       return NextResponse.json<MaintenanceLoginErrorResponse>(

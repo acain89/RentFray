@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { admitAdminLogin } from "@/lib/authThrottle";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, getSession, setSessionCookie } from "@/lib/session";
 
@@ -41,6 +42,14 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { ok: false, error: "Invalid admin code." },
         { status: 400 }
+      );
+    }
+
+    const admission = await admitAdminLogin();
+    if (!admission.admitted) {
+      return NextResponse.json(
+        { ok: false, error: "Too many login attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(admission.retryAfter) } }
       );
     }
 
