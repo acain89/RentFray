@@ -27,11 +27,11 @@ VALID STATUS TRANSITIONS
 */
 
 const VALID_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {
-  UNPAID: ["PENDING"],
+  UNPAID: ["PENDING", "PAID", "FAILED"],
   PENDING: ["PAID", "FAILED", "REVERSED"],
   PAID: ["REVERSED"], // ACH reversal risk
-  FAILED: ["PENDING"], // retry allowed
-  REVERSED: [], // terminal (for now)
+  FAILED: ["PENDING", "PAID"], // retry or authoritative delayed collection
+  REVERSED: ["PAID"], // authoritative funds reinstatement only
 };
 
 /*

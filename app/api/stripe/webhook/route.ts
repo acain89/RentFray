@@ -5,7 +5,6 @@ import Stripe from "stripe";
 import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { canMakePayments } from "@/lib/liveGating";
 import { emitEvent } from "@/lib/realtime";
 import { assertValidTransition } from "@/lib/paymentStatus";
 import { getBusinessDate } from "@/lib/rentDates";
@@ -20,427 +19,239 @@ const stripeConnectWebhookSecret =
 
 type PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED";
 
-function parseCents(value: string | undefined): number {
-  const n = Number(value ?? 0);
-  return Number.isFinite(n) ? Math.trunc(n) : 0;
-}
-
 function safeString(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-async function updatePaymentStatus(
-  intentId: string,
-  nextStatus: PaymentStatus
-): Promise<void> {
-  if (!intentId) return;
+// Invalid mappings are acknowledged without writes; database/transport failures retry.
+class InvalidFinancialEvent extends Error {}
 
-  const existing = await prisma.payment.findFirst({
-    where: {
-      OR: [{ stripePaymentIntentId: intentId }, { id: intentId }],
-    },
-    select: {
-      id: true,
-      status: true,
-    },
-  });
+type PaymentRecord = {
+  id: string; propertyId: string; unitId: string; tenantAssignmentId: string | null;
+  billingCycle: string | null; amountCents: number; processingFeeCents: number | null;
+  stripePaymentIntentId: string | null; stripeSessionId: string | null;
+  status: PaymentStatus; paidAt: Date | null;
+};
 
-  if (!existing) return;
-
-  const currentStatus = existing.status as PaymentStatus;
-
-  if (currentStatus === nextStatus) return;
-
-  assertValidTransition(currentStatus, nextStatus);
-
-  await prisma.payment.update({
-    where: { id: existing.id },
-    data: {
-      status: nextStatus,
-      ...(nextStatus === "PAID" && { paidAt: new Date() }),
-      ...(nextStatus === "FAILED" && { failedAt: new Date() }),
-      ...(nextStatus === "REVERSED" && { reversedAt: new Date() }),
-    },
-  });
+function objectId(value: string | { id: string } | null | undefined): string {
+  return typeof value === "string" ? value : value?.id ?? "";
 }
 
-async function findCurrentTenantAssignmentId(input: {
-  propertyId: string;
-  unitId: string;
-}): Promise<string | null> {
-  const assignment = await prisma.tenantAssignment.findFirst({
-    where: {
-      propertyId: input.propertyId,
-      unitId: input.unitId,
-      isCurrent: true,
-    },
-    orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-    select: { id: true },
-  });
-
-  return assignment?.id ?? null;
+function requireFinancial(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new InvalidFinancialEvent(message);
 }
 
-async function ensurePaymentFromIntent(
-  intent: Stripe.PaymentIntent,
-  stripeSessionId?: string | null
-) {
-  const metadata = intent.metadata || {};
-
-  const propertyId = safeString(metadata.propertyId);
-  const unitId = safeString(metadata.unitId);
-  const paymentId = safeString(metadata.paymentId);
-  const billingCycle = safeString(metadata.billingCycle);
-  const amountCents = parseCents(metadata.ledgerBalanceCents);
-  const feeCents = parseCents(metadata.processingFeeCents);
-
-  let tenantAssignmentId =
-    safeString(metadata.tenantAssignmentId) !== ""
-      ? safeString(metadata.tenantAssignmentId)
-      : null;
-
-  if (!tenantAssignmentId && propertyId && unitId) {
-    tenantAssignmentId = await findCurrentTenantAssignmentId({
-      propertyId,
-      unitId,
-    });
-  }
-
-  if (paymentId) {
-    return prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        stripePaymentIntentId: intent.id,
-        stripeSessionId: stripeSessionId ?? undefined,
-        ...(billingCycle ? { billingCycle } : {}),
-        ...(amountCents > 0 ? { amountCents } : {}),
-        processingFeeCents: feeCents,
-        paymentMethod: "ACH",
-        ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
-      },
-    });
-  }
-
-  if (!propertyId || !unitId || !billingCycle) return null;
-
-  return prisma.payment.upsert({
-    where: { stripePaymentIntentId: intent.id },
-    update: {
-      stripeSessionId: stripeSessionId ?? undefined,
-      billingCycle,
-      ...(amountCents > 0 ? { amountCents } : {}),
-      processingFeeCents: feeCents,
-      paymentMethod: "ACH",
-      failedAt: null,
-      reversedAt: null,
-      ...(tenantAssignmentId ? { tenantAssignmentId } : {}),
-    },
-    create: {
-      propertyId,
-      unitId,
-      tenantAssignmentId: tenantAssignmentId ?? undefined,
-      stripePaymentIntentId: intent.id,
-      stripeSessionId: stripeSessionId ?? null,
-      billingCycle,
-      amountCents,
-      processingFeeCents: feeCents,
-      status: "PENDING",
-      paymentMethod: "ACH",
-    },
-  });
-}
-
-async function markPaymentPaidByIntentId(
-  tx: Prisma.TransactionClient,
-  intentId: string
-): Promise<void> {
-  const payment = await tx.payment.findFirst({
-    where: {
-      OR: [{ stripePaymentIntentId: intentId }, { id: intentId }],
-    },
-    select: {
-      id: true,
-      status: true,
-    },
-  });
-
-  if (!payment) return;
-
-  const currentStatus = payment.status as PaymentStatus;
-
-  if (currentStatus === "PAID") return;
-
-  assertValidTransition(currentStatus, "PAID");
-
-  await tx.payment.update({
-    where: { id: payment.id },
-    data: {
-      status: "PAID",
-      paidAt: new Date(),
-      failedAt: null,
-      reversedAt: null,
-    },
-  });
-}
-
-async function finalizeSuccessfulIntent(input: {
-  intent: Stripe.PaymentIntent;
-  stripeSessionId?: string | null;
-}): Promise<void> {
-  const { intent, stripeSessionId } = input;
-
-  if (intent.payment_method_types?.[0] !== "us_bank_account") {
-    return;
-  }
-
-  const metadata = intent.metadata || {};
-
-  const stripeAccountId = safeString(metadata.stripeAccountId);
-  const propertyId = safeString(metadata.propertyId);
-  const unitId = safeString(metadata.unitId);
-
-  const balanceCents = parseCents(metadata.ledgerBalanceCents);
-  const feeCents = parseCents(metadata.processingFeeCents);
-  const expectedCents =
-    parseCents(metadata.totalAmountCents) || balanceCents + feeCents;
-
-  if (!propertyId || !unitId || expectedCents <= 0) {
-    console.error("PAYMENT FINALIZATION BLOCKED — MISSING REQUIRED METADATA", {
-      intentId: intent.id,
-      propertyId,
-      unitId,
-      expectedCents,
-    });
-    return;
-  }
-
-  const property = await prisma.property.findUnique({
-    where: { id: propertyId },
-    include: {
-      settings: true,
-      units: true,
-      paymentStatus: true,
-    },
-  });
-
-  if (!property || !property.isActive || !canMakePayments(property)) {
-    console.error("PAYMENT FINALIZATION BLOCKED — PROPERTY NOT PAYMENT READY", {
-      intentId: intent.id,
-      propertyId,
-    });
-    return;
-  }
-
-  if (stripeAccountId && property.stripeAccountId !== stripeAccountId) {
-    console.error("PAYMENT FINALIZATION BLOCKED — STRIPE ACCOUNT MISMATCH", {
-      intentId: intent.id,
-      metadataAccount: stripeAccountId,
-      propertyAccount: property.stripeAccountId,
-    });
-    return;
-  }
-
-  const stripeCents = intent.amount_received ?? intent.amount ?? expectedCents;
-
-  if (stripeCents <= 0 || stripeCents !== expectedCents) {
-    console.error("PAYMENT FINALIZATION BLOCKED — AMOUNT MISMATCH", {
-      intentId: intent.id,
-      stripeCents,
-      expectedCents,
-      balanceCents,
-      feeCents,
-    });
-    await ensurePaymentFromIntent(intent, stripeSessionId);
-    return;
-  }
-
-  const payment = await ensurePaymentFromIntent(intent, stripeSessionId);
-
-  if (!payment) {
-    console.error("PAYMENT FINALIZATION BLOCKED — PAYMENT RECORD NOT FOUND", {
-      intentId: intent.id,
-    });
-    return;
-  }
-
-  const billingCycle =
-    safeString(metadata.billingCycle) || safeString(payment.billingCycle);
-
-  if (!billingCycle) {
-    console.error("PAYMENT FINALIZATION BLOCKED — MISSING BILLING CYCLE", {
-      intentId: intent.id,
-      paymentId: payment.id,
-    });
-    return;
-  }
-
-  const tenantAssignmentId =
-    safeString(payment.tenantAssignmentId) ||
-    safeString(metadata.tenantAssignmentId) ||
-    (await findCurrentTenantAssignmentId({ propertyId, unitId }));
-
-  const effectiveDate = getBusinessDate();
-
-  let didWriteLedgerPayment = false;
-
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await markPaymentPaidByIntentId(tx, intent.id);
-
-    const existingLedgerPayment = await tx.ledgerEntry.findFirst({
-      where: {
-        referenceNumber: intent.id,
-        entryType: "PAYMENT",
-        unitId,
-      },
-      select: { id: true },
-    });
-
-    if (existingLedgerPayment) return;
-
-    if (feeCents > 0) {
-      const existingFee = await tx.ledgerEntry.findFirst({
-        where: {
-          referenceNumber: `${intent.id}:fee`,
-          entryType: "CHARGE",
-          unitId,
-        },
-        select: { id: true },
-      });
-
-      if (!existingFee) {
-        await tx.ledgerEntry.create({
-          data: {
-            propertyId,
-            unitId,
-            tenantAssignmentId: tenantAssignmentId || null,
-            entryType: "CHARGE",
-            chargeType: "PROCESSING_FEE",
-            amountCents: feeCents,
-            effectiveDate,
-            billingCycle,
-            paymentId: payment.id,
-            referenceNumber: `${intent.id}:fee`,
-            memo: "Processing fee",
-          },
-        });
-      }
-    }
-
-    await tx.ledgerEntry.create({
-      data: {
-        propertyId,
-        unitId,
-        tenantAssignmentId: tenantAssignmentId || null,
-        entryType: "PAYMENT",
-        paymentMethod: "ACH",
-        amountCents: -expectedCents,
-        effectiveDate,
-        billingCycle,
-        paymentId: payment.id,
-        referenceNumber: intent.id,
-        memo: "Stripe payment",
-      },
-    });
-
-    didWriteLedgerPayment = true;
-
-    await tx.auditLog.create({
-      data: {
-        propertyId,
-        actorType: "SYSTEM",
-        action: "PAYMENT_RECORDED",
-        targetType: "PAYMENT",
-        targetId: intent.id,
-        metadataJson: JSON.stringify({
-          stripeCents,
-          expectedCents,
-          feeCents,
-          balanceCents,
-          billingCycle,
-          tenantAssignmentId: tenantAssignmentId || null,
-          finalizedFrom: stripeSessionId ? "checkout_session" : "payment_intent",
-        }),
-      },
-    });
-  });
-
-  emitEvent("payment:update", { propertyId, unitId });
-  emitEvent("ledger:update", { propertyId, unitId });
-  emitEvent("tenant:update", { propertyId, unitId });
-
-  if (didWriteLedgerPayment && property.status === "READY") {
-    await prisma.property.update({
-      where: { id: propertyId },
-      data: { status: "LIVE" },
-    });
-  }
-}
-
-async function reverseLedgerEntries(intentId: string): Promise<void> {
-  const payment = await prisma.payment.findUnique({
-    where: { stripePaymentIntentId: intentId },
-    include: { ledgerEntries: true },
-  });
-
-  if (!payment) return;
-
-  const existingReversal = await prisma.ledgerEntry.findFirst({
-    where: {
-      referenceNumber: `${intentId}:reversal`,
-      entryType: "ADJUSTMENT",
-    },
-    select: { id: true },
-  });
-
-  if (existingReversal) return;
-
-  const entries = payment.ledgerEntries as { amountCents: number }[];
-
-  const totalReversal = entries.reduce(
-    (sum, entry) => sum + entry.amountCents,
-    0
+function validateMetadata(payment: PaymentRecord, metadata: Stripe.Metadata | null) {
+  const m = metadata ?? {};
+  requireFinancial(
+    m.paymentId === payment.id && m.propertyId === payment.propertyId &&
+    m.unitId === payment.unitId && m.tenantAssignmentId === payment.tenantAssignmentId &&
+    m.billingCycle === payment.billingCycle &&
+    /^\d+$/.test(m.ledgerBalanceCents ?? "") &&
+    /^\d+$/.test(m.processingFeeCents ?? "") &&
+    /^\d+$/.test(m.totalAmountCents ?? "") &&
+    Number(m.ledgerBalanceCents) === payment.amountCents &&
+    Number(m.processingFeeCents) === (payment.processingFeeCents ?? 0) &&
+    Number(m.totalAmountCents) === payment.amountCents + (payment.processingFeeCents ?? 0),
+    "Payment metadata/identity/quote mismatch"
   );
+}
 
-  if (totalReversal === 0) return;
+async function lockPayment(tx: Prisma.TransactionClient, payment: PaymentRecord) {
+  // The tenancy lock also covers overlapping quotes across billing-cycle rollover.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${payment.propertyId}:${payment.unitId}:${payment.tenantAssignmentId ?? "none"}`}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${payment.propertyId}:${payment.unitId}:${payment.tenantAssignmentId ?? "none"}:${payment.billingCycle}`}))`;
+}
 
-  await prisma.ledgerEntry.create({
-    data: {
-      propertyId: payment.propertyId,
-      unitId: payment.unitId,
-      tenantAssignmentId: payment.tenantAssignmentId,
-      entryType: "ADJUSTMENT",
-      amountCents: -totalReversal,
-      effectiveDate: new Date(),
-      paymentId: payment.id,
-      referenceNumber: `${intentId}:reversal`,
-      memo: "Payment reversal (ACH return / dispute)",
-    },
-  });
+async function transitionPayment(tx: Prisma.TransactionClient, payment: PaymentRecord, next: PaymentStatus) {
+  if (payment.status === next) return;
+  assertValidTransition(payment.status, next);
+  await tx.payment.update({ where: { id: payment.id }, data: {
+    status: next,
+    ...(next === "PAID" ? { paidAt: payment.paidAt ?? new Date(), failedAt: null, reversedAt: null } : {}),
+    ...(next === "FAILED" ? { failedAt: new Date() } : {}),
+    ...(next === "REVERSED" ? { reversedAt: new Date() } : {}),
+  } });
+  payment.status = next;
+}
 
-  await prisma.auditLog.create({
-    data: {
-      propertyId: payment.propertyId,
-      actorType: "SYSTEM",
-      action: "PAYMENT_REVERSED",
-      targetType: "PAYMENT",
-      targetId: intentId,
-    },
-  });
+async function returnedPrincipal(stripe: Stripe, payment: PaymentRecord, intent: Stripe.PaymentIntent) {
+  const chargeId = objectId(intent.latest_charge);
+  requireFinancial(chargeId, "Successful Intent has no charge");
+  const charge = await stripe.charges.retrieve(chargeId);
+  requireFinancial(objectId(charge.payment_intent) === intent.id && charge.currency === "usd" &&
+    charge.amount === intent.amount && charge.payment_method_details?.type === "us_bank_account",
+    "Charge identity/amount mismatch");
+  let refunded = 0;
+  // Pagination avoids silently missing previously returned money.
+  for await (const refund of stripe.refunds.list({ charge: chargeId, limit: 100 })) {
+    requireFinancial(objectId(refund.charge) === chargeId && refund.currency === "usd", "Refund identity mismatch");
+    if (refund.status === "succeeded") refunded += refund.amount;
+  }
+  let withdrawn = 0;
+  for await (const dispute of stripe.disputes.list({ charge: chargeId, limit: 100 })) {
+    const current = await stripe.disputes.retrieve(dispute.id);
+    requireFinancial(objectId(current.charge) === chargeId, "Dispute identity mismatch");
+    const seen = new Set<string>();
+    for (const movement of current.balance_transactions) {
+      requireFinancial(movement.currency === "usd" && Number.isSafeInteger(movement.amount), "Invalid dispute movement");
+      if (seen.has(movement.id)) continue;
+      seen.add(movement.id);
+      // Gross amount excludes the dispute fees contained in net; fees are not rent debt.
+      withdrawn -= movement.amount;
+    }
+  }
+  const grossReturned = refunded + withdrawn;
+  const total = payment.amountCents + (payment.processingFeeCents ?? 0);
+  requireFinancial(Number.isSafeInteger(grossReturned) && grossReturned >= 0 && grossReturned <= total,
+    "Returned funds overlap/exceed the quote; separate reconciliation required");
+  if (grossReturned === 0) return 0;
+  if (grossReturned === total) return payment.amountCents;
+  // Bundled-fee partial returns do not identify principal vs fee allocation. Fail safely.
+  requireFinancial(!(payment.processingFeeCents ?? 0), "Partial return fee allocation is not conclusive");
+  return grossReturned;
+}
 
-  emitEvent("payment:update", {
-    propertyId: payment.propertyId,
-    unitId: payment.unitId,
-  });
+async function reconcileReturnedFunds(tx: Prisma.TransactionClient, payment: PaymentRecord, intentId: string, principal: number) {
+  const full = principal === payment.amountCents;
+  const feeVoidReason = "Stripe returned payment processing fee";
+  const adjustmentKey = `stripe:${intentId}:returned-principal`;
+  const adjustment = await tx.ledgerEntry.findUnique({ where: { idempotencyKey: adjustmentKey } });
+  if (principal > 0 && !full) {
+    // Keep PAID and its remaining credit for a partial return; replace cumulative loss, not add it.
+    const data = { amountCents: principal, voidedAt: null, voidReason: null };
+    await tx.ledgerEntry.upsert({ where: { idempotencyKey: adjustmentKey }, update: data, create: {
+      ...data, idempotencyKey: adjustmentKey, propertyId: payment.propertyId, unitId: payment.unitId,
+      tenantAssignmentId: payment.tenantAssignmentId, paymentId: payment.id,
+      billingCycle: payment.billingCycle, entryType: "ADJUSTMENT", effectiveDate: getBusinessDate(),
+      referenceNumber: `${intentId}:returned-principal`, memo: "Actual returned tenant principal",
+    } });
+  } else if (adjustment && !adjustment.voidedAt) {
+    await tx.ledgerEntry.update({ where: { id: adjustment.id }, data: {
+      voidedAt: new Date(), voidReason: full ? "Full return accounted by REVERSED payment" : "Returned funds reinstated",
+    } });
+  }
+  if (full) {
+    // Removing PAYMENT credit is the sole full-principal restoration. Neutralize its fee charge.
+    await tx.ledgerEntry.updateMany({ where: {
+      paymentId: payment.id, referenceNumber: `${intentId}:fee`, chargeType: "PROCESSING_FEE", voidedAt: null,
+    }, data: { voidedAt: new Date(), voidReason: feeVoidReason } });
+  } else {
+    await tx.ledgerEntry.updateMany({ where: {
+      paymentId: payment.id, referenceNumber: `${intentId}:fee`, chargeType: "PROCESSING_FEE", voidReason: feeVoidReason,
+    }, data: { voidedAt: null, voidReason: null } });
+  }
+  await transitionPayment(tx, payment, full ? "REVERSED" : "PAID");
+}
 
-  emitEvent("ledger:update", {
-    propertyId: payment.propertyId,
-    unitId: payment.unitId,
-  });
+async function ensureCollection(tx: Prisma.TransactionClient, payment: PaymentRecord, intent: Stripe.PaymentIntent) {
+  const common = {
+    propertyId: payment.propertyId, unitId: payment.unitId,
+    tenantAssignmentId: payment.tenantAssignmentId, billingCycle: payment.billingCycle,
+    paymentId: payment.id, effectiveDate: getBusinessDate(),
+  };
+  const expected = payment.amountCents + (payment.processingFeeCents ?? 0);
+  const existing = await tx.ledgerEntry.findFirst({ where: {
+    paymentId: payment.id, entryType: "PAYMENT", referenceNumber: intent.id,
+  } });
+  if (existing) {
+    requireFinancial(existing.propertyId === payment.propertyId && existing.unitId === payment.unitId &&
+      existing.tenantAssignmentId === payment.tenantAssignmentId && existing.amountCents === -expected &&
+      !existing.voidedAt, "Existing collection ledger identity mismatch");
+  } else {
+    await tx.ledgerEntry.create({ data: {
+      ...common, entryType: "PAYMENT", paymentMethod: "ACH", amountCents: -expected,
+      referenceNumber: intent.id, idempotencyKey: `stripe:${intent.id}:payment`, memo: "Stripe payment",
+    } });
+  }
+  const fee = payment.processingFeeCents ?? 0;
+  if (fee > 0) {
+    const existingFee = await tx.ledgerEntry.findFirst({ where: {
+      paymentId: payment.id, entryType: "CHARGE", referenceNumber: `${intent.id}:fee`,
+    } });
+    if (existingFee) {
+      requireFinancial(existingFee.amountCents === fee && existingFee.chargeType === "PROCESSING_FEE" &&
+        existingFee.propertyId === payment.propertyId && existingFee.unitId === payment.unitId &&
+        existingFee.tenantAssignmentId === payment.tenantAssignmentId, "Existing processing fee identity mismatch");
+    } else {
+      await tx.ledgerEntry.create({ data: {
+        ...common, entryType: "CHARGE", chargeType: "PROCESSING_FEE", amountCents: fee,
+        referenceNumber: `${intent.id}:fee`, idempotencyKey: `stripe:${intent.id}:fee`, memo: "Processing fee",
+      } });
+    }
+  }
+  return !existing;
+}
 
-  emitEvent("tenant:update", {
-    propertyId: payment.propertyId,
-    unitId: payment.unitId,
-  });
+async function applyPaymentEvent(stripe: Stripe, event: Stripe.Event) {
+  const object = event.data.object as Stripe.PaymentIntent | Stripe.Checkout.Session | Stripe.Charge | Stripe.Dispute;
+  const isIntent = event.type.startsWith("payment_intent.");
+  const isCheckout = event.type.startsWith("checkout.session.");
+  const suppliedIntentId = isIntent ? object.id : objectId((object as Stripe.Charge).payment_intent);
+  const metadata = "metadata" in object ? object.metadata : null;
+  const paymentId = safeString(metadata?.paymentId);
+  const initial: PaymentRecord | null = await prisma.payment.findFirst({ where: paymentId
+    ? { id: paymentId } : { stripePaymentIntentId: suppliedIntentId || "__unmapped__" } });
+  requireFinancial(initial, "Payment event cannot be mapped to an existing reservation");
+  if (isIntent || isCheckout) validateMetadata(initial, metadata);
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await lockPayment(tx, initial);
+    const payment = await tx.payment.findUnique({ where: { id: initial.id } }) as PaymentRecord | null;
+    requireFinancial(payment, "Payment reservation disappeared");
+    if (isIntent || isCheckout) validateMetadata(payment, metadata);
+    const sessionId = isCheckout ? object.id : null;
+    if (sessionId) requireFinancial(!payment.stripeSessionId || payment.stripeSessionId === sessionId, "Checkout identity mismatch");
+    const intentId = suppliedIntentId || payment.stripePaymentIntentId;
+    requireFinancial(intentId && (!payment.stripePaymentIntentId || payment.stripePaymentIntentId === intentId), "Intent identity mismatch");
+    if ((event.type === "payment_intent.processing" || event.type === "checkout.session.completed" ||
+      event.type === "payment_intent.payment_failed" || event.type === "checkout.session.async_payment_failed") &&
+      (payment.status === "PAID" || payment.status === "REVERSED")) return;
+    const intent = await stripe.paymentIntents.retrieve(intentId);
+    validateMetadata(payment, intent.metadata);
+    requireFinancial(intent.currency === "usd" && intent.amount === payment.amountCents + (payment.processingFeeCents ?? 0) &&
+      intent.payment_method_types.includes("us_bank_account") && payment.amountCents > 0,
+      "Intent amount/currency/payment method mismatch");
+    const account = safeString(intent.metadata.stripeAccountId);
+    requireFinancial(account && objectId(intent.on_behalf_of) === account && objectId(intent.transfer_data?.destination) === account,
+      "Stripe destination identity mismatch");
+    const unit = await tx.unit.findFirst({ where: { id: payment.unitId, propertyId: payment.propertyId }, select: { id: true } });
+    const assignment = payment.tenantAssignmentId ? await tx.tenantAssignment.findFirst({ where: {
+      id: payment.tenantAssignmentId, propertyId: payment.propertyId, unitId: payment.unitId,
+    }, select: { id: true } }) : null;
+    requireFinancial(unit && assignment, "Historical tenancy identity cannot be validated");
+    if (!isIntent && !isCheckout) {
+      const chargeId = event.type.startsWith("charge.dispute.") ? objectId((object as Stripe.Dispute).charge) : object.id;
+      requireFinancial(chargeId === objectId(intent.latest_charge), "Event charge identity mismatch");
+    }
+    const legacy = await tx.ledgerEntry.findFirst({ where: {
+      paymentId: payment.id, referenceNumber: `${intent.id}:reversal`, voidedAt: null,
+    }, select: { id: true } });
+    requireFinancial(!legacy, "Legacy reversal requires separate historical reconciliation");
+    const collected = intent.status === "succeeded";
+    if (collected) requireFinancial(intent.amount_received === intent.amount, "Collected amount mismatch");
+    const principal = collected ? await returnedPrincipal(stripe, payment, intent) : null;
+    await tx.payment.update({ where: { id: payment.id }, data: {
+      stripePaymentIntentId: intent.id, ...(sessionId ? { stripeSessionId: sessionId } : {}),
+    } });
+    if (collected) {
+      const wroteCollection = await ensureCollection(tx, payment, intent);
+      if (payment.status !== "REVERSED") await transitionPayment(tx, payment, "PAID");
+      await reconcileReturnedFunds(tx, payment, intent.id, principal!);
+      if (wroteCollection) {
+        await tx.property.updateMany({ where: { id: payment.propertyId, status: "READY" }, data: { status: "LIVE" } });
+      }
+      await tx.auditLog.create({ data: {
+        propertyId: payment.propertyId, actorType: "SYSTEM", action: "PAYMENT_RECONCILED", targetType: "PAYMENT", targetId: payment.id,
+        metadataJson: JSON.stringify({ eventId: event.id, intentId: intent.id, returnedPrincipalCents: principal, status: payment.status }),
+      } });
+    } else if (payment.status !== "PAID" && payment.status !== "REVERSED") {
+      if (intent.status === "processing") await transitionPayment(tx, payment, "PENDING");
+      else if (intent.status === "canceled" || intent.last_payment_error) await transitionPayment(tx, payment, "FAILED");
+    }
+  }, { timeout: 60_000 });
+  emitEvent("payment:update", { propertyId: initial.propertyId, unitId: initial.unitId });
+  emitEvent("ledger:update", { propertyId: initial.propertyId, unitId: initial.unitId });
+  emitEvent("tenant:update", { propertyId: initial.propertyId, unitId: initial.unitId });
 }
 
 export async function POST(req: Request) {
@@ -501,155 +312,15 @@ if (!event) {
 }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const paymentId = safeString(session.metadata?.paymentId);
-      const paymentIntentId =
-        typeof session.payment_intent === "string" ? session.payment_intent : null;
-
-      if (paymentId) {
-        const payment = await prisma.payment.update({
-          where: { id: paymentId },
-          data: {
-            stripeSessionId: session.id,
-            ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
-            status: "PENDING",
-            paymentMethod: "ACH",
-          },
-        });
-
-        emitEvent("payment:update", {
-          propertyId: payment.propertyId,
-          unitId: payment.unitId,
-        });
-
-        return NextResponse.json({ received: true });
-      }
-
-      if (paymentIntentId) {
-        const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-        const payment = await ensurePaymentFromIntent(intent, session.id);
-
-        if (payment) {
-          emitEvent("payment:update", {
-            propertyId: payment.propertyId,
-            unitId: payment.unitId,
-          });
-        }
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "payment_intent.processing") {
-      const processingIntent = event.data.object as Stripe.PaymentIntent;
-
-      if (
-        processingIntent.status !== "processing" ||
-        processingIntent.payment_method_types?.[0] !== "us_bank_account" ||
-        !processingIntent.payment_method ||
-        typeof processingIntent.payment_method !== "string"
-      ) {
-        return NextResponse.json({ received: true });
-      }
-
-      const paymentMethod = await stripe.paymentMethods.retrieve(
-        processingIntent.payment_method
-      );
-
-      if (!paymentMethod || paymentMethod.type !== "us_bank_account") {
-        return NextResponse.json({ received: true });
-      }
-
-      const payment = await ensurePaymentFromIntent(processingIntent);
-
-      if (payment) {
-        await updatePaymentStatus(processingIntent.id, "PENDING");
-
-        emitEvent("payment:update", {
-          propertyId: payment.propertyId,
-          unitId: payment.unitId,
-        });
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "checkout.session.async_payment_succeeded") {
-      const session = event.data.object as Stripe.Checkout.Session;
-
-      if (typeof session.payment_intent === "string") {
-        const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
-        await finalizeSuccessfulIntent({
-          intent,
-          stripeSessionId: session.id,
-        });
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "payment_intent.succeeded") {
-      const succeededIntent = event.data.object as Stripe.PaymentIntent;
-
-      await finalizeSuccessfulIntent({
-        intent: succeededIntent,
-      });
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "checkout.session.async_payment_failed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-
-      if (typeof session.payment_intent === "string") {
-        const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
-
-        await ensurePaymentFromIntent(intent, session.id);
-        await updatePaymentStatus(session.payment_intent, "FAILED");
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "payment_intent.payment_failed") {
-      const failedIntent = event.data.object as Stripe.PaymentIntent;
-
-      await ensurePaymentFromIntent(failedIntent);
-      await updatePaymentStatus(failedIntent.id, "FAILED");
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "payment_intent.canceled") {
-      const canceledIntent = event.data.object as Stripe.PaymentIntent;
-
-      await ensurePaymentFromIntent(canceledIntent);
-      await updatePaymentStatus(canceledIntent.id, "REVERSED");
-      await reverseLedgerEntries(canceledIntent.id);
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "charge.refunded") {
-      const charge = event.data.object as Stripe.Charge;
-
-      if (typeof charge.payment_intent === "string") {
-        await updatePaymentStatus(charge.payment_intent, "REVERSED");
-        await reverseLedgerEntries(charge.payment_intent);
-      }
-
-      return NextResponse.json({ received: true });
-    }
-
-    if (event.type === "charge.dispute.created") {
-      const dispute = event.data.object as Stripe.Dispute;
-
-      if (typeof dispute.payment_intent === "string") {
-        await updatePaymentStatus(dispute.payment_intent, "REVERSED");
-        await reverseLedgerEntries(dispute.payment_intent);
-      }
-
+    const paymentEvents = new Set([
+      "checkout.session.completed", "checkout.session.async_payment_succeeded",
+      "checkout.session.async_payment_failed", "payment_intent.processing",
+      "payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled",
+      "charge.refunded", "charge.dispute.created", "charge.dispute.funds_withdrawn",
+      "charge.dispute.funds_reinstated",
+    ]);
+    if (paymentEvents.has(event.type)) {
+      await applyPaymentEvent(stripe, event);
       return NextResponse.json({ received: true });
     }
 
@@ -719,7 +390,10 @@ if (!event) {
     }
   } catch (error) {
     console.error("Stripe webhook error:", error);
-    return NextResponse.json({ received: true });
+    if (error instanceof InvalidFinancialEvent) {
+      return NextResponse.json({ received: true, reconciled: false });
+    }
+    return NextResponse.json({ error: "Webhook reconciliation failed" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
