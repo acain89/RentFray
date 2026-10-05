@@ -48,6 +48,13 @@ export async function POST(
       return NextResponse.json({ error: "Missing action" }, { status: 400 });
     }
 
+    if (action === "RESET_PROPERTY") {
+      return NextResponse.json(
+        { error: "RESET_PROPERTY is retired. Preserve history and use normal lifecycle controls." },
+        { status: 410 }
+      );
+    }
+
     const property = await prisma.property.findUnique({
       where: { id },
       include: {
@@ -97,94 +104,6 @@ export async function POST(
         ok: true,
         action,
         property: updated,
-      });
-    }
-
-    if (action === "RESET_PROPERTY") {
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        await tx.maintenanceRequest.deleteMany({
-          where: { propertyId: id },
-        });
-
-        await tx.ledgerEntry.deleteMany({
-          where: { propertyId: id },
-        });
-
-        await tx.tenantAssignment.updateMany({
-          where: {
-            propertyId: id,
-            isCurrent: true,
-          },
-          data: {
-            moveOutDate: new Date(),
-            isCurrent: false,
-          },
-        });
-
-        await tx.unit.updateMany({
-          where: { propertyId: id },
-          data: {
-            portalActivated: false,
-            portalFirstName: null,
-            portalLastName: null,
-            tenantPinHash: null,
-            activatedAt: null,
-            activationSource: null,
-          },
-        });
-
-        await tx.paymentConnectionStatus.upsert({
-          where: { propertyId: id },
-          update: {
-            processorConnected: false,
-            bankConnected: false,
-            chargesEnabled: false,
-            payoutsEnabled: false,
-            onboardingComplete: false,
-            requirementsDue: false,
-            requirementsSummary: null,
-            lastSyncedAt: null,
-            readyForLive: false,
-          },
-          create: {
-            propertyId: id,
-            processorConnected: false,
-            bankConnected: false,
-            chargesEnabled: false,
-            payoutsEnabled: false,
-            onboardingComplete: false,
-            requirementsDue: false,
-            requirementsSummary: null,
-            lastSyncedAt: null,
-            readyForLive: false,
-          },
-        });
-
-        await tx.property.update({
-          where: { id },
-          data: {
-            status: "SETUP",
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            propertyId: id,
-            actorType: "ADMIN",
-            action: "PROPERTY_RESET",
-            targetType: "PROPERTY",
-            targetId: id,
-            summary: "Property reset by admin override.",
-            metadataJson: JSON.stringify({
-              reason: reason || null,
-            }),
-          },
-        });
-      });
-
-      return NextResponse.json({
-        ok: true,
-        action,
       });
     }
 

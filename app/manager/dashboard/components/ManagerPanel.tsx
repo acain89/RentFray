@@ -422,7 +422,7 @@ export default function ManagerPanel({
         {sessionRole === "OWNER" || sessionRole === "MANAGER" ? (
           <SectionCard
             title="Inactive units"
-            subtitle="Review inactive units and reactivate or delete them."
+            subtitle="Review inactive units and reactivate them. Delete is only for unused units; units with history must remain inactive."
           >
             <button
               type="button"

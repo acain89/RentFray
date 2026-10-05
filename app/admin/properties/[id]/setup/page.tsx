@@ -318,8 +318,6 @@ export default function PropertySetupPage({
 
       if (action === "FORCE_LIVE") {
         setOverrideSuccess("Force LIVE applied.");
-      } else if (action === "RESET_PROPERTY") {
-        setOverrideSuccess("Property reset complete.");
       } else if (action === "UNLOCK_UNIT") {
         setOverrideSuccess("Unit unlocked.");
       } else if (action === "REPAIR_PAYMENT_STATUS") {
@@ -587,13 +585,6 @@ export default function PropertySetupPage({
             Repair Payment Status
           </button>
 
-          <button
-            onClick={() => runOverride("RESET_PROPERTY")}
-            className="border px-4 py-2 rounded-lg text-red-600"
-            disabled={runningOverride}
-          >
-            Reset Property
-          </button>
         </div>
 
         {overrideError ? <div className="text-sm text-red-600">{overrideError}</div> : null}

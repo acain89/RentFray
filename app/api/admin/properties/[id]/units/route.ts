@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { assertPristineUnit, DestructiveRetentionError, UNIT_RETENTION_MESSAGE, lockRetentionProperty, lockRetentionUnit } from "@/lib/destructiveRetention";
 
 
 export const runtime = "nodejs";
@@ -317,11 +318,19 @@ export async function DELETE(
 
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        await lockRetentionProperty(tx, propertyId);
+        await lockRetentionUnit(tx, propertyId, unitId);
         const unit = await tx.unit.findFirst({
           where: { id: unitId, propertyId },
           select: {
             id: true,
             tierId: true,
+            portalActivated: true,
+            portalFirstName: true,
+            portalLastName: true,
+            tenantPinHash: true,
+            activatedAt: true,
+            activationSource: true,
             tenantAssignments: {
               where: {
                 moveOutDate: null,
@@ -337,8 +346,10 @@ export async function DELETE(
         }
 
         if (unit.tenantAssignments.length > 0) {
-          throw new Error("Unit has active tenant.");
+          throw new DestructiveRetentionError(UNIT_RETENTION_MESSAGE);
         }
+
+        await assertPristineUnit(tx, unit);
 
         await tx.unitRecurringFee.deleteMany({
           where: { unitId },
@@ -364,7 +375,8 @@ export async function DELETE(
         }
 
         return { unitId };
-      }
+      },
+      { isolationLevel: "ReadCommitted" }
     );
 
     return NextResponse.json<ApiSuccess<{ unitId: string }>>({
@@ -372,6 +384,9 @@ export async function DELETE(
       data: result,
     });
   } catch (error) {
+    if (error instanceof DestructiveRetentionError) {
+      return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: 409 });
+    }
     console.error("DELETE unit failed", error);
 
     const message =

@@ -255,7 +255,8 @@ const totalProperties = useMemo(
                       });
 
                       if (!res.ok) {
-                        setError("Failed to delete property.");
+                        const data = await res.json().catch(() => null);
+                        setError(data?.error || "Failed to delete property.");
                         return;
                       }
 

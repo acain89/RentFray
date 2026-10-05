@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { assertPristineProperty, DestructiveRetentionError, lockRetentionProperty } from "@/lib/destructiveRetention";
 import {
   BillingCalendarError,
   lockBillingCalendar,
@@ -168,12 +169,17 @@ export async function DELETE(
       return NextResponse.json({ error: "Missing id." }, { status: 400 });
     }
 
-    await prisma.property.delete({
-      where: { id },
-    });
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await lockRetentionProperty(tx, id);
+      if (!(await assertPristineProperty(tx, id))) throw new Error("Property not found.");
+      await tx.property.delete({ where: { id } });
+    }, { isolationLevel: "ReadCommitted" });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof DestructiveRetentionError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error("DELETE property failed", error);
 
     return NextResponse.json(
