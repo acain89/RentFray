@@ -1,7 +1,8 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
-import { getSession, refreshSessionCookie } from "@/lib/session";
+import { getSession, refreshSessionCookie, verifySessionToken } from "@/lib/session";
 import {
   getBusinessDate,
   getRentDateSummary,
@@ -393,6 +394,11 @@ export async function GET() {
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const adminToken = (await cookies()).get("rf_admin_session")?.value;
+    const isImpersonating = Boolean(
+      adminToken && verifySessionToken(adminToken)?.role === "ADMIN"
+    );
 
     const property = await prisma.property.findUnique({
       where: { id: session.propertyId },
@@ -945,6 +951,7 @@ bankConnected: Boolean(paymentStatus?.onboardingComplete),
       },
       session: {
         role: session.role,
+        isImpersonating,
       },
       summary: {
         totalUnits: property.unitCount,

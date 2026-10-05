@@ -102,6 +102,7 @@ setupCompleteAcknowledgedAt?: string | null;
 };
   session: {
     role: "OWNER" | "MANAGER" | "STAFF";
+    isImpersonating: boolean;
   };
   summary?: {
     totalUnits: number;
@@ -2713,8 +2714,7 @@ const canSubmitMoveTier =
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-slate-50 via-emerald-50/35 to-slate-100" />
         <div className="mx-auto max-w-6xl space-y-5">
 
-       {typeof document !== "undefined" &&
-document.cookie.includes("rf_admin_session=") ? (
+       {data?.session.isImpersonating ? (
   <div className="rounded-3xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/session";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +12,19 @@ async function restoreAdminSession() {
   const adminToken = cookieStore.get(ADMIN_BACKUP_COOKIE_NAME)?.value;
 
   if (!adminToken) {
+    return false;
+  }
+
+  const adminSession = verifySessionToken(adminToken);
+
+  if (!adminSession || adminSession.role !== "ADMIN") {
+    cookieStore.set(ADMIN_BACKUP_COOKIE_NAME, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
     return false;
   }
 
