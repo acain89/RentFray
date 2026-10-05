@@ -84,6 +84,10 @@ export async function GET(
     const { id } = await context.params;
     const propertyId = clean(id);
 
+    if (!session.propertyId || session.propertyId !== propertyId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     if (!propertyId) {
       return NextResponse.json(
         { error: "Missing property id." },
@@ -215,6 +219,10 @@ export async function POST(
 
     const { id } = await context.params;
     const propertyId = clean(id);
+
+    if (!session.propertyId || session.propertyId !== propertyId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     if (!propertyId) {
       return NextResponse.json(

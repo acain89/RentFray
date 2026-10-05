@@ -46,6 +46,11 @@ export async function POST(
     }
 
     const { id } = await context.params;
+
+    if (!session.propertyId || session.propertyId !== id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = (await req.json()) as PostBody;
     const tiers = Array.isArray(body.tiers) ? body.tiers : [];
 
@@ -81,7 +86,23 @@ const authoritativeDueDay =
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const tierIds = tiers.map((tier) => String(tier.id || "").trim());
+
+    if (tierIds.some((tierId) => !tierId)) {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const uniqueTierIds = [...new Set(tierIds)];
+      const ownedTiers = await tx.propertyTier.findMany({
+        where: { propertyId: id, id: { in: uniqueTierIds } },
+        select: { id: true },
+      });
+
+      if (ownedTiers.length !== uniqueTierIds.length) {
+        return false;
+      }
+
   for (const tier of tiers) {
     const tierId = String(tier.id || "").trim();
 
@@ -103,6 +124,7 @@ const authoritativeDueDay =
     await tx.propertyTier.update({
       where: {
         id: tierId,
+        propertyId: id,
       },
       data: {
         rentDueDay: authoritativeDueDay,  
@@ -127,7 +149,12 @@ const authoritativeDueDay =
       onboardingComplete: true,
     },
   });
+  return true;
 });
+
+    if (!updated) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

@@ -91,6 +91,11 @@ export async function POST(
   }
 
   const { id: propertyId } = await params;
+
+  if (!session.propertyId || session.propertyId !== propertyId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = (await req.json()) as CreateBody;
 
   const email = clean(body.email).toLowerCase();
@@ -154,6 +159,11 @@ export async function PATCH(
   }
 
   const { id: propertyId } = await params;
+
+  if (!session.propertyId || session.propertyId !== propertyId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = (await req.json()) as UpdateBody;
 
   const userId = clean(body.userId);
