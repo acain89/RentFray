@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 
 export const runtime = "nodejs";
@@ -24,6 +25,12 @@ function safeString(value: unknown) {
 
 export async function GET(req: Request) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const propertyCode = safeString(searchParams.get("propertyCode"));
 

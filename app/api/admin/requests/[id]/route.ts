@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 
 export const runtime = "nodejs";
@@ -12,6 +13,12 @@ type RouteContext = {
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await context.params;
 
     if (!id) {

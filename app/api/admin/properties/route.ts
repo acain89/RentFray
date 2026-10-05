@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
 
 
@@ -219,6 +220,12 @@ async function generateUniquePropertyCode(
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const propertyCode = safeTrim(searchParams.get("propertyCode"));
 
@@ -313,6 +320,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = (await req.json()) as IncomingWizardPayload;
 
     const property: IncomingProperty = body.property || {};

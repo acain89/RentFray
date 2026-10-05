@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 
 export const runtime = "nodejs";
@@ -47,6 +48,12 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id: propertyId } = await context.params;
 
     if (!propertyId) {
@@ -177,6 +184,12 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id: propertyId } = await context.params;
 
     if (!propertyId) {
@@ -277,6 +290,12 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSession();
+
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id: propertyId } = await context.params;
 
     if (!propertyId) {
