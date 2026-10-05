@@ -1,100 +1,56 @@
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireManagementSession } from "@/lib/session";
 
-function fmtDate(value: Date | string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US");
+export const dynamic = "force-dynamic";
+
+function fmtDate(value: Date | null) {
+  return value ? value.toLocaleDateString("en-US") : "—";
 }
 
-export default async function UnitHistory({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function UnitHistory({ params }: { params: Promise<{ id: string }> }) {
+  const session = await requireManagementSession();
+  if (!session.propertyId) throw new Error("Unauthorized");
   const { id } = await params;
-
-  const unit = await prisma.unit.findUnique({
-    where: { id },
+  const unit = await prisma.unit.findFirst({
+    where: { id, propertyId: session.propertyId },
     include: {
-      property: true,
-      assignments: {
-        orderBy: { moveIn: "desc" },
-        include: {
-          tenant: true,
-        },
-      },
+      property: { select: { name: true } },
+      tenantAssignments: { where: { propertyId: session.propertyId },
+        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }] },
     },
   });
-
-  if (!unit) {
-    return <div>Unit not found</div>;
-  }
-
-  type AssignmentWithTenant = (typeof unit.assignments)[number];
-
-  const current = unit.assignments.find(
-    (a: AssignmentWithTenant) => !a.moveOut
-  );
-  const history = unit.assignments.filter(
-    (a: AssignmentWithTenant) => !!a.moveOut
-  );
-
+  if (!unit) notFound();
+  const now = new Date();
+  type Assignment = (typeof unit.tenantAssignments)[number];
+  const current = unit.tenantAssignments.filter((a: Assignment) => a.isCurrent && (!a.moveOutDate || a.moveOutDate > now));
+  const history = unit.tenantAssignments.filter((a: Assignment) => !current.some((active: Assignment) => active.id === a.id));
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Unit History</h1>
-
-      <div style={{ marginBottom: 20 }}>
-        <strong>Property:</strong> {unit.property.name}
-        <br />
-        <strong>Unit:</strong> {unit.name}
-      </div>
-
-      <div style={{ marginBottom: 24 }}>
-        <h2>Current Tenant</h2>
-
-        {!current && <div>Vacant</div>}
-
-        {current && (
-          <div
-            style={{
-              padding: 12,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              marginTop: 8,
-            }}
-          >
-            <div>
-              <strong>{current.tenant.name}</strong>
-            </div>
-            <div>Move-in: {fmtDate(current.moveIn)}</div>
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">Unit History</h1>
+      <div>Property: {unit.property.name}<br />Unit: {unit.unitNumber}</div>
+      <section>
+        <h2 className="text-lg font-semibold">Current Tenant</h2>
+        {!current.length ? <div>Vacant</div> : current.map((a: Assignment) => (
+          <div key={a.id} className="rounded border p-3 mt-2">
+            <strong>{`${a.firstName || ""} ${a.lastName || ""}`.trim() || "—"}</strong>
+            <div>Move-in: {fmtDate(a.moveInDate)}</div>
             <div>Status: Active</div>
+            {a.moveOutDate ? <div>Scheduled move-out: {fmtDate(a.moveOutDate)}</div> : null}
           </div>
-        )}
-      </div>
-
-      <div>
-        <h2>Previous Tenants</h2>
-
-        {history.length === 0 && <div>No history</div>}
-
-        {history.map((a: AssignmentWithTenant) => (
-          <div
-            key={a.id}
-            style={{
-              padding: 12,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              marginTop: 8,
-            }}
-          >
-            <div>
-              <strong>{a.tenant.name}</strong>
-            </div>
-            <div>Move-in: {fmtDate(a.moveIn)}</div>
-            <div>Move-out: {fmtDate(a.moveOut)}</div>
+        ))}
+      </section>
+      <section>
+        <h2 className="text-lg font-semibold">Previous Tenants</h2>
+        {!history.length ? <div>No history</div> : history.map((a: Assignment) => (
+          <div key={a.id} className="rounded border p-3 mt-2">
+            <strong>{`${a.firstName || ""} ${a.lastName || ""}`.trim() || "—"}</strong>
+            <div>Move-in: {fmtDate(a.moveInDate)}</div>
+            <div>Move-out: {fmtDate(a.moveOutDate)}</div>
             <div>Status: Past</div>
           </div>
         ))}
-      </div>
+      </section>
     </div>
   );
 }

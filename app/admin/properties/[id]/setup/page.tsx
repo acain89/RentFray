@@ -23,9 +23,9 @@ type Readiness = {
   hasUnits: boolean;
   hasSettings: boolean;
   stripeConnected: boolean;
-  achEnabled: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
   onboardingComplete: boolean;
-  adminApproved: boolean;
   paymentReady: boolean;
   readyForLive: boolean;
 };
@@ -133,7 +133,8 @@ export default function PropertySetupPage({
       };
 
       setProperty(loadedProperty);
-      setReadiness(lifecycleData?.readiness || null);
+      setReadiness(lifecycleRes.ok ? lifecycleData?.readiness || null : null);
+      setLifecycleError(lifecycleRes.ok ? "" : lifecycleData?.error || "Failed to load lifecycle state.");
 
       setBaseRent(String(loadedProperty.settings?.baseRentDefault ?? ""));
       setConvenienceFee(String(loadedProperty.settings?.convenienceFee ?? ""));
@@ -355,9 +356,9 @@ export default function PropertySetupPage({
         <div className="text-sm">Has units: {readiness?.hasUnits ? "YES" : "NO"}</div>
         <div className="text-sm">Has settings: {readiness?.hasSettings ? "YES" : "NO"}</div>
         <div className="text-sm">Stripe connected: {readiness?.stripeConnected ? "YES" : "NO"}</div>
-        <div className="text-sm">ACH enabled: {readiness?.achEnabled ? "YES" : "NO"}</div>
+        <div className="text-sm">Charges enabled: {readiness?.chargesEnabled ? "YES" : "NO"}</div>
+        <div className="text-sm">Payouts enabled: {readiness?.payoutsEnabled ? "YES" : "NO"}</div>
         <div className="text-sm">Onboarding complete: {readiness?.onboardingComplete ? "YES" : "NO"}</div>
-        <div className="text-sm">Admin approved: {readiness?.adminApproved ? "YES" : "NO"}</div>
         <div className="text-sm font-medium">
           Ready for LIVE: {readiness?.readyForLive ? "YES" : "NO"}
         </div>

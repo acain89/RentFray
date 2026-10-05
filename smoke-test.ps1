@@ -256,13 +256,16 @@ try {
     Invoke-RouteCheck -Method GET -Url "$BaseUrl$path" -AllowedStatus @(200, 302, 307, 308) | Out-Null
   }
 
+  # The combined legacy API is intentionally retired; list/create remain supported.
+  Invoke-RouteCheck -Method GET -Url "$BaseUrl/api/tenant/maintenance" -AllowedStatus @(410) | Out-Null
+  Invoke-RouteCheck -Method POST -Url "$BaseUrl/api/tenant/maintenance" -AllowedStatus @(410) -Body @{} | Out-Null
+
   $protectedApis = @(
     "/api/manager/dashboard",
     "/api/manager/maintenance",
     "/api/manager/maintenance/update",
     "/api/manager/maintenance/pin",
     "/api/tenant/dashboard",
-    "/api/tenant/maintenance",
     "/api/tenant/maintenance/list",
     "/api/tenant/maintenance/create",
     "/api/maintenance/dashboard"

@@ -1,5 +1,6 @@
 // app/api/admin/properties/[id]/lifecycle/route.ts
 
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -57,15 +58,7 @@ export async function GET(
         units: {
           select: { id: true },
         },
-        paymentConnectionStatus: {
-          select: {
-            stripeConnected: true,
-            achEnabled: true,
-            onboardingComplete: true,
-            adminApproved: true,
-            notes: true,
-          },
-        },
+        paymentStatus: true,
       },
     });
 
@@ -114,97 +107,92 @@ export async function POST(
       );
     }
 
-    const property = await prisma.property.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        propertyCode: true,
-        status: true,
-        settings: true,
-        units: {
-          select: { id: true },
-        },
-        paymentConnectionStatus: {
-          select: {
-            stripeConnected: true,
-            achEnabled: true,
-            onboardingComplete: true,
-            adminApproved: true,
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const property = await tx.property.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          propertyCode: true,
+          status: true,
+          settings: true,
+          units: {
+            select: { id: true },
           },
+          paymentStatus: true,
         },
-      },
-    });
+      });
 
-    if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
+      if (!property) {
+        return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      }
 
-    const currentStatusRaw = clean(property.status);
+      const currentStatusRaw = clean(property.status);
 
-    if (!isValidStatus(currentStatusRaw)) {
-      return NextResponse.json(
-        { error: "Current property status invalid" },
-        { status: 400 }
-      );
-    }
+      if (!isValidStatus(currentStatusRaw)) {
+        return NextResponse.json(
+          { error: "Current property status invalid" },
+          { status: 400 }
+        );
+      }
 
-    const currentStatus = currentStatusRaw;
-    const nextStatus = nextStatusRaw;
+      const currentStatus = currentStatusRaw;
+      const nextStatus = nextStatusRaw;
 
-    if (!canTransition(currentStatus, nextStatus)) {
-      return NextResponse.json(
-        { error: `Invalid transition: ${currentStatus} → ${nextStatus}` },
-        { status: 400 }
-      );
-    }
+      if (!canTransition(currentStatus, nextStatus)) {
+        return NextResponse.json(
+          { error: `Invalid transition: ${currentStatus} → ${nextStatus}` },
+          { status: 400 }
+        );
+      }
 
-    const readiness = getLiveReadiness(property);
+      const readiness = getLiveReadiness(property);
 
-    if (nextStatus === "LIVE" && !readiness.readyForLive) {
-      return NextResponse.json(
-        {
-          error: "Property cannot go LIVE until setup and payments are complete.",
+      if (nextStatus === "LIVE" && !readiness.readyForLive) {
+        return NextResponse.json(
+          {
+            error: "Property cannot go LIVE until setup and payments are complete.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const updated = await tx.property.update({
+        where: { id, status: property.status },
+        data: {
+          status: nextStatus,
         },
-        { status: 400 }
-      );
-    }
+        select: {
+          id: true,
+          name: true,
+          propertyCode: true,
+          status: true,
+        },
+      });
 
-    const updated = await prisma.property.update({
-      where: { id },
-      data: {
-        status: nextStatus,
-      },
-      select: {
-        id: true,
-        name: true,
-        propertyCode: true,
-        status: true,
-      },
-    });
+      await tx.auditLog.create({
+        data: {
+          propertyId: id,
+          actorType: "ADMIN",
+          action: "PROPERTY_STATUS_CHANGED",
+          targetType: "PROPERTY",
+          targetId: id,
+          summary: "Admin changed property lifecycle status.",
+          metadataJson: JSON.stringify({
+            from: currentStatus,
+            to: nextStatus,
+            reason,
+            readiness,
+          }),
+        },
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        propertyId: id,
-        actorRole: "ADMIN",
-        actorLabel: "admin",
-        action: "PROPERTY_STATUS_CHANGED",
-        entityType: "PROPERTY",
-        entityId: id,
-        notes: JSON.stringify({
-          from: currentStatus,
-          to: nextStatus,
-          reason,
-          readiness,
-        }),
-      },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      property: updated,
-      previousStatus: currentStatus,
-      readiness,
+      return NextResponse.json({
+        ok: true,
+        property: updated,
+        previousStatus: currentStatus,
+        readiness,
+      });
     });
   } catch (error) {
     console.error("POST lifecycle error:", error);
