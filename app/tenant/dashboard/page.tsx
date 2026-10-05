@@ -314,10 +314,13 @@ export default function TenantDashboard() {
 
   async function logout(): Promise<void> {
     try {
-      await fetch("/api/tenant/session", {
+      const response = await fetch("/api/auth/session", {
         method: "DELETE",
         credentials: "include",
       });
+      if (!response.ok) {
+        throw new Error("Logout failed");
+      }
       window.location.href = "/";
     } catch {
       alert("Logout failed");
