@@ -13,7 +13,7 @@ export default async function TenantLayout({
   const session = await getSession();
 
   if (!session || session.role !== "TENANT" || !session.propertyId) {
-    redirect("/tenant");
+    redirect("/property-code");
   }
 
   const property = await prisma.property.findUnique({
@@ -26,7 +26,7 @@ export default async function TenantLayout({
   });
 
   if (!property || !property.isActive) {
-    redirect("/tenant");
+    redirect("/property-code");
   }
 
   return <>{children}</>;
