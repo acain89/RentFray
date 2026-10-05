@@ -7,7 +7,8 @@ import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
 import {
-getRentDateSummary,
+  getBusinessDateInstant,
+  getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 import { assertTierBillingCalendar } from "@/lib/billingCalendar";
@@ -76,10 +77,11 @@ function parseEffectiveDate(value: unknown): Date | null {
   const raw = clean(value);
   if (!raw) return null;
 
-  const parsed = new Date(`${raw}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return null;
-
-  return parsed;
+  try {
+    return getBusinessDateInstant(raw);
+  } catch {
+    return null;
+  }
 }
 
 function isAllowedChargeType(value: string): value is AllowedChargeType {
@@ -277,28 +279,8 @@ const rentDates = getRentDateSummary({
     unit.property.rentFrayStartDate,
 });
 
-let billingCycle = rentDates.billingCycle;
+const billingCycle = rentDates.billingCycle;
 
-// 🔒 BLOCK: if pending payment exists → push to next cycle
-const hasPending = await prisma.payment.findFirst({
-  where: {
-    propertyId,
-    unitId,
-    tenantAssignmentId: activeAssignment?.id ?? null,
-    billingCycle,
-    status: { in: ["PENDING", "PAID"] },
-  },
-  select: { id: true },
-});
-
-if (hasPending) {
-  const [year, month] = billingCycle.split("-").map(Number);
-
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextYear = month === 12 ? year + 1 : year;
-
-  billingCycle = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
-}
     const chargeType = toLedgerChargeType(type);
 
     const result = await prisma.$transaction(

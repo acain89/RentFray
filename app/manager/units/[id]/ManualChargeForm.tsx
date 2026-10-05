@@ -2,6 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getBusinessDate } from "@/lib/rentDates";
+
+function getTodayDate(): string {
+  const today = getBusinessDate();
+  return [
+    String(today.getFullYear()).padStart(4, "0"),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+}
 
 type ManualChargeFormProps = {
   propertyId: string;
@@ -49,7 +59,7 @@ export default function ManualChargeForm({
   );
   const [memo, setMemo] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    getTodayDate()
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -159,7 +169,7 @@ export default function ManualChargeForm({
         setMemo("");
       }
 
-      setEffectiveDate(new Date().toISOString().slice(0, 10));
+      setEffectiveDate(getTodayDate());
       router.refresh();
     } catch {
       setError("Network error. Please try again.");
@@ -230,19 +240,19 @@ export default function ManualChargeForm({
 
       <div className="text-xs text-slate-600">
   {(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDate();
 
     if (effectiveDate > today) {
       return (
         <span className="text-blue-600">
-          Will appear on next billing cycle statement.
+          Scheduled for {effectiveDate}; excluded from the current balance until effective.
         </span>
       );
     }
 
     return (
       <span className="text-amber-600">
-        This will be due immediately and reflected in the current balance.
+        Effective on the selected date and included in the current balance.
       </span>
     );
   })()}
@@ -261,10 +271,10 @@ export default function ManualChargeForm({
       {success && (
   <div className="text-sm text-green-600">
     {(() => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getTodayDate();
 
       if (effectiveDate > today) {
-        return "Charge scheduled — will appear on next statement.";
+        return `Charge scheduled for ${effectiveDate}; excluded from the current balance until effective.`;
       }
 
       return "Charge posted — now due and reflected in balance.";
