@@ -7,8 +7,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type PropertyStatus = "SETUP" | "TEST" | "READY" | "LIVE" | "SUSPENDED";
-
 function clampInt(value: unknown, fallback: number, min: number, max: number) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -24,21 +22,6 @@ function clampFloat(
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
-}
-
-function parsePropertyStatus(value: unknown): PropertyStatus {
-  const raw = String(value ?? "SETUP").toUpperCase();
-
-  switch (raw) {
-    case "TEST":
-    case "READY":
-    case "LIVE":
-    case "SUSPENDED":
-      return raw;
-    case "SETUP":
-    default:
-      return "SETUP";
-  }
 }
 
 async function saveSettings(formData: FormData) {
@@ -65,18 +48,12 @@ async function saveSettings(formData: FormData) {
     clampFloat(formData.get("lateFeeValue"), 50, 0, 100000) * 100
   );
 
-  const status = parsePropertyStatus(formData.get("lifecycleStatus"));
-
 await upsertPropertySettings(session.propertyId, {
   gracePeriodDays,
   lateFeeFlatCents,
   lateFeeEnabled: lateFeeFlatCents > 0,
 });
 
-  await prisma.property.update({
-    where: { id: session.propertyId },
-    data: { status },
-  });
 }
 
 export default async function PropertySettingsPage({
@@ -128,20 +105,11 @@ export default async function PropertySettingsPage({
 
         <div className="space-y-1">
           <label className="text-sm font-medium">Lifecycle Status</label>
-          <select
-            name="lifecycleStatus"
-            disabled={!canEdit}
-            defaultValue={property.status || "SETUP"}
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="SETUP">SETUP</option>
-            <option value="TEST">TEST</option>
-            <option value="READY">READY</option>
-            <option value="LIVE">LIVE</option>
-            <option value="SUSPENDED">SUSPENDED</option>
-          </select>
+          <div className="w-full rounded border px-3 py-2">
+            {property.status || "SETUP"}
+          </div>
           <div className="text-xs text-gray-500">
-            Controls payment availability and platform behavior.
+            Lifecycle status is read-only here.
           </div>
         </div>
 
