@@ -114,6 +114,32 @@ function isPrismaKnownError(
   return error instanceof Prisma.PrismaClientKnownRequestError;
 }
 
+async function ensureActivationRent(tx: Prisma.TransactionClient, input: {
+  propertyId: string; unitId: string; tenantAssignmentId: string; billingCycle: string;
+  amountCents: number; effectiveDate: Date;
+}) {
+  const idempotencyKey = `RENT:${input.unitId}:${input.billingCycle}`;
+  const findExisting = () => tx.ledgerEntry.findMany({ where: { OR: [
+    { propertyId: input.propertyId, unitId: input.unitId, billingCycle: input.billingCycle, entryType: "CHARGE", chargeType: "RENT" },
+    { idempotencyKey },
+  ] } });
+  const compatible = (rows: Awaited<ReturnType<typeof findExisting>>) => rows.length === 1 &&
+    rows[0].propertyId === input.propertyId && rows[0].unitId === input.unitId &&
+    rows[0].tenantAssignmentId === input.tenantAssignmentId && rows[0].billingCycle === input.billingCycle &&
+    rows[0].entryType === "CHARGE" && rows[0].chargeType === "RENT" &&
+    rows[0].amountCents === input.amountCents && !rows[0].voidedAt &&
+    (!rows[0].idempotencyKey || rows[0].idempotencyKey === idempotencyKey);
+  const existing = await findExisting();
+  if (existing.length) {
+    if (!compatible(existing)) throw new TenantActivationError("Existing rent for this unit/cycle has conflicting historical attribution. Contact management.", 409);
+    return;
+  }
+  const created = await tx.ledgerEntry.createMany({ data: [{ ...input, entryType: "CHARGE", chargeType: "RENT", memo: "Base Rent", idempotencyKey }], skipDuplicates: true });
+  if (created.count !== 1 && !compatible(await findExisting())) {
+    throw new TenantActivationError("Concurrent rent creation could not be safely attributed. Retry activation.", 409);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Partial<ActivateBody>;
@@ -218,7 +244,7 @@ export async function POST(req: Request) {
     const pinHash = await hashPin(pin);
     const activatedAt = new Date();
 
-    const activation = await prisma.$transaction(
+    const activate = () => prisma.$transaction(
       async (
         tx: Prisma.TransactionClient
       ): Promise<ActivationResult> => {
@@ -551,47 +577,14 @@ export async function POST(req: Request) {
           shouldPostRent &&
           selectedTier.baseRentCents > 0
         ) {
-          /*
-           * Keep a duplicate check inside the same locked transaction.
-           * The assignment is new, but this protects retries and future
-           * workflow changes.
-           */
-          const existingRentCharge =
-            await tx.ledgerEntry.findFirst({
-              where: {
-                propertyId: property.id,
-                unitId: savedUnit.id,
-                tenantAssignmentId:
-                  tenantAssignment.id,
-                billingCycle:
-                  rentDates.billingCycle,
-                entryType: "CHARGE",
-                chargeType: "RENT",
-                voidedAt: null,
-              },
-              select: {
-                id: true,
-              },
-            });
-
-          if (!existingRentCharge) {
-            await tx.ledgerEntry.create({
-              data: {
-                propertyId: property.id,
-                unitId: savedUnit.id,
-                tenantAssignmentId:
-                  tenantAssignment.id,
-                entryType: "CHARGE",
-                chargeType: "RENT",
-                amountCents:
-                  selectedTier.baseRentCents,
-                effectiveDate: dueDate,
-                billingCycle:
-                  rentDates.billingCycle,
-                memo: "Base Rent",
-              },
-            });
-          }
+          await ensureActivationRent(tx, {
+            propertyId: property.id,
+            unitId: savedUnit.id,
+            tenantAssignmentId: tenantAssignment.id,
+            billingCycle: rentDates.billingCycle,
+            amountCents: selectedTier.baseRentCents,
+            effectiveDate: dueDate,
+          });
         }
 
         return {
@@ -607,6 +600,16 @@ export async function POST(req: Request) {
         timeout: 20_000,
       }
     );
+
+    let activation: ActivationResult | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { activation = await activate(); break; }
+      catch (error) {
+        if (isPrismaKnownError(error) && error.code === "P2034" && attempt < 2) continue;
+        throw error;
+      }
+    }
+    if (!activation) throw new Error("Activation did not complete.");
 
     /*
      * Catch up any late fees that were already earned before this

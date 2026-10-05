@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
+import { ManualOperationError, normalizeOperationId, lockManualOperation, lockManualTenancy,
+  lockManualRows, replayTierMove, isManualRetryable, isManualLockContention } from "@/lib/manualFinancialOperations";
 import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
@@ -14,6 +16,9 @@ export const dynamic = "force-dynamic";
 type MoveTierBody = {
   unitId?: unknown;
   targetTierId?: unknown;
+  operationId?: unknown;
+  expectedSourceTierId?: unknown;
+  tenantAssignmentId?: unknown;
 };
 
 type MoveTierResponse =
@@ -31,6 +36,8 @@ type MoveTierResponse =
       };
     }
   | { ok: false; error: string };
+
+type MoveTierResult = Extract<MoveTierResponse, { ok: true }>["data"];
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
@@ -72,10 +79,36 @@ const propertyId = session.propertyId;
       );
     }
 
+    const operationId = normalizeOperationId(body.operationId);
+    if (!("expectedSourceTierId" in body) || !("tenantAssignmentId" in body) ||
+        (body.expectedSourceTierId !== null && typeof body.expectedSourceTierId !== "string") ||
+        (body.tenantAssignmentId !== null && typeof body.tenantAssignmentId !== "string")) {
+      throw new ManualOperationError("Expected source tier and tenant assignment must be explicitly supplied.", 400);
+    }
+    const expectedSourceTierId = body.expectedSourceTierId === null ? null : clean(body.expectedSourceTierId);
+    const tenantAssignmentId = body.tenantAssignmentId === null ? null : clean(body.tenantAssignmentId);
+    if (expectedSourceTierId === "" || tenantAssignmentId === "") throw new ManualOperationError("Invalid expected source state.", 400);
+    const payload = { unitId, targetTierId, expectedSourceTierId, tenantAssignmentId };
     const now = new Date();
 
-    const result = await prisma.$transaction(
+    let result: MoveTierResult | undefined;
+    let replayed = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        replayed = false;
+        result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        await lockManualOperation(tx, "TIER_MOVE", propertyId, operationId);
+        const replay = await replayTierMove<MoveTierResult>(tx, propertyId, operationId, payload);
+        if (replay) { replayed = true; return replay; }
+        const provisional = await tx.unit.findFirst({ where: { id: unitId, propertyId, isActive: true }, include: { tier: true, property: { include: { settings: true } } } });
+        if (!provisional) throw new Error("UNIT_NOT_FOUND");
+        const provisionalCycle = getRentDateSummary({ ...resolveEffectiveBillingSettings({ tier: provisional.tier, propertySettings: provisional.property.settings }),
+          dueDay: assertTierBillingCalendar({ propertyId, rentFrayStartDate: provisional.property.rentFrayStartDate,
+            propertySettingsDueDay: provisional.property.settings?.rentDueDay, tier: provisional.tier }),
+          now, rentFrayStartDate: provisional.property.rentFrayStartDate }).billingCycle;
+        await lockManualTenancy(tx, propertyId, unitId, tenantAssignmentId, provisionalCycle);
+        await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, [targetTierId, ...(provisional.tierId ? [provisional.tierId] : [])]);
         const property = await tx.property.findUnique({
           where: { id: propertyId },
           select: {
@@ -103,6 +136,8 @@ const propertyId = session.propertyId;
             tier: {
               select: {
                 id: true,
+                propertyId: true,
+                isActive: true,
                 name: true,
                 baseRentCents: true,
                 rentDueDay: true,
@@ -119,6 +154,8 @@ const propertyId = session.propertyId;
           throw new Error("UNIT_NOT_FOUND");
         }
 
+        if (unit.tierId !== expectedSourceTierId) throw new ManualOperationError("Source tier changed. Start a new move after refreshing.");
+        if (unit.tierId && (!unit.tier || unit.tier.propertyId !== propertyId || !unit.tier.isActive)) throw new ManualOperationError("Source tier does not belong to the active property.");
         if (unit.tierId === targetTierId) {
           throw new Error("SAME_TIER");
         }
@@ -181,18 +218,23 @@ const rentDates = getRentDateSummary({
   rentFrayStartDate: property.rentFrayStartDate,
 });
 
+        if (rentDates.billingCycle !== provisionalCycle || unit.tierId !== provisional.tierId) throw new ManualOperationError("Billing state changed. Retry the same operation.");
+
         const activeAssignment = await tx.tenantAssignment.findFirst({
           where: {
             propertyId: propertyId,
             unitId: unit.id,
             isCurrent: true,
             OR: [{ moveOutDate: null }, { moveOutDate: { gt: now } }],
+            AND: [{ OR: [{ moveInDate: null }, { moveInDate: { lte: now } }] }],
           },
           orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
           select: {
             id: true,
           },
         });
+
+        if ((activeAssignment?.id ?? null) !== tenantAssignmentId) throw new ManualOperationError("Tenant assignment changed. Refresh before starting a new move.");
 
         const cyclePayments = await tx.payment.findMany({
           where: {
@@ -258,6 +300,8 @@ const adjustmentCents = shouldReplaceCurrentCycleRent
   ? newTierRentCents - currentCycleRentChargeTotal
   : 0;
         
+if (shouldReplaceCurrentCycleRent && !activeAssignment) throw new ManualOperationError("Historical rent cannot be replaced without a current, explicitly bound assignment.");
+
 await tx.unit.update({
   where: { id: unit.id },
   data: {
@@ -332,6 +376,7 @@ if (shouldReplaceCurrentCycleRent) {
       chargeType: "RENT",
       amountCents: newTierRentCents,
       effectiveDate: now,
+      idempotencyKey: `TIER_MOVE:${propertyId}:${unit.id}:${operationId}:RENT`,
       memo: `Current-cycle RENT replaced after tier move. Other ledger entries were preserved. (${unit.tier?.name ?? "Units"} → ${targetTier.name})`,
       createdByManagementUserId:
         session.managementUserId ?? null,
@@ -339,7 +384,7 @@ if (shouldReplaceCurrentCycleRent) {
   });
 }
         
-           return {
+        const completed: MoveTierResult = {
           unitId: unit.id,
           unitNumber: unit.unitNumber,
           previousTierId: unit.tierId,
@@ -349,13 +394,29 @@ if (shouldReplaceCurrentCycleRent) {
           billingCycle: rentDates.billingCycle,
           adjustmentCents,
         };
+        await tx.auditLog.create({ data: {
+          propertyId, actorType: session.role, actorManagementUserId: session.managementUserId ?? null,
+          action: "TIER_MOVE_COMPLETED", targetType: "UNIT", targetId: unit.id,
+          summary: `Unit ${unit.unitNumber} moved to tier ${targetTier.name}`,
+          metadataJson: JSON.stringify({ operation: { id: operationId, payload, result: completed } }),
+        } });
+        return completed;
       },
       {
         maxWait: 10_000,
         timeout: 20_000,
+        isolationLevel: "ReadCommitted",
       }
     );
 
+        break;
+      } catch (error) {
+        if (isManualRetryable(error) && attempt < 2) continue;
+        throw error;
+      }
+    }
+    if (!result) throw new Error("Tier move did not complete.");
+    if (!replayed) {
     emitEvent("unit:update", {
       propertyId: propertyId,
       unitId: result.unitId,
@@ -368,11 +429,14 @@ if (shouldReplaceCurrentCycleRent) {
       source: "UNIT_TIER_MOVED",
     });
 
+    }
     return NextResponse.json<MoveTierResponse>({
       ok: true,
       data: result,
     });
   } catch (error) {
+    if (error instanceof ManualOperationError) return NextResponse.json<MoveTierResponse>({ ok: false, error: error.message }, { status: error.status });
+    if (isManualLockContention(error) || isManualRetryable(error)) return NextResponse.json<MoveTierResponse>({ ok: false, error: "Financial state is busy. Retry the same operation." }, { status: 409 });
     const message = error instanceof Error ? error.message : "";
 
     if (message === "PROPERTY_NOT_FOUND") {

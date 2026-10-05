@@ -26,6 +26,9 @@ export async function POST(req: Request) {
 
    const result = await prisma.$transaction(
   async (tx: Prisma.TransactionClient) => {
+    if (makeActive) {
+      await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${session.propertyId} FOR UPDATE`;
+    }
     const unit = await tx.unit.findFirst({
       where: {
         id: unitId,
@@ -97,7 +100,8 @@ export async function POST(req: Request) {
     }
 
     return updated;
-  }
+  },
+  makeActive ? { isolationLevel: "ReadCommitted" } : undefined
 );
 
     return NextResponse.json({ ok: true, unit: result });

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ManualPaymentFormProps = {
   propertyId: string;
   unitId: string;
-  tenantId?: string;
+  tenantAssignmentId: string;
 };
 
 function parseMoney(value: string): number | null {
@@ -20,9 +20,10 @@ function parseMoney(value: string): number | null {
 export default function ManualPaymentForm({
   propertyId,
   unitId,
-  tenantId,
+  tenantAssignmentId,
 }: ManualPaymentFormProps) {
   const router = useRouter();
+  const operationRef = useRef<{ operationId: string; unitId: string; tenantAssignmentId: string; amount: number; memo?: string; effectiveDate: string } | null>(null);
 
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -56,6 +57,8 @@ export default function ManualPaymentForm({
       return;
     }
 
+    const operation = operationRef.current ?? { operationId: crypto.randomUUID(), unitId, tenantAssignmentId, amount: parsedAmount, memo: memo.trim() || undefined, effectiveDate };
+    operationRef.current = operation;
     setLoading(true);
 
     try {
@@ -64,14 +67,7 @@ export default function ManualPaymentForm({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          propertyId,
-          unitId,
-          tenantId: tenantId ?? undefined,
-          amount: parsedAmount,
-          memo: memo.trim() || undefined,
-          effectiveDate,
-        }),
+        body: JSON.stringify(operation),
       });
 
       let data: unknown = null;
@@ -82,7 +78,8 @@ export default function ManualPaymentForm({
         // fallback if server doesn't return JSON
       }
 
-      if (!res.ok) {
+      if (!res.ok || !(data as { ok?: boolean; data?: { entry?: unknown } } | null)?.ok ||
+          !(data as { data?: { entry?: unknown } } | null)?.data?.entry) {
         const message =
           (data as { error?: string } | null)?.error ||
           "Failed to post payment.";
@@ -94,6 +91,7 @@ export default function ManualPaymentForm({
         (data as { remaining?: number } | null)?.remaining ?? 0;
 
       setRemainingCredit(remaining > 0 ? remaining : null);
+      operationRef.current = null;
       setSuccess(true);
 
       // reset form
@@ -118,6 +116,7 @@ export default function ManualPaymentForm({
       <h2 className="font-semibold">Manual Payment</h2>
 
       <input
+        disabled={loading || operationRef.current !== null}
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         type="number"
@@ -129,6 +128,7 @@ export default function ManualPaymentForm({
       />
 
       <input
+        disabled={loading || operationRef.current !== null}
         value={effectiveDate}
         onChange={(e) => setEffectiveDate(e.target.value)}
         type="date"
@@ -137,6 +137,7 @@ export default function ManualPaymentForm({
       />
 
       <input
+        disabled={loading || operationRef.current !== null}
         value={memo}
         onChange={(e) => setMemo(e.target.value)}
         placeholder="Memo (optional)"

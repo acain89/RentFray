@@ -812,7 +812,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                     <ManualPaymentForm
                       propertyId={unit.propertyId}
                       unitId={unit.id}
-                      tenantId={activeAssignment.id}
+                      tenantAssignmentId={activeAssignment.id}
                     />
                   </div>
                 </div>

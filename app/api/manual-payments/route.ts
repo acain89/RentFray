@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
+import { ManualOperationError, normalizeOperationId, lockManualOperation, lockManualTenancy,
+  lockManualRows, replayManualPayment, isManualRetryable, isManualLockContention } from "@/lib/manualFinancialOperations";
 import {
   getRentDateSummary,
   resolveEffectiveBillingSettings,
@@ -42,7 +44,8 @@ type ManualPaymentEntryResponse = {
 
 type ParsedBody = {
   unitId: string;
-  tenantId: string | null;
+  tenantAssignmentId: string;
+  operationId: string;
   amountCents: number;
   memo: string | null;
   effectiveDate: Date;
@@ -109,18 +112,20 @@ async function parseBody(req: Request): Promise<ParsedBody | null> {
   const body = (await req.json()) as Record<string, unknown>;
 
   const unitId = clean(body.unitId);
-  const tenantIdRaw = clean(body.tenantId);
+  const tenantAssignmentId = clean(body.tenantAssignmentId);
+  const operationId = normalizeOperationId(body.operationId);
   const amountCents = parseMoneyToCents(body.amount);
   const memo = normalizeMemo(body.memo ?? body.description);
   const effectiveDate = parseEffectiveDate(body.effectiveDate);
 
-  if (!unitId) return null;
+  if (!unitId || !tenantAssignmentId) return null;
   if (amountCents === null) return null;
   if (!effectiveDate) return null;
 
   return {
     unitId,
-    tenantId: tenantIdRaw || null,
+    tenantAssignmentId,
+    operationId,
     amountCents,
     memo,
     effectiveDate,
@@ -137,255 +142,87 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getSession();
-
     if (!session || !session.propertyId || !canManageFinancials(session.role)) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "Only owner or manager can post manual payments." },
-        { status: 401 }
-      );
+      return NextResponse.json<ApiError>({ ok: false, error: "Only owner or manager can post manual payments." }, { status: 401 });
     }
-
-    let parsed: ParsedBody | null = null;
-
-    try {
-      parsed = await parseBody(req);
-    } catch {
-      return badRequest("Invalid request body.");
-    }
-
-    if (!parsed) {
-      return badRequest("Missing or invalid required fields.");
-    }
-
-    const { unitId, tenantId, amountCents, memo, effectiveDate } = parsed;
-
-   if (amountCents < 1) {
-  return badRequest("Payment amount too small.");
-}
-
-    const unit = await prisma.unit.findFirst({
-      where: {
-        id: unitId,
-        propertyId: session.propertyId,
-      },
-      select: {
-        id: true,
-        propertyId: true,
-        unitNumber: true,
-        tier: {
-          select: {
-            rentDueDay: true,
-            gracePeriodDays: true,
-            lateFeeInitialCents: true,
-            lateFeeDailyCents: true,
-            maxLateFeeDays: true,
-          },
-        },
-        property: {
-          select: {
-            rentFrayStartDate: true,
-            settings: {
-              select: {
-                rentDueDay: true,
-                gracePeriodDays: true,
-                lateFeeEnabled: true,
-                lateFeeFlatCents: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!unit) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "Unit not found." },
-        { status: 404 }
-      );
-    }
-
-    const typedUnit = unit as UnitForManualPayment;
-
-    let assignment: { id: string } | null = null;
-
-    if (tenantId) {
-      assignment = await prisma.tenantAssignment.findFirst({
-        where: {
-          tenantId,
-          unitId,
-          propertyId: typedUnit.propertyId,
-          isCurrent: true,
-        },
-        select: { id: true },
-      });
-
-      if (!assignment) {
-        return NextResponse.json<ApiError>(
-          { ok: false, error: "Tenant is not active in this unit." },
-          { status: 400 }
-        );
-      }
-    } else {
-      assignment = await prisma.tenantAssignment.findFirst({
-        where: {
-          unitId,
-          propertyId: typedUnit.propertyId,
-          isCurrent: true,
-        },
-        orderBy: [{ moveInDate: "desc" }, { createdAt: "desc" }],
-        select: { id: true },
-      });
-    }
-
-    if (!assignment) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "No active tenant assignment found for this unit." },
-        { status: 400 }
-      );
-    }
-
-const permanentDueDay = assertTierBillingCalendar({
-  propertyId: typedUnit.propertyId,
-  rentFrayStartDate: typedUnit.property.rentFrayStartDate,
-  propertySettingsDueDay:
-    typedUnit.property.settings?.rentDueDay,
-  tier: typedUnit.tier,
-});
-
-const effective = resolveEffectiveBillingSettings({
-  tier: typedUnit.tier,
-  propertySettings: typedUnit.property.settings,
-});
-
-effective.dueDay = permanentDueDay;
-
-const rentDates = getRentDateSummary({
-      ...effective,
-      now: effectiveDate,
-      rentFrayStartDate: typedUnit.property.rentFrayStartDate,
-    });
-
-    const billingCycle = rentDates.billingCycle;
-
-    const result = await prisma.$transaction(
-      async (
-        tx: Prisma.TransactionClient
-      ): Promise<ManualPaymentEntryResponse> => {
-        const payment = await tx.payment.create({
-          data: {
-            propertyId: typedUnit.propertyId,
-            unitId: typedUnit.id,
-            tenantAssignmentId: assignment.id,
-            amountCents,
-            status: PaymentStatus.PAID,
-            paidAt: effectiveDate,
-            paymentMethod: "MANUAL",
-            stripePaymentIntentId: `manual_${typedUnit.id}_${Date.now()}_${Math.random()
-              .toString(36)
-              .slice(2)}`,
-            billingCycle,
-          },
-          select: {
-            id: true,
-            status: true,
-            paidAt: true,
-          },
-        });
-
-        const entry = await tx.ledgerEntry.create({
-          data: {
-            propertyId: typedUnit.propertyId,
-            unitId: typedUnit.id,
-            tenantAssignmentId: assignment.id,
-            entryType: "PAYMENT",
-            amountCents: -amountCents,
-            effectiveDate,
-            billingCycle,
-            memo,
-            paymentId: payment.id,
+    let parsed: ParsedBody | null;
+    try { parsed = await parseBody(req); }
+    catch { return badRequest("Invalid request body."); }
+    if (!parsed) return badRequest("Missing or invalid required fields.");
+    const { unitId, tenantAssignmentId, operationId, amountCents, memo, effectiveDate } = parsed;
+    const propertyId = session.propertyId;
+    const payload = { unitId, tenantAssignmentId, amountCents, effectiveDate: effectiveDate.toISOString(), memo };
+    const key = `MANUAL_PAYMENT:${propertyId}:${operationId}`;
+    let completed: { entry: ManualPaymentEntryResponse; replayed: boolean } | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        completed = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          await lockManualOperation(tx, "MANUAL_PAYMENT", propertyId, operationId);
+          const replay = await replayManualPayment<ManualPaymentEntryResponse>(tx, propertyId, key, payload);
+          if (replay) return { entry: replay, replayed: true };
+          const provisional = await tx.unit.findFirst({ where: { id: unitId, propertyId }, include: { tier: true, property: { include: { settings: true } } } });
+          if (!provisional) throw new ManualOperationError("Unit not found.", 404);
+          const cycleFor = (unit: NonNullable<typeof provisional>) => {
+            const dueDay = assertTierBillingCalendar({ propertyId, rentFrayStartDate: unit.property.rentFrayStartDate,
+              propertySettingsDueDay: unit.property.settings?.rentDueDay, tier: unit.tier });
+            return getRentDateSummary({ ...resolveEffectiveBillingSettings({ tier: unit.tier, propertySettings: unit.property.settings }),
+              dueDay, now: effectiveDate, rentFrayStartDate: unit.property.rentFrayStartDate }).billingCycle;
+          };
+          const provisionalCycle = cycleFor(provisional);
+          await lockManualTenancy(tx, propertyId, unitId, tenantAssignmentId, provisionalCycle);
+          await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, provisional.tierId ? [provisional.tierId] : []);
+          const unit = await tx.unit.findFirst({ where: { id: unitId, propertyId }, include: { tier: true, property: { include: { settings: true } } } });
+          if (!unit) throw new ManualOperationError("Unit not found.", 404);
+          const billingCycle = cycleFor(unit);
+          if (billingCycle !== provisionalCycle || unit.tierId !== provisional.tierId) throw new ManualOperationError("Unit billing state changed. Retry the same operation.");
+          const now = new Date();
+          const assignment = await tx.tenantAssignment.findFirst({ where: {
+            id: tenantAssignmentId, propertyId, unitId, isCurrent: true,
+            AND: [{ OR: [{ moveOutDate: null }, { moveOutDate: { gt: now } }] },
+              { OR: [{ moveInDate: null }, { moveInDate: { lte: now } }] }],
+          }, select: { id: true } });
+          if (!assignment) throw new ManualOperationError("The specified tenant assignment is no longer eligible for this unit.");
+          const payment = await tx.payment.create({ data: {
+            propertyId, unitId, tenantAssignmentId, amountCents, status: PaymentStatus.PAID,
+            paidAt: effectiveDate, paymentMethod: "MANUAL", billingCycle,
+            stripePaymentIntentId: `manual_${unitId}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          }, select: { id: true, status: true, paidAt: true } });
+          const entry = await tx.ledgerEntry.create({ data: {
+            propertyId, unitId, tenantAssignmentId, entryType: "PAYMENT", amountCents: -amountCents,
+            effectiveDate, billingCycle, memo, paymentId: payment.id, idempotencyKey: key,
             createdByManagementUserId: session.managementUserId ?? null,
-          },
-          select: {
-            id: true,
-            propertyId: true,
-            unitId: true,
-            tenantAssignmentId: true,
-            entryType: true,
-            amountCents: true,
-            effectiveDate: true,
-            memo: true,
-            createdAt: true,
-            billingCycle: true,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            propertyId: typedUnit.propertyId,
-            actorType: "MANAGER",
-            actorManagementUserId: session.managementUserId ?? null,
-            action: "MANUAL_PAYMENT_POSTED",
-            targetType: "LEDGER_ENTRY",
-            targetId: entry.id,
-            summary: `Manual payment posted for unit ${typedUnit.unitNumber}`,
-            metadataJson: JSON.stringify({
-              unitId: typedUnit.id,
-              unitNumber: typedUnit.unitNumber,
-              tenantAssignmentId: entry.tenantAssignmentId,
-              paymentId: payment.id,
-              amountCents,
-              billingCycle,
-              memo,
-              effectiveDate: entry.effectiveDate.toISOString(),
-            }),
-          },
-        });
-
-        return {
-          id: entry.id,
-          propertyId: entry.propertyId,
-          unitId: entry.unitId,
-          tenantAssignmentId: entry.tenantAssignmentId,
-          entryType: "PAYMENT",
-          amountCents: Math.abs(entry.amountCents),
-          memo: entry.memo,
-          effectiveDate: entry.effectiveDate,
-          createdAt: entry.createdAt,
-          paymentId: payment.id,
-          status: payment.status,
-          billingCycle,
-        };
+          }, select: { id: true, propertyId: true, unitId: true, tenantAssignmentId: true, entryType: true,
+            amountCents: true, effectiveDate: true, memo: true, createdAt: true, billingCycle: true } });
+          const result: ManualPaymentEntryResponse = { id: entry.id, propertyId: entry.propertyId, unitId: entry.unitId,
+            tenantAssignmentId: entry.tenantAssignmentId, entryType: "PAYMENT", amountCents: Math.abs(entry.amountCents),
+            memo: entry.memo, effectiveDate: entry.effectiveDate, createdAt: entry.createdAt, paymentId: payment.id,
+            status: payment.status, billingCycle };
+          await tx.auditLog.create({ data: {
+            propertyId, actorType: "MANAGER", actorManagementUserId: session.managementUserId ?? null,
+            action: "MANUAL_PAYMENT_POSTED", targetType: "LEDGER_ENTRY", targetId: entry.id,
+            summary: `Manual payment posted for unit ${unit.unitNumber}`,
+            metadataJson: JSON.stringify({ unitId, unitNumber: unit.unitNumber, tenantAssignmentId, paymentId: payment.id,
+              amountCents, billingCycle, memo, effectiveDate: effectiveDate.toISOString(), operation: { id: operationId, payload, result } }),
+          } });
+          return { entry: result, replayed: false };
+        }, { isolationLevel: "ReadCommitted" });
+        break;
+      } catch (error) {
+        if (isManualRetryable(error) && attempt < 2) continue;
+        throw error;
       }
-    );
-
-    emitEvent("payment:update", {
-      propertyId: typedUnit.propertyId,
-      unitId: typedUnit.id,
-      tenantAssignmentId: result.tenantAssignmentId,
-      entryId: result.id,
-      entryType: result.entryType,
-      source: "MANUAL_PAYMENT",
-    });
-
-    emitEvent("ledger:update", {
-      propertyId: typedUnit.propertyId,
-      unitId: typedUnit.id,
-      tenantAssignmentId: result.tenantAssignmentId,
-      entryId: result.id,
-      entryType: result.entryType,
-      source: "MANUAL_PAYMENT",
-    });
-
-    return NextResponse.json<ApiSuccess<{ entry: ManualPaymentEntryResponse }>>({
-      ok: true,
-      data: { entry: result },
-    });
+    }
+    if (!completed) throw new Error("Payment transaction did not complete.");
+    if (!completed.replayed) {
+      const event = { propertyId, unitId, tenantAssignmentId: completed.entry.tenantAssignmentId,
+        entryId: completed.entry.id, entryType: completed.entry.entryType, source: "MANUAL_PAYMENT" };
+      emitEvent("payment:update", event); emitEvent("ledger:update", event);
+    }
+    return NextResponse.json<ApiSuccess<{ entry: ManualPaymentEntryResponse }>>({ ok: true, data: { entry: completed.entry } });
   } catch (error) {
+    if (error instanceof ManualOperationError) return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
+    if (isManualLockContention(error) || isManualRetryable(error)) return NextResponse.json<ApiError>({ ok: false, error: "Financial state is busy. Retry the same operation." }, { status: 409 });
     console.error("POST /api/manual-payments error:", error);
-
-    return NextResponse.json<ApiError>(
-      { ok: false, error: "Failed to post manual payment." },
-      { status: 500 }
-    );
+    return NextResponse.json<ApiError>({ ok: false, error: "Failed to post manual payment." }, { status: 500 });
   }
 }

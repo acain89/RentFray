@@ -6,16 +6,10 @@ import { canManageFinancials } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-type AdjustType = "PRORATION" | "CHARGE" | "CREDIT";
+type AdjustType = "CHARGE" | "CREDIT";
 
 function isAdjustType(value: string): value is AdjustType {
-  return value === "PRORATION" || value === "CHARGE" || value === "CREDIT";
-}
-
-function toSafeCents(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n);
+  return value === "CHARGE" || value === "CREDIT";
 }
 
 /**
@@ -57,6 +51,9 @@ export async function POST(req: Request) {
 
     const unitId = String(body.unitId || "").trim();
     const rawType = String(body.type || "").trim().toUpperCase();
+    if (rawType === "PRORATION") {
+      return NextResponse.json({ ok: false, error: "Manual move-in proration has been retired. Tenant activation and the billing calendar determine first-cycle rent." }, { status: 410 });
+    }
     const amount = Number(body.amount);
     const memo = String(body.memo || "").trim();
 
@@ -95,124 +92,6 @@ export async function POST(req: Request) {
         { ok: false, error: "No current tenant assignment for this unit" },
         { status: 400 }
       );
-    }
-
-    // ============================
-    // 🔥 PRORATION (HARDENED)
-    // ============================
-    if (rawType === "PRORATION") {
-      const moveInDateStr = String(body.moveInDate || "").trim();
-      const rentCents = toSafeCents(body.rentCents);
-      const recurringCents = toSafeCents(body.recurringCents);
-      const depositCents = toSafeCents(body.depositCents);
-
-      if (!moveInDateStr) {
-        return NextResponse.json(
-          { ok: false, error: "Invalid proration data" },
-          { status: 400 }
-        );
-      }
-
-      const effectiveDate = new Date(moveInDateStr);
-
-      if (Number.isNaN(effectiveDate.getTime())) {
-        return NextResponse.json(
-          { ok: false, error: "Invalid move-in date" },
-          { status: 400 }
-        );
-      }
-
-      if (rentCents <= 0 && recurringCents <= 0 && depositCents <= 0) {
-        return NextResponse.json(
-          { ok: false, error: "Nothing to post" },
-          { status: 400 }
-        );
-      }
-
-      const cycleKey = getCycleKey(effectiveDate);
-
-      // 🚨 CRITICAL GUARD: prevent duplicate first-cycle rent
-      const existingRent = await prisma.ledgerEntry.findFirst({
-        where: {
-          tenantAssignmentId: assignment.id,
-          entryType: "CHARGE",
-          chargeType: "RENT",
-        },
-        select: {
-          id: true,
-          effectiveDate: true,
-        },
-      });
-
-      if (existingRent) {
-        const existingCycle = getCycleKey(existingRent.effectiveDate);
-
-        if (existingCycle === cycleKey) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error:
-                "Initial rent already exists for this tenant in this billing cycle",
-            },
-            { status: 400 }
-          );
-        }
-      }
-
-      const entries: Array<{
-        entryType: "CHARGE";
-        chargeType: "RENT" | "RECURRING_FEE" | "OTHER_FEE";
-        amountCents: number;
-        memo: string;
-      }> = [];
-
-      if (rentCents > 0) {
-        entries.push({
-          entryType: "CHARGE",
-          chargeType: "RENT",
-          amountCents: rentCents,
-          memo: "Prorated rent",
-        });
-      }
-
-      if (recurringCents > 0) {
-        entries.push({
-          entryType: "CHARGE",
-          chargeType: "RECURRING_FEE",
-          amountCents: recurringCents,
-          memo: "Prorated recurring charges",
-        });
-      }
-
-      if (depositCents > 0) {
-        entries.push({
-          entryType: "CHARGE",
-          chargeType: "OTHER_FEE",
-          amountCents: depositCents,
-          memo: memo || "Move-in deposit",
-        });
-      }
-
-      await prisma.$transaction(
-        entries.map((entry) =>
-          prisma.ledgerEntry.create({
-            data: {
-              propertyId: session.propertyId!,
-              unitId: unit.id,
-              tenantAssignmentId: assignment.id,
-              entryType: entry.entryType,
-              chargeType: entry.chargeType,
-              amountCents: entry.amountCents,
-              memo: entry.memo,
-              effectiveDate,
-              createdByManagementUserId:
-                session.managementUserId ?? null,
-            },
-          })
-        )
-      );
-
-      return NextResponse.json({ ok: true });
     }
 
     // ============================

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import BankPanel from "./components/BankPanel";
 import ManagerPanel from "./components/ManagerPanel";
@@ -26,6 +26,7 @@ type NextCycleAdjustment = {
 };
 
 type Unit = {
+  tenantAssignmentId: string | null;
   unitId: string;
   unitNumber: string;
   tierId?: string | null;
@@ -603,6 +604,8 @@ if (requestedPanel === "propertySetup") {
 }
 }, [requestedPanel]);
 
+  const paymentOperations = useRef<Record<string, { operationId: string; unitId: string; tenantAssignmentId: string; amount: number; effectiveDate: string }>>({});
+  const tierOperations = useRef<Record<string, { operationId: string; unitId: string; targetTierId: string; expectedSourceTierId: string | null; tenantAssignmentId: string | null }>>({});
   const [selectedUnit, setSelectedUnit] = useState<UnitWithStatus | null>(null);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [manualPaymentAmount, setManualPaymentAmount] = useState("");
@@ -1519,16 +1522,15 @@ async function submitMoveTier(): Promise<void> {
     setMovingTier(true);
     setMoveTierError("");
 
+    const operation = tierOperations.current[selectedUnit.unitId] ?? { operationId: crypto.randomUUID(), unitId: selectedUnit.unitId, targetTierId: targetMoveTierId, expectedSourceTierId: selectedUnit.tierId ?? null, tenantAssignmentId: selectedUnit.tenantAssignmentId };
+    tierOperations.current[selectedUnit.unitId] = operation;
     const res = await fetch("/api/manager/units/move-tier", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       credentials: "include",
-      body: JSON.stringify({
-        unitId: selectedUnit.unitId,
-        targetTierId: targetMoveTierId,
-      }),
+      body: JSON.stringify(operation),
     });
 
     const json = (await res.json().catch(() => null)) as
@@ -1540,6 +1542,7 @@ async function submitMoveTier(): Promise<void> {
       return;
     }
 
+    delete tierOperations.current[selectedUnit.unitId];
     await loadDashboard({ silent: true });
     await loadPropertyTiers();
 
@@ -1617,50 +1620,30 @@ async function submitMoveTier(): Promise<void> {
     try {
       setSubmittingManualPayment(true);
 
+      const pending = paymentOperations.current[selectedUnit.unitId];
+      if (!pending && !selectedUnit.tenantAssignmentId) { alert("No current tenant assignment."); return; }
+      const operation = pending ?? { operationId: crypto.randomUUID(), unitId: selectedUnit.unitId, tenantAssignmentId: selectedUnit.tenantAssignmentId!, amount: Math.round(amount * 100) / 100, effectiveDate: new Date().toISOString().slice(0, 10) };
+      paymentOperations.current[selectedUnit.unitId] = operation;
       const response = await fetch("/api/manual-payments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({
-          unitId: selectedUnit.unitId,
-          amount,
-          effectiveDate: new Date().toISOString().slice(0, 10),
-        }),
+        body: JSON.stringify(operation),
       });
 
       const json = (await response.json().catch(() => null)) as
         | { ok?: boolean; error?: string }
         | null;
 
-      if (!response.ok) {
+      if (!response.ok || !json?.ok) {
         alert(json?.error || "Payment failed");
         return;
       }
 
-      const normalizedAmount = Math.round(amount * 100) / 100;
-
-      setData((current) => {
-        if (!current) return current;
-
-        return {
-          ...current,
-          units: current.units.map((unit) =>
-            unit.unitId === selectedUnit.unitId
-              ? {
-                  ...unit,
-                  balance: Math.max(
-                    0,
-                    Math.round(
-                      (Number(unit.balance || 0) - normalizedAmount) * 100
-                    ) / 100
-                  ),
-                }
-              : unit
-          ),
-        };
-      });
+      delete paymentOperations.current[selectedUnit.unitId];
+      await loadDashboard({ silent: true });
 
       setShowManualPaymentConfirm(false);
       closeUnitPanel();
@@ -2201,7 +2184,8 @@ const tierGroups = useMemo<TierGroup[]>(() => {
     setTargetMoveTierId("");
     setMoveTierError("");
     setSelectedUnit(unit);
-    setManualPaymentAmount(Number(unit.balance || 0).toFixed(2));
+    setManualPaymentAmount((paymentOperations.current[unit.unitId]?.amount ?? Number(unit.balance || 0)).toFixed(2));
+    setTargetMoveTierId(tierOperations.current[unit.unitId]?.targetTierId ?? "");
     setShowManualPaymentConfirm(false);
   }
 
@@ -2703,8 +2687,8 @@ const selectedMoveTargetIsFull =
 const canSubmitMoveTier =
   Boolean(selectedUnit) &&
   Boolean(targetMoveTierId) &&
-  !selectedMoveTargetIsFull &&
-  selectedUnit?.paymentStatus !== "PENDING" &&
+  (Boolean(selectedUnit && tierOperations.current[selectedUnit.unitId]) ||
+    (!selectedMoveTargetIsFull && selectedUnit?.paymentStatus !== "PENDING")) &&
   !movingTier;
 
   return (
@@ -3233,6 +3217,7 @@ const canSubmitMoveTier =
           Target tier
         </label>
         <select
+          disabled={movingTier || Boolean(tierOperations.current[selectedUnit.unitId])}
           value={targetMoveTierId}
           onChange={(event) => {
             setTargetMoveTierId(event.target.value);
@@ -3371,7 +3356,7 @@ const canSubmitMoveTier =
     <button
       type="button"
       onClick={() => {
-        setTargetMoveTierId("");
+        setTargetMoveTierId(tierOperations.current[selectedUnit.unitId]?.targetTierId ?? "");
         setMoveTierError("");
         setShowMoveTierModal(true);
       }}
@@ -3403,6 +3388,7 @@ const canSubmitMoveTier =
                 type="number"
                 min="0.01"
                 step="0.01"
+                disabled={submittingManualPayment || Boolean(paymentOperations.current[selectedUnit.unitId])}
                 value={manualPaymentAmount}
                 onChange={(e) => setManualPaymentAmount(e.target.value)}
                 className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"

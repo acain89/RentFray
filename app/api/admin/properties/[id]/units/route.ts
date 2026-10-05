@@ -86,6 +86,7 @@ export async function POST(
 
     const created = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${propertyId} FOR UPDATE`;
         const tier = await tx.propertyTier.findFirst({
        where: { id: tierId, propertyId, isActive: true },
        select: { id: true, name: true, unitCount: true },
@@ -150,7 +151,8 @@ if (activeTierUnitCount >= tier.unitCount) {
         });
 
         return unit;
-      }
+      },
+      { isolationLevel: "ReadCommitted" }
     );
 
    

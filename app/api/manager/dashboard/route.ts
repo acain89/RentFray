@@ -751,6 +751,7 @@ for (const unit of units) {
           unitNumber: unit.unitNumber,
           tierId: unit.tierId ?? null,
           isActive: unit.isActive === true,
+          tenantAssignmentId: null,
           tenantName: null,
           balanceCents: 0,
           balance: "0.00",
@@ -859,6 +860,7 @@ for (const unit of units) {
         unitNumber: unit.unitNumber,
         tierId: unit.tierId ?? null,
         isActive: unit.isActive === true,
+        tenantAssignmentId: assignment.id,
         tenantName: `${assignment.firstName ?? ""} ${
           assignment.lastName ?? ""
         }`.trim(),
