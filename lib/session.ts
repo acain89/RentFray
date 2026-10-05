@@ -428,6 +428,13 @@ export async function clearSessionCookie() {
     path: "/",
     maxAge: 0,
   });
+  cookieStore.set("rf_admin_session", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
 }
 
 export async function setSessionCookie(token: string) {
