@@ -2,6 +2,7 @@
 
 import crypto from "crypto";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/prisma";
 
 export type SessionRole =
   | "ADMIN"
@@ -279,6 +280,34 @@ export function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
+async function hasCurrentManagementAuthority(session: SessionPayload): Promise<boolean> {
+  if (!isNonEmptyString(session.managementUserId) || !isNonEmptyString(session.propertyId)) {
+    return false;
+  }
+
+  try {
+    const user = await prisma.managementUser.findUnique({
+      where: { id: session.managementUserId },
+      select: {
+        id: true,
+        isActive: true,
+        propertyId: true,
+        role: true,
+      },
+    });
+
+    return Boolean(
+      user &&
+      user.isActive &&
+      user.propertyId === session.propertyId &&
+      (user.role === "OWNER" || user.role === "MANAGER" || user.role === "STAFF") &&
+      user.role === session.role
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function getSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -287,7 +316,17 @@ export async function getSession() {
     return null;
   }
 
-  return verifySessionToken(token);
+  const session = verifySessionToken(token);
+
+  if (
+    session &&
+    (session.role === "OWNER" || session.role === "MANAGER" || session.role === "STAFF") &&
+    !(await hasCurrentManagementAuthority(session))
+  ) {
+    return null;
+  }
+
+  return session;
 }
 
 export async function requireSession() {
@@ -370,6 +409,10 @@ export async function refreshSessionCookie(session: SessionPayload) {
     session.role === "STAFF"
   ) {
     if (!session.propertyId || !session.managementUserId) return;
+
+    if (!(await hasCurrentManagementAuthority(session))) {
+      throw new Error("Unauthorized");
+    }
 
     refreshedToken = createSessionToken({
       role: session.role,
