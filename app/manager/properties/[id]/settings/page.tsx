@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireManagementSession, requireManagerLevelSession } from "@/lib/session";
 import {
   getPropertySettings,
   upsertPropertySettings,
@@ -43,9 +44,19 @@ function parsePropertyStatus(value: unknown): PropertyStatus {
 async function saveSettings(formData: FormData) {
   "use server";
 
+  const session = await requireManagerLevelSession();
+
+  if (!session.propertyId) {
+    throw new Error("Unauthorized");
+  }
+
   const propertyId = String(formData.get("propertyId") ?? "").trim();
   if (!propertyId) {
     throw new Error("Missing propertyId");
+  }
+
+  if (propertyId !== session.propertyId) {
+    throw new Error("Forbidden");
   }
 
   const gracePeriodDays = clampInt(formData.get("gracePeriodDays"), 5, 0, 31);
@@ -56,14 +67,14 @@ async function saveSettings(formData: FormData) {
 
   const status = parsePropertyStatus(formData.get("lifecycleStatus"));
 
-await upsertPropertySettings(propertyId, {
+await upsertPropertySettings(session.propertyId, {
   gracePeriodDays,
   lateFeeFlatCents,
   lateFeeEnabled: lateFeeFlatCents > 0,
 });
 
   await prisma.property.update({
-    where: { id: propertyId },
+    where: { id: session.propertyId },
     data: { status },
   });
 }
@@ -73,7 +84,19 @@ export default async function PropertySettingsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await requireManagementSession();
+
+  if (!session.propertyId) {
+    throw new Error("Unauthorized");
+  }
+
   const { id } = await params;
+
+  if (id !== session.propertyId) {
+    throw new Error("Forbidden");
+  }
+
+  const canEdit = session.role === "OWNER" || session.role === "MANAGER";
 
   const property = await prisma.property.findUnique({
     where: { id },
@@ -98,7 +121,7 @@ export default async function PropertySettingsPage({
       </div>
 
       <form
-        action={saveSettings}
+        action={canEdit ? saveSettings : undefined}
         className="max-w-2xl space-y-4 rounded border p-4"
       >
         <input type="hidden" name="propertyId" value={property.id} />
@@ -107,6 +130,7 @@ export default async function PropertySettingsPage({
           <label className="text-sm font-medium">Lifecycle Status</label>
           <select
             name="lifecycleStatus"
+            disabled={!canEdit}
             defaultValue={property.status || "SETUP"}
             className="w-full rounded border px-3 py-2"
           >
@@ -126,6 +150,7 @@ export default async function PropertySettingsPage({
           <label className="text-sm font-medium">Grace Period Days</label>
           <input
             name="gracePeriodDays"
+            disabled={!canEdit}
             type="number"
             min={0}
             max={31}
@@ -138,6 +163,7 @@ export default async function PropertySettingsPage({
           <label className="text-sm font-medium">Late Fee Value</label>
           <input
             name="lateFeeValue"
+            disabled={!canEdit}
             type="number"
             step="0.01"
             min={0}
@@ -149,12 +175,14 @@ export default async function PropertySettingsPage({
           </div>
         </div>
 
+        {canEdit && (
         <button
           type="submit"
           className="rounded bg-black px-4 py-2 text-white"
         >
           Save Settings
         </button>
+        )}
       </form>
     </div>
   );

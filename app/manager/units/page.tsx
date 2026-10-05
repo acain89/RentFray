@@ -2,10 +2,18 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { prisma } from "@/lib/prisma";
+import { requireManagementSession } from "@/lib/session";
 import Link from "next/link";
 
 export default async function UnitsPage() {
+  const session = await requireManagementSession();
+
+  if (!session.propertyId) {
+    throw new Error("Unauthorized");
+  }
+
   const units = await prisma.unit.findMany({
+    where: { propertyId: session.propertyId },
     include: {
       tenantAssignments: {
         where: { isCurrent: true },

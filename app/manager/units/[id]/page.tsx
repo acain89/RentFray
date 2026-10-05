@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { requireManagementSession } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { getUnitDelinquencySummary } from "@/lib/delinquency";
 import ManualPaymentForm from "./ManualPaymentForm";
@@ -145,14 +146,22 @@ type Props = {
 };
 
 export default async function UnitDetail({ params }: Props) {
+  const session = await requireManagementSession();
+
+  if (!session.propertyId) {
+    throw new Error("Unauthorized");
+  }
+
+  const canMutate = session.role === "OWNER" || session.role === "MANAGER";
+
   const { id } = await params;
 
   if (!id) {
     throw new Error("Missing unit id");
   }
 
-  const unit = await prisma.unit.findUnique({
-    where: { id },
+  const unit = await prisma.unit.findFirst({
+    where: { id, propertyId: session.propertyId },
     include: {
       tier: true,
       property: {
@@ -539,7 +548,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                       Primary actions
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      <PostRentButton unitId={unit.id} />
+                      {canMutate && <PostRentButton unitId={unit.id} />}
                     </div>
                   </div>
 
@@ -775,7 +784,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
               </div>
             </section>
 
-            {activeAssignment && (
+            {activeAssignment && canMutate && (
               <section className={sectionCardClasses()}>
                 <div className="border-b border-slate-200 px-6 py-5">
                   <div className="text-lg font-semibold text-slate-950">Ledger actions</div>
