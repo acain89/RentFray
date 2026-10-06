@@ -31,7 +31,7 @@ test("ADMIN successes and rotated valid codes consume one budget; correct denied
   for (let i = 0; i < 10; i++) { const r = await f.postAdmin(String(100000 + i)); assert.deepEqual(r.body, { ok: true, role: "ADMIN" }); assert.equal(r.status, 200); }
   const before = f.events.length; const r = await f.postAdmin(); assert.equal(r.status, 429); assert.ok(Number(r.headers["Retry-After"]) > 0); assert.equal(f.events.length, before);
   assert.equal(f.events.filter(e => e === "cookie").length, 10); assert.equal(f.events.filter(e => e === "lastUsedAt").length, 10);
-  assert.ok(f.events.includes('session:{"role":"ADMIN"}')); assert.equal(f.rows.size, 1);
+  assert.ok(f.events.includes('session:{"role":"ADMIN","adminAccessId":"admin"}')); assert.equal(f.rows.size, 1);
 });
 for (const code of ["", "12345", "1234567", "abcdef", null]) test("ADMIN malformed preserved " + code, async () => {
   const f = loginFixture(); const r = await f.postAdmin(code); assert.equal(r.status, 400); assert.equal(r.body.error, "Invalid admin code."); assert.equal(f.rows.size, 0); assert.equal(f.events.length, 0);

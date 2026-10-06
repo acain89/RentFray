@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const token = createSessionToken({ role: "ADMIN" });
+    const token = createSessionToken({ role: "ADMIN", adminAccessId: adminAccess.id });
     await setSessionCookie(token);
 
     await prisma.adminAccess.update({

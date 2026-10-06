@@ -34,6 +34,7 @@ function fixture(role = "OWNER") {
       ? matches(units.find(u => u.id === row.unitId), value.is ?? value) : row?.[key] === value);
   }
   const prisma: any = {
+    adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
     managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", role, isActive: true }) },
     tenantAssignment: { findUnique: async () => ({ id: "assignment", unitId: "unit", propertyId: "a", isCurrent: true,
       moveOutDate: null, unit: units[0] }) },
@@ -59,7 +60,7 @@ function fixture(role = "OWNER") {
   const session = load("lib/session.ts", { crypto, "next/headers": { cookies: async () => ({ get: () => token ? { value: token } : undefined }) },
     "@/lib/prisma": { prisma } }, { Date: Clock });
   if (!["absent", "malformed"].includes(role)) token = session.createSessionToken(role === "ADMIN" || ["signature-invalid", "expired"].includes(role)
-    ? { role: "ADMIN" } : role === "TENANT" ? { role, propertyId: "a", unitId: "unit", tenantAssignmentId: "assignment" }
+    ? { role: "ADMIN", adminAccessId: "admin" } : role === "TENANT" ? { role, propertyId: "a", unitId: "unit", tenantAssignmentId: "assignment" }
     : role === "MAINTENANCE" ? { role, propertyId: "a", maintenanceUserId: "worker" }
     : { role, propertyId: "a", managementUserId: "user" });
   if (role === "malformed") token = "broken";

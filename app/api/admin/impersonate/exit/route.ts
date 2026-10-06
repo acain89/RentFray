@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { SESSION_COOKIE_NAME, validateSessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ async function restoreAdminSession() {
     return false;
   }
 
-  const adminSession = verifySessionToken(adminToken);
+  const adminSession = await validateSessionToken(adminToken);
 
   if (!adminSession || adminSession.role !== "ADMIN") {
     cookieStore.set(ADMIN_BACKUP_COOKIE_NAME, "", {

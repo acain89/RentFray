@@ -67,9 +67,9 @@ export function fixture(role = "ADMIN") {
   };
   let token: string | undefined;
   const session = load("lib/session.ts", { crypto, "next/headers": { cookies: async () => ({ get: () => token ? { value: token } : undefined }) },
-    "@/lib/prisma": { prisma: { managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", role, isActive: true }) } } } });
+    "@/lib/prisma": { prisma: { adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null }, managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", role, isActive: true }) } } } });
   if (role === "invalid") token = "malformed";
-  else if (role !== "absent") token = session.createSessionToken(role === "ADMIN" ? { role } : { role, propertyId: "a", managementUserId: "user" });
+  else if (role !== "absent") token = session.createSessionToken(role === "ADMIN" ? { role, adminAccessId: "admin" } : { role, propertyId: "a", managementUserId: "user" });
   const retention = load("lib/destructiveRetention.ts", {});
   const imports = { "@/lib/prisma": { prisma }, "@/lib/session": session,
     "@/lib/destructiveRetention": retention, "@prisma/client": { Prisma: {} },

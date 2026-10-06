@@ -32,6 +32,7 @@ function fixture() {
   let failDelete = false;
   let inTransaction = false;
   const prisma: any = {
+    adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
     managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", isActive: true, role: currentRole }) },
     tenantAssignment: { findUnique: async () => ({ id: "assignment", propertyId: "a", unitId: "unit", isCurrent: true,
       moveOutDate: null, unit: { id: "unit", propertyId: "a" } }) },
@@ -59,10 +60,10 @@ function fixture() {
     if (kind === "absent") { token = undefined; return; }
     if (kind === "malformed") { token = "broken"; return; }
     clock = Date.now();
-    token = session.createSessionToken(kind === "expired" || kind === "signature-invalid" ? { role: "ADMIN" } :
+    token = session.createSessionToken(kind === "expired" || kind === "signature-invalid" ? { role: "ADMIN", adminAccessId: "admin" } :
       kind === "TENANT" ? { role: kind, propertyId: "a", unitId: "unit", tenantAssignmentId: "assignment" } :
       kind === "MAINTENANCE" ? { role: kind, propertyId: "a", maintenanceUserId: "worker" } :
-      kind === "ADMIN" ? { role: kind } : { role: kind, propertyId: "a", managementUserId: "user" });
+      kind === "ADMIN" ? { role: kind, adminAccessId: "admin" } : { role: kind, propertyId: "a", managementUserId: "user" });
     if (kind === "expired") clock += 8 * 86400000;
     if (kind === "signature-invalid") { const index = token!.lastIndexOf(".") + 1; token = token!.slice(0, index) + (token![index] === "a" ? "b" : "a") + token!.slice(index + 1); }
   }

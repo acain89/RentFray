@@ -48,9 +48,9 @@ function fixture() {
   };
   const headers = { cookies: async () => cookieStore };
   const session = loadSource(readFileSync(resolve(root, "lib/session.ts"), "utf8"), {
-    crypto, "next/headers": headers, "@/lib/prisma": { prisma: blockedPrisma },
+    crypto, "next/headers": headers, "@/lib/prisma": { prisma: { adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null } } },
   }, { Date: Clock });
-  const admin = session.createSessionToken({ role: "ADMIN" });
+  const admin = session.createSessionToken({ role: "ADMIN", adminAccessId: "admin" });
   const wrongRole = session.createSessionToken({
     role: "MANAGER", propertyId: "property-a", managementUserId: "manager-a",
   });

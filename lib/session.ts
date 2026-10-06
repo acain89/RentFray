@@ -27,7 +27,7 @@ export type SessionPayload = {
 type CreateSessionInput =
   | {
       role: "ADMIN";
-      adminAccessId?: string;
+      adminAccessId: string;
     }
   | {
       role: "OWNER" | "MANAGER" | "STAFF";
@@ -140,7 +140,7 @@ function isValidPayloadShape(parsed: Partial<SessionPayload>): parsed is Session
   }
 
   if (parsed.role === "ADMIN") {
-    return true;
+    return isNonEmptyString(parsed.adminAccessId);
   }
 
   if (
@@ -179,9 +179,12 @@ export function createSessionToken(input: CreateSessionInput) {
 
   switch (input.role) {
     case "ADMIN":
+      if (!isNonEmptyString(input.adminAccessId)) {
+        throw new Error("Invalid admin session.");
+      }
       payload = {
         role: "ADMIN",
-        ...(input.adminAccessId ? { adminAccessId: input.adminAccessId } : {}),
+        adminAccessId: input.adminAccessId,
         iat: now,
         exp: now + SESSION_TTL_SECONDS,
       };
@@ -350,29 +353,47 @@ async function hasCurrentTenantAuthority(session: SessionPayload): Promise<boole
   }
 }
 
+async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {
+  if (session.role === "ADMIN") {
+    if (!isNonEmptyString(session.adminAccessId)) return false;
+    try {
+      const access = await prisma.adminAccess.findUnique({
+        where: { id: session.adminAccessId },
+        select: { id: true, isActive: true },
+      });
+      return Boolean(access && access.isActive === true);
+    } catch {
+      return false;
+    }
+  }
+  if (session.role === "MAINTENANCE") {
+    if (!isNonEmptyString(session.maintenanceUserId) || !isNonEmptyString(session.propertyId)) return false;
+    try {
+      const worker = await prisma.maintenanceUser.findUnique({
+        where: { id: session.maintenanceUserId },
+        select: { id: true, isActive: true, propertyId: true },
+      });
+      return Boolean(worker && worker.isActive === true && worker.propertyId === session.propertyId);
+    } catch {
+      return false;
+    }
+  }
+  if (session.role === "OWNER" || session.role === "MANAGER" || session.role === "STAFF") {
+    return hasCurrentManagementAuthority(session);
+  }
+  if (session.role === "TENANT") return hasCurrentTenantAuthority(session);
+  return false;
+}
+
+export async function validateSessionToken(token: string): Promise<SessionPayload | null> {
+  const session = verifySessionToken(token);
+  return session && await hasCurrentAuthority(session) ? session : null;
+}
+
 export async function getSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  const session = verifySessionToken(token);
-
-  if (
-    session &&
-    (session.role === "OWNER" || session.role === "MANAGER" || session.role === "STAFF") &&
-    !(await hasCurrentManagementAuthority(session))
-  ) {
-    return null;
-  }
-
-  if (session && session.role === "TENANT" && !(await hasCurrentTenantAuthority(session))) {
-    return null;
-  }
-
-  return session;
+  return token ? validateSessionToken(token) : null;
 }
 
 export async function requireSession() {
@@ -452,9 +473,12 @@ export async function refreshSessionCookie(session: SessionPayload) {
   let refreshedToken: string;
 
   if (session.role === "ADMIN") {
+    if (!(await hasCurrentAuthority(session))) {
+      throw new Error("Unauthorized");
+    }
     refreshedToken = createSessionToken({
       role: "ADMIN",
-      adminAccessId: session.adminAccessId,
+      adminAccessId: session.adminAccessId!,
     });
   } else if (
     session.role === "OWNER" ||
@@ -484,6 +508,9 @@ export async function refreshSessionCookie(session: SessionPayload) {
       tenantAssignmentId: session.tenantAssignmentId,
     });
   } else {
+    if (!(await hasCurrentAuthority(session))) {
+      throw new Error("Unauthorized");
+    }
     if (!session.propertyId || !session.maintenanceUserId) return;
 
     refreshedToken = createSessionToken({

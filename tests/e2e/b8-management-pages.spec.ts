@@ -85,6 +85,8 @@ function fixture(role: string = "OWNER") {
   };
   let inTransaction = false; let reads = 0;
   const prisma: any = {
+    adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
+    maintenanceUser: { findUnique: async ({ where }: any) => where.id === "maintenance" ? { id: "maintenance", propertyId: "property", isActive: true } : null },
     managementUser: { findUnique: async () => structuredClone(state.management) },
     tenantAssignment: { findUnique: async () => ({ ...structuredClone(state.unit.tenantAssignments[0]),
       unit: { id: state.unit.id, propertyId: state.unit.propertyId } }) },
@@ -121,7 +123,7 @@ function fixture(role: string = "OWNER") {
   const session = load("lib/session.ts", { crypto, "next/headers": { cookies: async () => ({
     get: () => token ? { value: token } : undefined, set() { throw new Error("Unexpected session write"); },
   }) }, "@/lib/prisma": { prisma } }, { Date: Clock });
-  token = session.createSessionToken({ role, propertyId: "property", managementUserId: "user",
+  token = session.createSessionToken({ role, ...(role === "ADMIN" ? { adminAccessId: "admin" } : {}), propertyId: "property", managementUserId: "user",
     ...(role === "TENANT" ? { unitId: "unit", tenantAssignmentId: "assignment" } : {}),
     ...(role === "MAINTENANCE" ? { maintenanceUserId: "maintenance" } : {}),
   });

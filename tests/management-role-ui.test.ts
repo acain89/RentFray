@@ -38,7 +38,14 @@ test("STAFF property and charge forms have disabled fieldsets", () => {
     assert.ok(readFileSync(resolve(root, file), "utf8").includes("disabled={!canEdit || savingId === row.id}"));
 });
 test("financial, session, banking and automatic system authorities are unchanged", () => {
-  for (const file of ["lib/session.ts", "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
+  const sessionBefore = execFileSync("git", ["--no-optional-locks", "show", "HEAD:lib/session.ts"], { cwd: root, encoding: "utf8", windowsHide: true });
+  const sessionAfter = readFileSync(resolve(root, "lib/session.ts"), "utf8");
+  for (const name of ["hasCurrentManagementAuthority", "hasCurrentTenantAuthority"]) {
+    const pattern = new RegExp("async function " + name + "[\\s\\S]*?\\n}");
+    assert.equal(sessionAfter.replace(/\r\n/g, "\n").match(pattern)?.[0], sessionBefore.replace(/\r\n/g, "\n").match(pattern)?.[0]);
+    assert.ok(sessionAfter.match(pattern));
+  }
+  for (const file of [ "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
     const before = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     assert.equal(readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"), file);
   }
