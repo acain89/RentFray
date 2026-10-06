@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireManagerLevelSession } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const session = await requireRole("MANAGER");
+    const session = await requireManagerLevelSession();
 
     if (!session.propertyId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

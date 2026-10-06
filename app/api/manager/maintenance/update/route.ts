@@ -13,13 +13,13 @@ const ALLOWED_STATUSES = new Set(
 );
 
 const ALLOWED_ROLES = new Set(
-  ["OWNER", "MANAGER", "STAFF", "MAINTENANCE"] as const
+  ["OWNER", "MANAGER", "MAINTENANCE"] as const
 );
 
 type AllowedStatus = "OPEN" | "IN_PROGRESS" | "COMPLETE" | "THIRD_PARTY";
 type AllowedAction = "DELETE";
 
-type AllowedRole = "OWNER" | "MANAGER" | "STAFF" | "MAINTENANCE";
+type AllowedRole = "OWNER" | "MANAGER" | "MAINTENANCE";
 
 type RequestBody = {
   requestId?: unknown;
@@ -186,8 +186,7 @@ export async function POST(req: Request): Promise<NextResponse> {
             : requestRow.lastUpdatedByMaintenanceUserId,
         lastUpdatedByManagementUserId:
           session.role === "OWNER" ||
-          session.role === "MANAGER" ||
-          session.role === "STAFF"
+          session.role === "MANAGER"
             ? session.managementUserId ?? null
             : requestRow.lastUpdatedByManagementUserId,
       },
@@ -217,8 +216,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         actorType: session.role,
         actorManagementUserId:
           session.role === "OWNER" ||
-          session.role === "MANAGER" ||
-          session.role === "STAFF"
+          session.role === "MANAGER"
             ? session.managementUserId ?? null
             : null,
         actorMaintenanceUserId:

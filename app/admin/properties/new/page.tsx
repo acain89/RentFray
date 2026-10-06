@@ -50,6 +50,8 @@ type SuccessData = {
   propertyId: string;
   propertyCode: string;
   propertyName: string;
+  verificationEmailSent: boolean;
+  verificationRecoveryUrl: string;
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -504,6 +506,8 @@ if (data.account.password !== data.account.confirmPassword) {
 
       const result = (await res.json()) as {
         error?: string;
+        verificationEmailSent?: boolean;
+        verificationRecoveryUrl?: string;
         property?: {
           id: string;
           propertyCode: string;
@@ -523,9 +527,11 @@ if (data.account.password !== data.account.confirmPassword) {
         propertyId: result.property.id,
         propertyCode: result.property.propertyCode,
         propertyName: result.property.name,
+        verificationEmailSent: result.verificationEmailSent === true,
+        verificationRecoveryUrl: result.verificationRecoveryUrl ?? "/verify-email",
       });
 
-      router.replace(`/login/manager?code=${result.property.propertyCode}`);
+
 
       setStep(TOTAL_STEPS);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -537,7 +543,9 @@ if (data.account.password !== data.account.confirmPassword) {
   };
 
   const clientInstructions = successData
-    ? `Go to RentFray.com.
+    ? `Verify your email using the RentFray activation email before logging in.
+If needed, use this verification recovery link: ${successData.verificationRecoveryUrl}
+Go to RentFray.com.
 Click "Existing Members."
 Type in property code ${successData.propertyCode}.
 Click "First time log in."
@@ -1327,8 +1335,11 @@ Click "Tenants" to log in and view balance.`
         {successData && (
           <section className="wizard-card">
             <div className="wizard-section-head">
-              <h1>You&apos;re live.</h1>
-              <p>Your account has been fully set up and is ready to use.</p>
+              <h1>Property and account created.</h1>
+              <p>{successData.verificationEmailSent
+                ? "Verification email sent. The OWNER must verify their email before logging in."
+                : "Verification email could not be sent. The account exists; use the recovery link below to resend."}</p>
+              <a href={successData.verificationRecoveryUrl}>Verification recovery for the recipient</a>
             </div>
 
             <div className="wizard-stack">

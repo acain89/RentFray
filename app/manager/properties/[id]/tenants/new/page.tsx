@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, requireManagerLevelSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +25,7 @@ function parseMoveInDate(value: string) {
 async function createTenantAssignment(formData: FormData) {
   "use server";
 
-  const session = await getSession();
-
-  if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
-    redirect("/");
-  }
+  const session = await requireManagerLevelSession();
 
   const propertyId = clean(formData.get("propertyId"));
   const unitId = clean(formData.get("unitId"));
@@ -198,6 +194,8 @@ export default async function NewTenantAssignmentPage({
     (unit: UnitRow) => unit.tenantAssignments.length === 0
   );
 
+  const canEdit = session.role === "OWNER" || session.role === "MANAGER";
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -221,9 +219,10 @@ export default async function NewTenantAssignmentPage({
 
       {availableUnits.length > 0 ? (
         <form
-          action={createTenantAssignment}
+          action={canEdit ? createTenantAssignment : undefined}
           className="space-y-4 rounded-xl border bg-white p-4"
         >
+          <fieldset disabled={!canEdit} className="contents">
           <input type="hidden" name="propertyId" value={property.id} />
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -302,6 +301,8 @@ export default async function NewTenantAssignmentPage({
           >
             Assign Tenant
           </button>
+
+          </fieldset>
         </form>
       ) : null}
     </div>

@@ -275,6 +275,8 @@ type ManagersListResponse = {
 
 type ManagerMutationResponse = {
   ok?: boolean;
+  verificationEmailSent?: boolean;
+  verificationRecoveryUrl?: string;
   error?: string;
 };
 
@@ -937,7 +939,7 @@ function getMixedBooleanText(values: boolean[]): string {
     sessionRole === "OWNER" || sessionRole === "MANAGER";
   const canEditLateFeeSettings =
     sessionRole === "OWNER" || sessionRole === "MANAGER";
-  const canManageManagers = sessionRole === "OWNER";
+  const canManageManagers = sessionRole === "OWNER" || sessionRole === "MANAGER";
   const isOwner = sessionRole === "OWNER";
   const propertyName = data?.property?.name ?? "Manager Dashboard";
   const [pendingUnitCount, setPendingUnitCount] = useState<number | null>(null);
@@ -1844,6 +1846,9 @@ const exportMonthOptions = getExportMonthOptions(
         return;
       }
 
+      alert(json.verificationEmailSent
+        ? "Account created. The recipient must verify their email before logging in."
+        : `Account created, but verification email could not be sent. Share this recovery link with the recipient: ${json.verificationRecoveryUrl ?? "/verify-email"}`);
       setNewEmail("");
       setNewPassword("");
       setNewRole("STAFF");
@@ -2030,7 +2035,7 @@ useEffect(() => {
   if (
     activePanel === "manager" &&
     showInactiveUnits &&
-    (sessionRole === "OWNER" || sessionRole === "MANAGER")
+    ["OWNER", "MANAGER", "STAFF"].includes(sessionRole)
   ) {
     void loadInactiveUnits();
   }
@@ -3758,7 +3763,7 @@ await loadDashboard({ silent: true });
     subtitle="Create recurring charges for each tier. New recurring charges take effect starting next billing cycle."
     onClose={closeActivePanel}
   >
-    <div className="space-y-5">
+    <fieldset disabled={!canManageMoney} className="space-y-5">
       {tierCharges.map((tier) => (
         <div
           key={tier.tierId}
@@ -3850,7 +3855,7 @@ await loadDashboard({ silent: true });
       >
         Save Additional Charges
       </button>
-    </div>
+    </fieldset>
   </OverlayShell>
 ) : null}
 

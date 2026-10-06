@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 type ResendVerificationBody = {
   email?: string;
+  propertyCode?: string;
 };
 
 function clean(value: unknown): string {
@@ -42,6 +43,7 @@ if (!rateLimit.ok) {
 }
     const body = (await req.json()) as ResendVerificationBody;
     const email = clean(body.email).toLowerCase();
+    const propertyCode = clean(body.propertyCode);
 
     if (!email) {
       return NextResponse.json(
@@ -74,9 +76,15 @@ if (!emailRateLimit.ok) {
   );
 }
 
+    const property = propertyCode ? await prisma.property.findUnique({
+      where: { propertyCode }, select: { id: true, propertyCode: true },
+    }) : null;
+    if (propertyCode && !property) return NextResponse.json({ ok: true });
+
     const manager = await prisma.managementUser.findFirst({
       where: {
         email,
+        ...(property ? { propertyId: property.id } : {}),
       },
       select: {
         id: true,
@@ -84,6 +92,7 @@ if (!emailRateLimit.ok) {
         displayName: true,
         emailVerifiedAt: true,
         isActive: true,
+        role: true,
       },
     });
 
@@ -93,7 +102,7 @@ if (!emailRateLimit.ok) {
       });
     }
 
-    if (manager.emailVerifiedAt) {
+    if (manager.emailVerifiedAt || (manager.role !== "OWNER" && !manager.isActive)) {
       return NextResponse.json({
         ok: true,
       });
@@ -103,6 +112,7 @@ if (!emailRateLimit.ok) {
       managementUserId: manager.id,
       email: manager.email,
       displayName: manager.displayName,
+      propertyCode: property?.propertyCode,
     });
 
     return NextResponse.json({

@@ -211,7 +211,7 @@ export default function ManagerPanel({
                  {canManageManagers ? (
   <SectionCard
     title="Add manager or staff"
-    subtitle="Create a new property account and assign the correct role."
+    subtitle="Create a manager or staff account. The recipient must verify their email before logging in."
   >
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="sm:col-span-2">
@@ -335,10 +335,10 @@ export default function ManagerPanel({
           )}
         </SectionCard>
 
-        {sessionRole === "OWNER" ? (
+        {sessionRole === "OWNER" || sessionRole === "MANAGER" ? (
           <SectionCard
-            title="Owner login"
-            subtitle="Change the owner login email or password."
+            title="Your login"
+            subtitle="Change your login email or password."
           >
             <button
               type="button"
@@ -419,7 +419,7 @@ export default function ManagerPanel({
           </SectionCard>
         ) : null}
 
-        {sessionRole === "OWNER" || sessionRole === "MANAGER" ? (
+        {["OWNER", "MANAGER", "STAFF"].includes(sessionRole) ? (
           <SectionCard
             title="Inactive units"
             subtitle="Review inactive units and reactivate them. Delete is only for unused units; units with history must remain inactive."
@@ -472,6 +472,7 @@ export default function ManagerPanel({
                           </div>
 
                           <div className="flex flex-wrap gap-2">
+                            {canManageManagers ? <>
                             {!confirmingReactivate ? (
                               <button
                                 type="button"
@@ -539,6 +540,7 @@ export default function ManagerPanel({
                                 </button>
                               </>
                             )}
+                            </> : null}
                           </div>
                         </div>
                       </div>

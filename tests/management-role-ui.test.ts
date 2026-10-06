@@ -1,0 +1,45 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { fixture, load } from "./management-role-authorization.test";
+const root = resolve(__dirname, "..");
+test("OWNER banking boundary remains explicit in untouched controls", () => {
+  const bank = readFileSync(resolve(root, "app/manager/dashboard/components/BankPanel.tsx"), "utf8");
+  assert.ok(bank.includes("{isOwner ? ("));
+  for (const file of ["app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts"])
+    assert.match(readFileSync(resolve(root, file), "utf8"), /session\.role !== "OWNER"/);
+});
+test("subordinate UI offers only MANAGER and STAFF", () => {
+  const source = readFileSync(resolve(root, "app/manager/dashboard/components/ManagerPanel.tsx"), "utf8");
+  assert.ok(source.includes('value="MANAGER"')); assert.ok(source.includes('value="STAFF"')); assert.ok(!source.includes('value="OWNER"'));
+});
+function render(node: any): any[] {
+  if (node == null || typeof node === "boolean") return [];
+  if (Array.isArray(node)) return node.flatMap(render);
+  if (typeof node !== "object") return [node];
+  if (typeof node.type === "function") return render(node.type(node.props));
+  return [node, ...render(node.props?.children)];
+}
+for (const role of ["OWNER", "MANAGER", "STAFF"]) test(role + " management controls agree with authority", () => {
+  const f = fixture(role); const panel = load("app/manager/dashboard/components/ManagerPanel.tsx", f.imports).default;
+  const tree = render(panel({ sessionRole: role, canManageManagers: role !== "STAFF", managers: [{ id: "owner", role: "OWNER", username: "owner" }, { id: "staff", role: "STAFF", username: "staff" }], inactiveUnits: [{ id: "unit", unitNumber: "1", tierName: "Tier", lastActiveAt: "2026-10-01" }], showInactiveUnits: true }));
+  const text = tree.filter(n => typeof n === "string").join(" ");
+  assert.ok(text.includes("Inactive units")); assert.equal(text.includes("Add manager or staff"), role !== "STAFF");
+  assert.equal(text.includes("Your login"), role !== "STAFF"); assert.equal(text.includes("Reactivate"), role !== "STAFF");
+  assert.equal(tree.filter(n => n.type === "select").every(n => n.props.disabled === true), role === "STAFF");
+});
+test("STAFF property and charge forms have disabled fieldsets", () => {
+  for (const file of ["app/manager/dashboard/components/PropertyPanel.tsx", "app/manager/getting-started/property/page.tsx", "app/manager/properties/[id]/tenants/new/page.tsx", "app/manager/properties/[id]/tenants/remove/page.tsx", "app/manager/properties/[id]/pin-reset/page.tsx"])
+    assert.ok(readFileSync(resolve(root, file), "utf8").includes('<fieldset disabled={!canEdit}'));
+  assert.ok(readFileSync(resolve(root, "app/manager/dashboard/ManagerDashboardClient.tsx"), "utf8").includes('<fieldset disabled={!canManageMoney}'));
+  for (const file of ["app/manager/properties/[id]/maintenance/page.tsx", "app/manager/properties/page.tsx"])
+    assert.ok(readFileSync(resolve(root, file), "utf8").includes("disabled={!canEdit || savingId === row.id}"));
+});
+test("financial, session, banking and automatic system authorities are unchanged", () => {
+  for (const file of ["lib/session.ts", "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
+    const before = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
+    assert.equal(readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"), file);
+  }
+});

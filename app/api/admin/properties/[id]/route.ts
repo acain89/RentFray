@@ -56,13 +56,14 @@ function canAccessProperty(input: {
   sessionPropertyId: string | null | undefined;
   requestedPropertyId: string;
   role: string;
+  readOnly?: boolean;
 }): boolean {
   if (input.role === "ADMIN") {
     return true;
   }
 
   return (
-    (input.role === "OWNER" || input.role === "MANAGER") &&
+    (input.role === "OWNER" || input.role === "MANAGER" || (input.readOnly === true && input.role === "STAFF")) &&
     input.sessionPropertyId === input.requestedPropertyId
   );
 }
@@ -91,6 +92,7 @@ export async function GET(
         sessionPropertyId: session.propertyId,
         requestedPropertyId: id,
         role: session.role,
+        readOnly: true,
       })
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

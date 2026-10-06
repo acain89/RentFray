@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, requireManagerLevelSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +24,7 @@ function parseMoveOutDate(value: string) {
 async function removeTenantAssignment(formData: FormData) {
   "use server";
 
-  const session = await getSession();
-
-  if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
-    redirect("/");
-  }
+  const session = await requireManagerLevelSession();
 
   const propertyId = clean(formData.get("propertyId"));
   const unitId = clean(formData.get("unitId"));
@@ -202,6 +198,8 @@ export default async function RemoveTenantPage({
     (unit: UnitRow) => unit.tenantAssignments.length > 0
   );
 
+  const canEdit = session.role === "OWNER" || session.role === "MANAGER";
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -225,9 +223,10 @@ export default async function RemoveTenantPage({
 
       {occupiedUnits.length > 0 ? (
         <form
-          action={removeTenantAssignment}
+          action={canEdit ? removeTenantAssignment : undefined}
           className="space-y-4 rounded-xl border bg-white p-4"
         >
+          <fieldset disabled={!canEdit} className="contents">
           <input type="hidden" name="propertyId" value={property.id} />
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -289,6 +288,8 @@ export default async function RemoveTenantPage({
           >
             Remove Tenant
           </button>
+
+          </fieldset>
         </form>
       ) : null}
     </div>

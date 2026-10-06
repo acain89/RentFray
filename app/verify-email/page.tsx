@@ -16,6 +16,7 @@ function VerifyEmailContent() {
   const searchParams = useSearchParams();
 
   const email = searchParams.get("email")?.trim() || "";
+  const propertyCode = searchParams.get("code")?.trim() || "";
   const status = searchParams.get("status")?.trim() || "";
   const sent = searchParams.get("sent")?.trim() || "";
 
@@ -46,7 +47,7 @@ function VerifyEmailContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: targetEmail }),
+        body: JSON.stringify({ email: targetEmail, ...(propertyCode ? { propertyCode } : {}) }),
       });
 
       const result = (await response.json()) as ResendResponse;

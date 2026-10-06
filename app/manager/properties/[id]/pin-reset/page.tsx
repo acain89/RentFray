@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, requireManagerLevelSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
 import { canManageMaintenancePins } from "@/lib/permissions";
 
@@ -16,11 +16,7 @@ function clean(value: FormDataEntryValue | null) {
 async function resetTenantPin(formData: FormData) {
   "use server";
 
-  const session = await getSession();
-
-  if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
-    redirect("/");
-  }
+  const session = await requireManagerLevelSession();
 
   const propertyId = clean(formData.get("propertyId"));
   const unitId = clean(formData.get("unitId"));
@@ -304,6 +300,8 @@ export default async function PinResetPage({
   const tenantSuccess = qp?.tenantSuccess === "1";
   const maintenanceSuccess = qp?.maintenanceSuccess === "1";
 
+  const canEdit = session.role === "OWNER" || session.role === "MANAGER";
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -334,7 +332,8 @@ export default async function PinResetPage({
             No occupied units available for PIN reset.
           </div>
         ) : (
-          <form action={resetTenantPin} className="space-y-4">
+          <form action={canEdit ? resetTenantPin : undefined} className="space-y-4">
+          <fieldset disabled={!canEdit} className="contents">
             <input type="hidden" name="propertyId" value={property.id} />
 
             <label className="block space-y-1">
@@ -378,7 +377,9 @@ export default async function PinResetPage({
             >
               Reset Tenant PIN
             </button>
-          </form>
+
+          </fieldset>
+        </form>
         )}
       </div>
 

@@ -49,13 +49,13 @@ function normalizePropertyType(value: unknown): PropertyType {
   }
 }
 
-async function getAuthorizedSession() {
+async function getAuthorizedSession(readOnly = false) {
   const session = await getSession();
 
   if (
     !session ||
     !session.propertyId ||
-    !["OWNER", "MANAGER"].includes(session.role)
+    !(session.role === "OWNER" || session.role === "MANAGER" || (readOnly && session.role === "STAFF"))
   ) {
     return null;
   }
@@ -67,7 +67,7 @@ async function getAuthorizedSession() {
 
 export async function GET() {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedSession(true);
 
     if (!session) {
       return NextResponse.json(
@@ -112,6 +112,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       property,
+      canEdit: session.role === "OWNER" || session.role === "MANAGER",
     });
   } catch (error) {
     console.error("Load onboarding property failed:", error);

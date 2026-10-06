@@ -77,7 +77,7 @@ export async function GET(
   try {
     const session = await getSession();
 
-    if (!session || !isAuthorized(session.role)) {
+    if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

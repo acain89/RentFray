@@ -20,6 +20,7 @@ type PropertyForm = {
 type PropertyResponse =
   | {
       ok: true;
+      canEdit?: boolean;
       property: {
         id: string;
         name: string;
@@ -113,6 +114,7 @@ export default function PropertyPanel({
 }: Props) {
   const [form, setForm] = useState<PropertyForm>(INITIAL_FORM);
   const [loading, setLoading] = useState(true);
+  const [canEdit, setCanEdit] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState("");
 
@@ -147,6 +149,7 @@ export default function PropertyPanel({
           return;
         }
 
+        setCanEdit(result.canEdit === true);
         setForm({
           name:
             result.property.name === "My Property"
@@ -230,6 +233,7 @@ export default function PropertyPanel({
     event: FormEvent<HTMLFormElement>
   ): Promise<void> {
     event.preventDefault();
+    if (!canEdit) return;
 
     if (saveState === "saving") {
       return;
@@ -315,6 +319,7 @@ export default function PropertyPanel({
           onSubmit={handleSubmit}
           className="space-y-5"
         >
+            <fieldset disabled={!canEdit} className="contents">
           <section className="rounded-[24px] border border-[var(--rf-border)] bg-white p-4 shadow-sm sm:p-5">
             <div className="grid gap-5">
               <Field
@@ -477,7 +482,9 @@ export default function PropertyPanel({
                     : "Save"}
             </button>
           </div>
-        </form>
+
+            </fieldset>
+          </form>
       )}
     </OverlayShell>
   );

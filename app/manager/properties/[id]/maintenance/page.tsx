@@ -38,6 +38,15 @@ export default function PropertyMaintenancePage({ params }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [canEdit, setCanEdit] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/auth/session", { cache: "no-store" }).then(response => response.json()).then(result => {
+      if (active) setCanEdit(result.ok === true && ["OWNER", "MANAGER"].includes(result.user?.role));
+    }).catch(() => { if (active) setCanEdit(false); });
+    return () => { active = false; };
+  }, []);
+
   const [notesDrafts, setNotesDrafts] = useState<Record<string, string>>({});
 
   async function load(nextPropertyId: string) {
@@ -98,6 +107,7 @@ export default function PropertyMaintenancePage({ params }: Props) {
   }, [params]);
 
   async function updateStatus(requestId: string, status: string) {
+    if (!canEdit) return;
     try {
       setSavingId(requestId);
       setError("");
@@ -130,6 +140,7 @@ export default function PropertyMaintenancePage({ params }: Props) {
   }
 
   async function saveNotes(requestId: string) {
+    if (!canEdit) return;
     try {
       setSavingId(requestId);
       setError("");
@@ -231,7 +242,7 @@ export default function PropertyMaintenancePage({ params }: Props) {
                   <select
                     value={row.status}
                     onChange={(e) => updateStatus(row.id, e.target.value)}
-                    disabled={savingId === row.id}
+                    disabled={!canEdit || savingId === row.id}
                     className="w-full rounded border px-2 py-2"
                   >
                     <option value="OPEN">OPEN</option>
@@ -250,6 +261,7 @@ export default function PropertyMaintenancePage({ params }: Props) {
               <div className="space-y-2">
                 <div className="text-xs text-gray-500">Internal Notes</div>
                 <textarea
+                  disabled={!canEdit}
                   value={notesDrafts[row.id] || ""}
                   onChange={(e) =>
                     setNotesDrafts((prev) => ({
@@ -264,7 +276,7 @@ export default function PropertyMaintenancePage({ params }: Props) {
                 <button
                   type="button"
                   onClick={() => saveNotes(row.id)}
-                  disabled={savingId === row.id}
+                  disabled={!canEdit || savingId === row.id}
                   className="rounded border px-3 py-2 text-sm"
                 >
                   {savingId === row.id ? "Saving..." : "Save Notes"}

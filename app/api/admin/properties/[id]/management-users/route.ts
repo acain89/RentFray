@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
+import { sendVerificationEmail } from "@/lib/email";
 
 
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ type UpdateBody = {
   isActive?: unknown;
 };
 
-type ManagementUserRole = "OWNER" | "MANAGER" | "STAFF";
+type ManagementUserRole = "MANAGER" | "STAFF";
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
@@ -29,14 +30,14 @@ function toBoolean(value: unknown, fallback = true): boolean {
   return fallback;
 }
 
-function normalizeRole(value: unknown, fallback: ManagementUserRole): ManagementUserRole {
+function normalizeRole(value: unknown, fallback: ManagementUserRole): ManagementUserRole | null {
   const role = clean(value).toUpperCase();
 
-  if (role === "OWNER" || role === "MANAGER" || role === "STAFF") {
+  if (role === "MANAGER" || role === "STAFF") {
     return role;
   }
 
-  return fallback;
+  return value === undefined ? fallback : null;
 }
 
 /* =========================
@@ -51,7 +52,7 @@ export async function GET(
 if (
   !session ||
   !session.propertyId ||
-  (session.role !== "OWNER" && session.role !== "MANAGER")
+  !["OWNER", "MANAGER", "STAFF"].includes(session.role)
 ) {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
@@ -86,7 +87,7 @@ export async function POST(
 ) {
   const session = await getSession();
 
-  if (!session || session.role !== "OWNER") {
+  if (!session || (session.role !== "OWNER" && session.role !== "MANAGER")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -102,6 +103,9 @@ export async function POST(
   const username = email;
   const password = clean(body.password);
   const role = normalizeRole(body.role, "STAFF");
+  if (!role) {
+    return NextResponse.json({ error: "Role must be MANAGER or STAFF." }, { status: 400 });
+  }
 
   if (!email || !password) {
     return NextResponse.json({ error: "Invalid input." }, { status: 400 });
@@ -142,7 +146,18 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({ ok: true, user: created });
+  let verificationEmailSent = true;
+  let propertyCode = "";
+  try {
+    const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { propertyCode: true } });
+    propertyCode = property?.propertyCode ?? "";
+    await sendVerificationEmail({ managementUserId: created.id, email, propertyCode });
+  } catch (error) {
+    verificationEmailSent = false;
+    console.error("Management user created; verification email failed:", error);
+  }
+  const verificationRecoveryUrl = `/verify-email?email=${encodeURIComponent(email)}&code=${encodeURIComponent(propertyCode)}&sent=${verificationEmailSent ? "1" : "0"}`;
+  return NextResponse.json({ ok: true, user: created, verificationEmailSent, verificationRecoveryUrl });
 }
 
 /* =========================
@@ -154,7 +169,7 @@ export async function PATCH(
 ) {
   const session = await getSession();
 
-  if (!session || session.role !== "OWNER") {
+  if (!session || (session.role !== "OWNER" && session.role !== "MANAGER")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -168,6 +183,9 @@ export async function PATCH(
 
   const userId = clean(body.userId);
   const role = normalizeRole(body.role, "STAFF");
+  if (!role) {
+    return NextResponse.json({ error: "Role must be MANAGER or STAFF." }, { status: 400 });
+  }
   const isActive = toBoolean(body.isActive, true);
 
   if (!userId) {

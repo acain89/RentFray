@@ -20,6 +20,7 @@ type PropertyForm = {
 type PropertyResponse =
   | {
       ok: true;
+      canEdit?: boolean;
       property: {
         id: string;
         name: string;
@@ -62,6 +63,7 @@ export default function PropertyInformationPage() {
   const [form, setForm] =
     useState<PropertyForm>(INITIAL_FORM);
   const [loading, setLoading] = useState(true);
+  const [canEdit, setCanEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -100,6 +102,7 @@ export default function PropertyInformationPage() {
 
         if (cancelled) return;
 
+        setCanEdit(result.canEdit === true);
         setForm({
           name:
             result.property.name === "My Property"
@@ -176,6 +179,7 @@ export default function PropertyInformationPage() {
     event: FormEvent<HTMLFormElement>
   ): Promise<void> {
     event.preventDefault();
+    if (!canEdit) return;
     setError("");
 
     const validationError = validate();
@@ -285,6 +289,7 @@ export default function PropertyInformationPage() {
             onSubmit={handleSubmit}
             className="space-y-5"
           >
+            <fieldset disabled={!canEdit} className="contents">
             <Field
               label="Property name"
               value={form.name}
@@ -438,6 +443,8 @@ export default function PropertyInformationPage() {
                   : "Save & Continue"}
               </button>
             </div>
+
+            </fieldset>
           </form>
         </section>
       </div>

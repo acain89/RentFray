@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { canManageFinancials } from "@/lib/permissions";
+import { isManagementRole } from "@/lib/permissions";
 
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const session = await getSession();
 
-    if (!session || !session.propertyId || !canManageFinancials(session.role)) {
+    if (!session || !session.propertyId || !isManagementRole(session.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

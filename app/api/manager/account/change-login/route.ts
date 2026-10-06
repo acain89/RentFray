@@ -22,7 +22,7 @@ function clean(value: unknown): string {
 export async function POST(req: Request) {
   const session = await getSession();
 
-  if (!session || !session.managementUserId) {
+  if (!session || !session.managementUserId || (session.role !== "OWNER" && session.role !== "MANAGER")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

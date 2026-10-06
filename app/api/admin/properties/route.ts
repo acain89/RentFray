@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
+import { sendVerificationEmail } from "@/lib/email";
 
 
 export const runtime = "nodejs";
@@ -519,7 +520,7 @@ export async function POST(req: NextRequest) {
 
         const passwordHash = await bcrypt.hash(password, 10);
 
-        await tx.managementUser.create({
+        const owner = await tx.managementUser.create({
           data: {
             propertyId: createdProperty.id,
             email,
@@ -637,17 +638,23 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        return createdProperty;
+        return { property: createdProperty, managementUserId: owner.id };
       }
     );
 
+    let verificationEmailSent = true;
+    try {
+      await sendVerificationEmail({ managementUserId: result.managementUserId, email,
+        displayName: fullName, propertyCode: result.property.propertyCode });
+    } catch (error) {
+      verificationEmailSent = false;
+      console.error("Property created; OWNER verification email failed:", error);
+    }
     return NextResponse.json({
       ok: true,
-      property: {
-        id: result.id,
-        name: result.name,
-        propertyCode: result.propertyCode,
-      },
+      property: { id: result.property.id, name: result.property.name, propertyCode: result.property.propertyCode },
+      verificationEmailSent,
+      verificationRecoveryUrl: `/verify-email?email=${encodeURIComponent(email)}&code=${encodeURIComponent(result.property.propertyCode)}&sent=${verificationEmailSent ? "1" : "0"}`,
     });
   } catch (err: unknown) {
     if (isPrismaKnownError(err) && err.code === "P2002") {

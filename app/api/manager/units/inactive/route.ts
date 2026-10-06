@@ -12,7 +12,7 @@ export async function GET() {
     if (
       !session ||
       !session.propertyId ||
-      (session.role !== "OWNER" && session.role !== "MANAGER")
+      !["OWNER", "MANAGER", "STAFF"].includes(session.role)
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
