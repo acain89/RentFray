@@ -10,7 +10,7 @@ export async function GET() {
     // ✅ enforce session + role
     const session = await requireRole("TENANT");
 
-    if (!session.unitId) {
+    if (!session.unitId || !session.propertyId || !session.tenantAssignmentId?.trim()) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
@@ -18,6 +18,7 @@ export async function GET() {
       where: {
         unitId: session.unitId,
         propertyId: session.propertyId,
+        tenantAssignmentId: session.tenantAssignmentId,
       },
       orderBy: {
         createdAt: "desc",

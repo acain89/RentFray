@@ -259,6 +259,8 @@ const unitStatus = financialState.status;
       select: {
         id: true,
         entryType: true,
+        tenantAssignmentId: true,
+        paymentId: true,
         chargeType: true,
         billingCycle: true,
         amountCents: true,
@@ -267,6 +269,9 @@ const unitStatus = financialState.status;
         referenceNumber: true,
         payment: {
           select: {
+            propertyId: true,
+            unitId: true,
+            tenantAssignmentId: true,
             status: true,
             paidAt: true,
             failedAt: true,
@@ -277,7 +282,8 @@ const unitStatus = financialState.status;
       },
     });
 
-    const filteredLedgerEntries = ledgerEntries.filter(
+    // Accounting inputs retain legacy effects; private payment-backed history does not.
+    const accountingLedgerEntries = ledgerEntries.filter(
       (entry: (typeof ledgerEntries)[number]) => {
         if (entry.entryType !== "PAYMENT") return true;
         const status = normalizePaymentStatus(entry.payment?.status);
@@ -285,7 +291,16 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
       }
     );
 
-    const statementSourceEntries = filteredLedgerEntries.filter(
+    const isPrivateHistoryVisible = (entry: (typeof ledgerEntries)[number]) => {
+      if (!entry.paymentId && entry.entryType !== "PAYMENT") return true;
+      return entry.tenantAssignmentId === currentAssignmentId &&
+        entry.payment?.tenantAssignmentId === currentAssignmentId &&
+        entry.payment.propertyId === session.propertyId &&
+        entry.payment.unitId === session.unitId;
+    };
+    const filteredLedgerEntries = accountingLedgerEntries.filter(isPrivateHistoryVisible);
+
+    const statementSourceEntries = accountingLedgerEntries.filter(
   (entry: (typeof filteredLedgerEntries)[number]) =>
     entry.billingCycle === billingCycle
 );
@@ -318,6 +333,7 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
   creditsCents += Math.abs(entry.amountCents);
 }
 
+        if (!isPrivateHistoryVisible(entry)) return null;
         return {
           label: buildStatementLabel(entry),
           amount: centsToDollars(
@@ -325,7 +341,7 @@ return status === "PAID" || status === "PENDING" || status === "REVERSED";
           ),
         };
       }
-    );
+    ).filter((item: StatementItem | null): item is StatementItem => item !== null);
 
        const hasLedgerProcessingFee = statementSourceEntries.some(
       (entry: (typeof statementSourceEntries)[number]) =>

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const session = await requireRole("TENANT");
 
     // ✅ EARLY HARD GUARD (TS + runtime safe)
-    if (!session.unitId || !session.propertyId) {
+    if (!session.unitId || !session.propertyId || !session.tenantAssignmentId?.trim()) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
@@ -75,6 +75,7 @@ export async function POST(req: Request) {
       data: {
         propertyId: unit.propertyId,
         unitId: unit.id,
+        tenantAssignmentId: session.tenantAssignmentId,
         category,
         urgency,
         status: "OPEN",

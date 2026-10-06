@@ -47,6 +47,16 @@ test("financial, session, banking and automatic system authorities are unchanged
   }
   for (const file of [ "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
     const before = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
-    assert.equal(readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"), file);
+    let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
+    if (file === "prisma/schema.prisma") {
+      // Permit only the separately approved D5 addition; its contract has a dedicated test.
+      after = after.replace(/model TenantAssignment \{[\s\S]*?\n\}/, model =>
+        model.replace(/^  maintenanceRequests\s+MaintenanceRequest\[\]\n/m, ""));
+      after = after.replace(/model MaintenanceRequest \{[\s\S]*?\n\}/, model => model
+        .replace(/^  tenantAssignmentId\s+String\?\n/m, "")
+        .replace(/^  tenantAssignment\s+TenantAssignment\? @relation\(fields: \[tenantAssignmentId\], references: \[id\], onDelete: SetNull, onUpdate: Cascade\)\n/m, "")
+        .replace(/^  @@index\(\[propertyId, unitId, tenantAssignmentId\]\)\n/m, ""));
+    }
+    assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });

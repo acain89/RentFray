@@ -24,7 +24,7 @@ export async function GET() {
   try {
     const session = await requireRole("TENANT");
 
-    if (!session.propertyId || !session.unitId) {
+    if (!session.propertyId || !session.unitId || !session.tenantAssignmentId?.trim()) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
@@ -32,10 +32,14 @@ export async function GET() {
       where: {
         unitId: session.unitId,
         propertyId: session.propertyId,
+        tenantAssignmentId: session.tenantAssignmentId,
         entryType: "PAYMENT",
         voidedAt: null,
         payment: {
           is: {
+            propertyId: session.propertyId,
+            unitId: session.unitId,
+            tenantAssignmentId: session.tenantAssignmentId,
             status: {
               in: [PaymentStatus.PAID, PaymentStatus.PENDING],
             },

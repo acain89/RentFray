@@ -36,6 +36,29 @@ const summary = await getUnitLedgerSummary({
   asOf: new Date(),
 });
 
+    // Private metadata is assignment-owned; authoritative accounting stays in the SSOT.
+    const lastPayment = await prisma.ledgerEntry.findFirst({
+      where: {
+        propertyId: session.propertyId,
+        unitId: session.unitId,
+        tenantAssignmentId: assignment.id,
+        entryType: "PAYMENT",
+        amountCents: { lt: 0 },
+        voidedAt: null,
+        effectiveDate: { lte: new Date() },
+        payment: {
+          is: {
+            propertyId: session.propertyId,
+            unitId: session.unitId,
+            tenantAssignmentId: assignment.id,
+            status: "PAID",
+          },
+        },
+      },
+      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      select: { effectiveDate: true, amountCents: true },
+    });
+
     return NextResponse.json({
       ok: true,
       balanceCents: summary.balanceCents,
@@ -43,8 +66,8 @@ const summary = await getUnitLedgerSummary({
       paymentsCents: summary.totalPaidCents,
       hasPendingPayment: summary.hasPendingPayment,
       pendingPaymentAmountCents: summary.pendingPaymentAmountCents,
-      lastPaymentDate: summary.lastPaymentDate,
-      lastPaymentAmountCents: summary.lastPaymentAmountCents,
+      lastPaymentDate: lastPayment?.effectiveDate ?? null,
+      lastPaymentAmountCents: lastPayment ? Math.abs(lastPayment.amountCents) : null,
     });
   } catch (error: unknown) {
     console.error("GET /api/tenant/balance failed", error);

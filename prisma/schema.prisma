@@ -257,6 +257,7 @@ model TenantAssignment {
   updatedAt                 DateTime        @updatedAt
   ledgerEntries             LedgerEntry[]
   payments                  Payment[]
+  maintenanceRequests       MaintenanceRequest[]
   createdByManagementUser   ManagementUser? @relation("TenantAssignmentCreatedBy", fields: [createdByManagementUserId], references: [id])
   property                  Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   unit                      Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -291,6 +292,7 @@ model MaintenanceRequest {
   id                             String           @id @default(cuid())
   propertyId                     String
   unitId                         String
+  tenantAssignmentId             String?
   category                       String
   urgency                        String           @default("NORMAL")
   status                         String           @default("OPEN")
@@ -310,9 +312,11 @@ model MaintenanceRequest {
   lastUpdatedByManagementUser    ManagementUser?  @relation("MaintenanceRequestUpdatedByManagement", fields: [lastUpdatedByManagementUserId], references: [id])
   property                       Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   unit                           Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenantAssignment               TenantAssignment? @relation(fields: [tenantAssignmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([propertyId, status])
   @@index([propertyId, unitId])
+  @@index([propertyId, unitId, tenantAssignmentId])
   @@index([propertyId, urgency])
 }
 
