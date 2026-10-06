@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const unitNumber = String(body.unitNumber || "").trim().toUpperCase();
     const pin = String(body.pin || "").trim();
 
-    if (!propertyCode || propertyCode.length !== 4) {
+    if (!/^\d{4,5}$/.test(propertyCode)) {
       return NextResponse.json(
         { error: "Invalid credentials." },
         { status: 400 }
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     }
 
     const allowed = await checkPinAllowed(unit.id);
-    if (!allowed) {
+    if (!allowed.ok) {
       return NextResponse.json(
         { error: "Too many attempts. Try again later." },
         { status: 429 }
