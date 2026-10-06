@@ -143,6 +143,7 @@ export async function POST(req: NextRequest) {
       });
 
       emitEvent("admin:notes:update", {
+        propertyId: session.propertyId,
         unitId: updated.unitId,
       });
 
@@ -192,6 +193,7 @@ export async function POST(req: NextRequest) {
     });
 
     emitEvent("admin:notes:update", {
+      propertyId: session.propertyId,
       unitId,
     });
 

@@ -77,11 +77,13 @@ function fixture(role = "OWNER") {
   const page = load("app/manager/units/[id]/page.tsx", { "@/lib/session": session, "@/lib/prisma": { prisma },
     "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": control,
     "./ManualPaymentForm": paymentControl, "./ManualChargeForm": chargeControl, "./PostRentButton": rentControl,
-    "@/lib/ledger": { getUnitLedgerSummary: async () => ({ balanceCents: 0, totalChargesCents: 0, totalPaidCents: 0 }) },
-    "@/lib/delinquency": { getUnitDelinquencySummary: async () => ({ amountDueNowCents: 0, daysPastDue: 0, isDelinquent: false }) },
-    "@/lib/billingCalendar": { assertTierBillingCalendar: () => 1 },
-    "@/lib/rentDates": { resolveEffectiveBillingSettings: () => ({ gracePeriodDays: 0, lateFeeInitialCents: 0, lateFeeDailyCents: 0, maxLateFeeDays: 0 }),
-      getRentDateSummary: () => ({ dueDate: "2026-10-01", nextDueDate: "2026-11-01" }) },
+    "@/lib/unitFinancialState": { getUnitFinancialState: async () => ({
+      ledgerBalanceCents: 0, hasPendingPayment: false, daysPastDue: 0,
+      ledgerSummary: { totalChargesCents: 0, totalPaidCents: 0, currentCycleRentChargesCents: 0 },
+      status: { status: "PAID", label: "Paid", tenantMessage: "Your balance is paid." }, paymentStatus: "PAID",
+      effectiveBillingSettings: { dueDay: 1, gracePeriodDays: 0, lateFeeInitialCents: 0, lateFeeDailyCents: 0, maxLateFeeDays: 0 },
+      rentDates: { dueDate: "2026-10-01", nextDueDate: "2026-11-01" },
+    }) },
   }).default;
   return { api, page, controls: [paymentControl, chargeControl, rentControl], notes, events, counts: () => ({ reads, writes }), fail: () => { failWrite = true; } };
 }
@@ -99,7 +101,7 @@ for (const role of ["OWNER", "MANAGER", "STAFF", "TENANT", "MAINTENANCE", "ADMIN
     const f = fixture(role); const response = await f.api.POST(postRequest({ action, unitId: "unit", noteId: "note", content: " New note " }));
     const allowed = ["OWNER", "MANAGER"].includes(role); expect(response.status).toBe(allowed ? 200 : 401);
     expect(f.counts().writes).toBe(allowed ? 1 : 0); expect(f.events).toHaveLength(allowed ? 1 : 0);
-    if (allowed) expect(f.events[0]).toEqual({ type: "admin:notes:update", data: { unitId: "unit" } });
+    if (allowed) expect(f.events[0]).toEqual({ type: "admin:notes:update", data: { propertyId: "a", unitId: "unit" } });
     else expect(f.counts().reads).toBe(0);
   });
 }

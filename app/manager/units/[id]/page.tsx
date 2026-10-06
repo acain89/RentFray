@@ -1,16 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireManagementSession } from "@/lib/session";
-import { getUnitLedgerSummary } from "@/lib/ledger";
-import { getUnitDelinquencySummary } from "@/lib/delinquency";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import ManualPaymentForm from "./ManualPaymentForm";
 import ManualChargeForm from "./ManualChargeForm";
 import PostRentButton from "./PostRentButton";
-import {
-  getRentDateSummary,
-  resolveEffectiveBillingSettings,
-} from "@/lib/rentDates";
-import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 
 function centsToDollars(cents: number | null | undefined): number {
   return Number(cents || 0) / 100;
@@ -26,6 +20,9 @@ function moneyFromCents(cents: number | null | undefined): string {
 
 function fmtDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return parseDateOnly(value).toLocaleDateString("en-US");
+  }
   return new Date(value).toLocaleDateString("en-US");
 }
 
@@ -42,45 +39,6 @@ function sectionCardClasses(emphasis = false): string {
       ? "border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)]"
       : "border-slate-200/80 bg-white",
   ].join(" ");
-}
-
-type UnitStatus = "PAID" | "PARTIAL" | "GRACE" | "DELINQUENT" | "VACANT";
-
-function resolveStatus(
-  balanceDollars: number,
-  isDelinquent: boolean,
-  hasTenant: boolean,
-  daysPastDue: number
-): UnitStatus {
-  if (!hasTenant) return "VACANT";
-  if (balanceDollars <= 0) return "PAID";
-  if (isDelinquent) return "DELINQUENT";
-  if (daysPastDue > 0) return "GRACE";
-  return "PARTIAL";
-}
-
-function statusPillClasses(status: UnitStatus): string {
-  switch (status) {
-    case "DELINQUENT":
-      return "border-red-200 bg-red-50 text-red-700";
-    case "GRACE":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "PARTIAL":
-      return "border-blue-200 bg-blue-50 text-blue-700";
-    case "PAID":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "VACANT":
-    default:
-      return "border-slate-200 bg-slate-100 text-slate-600";
-  }
-}
-
-function balanceToneClasses(status: UnitStatus, balanceDollars: number): string {
-  if (status === "DELINQUENT") return "text-red-600";
-  if (status === "GRACE") return "text-amber-600";
-  if (status === "PAID" || balanceDollars <= 0) return "text-emerald-600";
-  if (status === "VACANT") return "text-slate-500";
-  return "text-slate-900";
 }
 
 function paymentStatusClasses(status: string | null): string {
@@ -180,6 +138,7 @@ export default async function UnitDetail({ params }: Props) {
         where: {
           voidedAt: null,
         },
+        include: { payment: { select: { propertyId: true, unitId: true, tenantAssignmentId: true, status: true } } },
         orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
       },
       payments: {
@@ -238,103 +197,55 @@ export default async function UnitDetail({ params }: Props) {
     ? formatTenantName(activeAssignment.firstName, activeAssignment.lastName)
     : "Vacant";
 
-  const summary = await getUnitLedgerSummary({
-  unitId: unit.id,
-  asOf: new Date(),
-});
-  const delinquency = await getUnitDelinquencySummary(unit.id);
-
-  const latestPayment: PaymentRow | null = unit.payments[0] ?? null;
-  const propertySettings = unit.property.settings ?? null;
-
-  const balanceDollars = centsToDollars(summary.balanceCents);
-  const totalChargesDollars = centsToDollars(summary.totalChargesCents);
-  const totalPaidDollars = centsToDollars(summary.totalPaidCents);
-  const amountDueNow = centsToDollars(delinquency.amountDueNowCents);
-  const daysPastDue = Number(delinquency.daysPastDue || 0);
-  const hasBalance = Number(summary.balanceCents || 0) > 0;
-
-  const status = resolveStatus(
-    balanceDollars,
-    delinquency.isDelinquent,
-    Boolean(activeAssignment),
-    daysPastDue
-  );
-
-  const currentLedgerEntries: LedgerEntry[] = activeAssignment
-    ? unit.ledgerEntries.filter((entry: LedgerEntry) => {
-        const entryDate = new Date(entry.effectiveDate).getTime();
-        const moveInDate = activeAssignment.moveInDate
-          ? new Date(activeAssignment.moveInDate).getTime()
-          : Number.NEGATIVE_INFINITY;
-
-        const sameTenantOrUnitLevel =
-          !entry.tenantAssignmentId || entry.tenantAssignmentId === activeAssignment.id;
-
-        return entryDate >= moveInDate && sameTenantOrUnitLevel;
-      })
-    : [];
-
-  let runningBalanceCents = 0;
-  const ledgerRows = currentLedgerEntries.map((entry: LedgerEntry) => {
-    runningBalanceCents += Number(entry.amountCents || 0);
-    return {
-      ...entry,
-      runningBalanceCents,
-    };
-  });
-
-const permanentDueDay = assertTierBillingCalendar({
-  propertyId: unit.propertyId,
-  rentFrayStartDate: unit.property.rentFrayStartDate,
-  propertySettingsDueDay: propertySettings?.rentDueDay,
-  tier: unit.tier,
-});
-
-const effectiveBillingSettings = resolveEffectiveBillingSettings({
-  tier: unit.tier,
-  propertySettings,
-});
-
-effectiveBillingSettings.dueDay = permanentDueDay;
-
-const today = new Date();
-
-const rentDates = getRentDateSummary({
-  ...effectiveBillingSettings,
-  now: today,
-  rentFrayStartDate: unit.property.rentFrayStartDate,
-});
-
-const rentDueDay = permanentDueDay;
-const gracePeriodDays = effectiveBillingSettings.gracePeriodDays;
-const baseRentCents = Number(
-  unit.baseRentCents ?? unit.tier?.baseRentCents ?? 0
-);
-const lateFeeType = unit.tier?.lateFeeType ?? "FLAT";
-const lateFeeInitialCents =
-  effectiveBillingSettings.lateFeeInitialCents;
-const lateFeeDailyCents =
-  effectiveBillingSettings.lateFeeDailyCents;
-const maxLateFeeDays =
-  effectiveBillingSettings.maxLateFeeDays;
-const processingFeeCents = Number(
-  unit.tier?.processingFeeCents ?? 0
-);
-
-const cycleStart = parseDateOnly(rentDates.dueDate);
-const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
-
-  const hasRentChargeThisCycle = currentLedgerEntries.some((entry: LedgerEntry) => {
-    const effectiveDate = new Date(entry.effectiveDate);
-    return (
-      entry.entryType === "CHARGE" &&
-      entry.chargeType === "RENT" &&
-      effectiveDate >= cycleStart &&
-      effectiveDate < nextBillingDate
-    );
-  });
-
+  const now = new Date();
+  const financialState = activeAssignment ? await getUnitFinancialState({
+    propertyId: unit.propertyId,
+    unitId: unit.id,
+    tenantAssignmentId: activeAssignment.id,
+    tier: unit.tier,
+    propertySettings: unit.property.settings ?? null,
+    rentFrayStartDate: unit.property.rentFrayStartDate,
+    now,
+  }) : null;
+  const summary = financialState?.ledgerSummary;
+  const currentPayments = activeAssignment ? unit.payments.filter((payment: PaymentRow) =>
+    payment.propertyId === unit.propertyId && payment.unitId === unit.id &&
+    payment.tenantAssignmentId === activeAssignment.id) : [];
+  const latestPayment: PaymentRow | null = currentPayments[0] ?? null;
+  const lastCompletedPayment = currentPayments.filter((payment: PaymentRow) => payment.status === "PAID")
+    .sort((a: PaymentRow, b: PaymentRow) =>
+      new Date(b.paidAt ?? b.createdAt).getTime() - new Date(a.paidAt ?? a.createdAt).getTime())[0] ?? null;
+  const balanceDollars = centsToDollars(financialState?.ledgerBalanceCents);
+  const totalChargesDollars = centsToDollars(summary?.totalChargesCents);
+  const totalPaidDollars = centsToDollars(summary?.totalPaidCents);
+  const amountDueNow = financialState?.hasPendingPayment ? 0 : balanceDollars;
+  const daysPastDue = financialState?.daysPastDue ?? 0;
+  const status = financialState?.status.status ?? "VACANT";
+  const statusLabel = financialState?.status.label ?? "VACANT";
+  const ledgerRows: LedgerEntry[] = activeAssignment ? unit.ledgerEntries.filter((entry: LedgerEntry) => {
+    if (new Date(entry.effectiveDate) > now) return false;
+    if (entry.tenantAssignmentId && entry.tenantAssignmentId !== activeAssignment.id) return false;
+    // Preserve unassigned accounting effects without claiming private payment ownership.
+    if (entry.paymentId || entry.entryType === "PAYMENT") {
+      return entry.tenantAssignmentId === activeAssignment.id && Boolean(entry.payment &&
+        entry.payment.propertyId === unit.propertyId && entry.payment.unitId === unit.id &&
+        entry.payment.tenantAssignmentId === activeAssignment.id && entry.payment.status === "PAID");
+    }
+    return true;
+  }) : [];
+  const effectiveBillingSettings = financialState?.effectiveBillingSettings;
+  const rentDates = financialState?.rentDates;
+  const rentDueDay = effectiveBillingSettings?.dueDay ?? unit.tier?.rentDueDay ?? unit.property.settings?.rentDueDay;
+  const gracePeriodDays = effectiveBillingSettings?.gracePeriodDays ?? unit.tier?.gracePeriodDays ?? unit.property.settings?.gracePeriodDays;
+  const baseRentCents = Number(unit.baseRentCents ?? unit.tier?.baseRentCents ?? 0);
+  const lateFeeType = unit.tier?.lateFeeType ?? "FLAT";
+  const lateFeeInitialCents = effectiveBillingSettings?.lateFeeInitialCents ?? unit.tier?.lateFeeInitialCents ?? unit.property.settings?.lateFeeFlatCents ?? 0;
+  const lateFeeDailyCents = effectiveBillingSettings?.lateFeeDailyCents ?? unit.tier?.lateFeeDailyCents ?? 0;
+  const maxLateFeeDays = effectiveBillingSettings?.maxLateFeeDays ?? unit.tier?.maxLateFeeDays ?? 0;
+  const processingFeeCents = Number(unit.tier?.processingFeeCents ?? 0);
+  const cycleStart = rentDates ? parseDateOnly(rentDates.dueDate) : null;
+  const nextBillingDate = rentDates ? parseDateOnly(rentDates.nextDueDate) : null;
+  const hasRentChargeThisCycle = (summary?.currentCycleRentChargesCents ?? 0) > 0;
   const upcomingCharge = hasRentChargeThisCycle
     ? null
     : {
@@ -342,36 +253,10 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
         effectiveDate: nextBillingDate,
       };
 
-  const recommendedLateFeeCents = delinquency.isDelinquent
-    ? lateFeeInitialCents +
-      Math.max(0, Math.min(daysPastDue - 1, maxLateFeeDays)) * lateFeeDailyCents
-    : 0;
-
-  const lateFeeEligible =
-    Boolean(activeAssignment) && delinquency.isDelinquent && Number(summary.balanceCents || 0) > 0;
-
-  const lastPaymentAmount = latestPayment ? centsToDollars(latestPayment.amountCents) : null;
-  const lastPaymentDate =
-    latestPayment?.paidAt ??
-    latestPayment?.reversedAt ??
-    latestPayment?.failedAt ??
-    latestPayment?.createdAt ??
-    null;
-
-  const attentionMessage =
-    status === "DELINQUENT"
-      ? `Immediate action recommended. This unit is delinquent and ${formatDayLabel(
-          daysPastDue
-        ).toLowerCase()}.`
-      : status === "GRACE"
-      ? `Payment window is active. This unit is in grace and ${formatDayLabel(
-          daysPastDue
-        ).toLowerCase()}.`
-      : status === "PARTIAL"
-      ? "A balance remains on this unit. Review payment activity and next recommended action."
-      : status === "PAID"
-      ? "This unit is currently clear with no outstanding balance."
-      : "This unit is vacant. Tenant-facing ledger activity is inactive until a new tenant is assigned.";
+  const lastPaymentAmount = lastCompletedPayment ? centsToDollars(lastCompletedPayment.amountCents) : null;
+  const lastPaymentDate = lastCompletedPayment?.paidAt ?? lastCompletedPayment?.createdAt ?? null;
+  const attentionMessage = financialState?.status.tenantMessage ??
+    "This unit is vacant. Tenant-facing ledger activity is inactive until a new tenant is assigned.";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -386,11 +271,9 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                 Back to units
               </Link>
               <span
-                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${statusPillClasses(
-                  status
-                )}`}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${paymentStatusClasses(financialState?.paymentStatus ?? null)}`}
               >
-                {status}
+                {statusLabel}
               </span>
               {activeAssignment ? (
                 <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
@@ -476,7 +359,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
                   Current balance
                 </div>
-                {status === "DELINQUENT" && (
+                {status === "PAST_DUE" && (
                   <span className="inline-flex rounded-full border border-red-400/30 bg-red-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-red-200">
                     Urgent
                   </span>
@@ -490,7 +373,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
 
               <div
                 className={`mt-5 text-4xl font-bold tracking-tight sm:text-5xl ${
-                  status === "DELINQUENT"
+                  status === "PAST_DUE"
                     ? "text-red-300"
                     : status === "GRACE"
                     ? "text-amber-200"
@@ -559,7 +442,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                         Payment status
                       </div>
                       <div className="mt-2 text-sm font-medium text-slate-900">
-                        {hasBalance ? "Outstanding balance remains" : "No outstanding balance"}
+                        {financialState?.status.label}
                       </div>
                       <div className="mt-1 text-sm text-slate-600">
                         Use manual payment or rent posting tools below to update the ledger.
@@ -571,13 +454,10 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                         Late fee status
                       </div>
                       <div className="mt-2 text-sm font-medium text-slate-900">
-                        {lateFeeEligible ? "Eligible to post late fee" : "Not currently eligible"}
+                        {statusLabel}
                       </div>
                       <div className="mt-1 text-sm text-slate-600">
-                        Recommended amount:{" "}
-                        <span className="font-semibold text-slate-900">
-                          {moneyFromCents(recommendedLateFeeCents)}
-                        </span>
+                        Configured late fees are applied automatically.
                       </div>
                     </div>
                   </div>
@@ -729,10 +609,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                     Current balance
                   </div>
                   <div
-                    className={`mt-2 text-2xl font-bold ${balanceToneClasses(
-                      status,
-                      balanceDollars
-                    )}`}
+                    className={`mt-2 text-2xl font-bold ${status === "VACANT" ? "text-slate-500" : "text-slate-950"}`}
                   >
                     {money(balanceDollars)}
                   </div>
@@ -825,7 +702,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                   <div>
                     <div className="text-lg font-semibold text-slate-950">Ledger</div>
                     <div className="mt-1 text-sm text-slate-600">
-                      Current-occupancy ledger entries with running balance.
+                      Current-tenancy and unit-level entries. Summary balances use authoritative accounting.
                     </div>
                   </div>
                   <a
@@ -892,9 +769,6 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                                 >
                                   {money(entryAmountDollars)}
                                 </div>
-                                <div className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                                  Running balance: {moneyFromCents(entry.runningBalanceCents)}
-                                </div>
                               </div>
                             </div>
                           </div>
@@ -921,7 +795,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                     Due date
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {fmtDate(delinquency.dueDate)}
+                    {fmtDate(financialState?.dueDate)}
                   </div>
                 </div>
 
@@ -930,7 +804,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                     Grace ends
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {fmtDate(delinquency.graceEndsOn)}
+                    {fmtDate(financialState?.graceEndsOn)}
                   </div>
                 </div>
 
@@ -948,7 +822,7 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
                     Status
                   </div>
                   <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {delinquency.isDelinquent ? "Delinquent" : "Current"}
+                    {statusLabel}
                   </div>
                   <div className="mt-1 text-sm text-slate-600">{formatDayLabel(daysPastDue)}</div>
                 </div>
@@ -1080,14 +954,10 @@ const nextBillingDate = parseDateOnly(rentDates.nextDueDate);
               <div className="px-6 pb-6">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Posting recommendation
+                    Automatic late fees
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-700">
-                    {lateFeeEligible
-                      ? `Eligible to post ${moneyFromCents(
-                          recommendedLateFeeCents
-                        )} based on current delinquency timing.`
-                      : "No late fee is currently recommended for this unit."}
+                    {statusLabel}. Configured late fees are applied automatically according to the property's rules.
                   </div>
                 </div>
               </div>
