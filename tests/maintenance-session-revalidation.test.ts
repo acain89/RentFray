@@ -26,8 +26,9 @@ for (const route of ["maintenance/dashboard", "manager/maintenance", "manager/ma
   const result = await (api.GET ? api.GET() : api.POST({ json: async () => { throw Error("Request parsed before authorization"); } })); assert.equal(result.status, 401);
 });
 for (const role of ["OWNER", "MANAGER", "STAFF"]) for (const condition of ["valid", "deleted", "inactive", "role", "property"]) test(role + " existing authority " + condition, async () => {
-  const f = fixture(); f.state.management = { id: "m", propertyId: "p", isActive: true, role };
-  f.values.set("rf_session", f.session.createSessionToken({ role, managementUserId: "m", propertyId: "p" }));
+  const f = fixture(); f.state.management = { id: "m", propertyId: "p", isActive: true, role, passwordHash: "synthetic-credential" };
+  f.values.set("rf_session", f.session.createSessionToken({ role, managementUserId: "m", propertyId: "p",
+    managementCredentialBinding: f.session.createManagementCredentialBinding("m", f.state.management.passwordHash) }));
   if (condition === "deleted") f.state.management = null; if (condition === "inactive") f.state.management.isActive = false;
   if (condition === "role") f.state.management.role = "OTHER"; if (condition === "property") f.state.management.propertyId = "other";
   assert.equal(Boolean(await f.session.getSession()), condition === "valid");

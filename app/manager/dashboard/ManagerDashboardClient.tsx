@@ -1898,6 +1898,7 @@ await loadDashboard({ silent: true });
     setChangeNewPassword("");
     setChangeConfirmPassword("");
     setShowChangeLogin(false);
+    window.location.href = "/login/manager";
   } catch {
     alert("Failed to update login");
   }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   clearSessionCookie,
   createSessionToken,
+  createManagementCredentialBinding,
   setSessionCookie,
 } from "@/lib/session";
 import { canManagerOperate } from "@/lib/liveGating";
@@ -125,6 +126,7 @@ if (
       role: user.role as "OWNER" | "MANAGER" | "STAFF",
       propertyId: user.propertyId,
       managementUserId: user.id,
+      managementCredentialBinding: createManagementCredentialBinding(user.id, user.passwordHash),
     });
 
     await setSessionCookie(token);

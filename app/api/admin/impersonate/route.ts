@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   createSessionToken,
+  createManagementCredentialBinding,
   getSession,
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
         role: true,
         email: true,
         username: true,
+        passwordHash: true,
       },
     });
 
@@ -96,6 +98,7 @@ export async function POST(req: NextRequest) {
       role: managementUser.role as "OWNER" | "MANAGER" | "STAFF",
       propertyId: managementUser.propertyId,
       managementUserId: managementUser.id,
+      managementCredentialBinding: createManagementCredentialBinding(managementUser.id, managementUser.passwordHash),
     });
 
     await prisma.auditLog.create({

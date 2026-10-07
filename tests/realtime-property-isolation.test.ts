@@ -57,7 +57,7 @@ export function sessionFixture() {
   let token: string | undefined;
   let clock = Date.now();
   class Clock extends Date { static now() { return clock; } }
-  const user: any = { id: "m", propertyId: "a", role: "OWNER", isActive: true };
+  const user: any = { id: "m", propertyId: "a", role: "OWNER", isActive: true, passwordHash: "synthetic-credential" };
   let fail = false;
   const module = { exports: {} as any };
   const imports: any = { crypto, "next/headers": { cookies: async () => ({ get: () => token ? { value: token } : undefined }) },
@@ -67,7 +67,8 @@ export function sessionFixture() {
   }).outputText, { module, exports: module.exports, Buffer, Date: Clock,
     process: { env: { SESSION_SECRET: "isolated-realtime-test", NODE_ENV: "test" } },
     require: (name: string) => { assert.ok(name in imports, name); return imports[name]; } });
-  token = module.exports.createSessionToken({ role: "OWNER", propertyId: "a", managementUserId: "m" });
+  token = module.exports.createSessionToken({ role: "OWNER", propertyId: "a", managementUserId: "m",
+    managementCredentialBinding: module.exports.createManagementCredentialBinding(user.id, user.passwordHash) });
   return { session: module.exports, credential: () => token, user,
     setToken: (value: string | undefined) => { token = value; }, expire: () => { clock += 8 * 86400000; },
     fail: () => { fail = true; } };

@@ -81,7 +81,7 @@ function fixture(role: string = "OWNER") {
         { id: "past", propertyId: "property", unitId: "unit", firstName: "Previous", lastName: "Tenant",
           isCurrent: false, moveInDate: new Date("2025-01-01"), moveOutDate: new Date("2025-12-31") },
       ] },
-    management: { id: "user", propertyId: "property", role, isActive: true }, audits: [], failAudit: false,
+    management: { id: "user", propertyId: "property", role, isActive: true, passwordHash: "synthetic-credential" }, audits: [], failAudit: false,
   };
   let inTransaction = false; let reads = 0;
   const prisma: any = {
@@ -124,6 +124,7 @@ function fixture(role: string = "OWNER") {
     get: () => token ? { value: token } : undefined, set() { throw new Error("Unexpected session write"); },
   }) }, "@/lib/prisma": { prisma } }, { Date: Clock });
   token = session.createSessionToken({ role, ...(role === "ADMIN" ? { adminAccessId: "admin" } : {}), propertyId: "property", managementUserId: "user",
+    ...(["OWNER", "MANAGER", "STAFF"].includes(role) ? { managementCredentialBinding: session.createManagementCredentialBinding("user", state.management.passwordHash) } : {}),
     ...(role === "TENANT" ? { unitId: "unit", tenantAssignmentId: "assignment" } : {}),
     ...(role === "MAINTENANCE" ? { maintenanceUserId: "maintenance" } : {}),
   });
@@ -205,7 +206,7 @@ for (const role of ["OWNER", "MANAGER"]) {
 test("rendered PIN action revalidates STAFF authority on direct invocation", async () => {
   const f = fixture(); const reset = await pinAction(f);
   f.state().management.role = "STAFF";
-  f.token(f.session.createSessionToken({ role: "STAFF", propertyId: "property", managementUserId: "user" }));
+  f.token(f.session.createSessionToken({ role: "STAFF", propertyId: "property", managementUserId: "user", managementCredentialBinding: f.session.createManagementCredentialBinding("user", f.state().management.passwordHash) }));
   await expect(reset(pinForm)).rejects.toThrow("Forbidden");
   expect(f.state().unit.tenantPinHash).toBe("old-hash"); expect(f.state().audits).toEqual([]);
 });
@@ -217,7 +218,7 @@ for (const change of ["replaced", "vacated", "foreign-unit", "foreign-session"])
     if (change === "foreign-unit") f.state().unit.propertyId = "foreign";
     if (change === "foreign-session") {
       f.state().management.propertyId = "foreign";
-      f.token(f.session.createSessionToken({ role: "OWNER", propertyId: "foreign", managementUserId: "user" }));
+      f.token(f.session.createSessionToken({ role: "OWNER", propertyId: "foreign", managementUserId: "user", managementCredentialBinding: f.session.createManagementCredentialBinding("user", f.state().management.passwordHash) }));
     }
     await expect(reset(pinForm)).rejects.toThrow();
     expect(f.state().unit.tenantPinHash).toBe("old-hash"); expect(f.state().audits).toEqual([]);

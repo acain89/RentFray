@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import crypto from "node:crypto";
 
 export const root = resolve(__dirname, "..");
 export function load(file: string, imports: Record<string, any>, append = "") {
@@ -28,6 +29,9 @@ export function fixture(role: string | null = "OWNER") {
     "next/server": { NextResponse: { json: (body: any, options: any = {}) => ({ body, status: options.status ?? 200 }),
       redirect: (url: any) => ({ url: String(url), status: 307 }) } },
     "@/lib/session": { getSession: async () => session, refreshSessionCookie: async () => {},
+      createManagementCredentialBinding: (id: string, hash: string) => {
+        assert.ok(id && hash); return crypto.createHmac("sha256", "fixture-only").update(JSON.stringify([id, hash])).digest("hex");
+      },
       requireManagerLevelSession: async () => { if (!session || !["OWNER", "MANAGER"].includes(session.role)) throw Error("Forbidden"); return session; },
       requireManagementSession: async () => { if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) throw Error("Forbidden"); return session; },
       createSessionToken: (input: any) => { calls.push(["session", input]); return "isolated-cookie"; },

@@ -35,7 +35,7 @@ function fixture(role = "OWNER") {
   }
   const prisma: any = {
     adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
-    managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", role, isActive: true }) },
+    managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", role, isActive: true, passwordHash: "synthetic-credential" }) },
     tenantAssignment: { findUnique: async () => ({ id: "assignment", unitId: "unit", propertyId: "a", isCurrent: true,
       moveOutDate: null, unit: units[0] }) },
     unit: { findFirst: async (args: any) => { reads++; const unit = units.find(u => matches(u, args.where));
@@ -62,7 +62,7 @@ function fixture(role = "OWNER") {
   if (!["absent", "malformed"].includes(role)) token = session.createSessionToken(role === "ADMIN" || ["signature-invalid", "expired"].includes(role)
     ? { role: "ADMIN", adminAccessId: "admin" } : role === "TENANT" ? { role, propertyId: "a", unitId: "unit", tenantAssignmentId: "assignment" }
     : role === "MAINTENANCE" ? { role, propertyId: "a", maintenanceUserId: "worker" }
-    : { role, propertyId: "a", managementUserId: "user" });
+    : { role, propertyId: "a", managementUserId: "user", managementCredentialBinding: session.createManagementCredentialBinding("user", "synthetic-credential") });
   if (role === "malformed") token = "broken";
   if (role === "signature-invalid") { const index = token!.lastIndexOf(".") + 1; token = token!.slice(0, index) + (token![index] === "a" ? "b" : "a") + token!.slice(index + 1); }
   if (role === "expired") clock += 8 * 86400000;

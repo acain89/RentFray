@@ -17,6 +17,7 @@ export type SessionPayload = {
   propertyId?: string;
   adminAccessId?: string;
   managementUserId?: string;
+  managementCredentialBinding?: string;
   unitId?: string;
   tenantAssignmentId?: string;
   maintenanceUserId?: string;
@@ -33,6 +34,7 @@ type CreateSessionInput =
       role: "OWNER" | "MANAGER" | "STAFF";
       propertyId: string;
       managementUserId: string;
+      managementCredentialBinding: string;
     }
   | {
       role: "TENANT";
@@ -51,6 +53,19 @@ export const SESSION_COOKIE_NAME = "rf_session";
 
 function getSessionSecret() {
   return process.env.SESSION_SECRET || "rentfray-dev-session-secret-change-me";
+}
+
+export function createManagementCredentialBinding(userId: string, passwordHash: string): string {
+  if (!isNonEmptyString(userId) || !isNonEmptyString(passwordHash)) {
+    throw new Error("Invalid management credential.");
+  }
+  return crypto.createHmac("sha256", getSessionSecret())
+    .update(JSON.stringify(["rentfray:management-credential-binding:v1", userId, passwordHash]))
+    .digest("hex");
+}
+
+function isManagementCredentialBinding(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
 function base64UrlEncode(input: string | Buffer) {
@@ -150,7 +165,8 @@ function isValidPayloadShape(parsed: Partial<SessionPayload>): parsed is Session
   ) {
     return (
       isNonEmptyString(parsed.propertyId) &&
-      isNonEmptyString(parsed.managementUserId)
+      isNonEmptyString(parsed.managementUserId) &&
+      isManagementCredentialBinding(parsed.managementCredentialBinding)
     );
   }
 
@@ -193,10 +209,14 @@ export function createSessionToken(input: CreateSessionInput) {
     case "OWNER":
     case "MANAGER":
     case "STAFF":
+      if (!isManagementCredentialBinding(input.managementCredentialBinding)) {
+        throw new Error("Invalid management session.");
+      }
       payload = {
         role: input.role,
         propertyId: input.propertyId,
         managementUserId: input.managementUserId,
+        managementCredentialBinding: input.managementCredentialBinding,
         iat: now,
         exp: now + SESSION_TTL_SECONDS,
       };
@@ -278,6 +298,9 @@ export function verifySessionToken(token: string): SessionPayload | null {
       ...(parsed.managementUserId
         ? { managementUserId: parsed.managementUserId }
         : {}),
+      ...((parsed.role === "OWNER" || parsed.role === "MANAGER" || parsed.role === "STAFF")
+        ? { managementCredentialBinding: parsed.managementCredentialBinding }
+        : {}),
       ...(parsed.unitId ? { unitId: parsed.unitId } : {}),
       ...(parsed.role === "TENANT"
         ? { tenantAssignmentId: parsed.tenantAssignmentId }
@@ -294,7 +317,8 @@ export function verifySessionToken(token: string): SessionPayload | null {
 }
 
 async function hasCurrentManagementAuthority(session: SessionPayload): Promise<boolean> {
-  if (!isNonEmptyString(session.managementUserId) || !isNonEmptyString(session.propertyId)) {
+  if (!isNonEmptyString(session.managementUserId) || !isNonEmptyString(session.propertyId) ||
+      !isManagementCredentialBinding(session.managementCredentialBinding)) {
     return false;
   }
 
@@ -306,15 +330,19 @@ async function hasCurrentManagementAuthority(session: SessionPayload): Promise<b
         isActive: true,
         propertyId: true,
         role: true,
+        passwordHash: true,
       },
     });
 
     return Boolean(
       user &&
+      user.id === session.managementUserId &&
       user.isActive &&
       user.propertyId === session.propertyId &&
       (user.role === "OWNER" || user.role === "MANAGER" || user.role === "STAFF") &&
-      user.role === session.role
+      user.role === session.role &&
+      isNonEmptyString(user.passwordHash) &&
+      safeEqual(session.managementCredentialBinding, createManagementCredentialBinding(user.id, user.passwordHash))
     );
   } catch {
     return false;
@@ -495,6 +523,7 @@ export async function refreshSessionCookie(session: SessionPayload) {
       role: session.role,
       propertyId: session.propertyId,
       managementUserId: session.managementUserId,
+      managementCredentialBinding: session.managementCredentialBinding!,
     });
   } else if (session.role === "TENANT") {
     if (!session.propertyId || !session.unitId || !session.tenantAssignmentId || !(await hasCurrentTenantAuthority(session))) {

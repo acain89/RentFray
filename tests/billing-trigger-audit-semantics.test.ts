@@ -1,4 +1,6 @@
 
+import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
+
 function approvedAutomaticLifecycleChange(before: string): string {
   const oldBlock = "      await prisma.property.update({\n        where: { id: property.id },\n        data: { status: \"READY\" },\n      });\n\n      property.status = \"READY\";";
   const newBlock = "      const transition = await prisma.property.updateMany({\n        where: { id: property.id, status: \"SETUP\" },\n        data: { status: \"READY\" },\n      });\n\n      if (transition.count === 1) {\n        property.status = \"READY\";\n      } else {\n        const currentProperty = await prisma.property.findUnique({\n          where: { id: property.id },\n          select: { status: true },\n        });\n        if (!currentProperty) throw new Error(\"Property not found.\");\n        property.status = currentProperty.status;\n      }";
@@ -84,6 +86,7 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     const after = readFileSync(resolve(root, file), "utf8");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));
     else if (file === "app/api/manager/dashboard/route.ts") assert.equal(after.replace(/\r\n/g, "\n"), approvedAutomaticLifecycleChange(before.replace(/\r\n/g, "\n")), file);
+    else if (file === "lib/session.ts") assertApprovedCredentialChange(file, before, after);
     else assert.equal(after.replace(/\r\n/g, "\n"), approvedDateChange(file, before.replace(/\r\n/g, "\n")), file);
   }
 });

@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { fixture, load, request } from "./management-role-authorization.test";
 import { assertApprovedProvisioningChange } from "./recurring-charge-boundaries-schema.test";
 import { assertApprovedDraftChange } from "./admin-draft-credential-safety.test";
+import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
 
 const root = resolve(__dirname, "..");
 for (const kind of ["public", "admin"] as const) for (const mailFailure of [false, true]) {
@@ -47,6 +48,7 @@ test("canonical provisioning, verification, compatibility and hard-start authori
     const after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
     if (file === "app/api/admin/properties/route.ts") assertApprovedProvisioningChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "app/admin/properties/new/page.tsx") assertApprovedDraftChange(before.replace(/\r\n/g, "\n"), after);
+    else if (file === "lib/session.ts" || file === "app/api/auth/verify-email/route.ts") assertApprovedCredentialChange(file, before, after);
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, clearSessionCookie } from "@/lib/session";
 import { verifyManagementPassword } from "@/lib/managementAuth";
 import bcrypt from "bcryptjs";
 
@@ -135,5 +135,6 @@ if (!passwordMatch) {
     },
   });
 
-  return NextResponse.json({ ok: true, user: updated });
+  await clearSessionCookie();
+  return NextResponse.json({ ok: true, user: updated, redirectTo: "/login/manager" });
 }

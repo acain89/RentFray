@@ -13,6 +13,7 @@ import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fixture, load } from "./management-role-authorization.test";
 import { assertApprovedMonthlyChange, assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.test";
+import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
 const root = resolve(__dirname, "..");
 test("OWNER banking boundary remains explicit in untouched controls", () => {
   const bank = readFileSync(resolve(root, "app/manager/dashboard/components/BankPanel.tsx"), "utf8");
@@ -59,7 +60,8 @@ test("STAFF property and charge forms have disabled fieldsets", () => {
 test("financial, session, banking and automatic system authorities are unchanged", () => {
   const sessionBefore = execFileSync("git", ["--no-optional-locks", "show", "HEAD:lib/session.ts"], { cwd: root, encoding: "utf8", windowsHide: true });
   const sessionAfter = readFileSync(resolve(root, "lib/session.ts"), "utf8");
-  for (const name of ["hasCurrentManagementAuthority", "hasCurrentTenantAuthority"]) {
+  assertApprovedCredentialChange("lib/session.ts", sessionBefore, sessionAfter);
+  for (const name of ["hasCurrentTenantAuthority"]) {
     const pattern = new RegExp("async function " + name + "[\\s\\S]*?\\n}");
     assert.equal(sessionAfter.replace(/\r\n/g, "\n").match(pattern)?.[0], sessionBefore.replace(/\r\n/g, "\n").match(pattern)?.[0]);
     assert.ok(sessionAfter.match(pattern));

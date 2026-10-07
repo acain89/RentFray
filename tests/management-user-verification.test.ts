@@ -14,7 +14,7 @@ for (const scoped of [true, false]) test("resend " + (scoped ? "property" : "pub
   assert.equal(result.status, 200); assert.equal(f.calls.find(c => c[0] === "email")[1].managementUserId, "recipient");
 });
 for (const [role, active, allowed] of [["OWNER", false, true], ["MANAGER", false, false], ["STAFF", false, false], ["MANAGER", true, true], ["STAFF", true, true]] as const) test(role + " active=" + active + " verification", async () => {
-  const f = fixture(null); const manager = { id: "user", propertyId: "p", role, isActive: active, email: "user@isolated.invalid", property: { name: "Property", propertyCode: "1234" } };
+  const f = fixture(null); const manager = { id: "user", propertyId: "p", role, isActive: active, passwordHash: "synthetic-credential", email: "user@isolated.invalid", property: { name: "Property", propertyCode: "1234" } };
   f.db.emailVerificationToken.findUnique = async () => ({ id: "token", managementUserId: "user", expiresAt: new Date(Date.now() + 100000), usedAt: null, managementUser: manager });
   f.db.managementUser.findUnique = async () => manager;
   const result = await load("app/api/auth/verify-email/route.ts", f.imports).GET({ url: "https://isolated.invalid/api/auth/verify-email?token=secret" });

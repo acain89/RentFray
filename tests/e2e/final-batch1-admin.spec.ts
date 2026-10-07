@@ -33,7 +33,7 @@ function fixture() {
   let inTransaction = false;
   const prisma: any = {
     adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
-    managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", isActive: true, role: currentRole }) },
+    managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", isActive: true, role: currentRole, passwordHash: "synthetic-credential" }) },
     tenantAssignment: { findUnique: async () => ({ id: "assignment", propertyId: "a", unitId: "unit", isCurrent: true,
       moveOutDate: null, unit: { id: "unit", propertyId: "a" } }) },
     setupRequest: {
@@ -63,7 +63,7 @@ function fixture() {
     token = session.createSessionToken(kind === "expired" || kind === "signature-invalid" ? { role: "ADMIN", adminAccessId: "admin" } :
       kind === "TENANT" ? { role: kind, propertyId: "a", unitId: "unit", tenantAssignmentId: "assignment" } :
       kind === "MAINTENANCE" ? { role: kind, propertyId: "a", maintenanceUserId: "worker" } :
-      kind === "ADMIN" ? { role: kind, adminAccessId: "admin" } : { role: kind, propertyId: "a", managementUserId: "user" });
+      kind === "ADMIN" ? { role: kind, adminAccessId: "admin" } : { role: kind, propertyId: "a", managementUserId: "user", managementCredentialBinding: session.createManagementCredentialBinding("user", "synthetic-credential") });
     if (kind === "expired") clock += 8 * 86400000;
     if (kind === "signature-invalid") { const index = token!.lastIndexOf(".") + 1; token = token!.slice(0, index) + (token![index] === "a" ? "b" : "a") + token!.slice(index + 1); }
   }

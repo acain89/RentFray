@@ -6,7 +6,7 @@ import {
   hashEmailVerificationToken,
   sendWelcomeEmail,
 } from "@/lib/email";
-import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { createSessionToken, createManagementCredentialBinding, setSessionCookie } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
       await tx.$queryRaw`SELECT "id" FROM "ManagementUser" WHERE "id" = ${verification.managementUserId} FOR UPDATE`;
       const current = await tx.managementUser.findUnique({
         where: { id: verification.managementUserId },
-        select: { id: true, role: true, email: true, displayName: true, emailVerifiedAt: true,
+        select: { id: true, role: true, email: true, displayName: true, emailVerifiedAt: true, passwordHash: true,
           isActive: true, propertyId: true, property: { select: { name: true, propertyCode: true } } },
       });
       const currentToken = await tx.emailVerificationToken.findUnique({ where: { tokenHash } });
@@ -104,6 +104,7 @@ export async function GET(req: Request) {
       role: manager.role as "OWNER" | "MANAGER" | "STAFF",
       propertyId: manager.propertyId,
       managementUserId: manager.id,
+      managementCredentialBinding: createManagementCredentialBinding(manager.id, manager.passwordHash),
     });
 
     await setSessionCookie(tokenSession);

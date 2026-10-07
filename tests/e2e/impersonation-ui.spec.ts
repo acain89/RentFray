@@ -48,11 +48,12 @@ function fixture() {
   };
   const headers = { cookies: async () => cookieStore };
   const session = loadSource(readFileSync(resolve(root, "lib/session.ts"), "utf8"), {
-    crypto, "next/headers": headers, "@/lib/prisma": { prisma: { adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null } } },
+    crypto, "next/headers": headers, "@/lib/prisma": { prisma: { adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null }, managementUser: { findUnique: async () => ({ id: "manager-a", role: "MANAGER", propertyId: "property-a", isActive: true, passwordHash: "synthetic-credential" }) } } },
   }, { Date: Clock });
   const admin = session.createSessionToken({ role: "ADMIN", adminAccessId: "admin" });
   const wrongRole = session.createSessionToken({
     role: "MANAGER", propertyId: "property-a", managementUserId: "manager-a",
+    managementCredentialBinding: session.createManagementCredentialBinding("manager-a", "synthetic-credential"),
   });
   const responses = { NextResponse: {
     json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }),

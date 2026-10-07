@@ -8,9 +8,10 @@ function fixture(role: string | null = "ADMIN", target = true, failAudit = false
     "next/server": response,
     "next/headers": { cookies: async () => ({ get: () => ({ value: "admin-token" }), set: (...args: any[]) => events.push(["cookie", ...args]) }) },
     "@/lib/session": { SESSION_COOKIE_NAME: "rf_session", getSession: async () => role ? { role, adminAccessId: "admin" } : null,
-      createSessionToken: (claims: any) => { assert.equal(claims.role, "STAFF"); assert.equal(claims.propertyId, "p"); return "impersonated-token"; } },
+      createManagementCredentialBinding: (id: string, hash: string) => { assert.equal(id, "user"); assert.equal(hash, "synthetic-credential"); return "b".repeat(64); },
+      createSessionToken: (claims: any) => { assert.equal(claims.role, "STAFF"); assert.equal(claims.propertyId, "p"); assert.equal(claims.managementCredentialBinding, "b".repeat(64)); return "impersonated-token"; } },
     "@/lib/prisma": { prisma: {
-      managementUser: { findFirst: async ({ where }: any) => { assert.equal(where.propertyId, "p"); assert.equal(where.isActive, true); return target ? { id: "user", propertyId: "p", role: "STAFF" } : null; } },
+      managementUser: { findFirst: async ({ where }: any) => { assert.equal(where.propertyId, "p"); assert.equal(where.isActive, true); return target ? { id: "user", propertyId: "p", role: "STAFF", passwordHash: "synthetic-credential" } : null; } },
       property: { findUnique: async () => ({ id: "p", name: "Property", propertyCode: "CODE" }) },
       auditLog: { create: async ({ data }: any) => { if (failAudit) throw Error("audit failure"); events.push(["audit", data]); } },
     } },
