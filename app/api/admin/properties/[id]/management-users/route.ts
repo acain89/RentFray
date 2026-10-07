@@ -25,11 +25,6 @@ function clean(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-function toBoolean(value: unknown, fallback = true): boolean {
-  if (typeof value === "boolean") return value;
-  return fallback;
-}
-
 function normalizeRole(value: unknown, fallback: ManagementUserRole): ManagementUserRole | null {
   const role = clean(value).toUpperCase();
 
@@ -182,14 +177,26 @@ export async function PATCH(
   const body = (await req.json()) as UpdateBody;
 
   const userId = clean(body.userId);
-  const role = normalizeRole(body.role, "STAFF");
-  if (!role) {
-    return NextResponse.json({ error: "Role must be MANAGER or STAFF." }, { status: 400 });
+  const data: { role?: ManagementUserRole; isActive?: boolean } = {};
+  if (Object.prototype.hasOwnProperty.call(body, "role")) {
+    const role = typeof body.role === "string" ? normalizeRole(body.role, "STAFF") : null;
+    if (!role) {
+      return NextResponse.json({ error: "Role must be MANAGER or STAFF." }, { status: 400 });
+    }
+    data.role = role;
   }
-  const isActive = toBoolean(body.isActive, true);
+  if (Object.prototype.hasOwnProperty.call(body, "isActive")) {
+    if (typeof body.isActive !== "boolean") {
+      return NextResponse.json({ error: "isActive must be a boolean." }, { status: 400 });
+    }
+    data.isActive = body.isActive;
+  }
 
   if (!userId) {
     return NextResponse.json({ error: "Missing userId." }, { status: 400 });
+  }
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "No supported fields to update." }, { status: 400 });
   }
 
   const existing = await prisma.managementUser.findFirst({
@@ -214,10 +221,7 @@ export async function PATCH(
 
   const updated = await prisma.managementUser.update({
     where: { id: userId },
-    data: {
-      role,
-      isActive,
-    },
+    data,
     select: {
       id: true,
       username: true,
