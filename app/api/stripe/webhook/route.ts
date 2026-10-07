@@ -29,8 +29,9 @@ function safeString(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-// Invalid mappings are acknowledged without writes; database/transport failures retry.
+// Invalid mappings are acknowledged without writes; relevant unresolved funds retry.
 class InvalidFinancialEvent extends Error {}
+class UnresolvedFinancialEvent extends Error {}
 
 type PaymentRecord = {
   id: string; propertyId: string; unitId: string; tenantAssignmentId: string | null;
@@ -109,12 +110,15 @@ async function returnedPrincipal(stripe: Stripe, payment: PaymentRecord, intent:
   }
   const grossReturned = refunded + withdrawn;
   const total = payment.amountCents + (payment.processingFeeCents ?? 0);
-  requireFinancial(Number.isSafeInteger(grossReturned) && grossReturned >= 0 && grossReturned <= total,
-    "Returned funds overlap/exceed the quote; separate reconciliation required");
+  if (!Number.isSafeInteger(grossReturned) || grossReturned < 0 || grossReturned > total) {
+    throw new UnresolvedFinancialEvent("Returned funds overlap/exceed the quote; separate reconciliation required");
+  }
   if (grossReturned === 0) return 0;
   if (grossReturned === total) return payment.amountCents;
   // Bundled-fee partial returns do not identify principal vs fee allocation. Fail safely.
-  requireFinancial(!(payment.processingFeeCents ?? 0), "Partial return fee allocation is not conclusive");
+  if (payment.processingFeeCents) {
+    throw new UnresolvedFinancialEvent("Partial return fee allocation is not conclusive");
+  }
   return grossReturned;
 }
 
@@ -190,12 +194,14 @@ async function ensureCollection(tx: Prisma.TransactionClient, payment: PaymentRe
 }
 
 async function applyPaymentEvent(stripe: Stripe, event: Stripe.Event) {
-  const object = event.data.object as Stripe.PaymentIntent | Stripe.Checkout.Session | Stripe.Charge | Stripe.Dispute;
+  const object = event.data.object as Stripe.PaymentIntent | Stripe.Checkout.Session | Stripe.Charge | Stripe.Dispute | Stripe.Refund;
   const isIntent = event.type.startsWith("payment_intent.");
   const isCheckout = event.type.startsWith("checkout.session.");
+  const isRefund = event.type.startsWith("refund.") || event.type === "charge.refund.updated";
   const suppliedIntentId = isIntent ? object.id : objectId((object as Stripe.Charge).payment_intent);
   const metadata = "metadata" in object ? object.metadata : null;
-  const paymentId = safeString(metadata?.paymentId);
+  // Refund metadata is not the immutable Checkout reservation metadata.
+  const paymentId = isRefund ? "" : safeString(metadata?.paymentId);
   const initial: PaymentRecord | null = await prisma.payment.findFirst({ where: paymentId
     ? { id: paymentId } : { stripePaymentIntentId: suppliedIntentId || "__unmapped__" } });
   requireFinancial(initial, "Payment event cannot be mapped to an existing reservation");
@@ -226,13 +232,14 @@ async function applyPaymentEvent(stripe: Stripe, event: Stripe.Event) {
     }, select: { id: true } }) : null;
     requireFinancial(unit && assignment, "Historical tenancy identity cannot be validated");
     if (!isIntent && !isCheckout) {
-      const chargeId = event.type.startsWith("charge.dispute.") ? objectId((object as Stripe.Dispute).charge) : object.id;
+      const chargeId = isRefund ? objectId((object as Stripe.Refund).charge) :
+        event.type.startsWith("charge.dispute.") ? objectId((object as Stripe.Dispute).charge) : object.id;
       requireFinancial(chargeId === objectId(intent.latest_charge), "Event charge identity mismatch");
     }
     const legacy = await tx.ledgerEntry.findFirst({ where: {
       paymentId: payment.id, referenceNumber: `${intent.id}:reversal`, voidedAt: null,
     }, select: { id: true } });
-    requireFinancial(!legacy, "Legacy reversal requires separate historical reconciliation");
+    if (legacy) throw new UnresolvedFinancialEvent("Legacy reversal requires separate historical reconciliation");
     const collected = intent.status === "succeeded";
     if (collected) requireFinancial(intent.amount_received === intent.amount, "Collected amount mismatch");
     const principal = collected ? await returnedPrincipal(stripe, payment, intent) : null;
@@ -324,6 +331,7 @@ if (!event) {
       "payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled",
       "charge.refunded", "charge.dispute.created", "charge.dispute.funds_withdrawn",
       "charge.dispute.funds_reinstated",
+      "charge.refund.updated", "refund.created", "refund.updated", "refund.failed",
     ]);
     if (paymentEvents.has(event.type)) {
       await applyPaymentEvent(stripe, event);
@@ -353,6 +361,13 @@ if (!event) {
       return NextResponse.json({ received: true });
     }
   } catch (error) {
+    if (error instanceof UnresolvedFinancialEvent) {
+      // Operational evidence only: no quarantine/recovery worker exists, so do not acknowledge.
+      console.error("STRIPE_FINANCIAL_UNRESOLVED", {
+        eventId: event.id, eventType: event.type, account: event.account ?? null, reason: error.message,
+      });
+      return NextResponse.json({ error: "Financial event requires reconciliation" }, { status: 503 });
+    }
     console.error("Stripe webhook error:", error);
     if (error instanceof InvalidFinancialEvent) {
       return NextResponse.json({ received: true, reconciled: false });

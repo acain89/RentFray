@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { NextResponse } from "next/server";
 
 function sourceModule(path: string, imports: Record<string, any>, suffix = "") {
   const module = { exports: {} as Record<string, any> };
@@ -120,7 +121,7 @@ function fixture(fee = 0) {
   class StripeError extends Error {}
   class FakeStripe { static errors = { StripeError }; constructor() { return stripe; } }
   const status = sourceModule("lib/paymentStatus.ts", {});
-  const responses = { NextResponse: { json: (body: any, options?: any) => ({ body, status: options?.status ?? 200 }) } };
+  const responses = { NextResponse };
   const webhook = sourceModule("app/api/stripe/webhook/route.ts", {
     "next/server": responses, stripe: FakeStripe, "next/headers": { headers: async () => ({ get: () => "signature" }) },
     "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
@@ -140,6 +141,7 @@ function fixture(fee = 0) {
   const event = (type = "payment_intent.succeeded") => ({
     id: "event", type, data: { object: type.startsWith("checkout.") ? { id: "cs", payment_intent: "pi", metadata } :
       type.startsWith("charge.dispute.") ? { id: "du", charge: "ch", payment_intent: "pi" } :
+      type.startsWith("refund.") || type === "charge.refund.updated" ? { id: "r", charge: "ch", payment_intent: "pi" } :
       type === "charge.refunded" ? { id: "ch", payment_intent: "pi" } : structuredClone(intent) },
   });
   return { db: () => db, payment: () => db.payments[0], intent, refunds, disputes, sessions, creations, lockKeys,
@@ -147,10 +149,11 @@ function fixture(fee = 0) {
     timeout: () => { timeoutOnce = true; },
     apply: async (type?: string) => {
       const response = await webhook.POST({ text: async () => JSON.stringify(event(type)) });
-      if (response.status !== 200 || response.body.reconciled === false) {
-        throw new Error(response.body.error ?? "Financial event rejected");
+      const body = await response.json();
+      if (response.status !== 200 || body.reconciled === false) {
+        throw new Error(body.error ?? "Financial event rejected");
       }
-      expect(response.body.received).toBe(true);
+      expect(body.received).toBe(true);
     },
     balance: async () => (await ledger.getUnitLedgerSummary({ unitId: "unit", tenantAssignmentId: "historical", asOf: new Date("2030-01-01") })).balanceCents,
     request: () => ({ headers: { get: () => "isolated" } }),
@@ -199,7 +202,47 @@ for (const status of ["pending", "failed", "canceled"]) {
 }
 test("ambiguous partial bundled-fee allocation fails without financial writes", async () => {
   const f = fixture(2500); await f.apply(); f.refunds.push({ id: "r", charge: "ch", currency: "usd", status: "succeeded", amount: 50000 });
-  const before = structuredClone(f.db()); await expect(f.apply("charge.refunded")).rejects.toThrow("Financial event rejected");
+  const before = structuredClone(f.db()); await expect(f.apply("charge.refunded")).rejects.toThrow("Financial event requires reconciliation");
+  expect(f.db()).toEqual(before);
+});
+
+for (const type of ["charge.refunded", "charge.refund.updated", "refund.created", "refund.updated", "refund.failed"]) {
+  test(`${type}: ambiguous fee-bearing return is HTTP 503 on duplicate delivery`, async () => {
+    const f = fixture(995); await f.apply();
+    f.refunds.push({ id: "r", charge: "ch", currency: "usd", status: "succeeded", amount: 50000 });
+    const before = structuredClone(f.db());
+    for (let delivery = 0; delivery < 2; delivery++) {
+      const response = await f.webhook.POST({ text: async () => JSON.stringify(f.event(type)) });
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "Financial event requires reconciliation" });
+      expect(f.db()).toEqual(before);
+    }
+  });
+}
+
+for (const type of ["charge.refund.updated", "refund.updated"]) {
+  test(`${type}: pending refund becoming successful is inspected`, async () => {
+    const f = fixture(995); await f.apply();
+    f.refunds.push({ id: "r", charge: "ch", currency: "usd", status: "pending", amount: 50000 });
+    await f.apply("charge.refunded");
+    const before = structuredClone(f.db());
+    f.refunds[0].status = "succeeded";
+    const response = await f.webhook.POST({ text: async () => JSON.stringify(f.event(type)) });
+    expect(response.status).toBe(503); expect(f.db()).toEqual(before);
+    // A later full return is unambiguous and remains idempotently recoverable.
+    f.refunds[0].amount = 150995;
+    await f.apply(type); await f.apply(type);
+    expect(f.payment().status).toBe("REVERSED"); expect(await f.balance()).toBe(150000);
+  });
+}
+
+test("unrelated events and permanently invalid refund mappings are acknowledged without writes", async () => {
+  const f = fixture(); const before = structuredClone(f.db());
+  const unrelated = await f.webhook.POST({ text: async () => JSON.stringify(f.event("customer.updated")) });
+  expect(unrelated.status).toBe(200); expect(await unrelated.json()).toEqual({ received: true });
+  const event = f.event("refund.updated"); event.data.object.payment_intent = "unrelated";
+  const invalid = await f.webhook.POST({ text: async () => JSON.stringify(event) });
+  expect(invalid.status).toBe(200); expect(await invalid.json()).toEqual({ received: true, reconciled: false });
   expect(f.db()).toEqual(before);
 });
 test("stale success after withdrawal uses current funds state, not old success", async () => {

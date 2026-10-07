@@ -26,9 +26,8 @@ export async function POST(req: Request) {
 
    const result = await prisma.$transaction(
   async (tx: Prisma.TransactionClient) => {
-    if (makeActive) {
-      await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${session.propertyId} FOR UPDATE`;
-    }
+    // Share activation's property lock before reading occupancy or capacity.
+    await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${session.propertyId} FOR UPDATE`;
     const unit = await tx.unit.findFirst({
       where: {
         id: unitId,
@@ -101,21 +100,30 @@ export async function POST(req: Request) {
 
     return updated;
   },
-  makeActive ? { isolationLevel: "ReadCommitted" } : undefined
+  { isolationLevel: "ReadCommitted" }
 );
 
     return NextResponse.json({ ok: true, unit: result });
   } catch (err) {
-    console.error("toggle unit active error", err);
+    const businessErrors = new Map<string, number>([
+      ["Unauthorized", 400],
+      ["Forbidden", 400],
+      ["Unit not found", 404],
+      ["Tier does not belong to property.", 404],
+      ["Cannot inactivate an occupied unit", 400],
+      ["Max number of units have been activated for this tier.", 400],
+    ]);
+    const expectedStatus = err instanceof Error ? businessErrors.get(err.message) : undefined;
+    const message = expectedStatus !== undefined && err instanceof Error ? err.message : "Server error";
+    const status = expectedStatus ?? 500;
 
-    const message = err instanceof Error ? err.message : "Server error";
-
-    const status =
-      message === "Unit not found" || message === "Tier does not belong to property."
-        ? 404
-        : message === "Server error"
-          ? 500
-          : 400;
+    if (expectedStatus === undefined) {
+      // Retain diagnostic classification without logging SQL, credentials, or raw messages.
+      const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
+      console.error("toggle unit active internal error", {
+        code: typeof code === "string" && /^(P\d{4}|[0-9A-Z]{5})$/.test(code) ? code : "UNKNOWN",
+      });
+    }
 
     return NextResponse.json({ error: message }, { status });
   }

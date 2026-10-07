@@ -13,29 +13,39 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { propertyId, unitId } = session;
+    const { propertyId, unitId, tenantAssignmentId } = session;
 
-    if (!propertyId || !unitId) {
+    if (!propertyId || !unitId || !tenantAssignmentId) {
       return NextResponse.json({ error: "Invalid session." }, { status: 401 });
     }
 
-    const unit = await prisma.unit.findUnique({
-      where: { id: unitId },
+    const assignment = await prisma.tenantAssignment.findFirst({
+      where: {
+        id: tenantAssignmentId,
+        propertyId,
+        unitId,
+        isCurrent: true,
+        OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }],
+        unit: { id: unitId, propertyId },
+      },
       select: {
-        id: true,
-        unitNumber: true,
-        portalFirstName: true,
-        portalLastName: true,
+        firstName: true,
+        lastName: true,
+        unit: { select: { id: true, unitNumber: true } },
       },
     });
 
-    if (!unit) {
-      return NextResponse.json({ error: "Unit not found." }, { status: 404 });
+    if (!assignment) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json({
       ok: true,
-      unit,
+      unit: {
+        ...assignment.unit,
+        portalFirstName: assignment.firstName,
+        portalLastName: assignment.lastName,
+      },
     });
   } catch (error: unknown) {
     console.error("GET /api/tenant/me failed", error);
