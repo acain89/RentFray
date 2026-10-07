@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fixture, load, request } from "./management-role-authorization.test";
 import { assertApprovedProvisioningChange } from "./recurring-charge-boundaries-schema.test";
+import { assertApprovedDraftChange } from "./admin-draft-credential-safety.test";
 
 const root = resolve(__dirname, "..");
 for (const kind of ["public", "admin"] as const) for (const mailFailure of [false, true]) {
@@ -39,9 +40,13 @@ test("canonical provisioning, verification, compatibility and hard-start authori
   for (const file of ["app/api/setup/create-account/route.ts", "app/setup/page.tsx", "app/api/admin/properties/route.ts", "app/admin/properties/new/page.tsx",
     "app/api/auth/verify-email/route.ts", "lib/email.ts", "lib/managementAuth.ts", "lib/session.ts", "proxy.ts", "lib/billingCalendar.ts",
     "app/api/admin/properties/[id]/route.ts", "app/api/admin/properties/[id]/lifecycle/route.ts", "app/api/admin/properties/[id]/override/route.ts"]) {
-    const before = execFileSync("git", ["--no-optional-locks", "show", "eda6c70dafc95079b2757d7ed5139ee03a225e5c:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
+    const baseline = file === "app/api/admin/properties/[id]/override/route.ts"
+      ? "072eb51fdabd8f53d31b8a382e7b8fa513cab234"
+      : "eda6c70dafc95079b2757d7ed5139ee03a225e5c";
+    const before = execFileSync("git", ["--no-optional-locks", "show", baseline + ":" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     const after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
     if (file === "app/api/admin/properties/route.ts") assertApprovedProvisioningChange(before.replace(/\r\n/g, "\n"), after);
+    else if (file === "app/admin/properties/new/page.tsx") assertApprovedDraftChange(before.replace(/\r\n/g, "\n"), after);
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });

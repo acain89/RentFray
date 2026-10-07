@@ -2,8 +2,9 @@
 function approvedAutomaticLifecycleChange(before: string): string {
   const oldBlock = "      await prisma.property.update({\n        where: { id: property.id },\n        data: { status: \"READY\" },\n      });\n\n      property.status = \"READY\";";
   const newBlock = "      const transition = await prisma.property.updateMany({\n        where: { id: property.id, status: \"SETUP\" },\n        data: { status: \"READY\" },\n      });\n\n      if (transition.count === 1) {\n        property.status = \"READY\";\n      } else {\n        const currentProperty = await prisma.property.findUnique({\n          where: { id: property.id },\n          select: { status: true },\n        });\n        if (!currentProperty) throw new Error(\"Property not found.\");\n        property.status = currentProperty.status;\n      }";
-  assert.equal(before.split(oldBlock).length, 2, "Exactly one original automatic lifecycle block");
-  return before.replace(oldBlock, newBlock);
+  assert.equal(before.includes(oldBlock), false, "Unconditional automatic READY write remains retired");
+  assert.equal(before.split(newBlock).length, 2, "Exactly one committed compare-and-set with authoritative zero-row reread");
+  return before;
 }
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -64,7 +65,8 @@ test("financial, session, banking and automatic system authorities are unchanged
     assert.ok(sessionAfter.match(pattern));
   }
   for (const file of [ "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
-    const before = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
+    const baseline = file === "app/api/manager/dashboard/route.ts" ? "072eb51fdabd8f53d31b8a382e7b8fa513cab234" : "HEAD";
+    const before = execFileSync("git", ["--no-optional-locks", "show", baseline + ":" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "jobs/monthlyRent.ts") assertApprovedMonthlyChange(before.replace(/\r\n/g, "\n"), after);

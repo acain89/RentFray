@@ -54,6 +54,35 @@ type SuccessData = {
   verificationRecoveryUrl: string;
 };
 
+type PersistedWizardData = Omit<WizardData, "account"> & {
+  account: Pick<WizardData["account"], "fullName" | "email">;
+};
+
+function sanitizeDraftData(data: WizardData): PersistedWizardData {
+  if (!data || !data.account || !data.property || !Array.isArray(data.tiers) ||
+      ![data.account.fullName, data.account.email, data.property.name,
+        data.property.address, data.property.businessType].every(value => typeof value === "string") ||
+      !data.tiers.every(tier => tier &&
+        [tier.id, tier.name, tier.unitLabels, tier.baseRent, tier.dueDay, tier.graceDays,
+          tier.lateFeeInitial, tier.lateFeeDaily, tier.lateFeeMaxDays].every(value => typeof value === "string") &&
+        Array.isArray(tier.charges) && tier.charges.every(charge => charge &&
+          [charge.id, charge.label, charge.amount].every(value => typeof value === "string")))) {
+    throw new Error("Invalid local draft.");
+  }
+  return {
+    account: { fullName: data.account.fullName, email: data.account.email },
+    property: { name: data.property.name, address: data.property.address, businessType: data.property.businessType },
+    tiers: data.tiers.map(tier => ({
+      id: tier.id, name: tier.name, unitLabels: tier.unitLabels, baseRent: tier.baseRent,
+      dueDay: tier.dueDay, graceDays: tier.graceDays, lateFeeInitial: tier.lateFeeInitial,
+      lateFeeDaily: tier.lateFeeDaily, lateFeeMaxDays: tier.lateFeeMaxDays,
+      charges: tier.charges.map(charge => ({ id: charge.id, label: charge.label, amount: charge.amount })),
+    })),
+    applySameRulesToAll: data.applySameRulesToAll,
+    paymentSetupDeferred: data.paymentSetupDeferred,
+  };
+}
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 const TOTAL_STEPS = 6;
 const DRAFT_STORAGE_KEY = "rentfray_new_property_wizard_draft";
@@ -193,10 +222,22 @@ export default function NewPropertyPage() {
       const parsed = JSON.parse(raw) as {
         step?: number;
         data?: WizardData;
+        savedAt?: string;
       };
 
       if (parsed?.data) {
-        setData(parsed.data);
+        const draftData = sanitizeDraftData(parsed.data);
+        setData({ ...draftData, account: { ...draftData.account, password: "", confirmPassword: "" } });
+        try {
+          window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+            step: parsed.step, data: draftData, savedAt: parsed.savedAt,
+          }));
+        } catch {
+          // If rewriting is unavailable, try removing the old credential-bearing copy.
+          window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+        }
+      } else {
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
       }
 
       if (
@@ -208,6 +249,11 @@ export default function NewPropertyPage() {
       }
     } catch {
       // Ignore malformed local drafts.
+      try {
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {
+        // Storage may be unavailable; keep the in-memory wizard usable.
+      }
     } finally {
       setDraftLoaded(true);
     }
@@ -435,7 +481,7 @@ if (data.account.password !== data.account.confirmPassword) {
       DRAFT_STORAGE_KEY,
       JSON.stringify({
         step: currentStep,
-        data: currentData,
+        data: sanitizeDraftData(currentData),
         savedAt: new Date().toISOString(),
       })
     );
