@@ -534,12 +534,21 @@ if (paymentStatus?.chargesEnabled && paymentStatus?.payoutsEnabled) {
         payoutsEnabled: property.paymentStatus?.payoutsEnabled,
       })
     ) {
-      await prisma.property.update({
-        where: { id: property.id },
+      const transition = await prisma.property.updateMany({
+        where: { id: property.id, status: "SETUP" },
         data: { status: "READY" },
       });
 
-      property.status = "READY";
+      if (transition.count === 1) {
+        property.status = "READY";
+      } else {
+        const currentProperty = await prisma.property.findUnique({
+          where: { id: property.id },
+          select: { status: true },
+        });
+        if (!currentProperty) throw new Error("Property not found.");
+        property.status = currentProperty.status;
+      }
     }
 
 const [units, tiers] = await Promise.all([

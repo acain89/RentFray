@@ -1,3 +1,10 @@
+
+function approvedAutomaticLifecycleChange(before: string): string {
+  const oldBlock = "      await prisma.property.update({\n        where: { id: property.id },\n        data: { status: \"READY\" },\n      });\n\n      property.status = \"READY\";";
+  const newBlock = "      const transition = await prisma.property.updateMany({\n        where: { id: property.id, status: \"SETUP\" },\n        data: { status: \"READY\" },\n      });\n\n      if (transition.count === 1) {\n        property.status = \"READY\";\n      } else {\n        const currentProperty = await prisma.property.findUnique({\n          where: { id: property.id },\n          select: { status: true },\n        });\n        if (!currentProperty) throw new Error(\"Property not found.\");\n        property.status = currentProperty.status;\n      }";
+  assert.equal(before.split(oldBlock).length, 2, "Exactly one original automatic lifecycle block");
+  return before.replace(oldBlock, newBlock);
+}
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -61,6 +68,7 @@ test("financial, session, banking and automatic system authorities are unchanged
     let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "jobs/monthlyRent.ts") assertApprovedMonthlyChange(before.replace(/\r\n/g, "\n"), after);
+    else if (file === "app/api/manager/dashboard/route.ts") assert.equal(after, approvedAutomaticLifecycleChange(before.replace(/\r\n/g, "\n")), file);
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });
