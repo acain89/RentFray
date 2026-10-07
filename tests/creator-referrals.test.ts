@@ -255,3 +255,36 @@ test("creator script normalizes, creates one exact-window record and rejects dup
     } else assert.match(output.join("\n"), /already exists/);
   }
 });
+for (const [environment, requestUrl, destination] of [
+  ["production", "http://srv-example:10000/andrew", "https://www.rentfray.com/setup"],
+  ["production", "https://attacker.example/andrew", "https://www.rentfray.com/setup"],
+  ["development", "http://localhost:3001/andrew", "http://localhost:3001/setup"],
+  ["development", "http://127.0.0.1:4000/andrew", "http://127.0.0.1:4000/setup"],
+  ["development", "http://[::1]:4000/andrew", "http://[::1]:4000/setup"],
+  ["development", "http://srv-example:10000/andrew", "http://localhost:3000/setup"],
+  ["development", "https://localhost.attacker.example/andrew", "http://localhost:3000/setup"],
+]) test(`trusted referral redirect: ${environment} ${requestUrl}`, async () => {
+  let location = "";
+  const writes: { name: string; value: string; options: typeof referrals.referralCookieOptions & { maxAge: number } }[] = [];
+  const response = { status: 303, headers: { set() {} }, cookies: {
+    set(name: string, value: string, options: typeof writes[number]["options"]) { writes.push({ name, value, options }); },
+  } };
+  const route = load<{ GET(req: unknown, context: unknown): Promise<typeof response> }>("app/[creatorSlug]/route.ts", {
+    "next/server": { NextResponse: { redirect(url: URL, status: number) { location = url.href; assert.equal(status, 303); return response; } } },
+    "@/lib/prisma": { prisma: { creator: { findUnique: async () => creator } } },
+    "@/lib/creatorSlugRules": slugRules, "@/lib/creatorReferrals": referrals,
+  }, { process: { env: { NODE_ENV: environment } } });
+  const result = await route.GET({ url: requestUrl, cookies: { get: () => undefined },
+    headers: { get() { throw Error("Host/forwarded headers must not be trusted"); } } },
+  { params: Promise.resolve({ creatorSlug: "andrew" }) });
+  assert.equal(location, destination);
+  assert.equal(result.status, 303);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].name, referrals.REFERRAL_COOKIE);
+  assert.equal(referrals.readReferral(writes[0].value)?.creatorId, creator.id);
+  assert.equal(writes[0].options.maxAge, referrals.REFERRAL_TTL_SECONDS);
+  assert.equal(writes[0].options.httpOnly, true);
+  assert.equal(writes[0].options.sameSite, "lax");
+  assert.equal(writes[0].options.secure, referrals.referralCookieOptions.secure);
+  assert.equal(writes[0].options.path, "/");
+});

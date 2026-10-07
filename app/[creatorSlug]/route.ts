@@ -5,12 +5,22 @@ import { REFERRAL_COOKIE, REFERRAL_TTL_SECONDS, referralCookieOptions, signRefer
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+function referralPublicOrigin(requestUrl: string): string {
+  if (process.env.NODE_ENV === "production") return "https://www.rentfray.com";
+  const url = new URL(requestUrl);
+  if (["http:", "https:"].includes(url.protocol) &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) && !url.username && !url.password) {
+    return url.origin;
+  }
+  return "http://localhost:3000";
+}
+
 export async function GET(req: NextRequest, context: { params: Promise<{ creatorSlug: string }> }) {
   const slug = normalizeCreatorSlug((await context.params).creatorSlug);
   if (!isCreatorSlug(slug)) return new NextResponse(null, { status: 404 });
   const creator = await prisma.creator.findUnique({ where: { slug } });
   if (!creator) return new NextResponse(null, { status: 404 });
-  const response = NextResponse.redirect(new URL("/setup", req.url), 303);
+  const response = NextResponse.redirect(new URL("/setup", referralPublicOrigin(req.url)), 303);
   response.headers.set("Cache-Control", "private, no-store");
   const now = new Date();
   const first = await validFirstTouch(prisma, req.cookies.get(REFERRAL_COOKIE)?.value, now);
