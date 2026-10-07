@@ -84,7 +84,7 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     "app/api/manager/dashboard/route.ts", "lib/realtime.ts", "app/api/stream/route.ts", "app/manager/units/[id]/page.tsx"]) {
     const baseline = file === "lib/ledger.ts" ? "10e0584aef611d965e49259f5e47d940304dc86c" : file === "app/api/payments/create-session/route.ts" ? "79a3bd5ebcc2e6149f7c9de168d3c43ef5af0eea" : "5da580d96891dabaa4926e661d6f44b23f7a5ae8";
     if (["app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/webhook/route.ts"].includes(file)) {
-      const committed = execFileSync("git", ["show", "HEAD:" + file], { cwd: root, encoding: "utf8" });
+      const committed = execFileSync("git", ["show", "88c74f36ee7041399eb5ad94f086f4b9cb010db8:" + file], { cwd: root, encoding: "utf8" });
       assertRF19Change(file, committed, readFileSync(resolve(root, file), "utf8"));
       continue;
     }
@@ -93,6 +93,14 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));
     else if (file === "app/api/manager/dashboard/route.ts") assert.equal(after.replace(/\r\n/g, "\n"), approvedAutomaticLifecycleChange(before.replace(/\r\n/g, "\n")), file);
     else if (file === "lib/session.ts") assertApprovedCredentialChange(file, before, after);
+    else if (file === "app/api/payments/create-session/route.ts") {
+      const original = before.replace(/\r\n/g, "\n");
+      const oldCancel = 'cancel_url: `${origin}/tenant/pay?checkout=cancelled`';
+      const newCancel = 'cancel_url: `${origin}/tenant/dashboard`';
+      assert.equal(original.split(oldCancel).length, 2);
+      assert.equal(after.replace(/\r\n/g, "\n"), original.replace(oldCancel, newCancel),
+        "Only RF-13 cancel navigation changed; success and Checkout authority preserved");
+    }
     else assert.equal(after.replace(/\r\n/g, "\n"), approvedDateChange(file, before.replace(/\r\n/g, "\n")), file);
   }
 });

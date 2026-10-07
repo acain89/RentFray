@@ -49,7 +49,7 @@ function checkoutParameters(payment: CheckoutPayment, property: { name: string; 
       { price_data: { currency: "usd", product_data: { name: `${property.name} Unit ${unitNumber}` }, unit_amount: payment.amountCents }, quantity: 1 },
       ...(fee > 0 ? [{ price_data: { currency: "usd", product_data: { name: "Processing Fee" }, unit_amount: fee }, quantity: 1 }] : []),
     ],
-    success_url: `${origin}/tenant/dashboard`, cancel_url: `${origin}/tenant/pay?checkout=cancelled`,
+    success_url: `${origin}/tenant/dashboard`, cancel_url: `${origin}/tenant/dashboard`,
   } as Stripe.Checkout.SessionCreateParams;
 }
 

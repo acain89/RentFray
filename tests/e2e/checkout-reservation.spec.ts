@@ -124,6 +124,7 @@ function fixture(fee = 0) {
   const status = sourceModule("lib/paymentStatus.ts", {});
   const responses = { NextResponse: { json: (body: any, options?: any) => ({ body, status: options?.status ?? 200 }) } };
   const webhook = sourceModule("app/api/stripe/webhook/route.ts", {
+    "@/lib/stripeAccountStatus": { reconcileStripeAccountStatus: async () => { throw new Error("Unexpected account reconciliation in financial test"); } },
     "next/server": responses, stripe: FakeStripe, "next/headers": { headers: async () => ({ get: () => "signature" }) },
     "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
     "@/lib/paymentStatus": status, "@/lib/rentDates": { getBusinessDate: () => date, getBusinessDateInstant: sourceModule("lib/rentDates.ts", {}).getBusinessDateInstant },
