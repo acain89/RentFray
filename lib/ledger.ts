@@ -271,6 +271,8 @@ export async function getUnitLedgerSummary(
     amountCents: number;
   }> = [];
 
+  let unappliedReductionCents = 0;
+
   let positiveAdjustmentsCents = 0;
   let negativeAdjustmentsCents = 0;
 
@@ -358,18 +360,28 @@ export async function getUnitLedgerSummary(
     /*
      * FIFO outstanding-balance tracking.
      *
-     * Positive ledger impacts create an obligation bucket.
+     * Positive impacts first consume carried reductions, then create a bucket.
      * Negative impacts consume the oldest remaining bucket first.
+     * Any excess reduction carries forward to later effective obligations.
      *
      * This allows the ledger to answer not only "what is owed?"
      * but also "how old is the oldest debt that is still owed?"
      */
     if (signedImpactCents > 0) {
-      outstandingBuckets.push({
-        billingCycle: entry.billingCycle,
-        effectiveDate: entry.effectiveDate,
-        amountCents: signedImpactCents,
-      });
+      const appliedReductionCents = Math.min(
+        signedImpactCents,
+        unappliedReductionCents
+      );
+      unappliedReductionCents -= appliedReductionCents;
+      const remainingObligationCents = signedImpactCents - appliedReductionCents;
+
+      if (remainingObligationCents > 0) {
+        outstandingBuckets.push({
+          billingCycle: entry.billingCycle,
+          effectiveDate: entry.effectiveDate,
+          amountCents: remainingObligationCents,
+        });
+      }
     } else if (signedImpactCents < 0) {
       let remainingCreditCents =
         Math.abs(signedImpactCents);
@@ -386,6 +398,7 @@ export async function getUnitLedgerSummary(
         bucket.amountCents -= appliedCents;
         remainingCreditCents -= appliedCents;
       }
+      unappliedReductionCents += remainingCreditCents;
     }
 
     switch (entryType) {
