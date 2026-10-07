@@ -97,7 +97,7 @@ export default function MaintenanceLoginClient({ propertyCode }: Props) {
         return;
       }
 
-      window.location.href = `/maintenance?code=${finalPropertyCode}`;
+      window.location.href = "/maintenance/dashboard";
     } catch {
       setError("Login error.");
       setLoading(false);

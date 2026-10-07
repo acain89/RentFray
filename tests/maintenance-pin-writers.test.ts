@@ -50,14 +50,14 @@ function writerFixture(existing = false, role = "OWNER", fail: "audit" | "busine
     "next/server": { NextResponse: { json: (body: any, options: any = {}) => ({ body, status: options.status ?? 200 }) } },
     "react/jsx-runtime": {},
   };
-  const legacy = loadSource(legacyFile, imports, "\nexport { saveMaintenancePin, resetTenantPin };");
+  const legacy = loadSource(legacyFile, imports, "\nexport { saveMaintenancePin };");
   const dashboard = loadSource(dashboardFile, imports);
   const form = (extra: any = {}) => {
     const fields: any = { propertyId: "p", pin: "1234", workerName: "New Worker", maintenanceUserId: existing ? "worker" : "", unitId: "unit", ...extra };
     return { get: (key: string) => fields[key] ?? null };
   };
   return { events, state: () => state, legacy: (extra: any = {}) => legacy.saveMaintenancePin(form(extra)),
-    tenant: () => legacy.resetTenantPin(form()), dashboard: () => dashboard.POST({ json: async () => ({ pin: "1234" }) }) };
+    dashboard: () => dashboard.POST({ json: async () => ({ pin: "1234" }) }) };
 }
 
 test("dashboard maintenance setter production source unchanged from HEAD", () => {
@@ -85,12 +85,14 @@ for (const existing of [false, true]) for (const surface of ["legacy", "dashboar
     assert.deepEqual(f.state(), before); assert.ok(f.events.includes("rollback"));
   });
 }
-test("tenant branch still writes existing scrypt credential and audit atomically", async () => {
-  const f = writerFixture(); await assert.rejects(f.tenant(), /redirect:.*tenantSuccess=1/);
-  assert.equal(pinHelpers.verifyPin("1234", f.state().unit.tenantPinHash), true);
-  assert.match(f.state().unit.tenantPinHash, /^[0-9a-f]{32}:[0-9a-f]{128}$/);
-  assert.equal(f.state().audits[0].action, "TENANT_PIN_RESET");
-  assert.ok(f.events.indexOf("tenant.scrypt") < f.events.indexOf("begin")); assert.equal(f.events.includes("bcrypt.hash"), false);
+test("RF-07 legacy tenant PIN writer remains retired while canonical authority is unchanged", () => {
+  const root = resolve(__dirname, "..");
+  const legacy = readFileSync(resolve(root, legacyFile), "utf8");
+  assert.doesNotMatch(legacy, /resetTenantPin|tenantPinHash|tenantAssignments|name="unitId"/);
+  assert.match(legacy, /async function saveMaintenancePin/);
+  const canonical = "app/manager/units/[id]/tenants/page.tsx";
+  const committed = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + canonical], { cwd: root, encoding: "utf8" });
+  assert.equal(readFileSync(resolve(root, canonical), "utf8").replace(/\r\n/g, "\n"), committed.replace(/\r\n/g, "\n"));
 });
 for (const role of ["STAFF", "TENANT", "MAINTENANCE", "ADMIN"]) test(role + " cannot write maintenance PIN", async () => {
   const f = writerFixture(false, role); await assert.rejects(f.legacy(), /redirect:/); assert.deepEqual(f.events, []);

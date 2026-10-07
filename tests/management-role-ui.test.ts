@@ -81,11 +81,10 @@ test("financial, session, banking and automatic system authorities are unchanged
     else if (file === "app/api/manager/dashboard/route.ts") assert.equal(after, approvedAutomaticLifecycleChange(before.replace(/\r\n/g, "\n")), file);
     else if (file === "app/api/payments/create-session/route.ts") {
       const original = before.replace(/\r\n/g, "\n");
-      const oldCancel = 'cancel_url: `${origin}/tenant/pay?checkout=cancelled`';
       const newCancel = 'cancel_url: `${origin}/tenant/dashboard`';
-      assert.equal(original.split(oldCancel).length, 2);
-      assert.equal(after.replace(/\r\n/g, "\n"), original.replace(oldCancel, newCancel),
-        "Only RF-13 cancel navigation changed; success and Checkout authority preserved");
+      assert.equal(original.split(newCancel).length, 2);
+      assert.equal(after.replace(/\r\n/g, "\n"), original,
+        "RF-14 preserves the complete committed RF-13 Checkout authority");
     }
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
