@@ -73,15 +73,6 @@ if (!property) {
   );
 }
 
-const lockedDueDay = getLockedMonthlyDueDay(
-  property.rentFrayStartDate
-);
-
-const authoritativeDueDay =
-  lockedDueDay ??
-  property.settings?.rentDueDay ??
-  1;
-
     if (!id || tiers.length === 0) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
@@ -93,6 +84,22 @@ const authoritativeDueDay =
     }
 
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "Property" WHERE "id" = ${id} FOR UPDATE
+      `;
+      const currentProperty = await tx.property.findUnique({
+        where: { id },
+        select: {
+          rentFrayStartDate: true,
+          settings: { select: { rentDueDay: true } },
+        },
+      });
+      if (!currentProperty) return null;
+      const authoritativeDueDay =
+        getLockedMonthlyDueDay(currentProperty.rentFrayStartDate) ??
+        currentProperty.settings?.rentDueDay ??
+        1;
+
       const uniqueTierIds = [...new Set(tierIds)];
       const ownedTiers = await tx.propertyTier.findMany({
         where: { propertyId: id, id: { in: uniqueTierIds } },
@@ -127,7 +134,7 @@ const authoritativeDueDay =
         propertyId: id,
       },
       data: {
-        rentDueDay: authoritativeDueDay,  
+        rentDueDay: authoritativeDueDay,
         gracePeriodDays,
         lateFeeInitialCents,
         lateFeeDailyCents,
@@ -151,6 +158,10 @@ const authoritativeDueDay =
   });
   return true;
 });
+
+    if (updated === null) {
+      return NextResponse.json({ error: "Property not found." }, { status: 404 });
+    }
 
     if (!updated) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
