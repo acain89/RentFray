@@ -55,7 +55,9 @@ export function getUnitStatus(input: UnitStatusInput): UnitStatusResult {
       color: "orange",
       label: "Payment failed",
       tenantMessage:
-        "Your payment failed or was reversed. Please submit a new payment.",
+        balanceCents > 0
+          ? "Your payment failed or was reversed. Please submit a new payment."
+          : "Your payment failed or was reversed. No payment is currently due.",
       canAttemptPayment: balanceCents > 0,
     };
   }
