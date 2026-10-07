@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { admitMaintenanceLogin } from "@/lib/authThrottle";
+import { verifyPin } from "@/lib/pin";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 
@@ -110,7 +111,18 @@ export async function POST(req: Request) {
     let matchedUserId: string | null = null;
 
     for (const user of users as MaintenanceUserRow[]) {
-      const isMatch = await bcrypt.compare(pin, user.pinHash);
+      let isMatch = false;
+      try {
+        const hash = user.pinHash;
+        if (typeof hash === "string" && hash.length === 60 && /^\$2[aby]\$(0[4-9]|[12]\d|3[01])\$[./A-Za-z0-9]{53}$/.test(hash)) {
+          isMatch = await bcrypt.compare(pin, hash);
+        } else if (typeof hash === "string" && hash.length === 161 && /^[0-9a-f]{32}:[0-9a-f]{128}$/.test(hash)) {
+          // Read compatibility for maintenance PINs previously written by hashPin.
+          isMatch = verifyPin(pin, hash);
+        }
+      } catch {
+        // A malformed credential must not block other active workers.
+      }
 
       if (isMatch) {
         matchedUserId = user.id;

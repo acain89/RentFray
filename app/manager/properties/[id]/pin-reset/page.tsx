@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getSession, requireManagerLevelSession } from "@/lib/session";
 import { hashPin, isValidFourDigitPin } from "@/lib/pin";
@@ -127,7 +128,7 @@ async function saveMaintenancePin(formData: FormData) {
     );
   }
 
-  const pinHash = await hashPin(pin);
+  const pinHash = await bcrypt.hash(pin, 10);
 
   if (maintenanceUserId) {
     const worker = await prisma.maintenanceUser.findFirst({

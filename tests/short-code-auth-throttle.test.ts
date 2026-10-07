@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import { load } from "./manual-payment-idempotency.test";
 import { throttleFixture } from "./auth-throttle-concurrency.test";
 
+const maintenanceHash = "$2b$10$" + "a".repeat(53);
+
 function loginFixture() {
   const f = throttleFixture();
   const events: string[] = [];
-  const controls = { configured: true, correct: true, users: [{ id: "u", pinHash: "bcrypt-hash" }] };
+  const controls = { configured: true, correct: true, users: [{ id: "u", pinHash: maintenanceHash }] };
   const imports: any = {
     "@/lib/authThrottle": f.api,
+    "@/lib/pin": { verifyPin: () => { throw Error("Unexpected historical PIN verification in bcrypt fixture"); } },
     "next/server": { NextResponse: { json: (body: any, options: any = {}) => ({ body: JSON.parse(JSON.stringify(body)), status: options.status ?? 200, headers: options.headers ?? {} }) } },
     bcryptjs: { compare: async () => { assert.equal(f.controls.inTransaction, false); events.push("bcrypt"); return controls.correct; } },
     "@/lib/prisma": { prisma: {
@@ -43,7 +46,7 @@ test("ADMIN absent/disabled access preserves 500 and admitted bad credential pre
 });
 test("MAINTENANCE success payload/lastLoginAt preserved; PIN/user rotation cannot bypass property ceiling", async () => {
   const f = loginFixture();
-  for (let i = 0; i < 10; i++) { f.controls.login.users = [{ id: "u" + i, pinHash: "hash" }]; const r = await f.postMaintenance("AAAA", String(1000 + i)); assert.equal(r.status, 200); assert.deepEqual(r.body, { ok: true, role: "MAINTENANCE", propertyId: "A", maintenanceUserId: "u" + i }); }
+  for (let i = 0; i < 10; i++) { f.controls.login.users = [{ id: "u" + i, pinHash: maintenanceHash }]; const r = await f.postMaintenance("AAAA", String(1000 + i)); assert.equal(r.status, 200); assert.deepEqual(r.body, { ok: true, role: "MAINTENANCE", propertyId: "A", maintenanceUserId: "u" + i }); }
   const before = f.events.length; const r = await f.postMaintenance(); assert.equal(r.status, 429); assert.ok(Number(r.headers["Retry-After"]) > 0); assert.equal(f.events.length, before);
   assert.equal(f.events.filter(e => e === "lastLoginAt").length, 10);
   assert.ok(f.events.includes('session:{"role":"MAINTENANCE","propertyId":"A","maintenanceUserId":"u0"}'));
