@@ -49,6 +49,13 @@ test("canonical provisioning, verification, compatibility and hard-start authori
     if (file === "app/api/admin/properties/route.ts") assertApprovedProvisioningChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "app/admin/properties/new/page.tsx") assertApprovedDraftChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "lib/session.ts" || file === "app/api/auth/verify-email/route.ts") assertApprovedCredentialChange(file, before, after);
+    else if (file === "proxy.ts") {
+      const original = before.replace(/\r\n/g, "\n");
+      const anchor = '  "/role-select",\n';
+      assert.equal(original.split(anchor).length, 2, "one public-page insertion point");
+      assert.equal(after, original.replace(anchor, anchor + '  "/verify-email",\n'),
+        "Only RF-12 verification recovery page admission changed");
+    }
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });

@@ -21,6 +21,7 @@ const PUBLIC_PAGE_ROUTES = [
   "/tenant/login",
   "/request-illustration",
   "/role-select",
+  "/verify-email",
 
   // SEO / AEO marketing pages
   "/best-way-to-collect-rent",
