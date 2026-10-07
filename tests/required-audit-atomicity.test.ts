@@ -1,3 +1,4 @@
+import { accountHelper } from "./stripe-account-reconciliation.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -70,6 +71,10 @@ function fixture(kind: string, file: string) {
     },
     "@/lib/manualFinancialOperations": { lockManualRows: async () => {}, isManualLockContention: () => false },
   });
+  if (kind === "sync") {
+    db.$queryRaw = async (sql: any) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: state.property.stripeAccountId, propertyVersion: "1", statusVersion: state.connection ? "written" : null }];
+    Object.assign(imports, { "@/lib/stripeAccountStatus": accountHelper(db, imports["@/lib/stripe"].getStripeClient()) });
+  }
   const api = source(file, imports, kind === "worker" ? "\nexport { saveMaintenancePin };" : "");
   async function call() {
     if (kind === "worker") { const form = new FormData(); for (const [key, value] of Object.entries({ propertyId: "p", workerName: "Worker", pin: "1234" })) form.set(key, value);

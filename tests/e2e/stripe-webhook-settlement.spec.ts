@@ -124,6 +124,7 @@ function fixture(fee = 0) {
   const webhook = sourceModule("app/api/stripe/webhook/route.ts", {
     "next/server": responses, stripe: FakeStripe, "next/headers": { headers: async () => ({ get: () => "signature" }) },
     "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
+    "@/lib/stripeAccountStatus": { reconcileStripeAccountStatus: async () => { throw new Error("Unexpected account reconciliation in financial test"); } },
     "@/lib/paymentStatus": status, "@/lib/rentDates": { getBusinessDate: () => new Date(2026, 9, 5), getBusinessDateInstant: sourceModule("lib/rentDates.ts", {}).getBusinessDateInstant },
     "@/lib/realtime": { emitEvent() {} }, "@/lib/liveGating": { canMakePayments: () => true },
   });
@@ -131,6 +132,7 @@ function fixture(fee = 0) {
   const checkout = () => sourceModule("app/api/payments/create-session/route.ts", {
     "next/server": responses, stripe: FakeStripe, "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
     "@/lib/session": { getSession: async () => ({ role: "TENANT", propertyId: "property", unitId: "unit", tenantAssignmentId: "historical" }), refreshSessionCookie: async () => {} },
+    "@/lib/stripeAccountStatus": { reconcileStripeAccountStatus: async () => { throw new Error("Unexpected account reconciliation in financial test"); } },
     "@/lib/paymentStatus": status, "@/lib/liveGating": { canMakePayments: () => true }, "@/lib/rateLimit": { checkRateLimit: () => ({ ok: true }) },
     "@/lib/unitFinancialState": { getUnitFinancialState: async () => ({ ledgerBalanceCents: db.balance, processingFeeCents: db.fee,
       tenantTotalDueCents: db.balance + db.fee, billingCycle: "2026-10", hasPendingPayment: false }) },

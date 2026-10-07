@@ -1,3 +1,4 @@
+import { accountHelper } from "./stripe-account-reconciliation.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { source, response, request, context } from "./required-audit-atomicity.test";
@@ -38,24 +39,27 @@ test("ADMIN payment status GET retains current response", async () => {
 });
 test("authoritative Stripe sync can still reconcile in both directions", async () => {
   let enabled = false; const state: any = { chargesEnabled: true, payoutsEnabled: true }; let transactions = 0;
-  const db: any = { property: { findUnique: async () => ({ id: "p", stripeAccountId: "acct" }) },
+  const db: any = { $queryRaw: async (sql: any) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: "acct", propertyVersion: "1", statusVersion: state.lastSyncedAt ? "written" : null }], property: { findUnique: async () => ({ id: "p", stripeAccountId: "acct" }) },
     paymentConnectionStatus: { upsert: async ({ update }: any) => Object.assign(state, update) }, auditLog: { create: async () => ({}) },
     $transaction: async (fn: any) => { transactions++; return fn(db); } };
   const api = source("app/api/admin/properties/[id]/stripe-sync/route.ts", { "next/server": response,
     "@/lib/session": { getSession: async () => ({ role: "ADMIN" }) }, "@/lib/prisma": { prisma: db },
-    "@/lib/stripe": { getStripeClient: () => ({ accounts: { retrieve: async () => ({ charges_enabled: enabled, payouts_enabled: enabled, details_submitted: enabled, requirements: {} }) } }) } });
+    "@/lib/stripeAccountStatus": accountHelper(db, { accounts: { retrieve: async () => ({ id: "acct", charges_enabled: enabled, payouts_enabled: enabled, details_submitted: enabled, requirements: {} }) } }) });
   assert.equal((await api.POST(request({}), context)).status, 200); assert.equal(state.chargesEnabled, false); assert.equal(state.payoutsEnabled, false);
   enabled = true; await api.POST(request({}), context); assert.equal(state.chargesEnabled, true); assert.equal(state.payoutsEnabled, true); assert.equal(transactions, 2);
 });
 test("Stripe sync without an account preserves conservative initialization without adding an audit", async () => {
   let writes = 0;
+  const db: any = {
+    $queryRaw: async (sql: any) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: null, propertyVersion: "1", statusVersion: null }],
+    property: { findUnique: async () => ({ id: "p", stripeAccountId: null }) },
+    paymentConnectionStatus: { upsert: async ({ update }: any) => { writes++; return update; } },
+    auditLog: { create: async () => { throw Error("Unexpected audit"); } },
+    $transaction: async (fn: any) => fn(db),
+  };
   const api = source("app/api/admin/properties/[id]/stripe-sync/route.ts", { "next/server": response,
-    "@/lib/session": { getSession: async () => ({ role: "ADMIN" }) },
-    "@/lib/prisma": { prisma: { property: { findUnique: async () => ({ id: "p", stripeAccountId: null }) },
-      paymentConnectionStatus: { upsert: async ({ update }: any) => { writes++; return update; } },
-      auditLog: { create: async () => { throw Error("Unexpected audit"); } },
-      $transaction: async () => { throw Error("Unexpected transaction"); } } },
-    "@/lib/stripe": { getStripeClient: () => { throw Error("Unexpected external call"); } } });
+    "@/lib/session": { getSession: async () => ({ role: "ADMIN" }) }, "@/lib/prisma": { prisma: db },
+    "@/lib/stripeAccountStatus": accountHelper(db, { accounts: { retrieve: async () => { throw Error("Unexpected external call"); } } }) });
   const result = await api.POST(request({}), context); assert.equal(result.status, 200); assert.equal(writes, 1);
   assert.equal(result.body.paymentStatus.processorConnected, false); assert.equal(result.body.paymentStatus.readyForLive, false);
   assert.equal(result.body.paymentStatus.requirementsSummary, "No Stripe account is connected.");

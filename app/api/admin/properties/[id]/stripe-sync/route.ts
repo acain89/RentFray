@@ -1,44 +1,10 @@
-import type { Prisma } from "@prisma/client";
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { getStripeClient } from "@/lib/stripe";
+import { reconcileStripeAccountStatus } from "@/lib/stripeAccountStatus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function getRequirementsSummary(account: {
-  requirements?: {
-    disabled_reason?: string | null;
-    currently_due?: string[] | null;
-    eventually_due?: string[] | null;
-    past_due?: string[] | null;
-  } | null;
-}): string | null {
-  const requirements = account.requirements;
-
-  if (!requirements) return null;
-
-  const parts: string[] = [];
-
-  if (requirements.disabled_reason) {
-    parts.push(`Disabled reason: ${requirements.disabled_reason}`);
-  }
-
-  if (requirements.currently_due?.length) {
-    parts.push(`Currently due: ${requirements.currently_due.join(", ")}`);
-  }
-
-  if (requirements.past_due?.length) {
-    parts.push(`Past due: ${requirements.past_due.join(", ")}`);
-  }
-
-  if (requirements.eventually_due?.length) {
-    parts.push(`Eventually due: ${requirements.eventually_due.join(", ")}`);
-  }
-
-  return parts.length > 0 ? parts.join(" | ") : null;
-}
 
 export async function POST(
   _req: NextRequest,
@@ -70,114 +36,23 @@ export async function POST(
       );
     }
 
-    if (!property.stripeAccountId) {
-      const paymentStatus = await prisma.paymentConnectionStatus.upsert({
-        where: { propertyId },
-        update: {
-          processorConnected: false,
-          bankConnected: false,
-          chargesEnabled: false,
-          payoutsEnabled: false,
-          onboardingComplete: false,
-          requirementsDue: false,
-          requirementsSummary: "No Stripe account is connected.",
-          readyForLive: false,
-          lastSyncedAt: new Date(),
-        },
-        create: {
-          propertyId,
-          processorConnected: false,
-          bankConnected: false,
-          chargesEnabled: false,
-          payoutsEnabled: false,
-          onboardingComplete: false,
-          requirementsDue: false,
-          requirementsSummary: "No Stripe account is connected.",
-          readyForLive: false,
-          lastSyncedAt: new Date(),
-        },
-      });
-
-      return NextResponse.json({
-        ok: true,
-        property,
-        paymentStatus,
-      });
-    }
-
-    const stripe = getStripeClient();
-    const account = await stripe.accounts.retrieve(property.stripeAccountId);
-
-    const requirementsDue = Boolean(
-      account.requirements?.currently_due?.length ||
-        account.requirements?.past_due?.length ||
-        account.requirements?.disabled_reason
-    );
-
-    const processorConnected = true;
-    const bankConnected = Boolean(account.details_submitted);
-    const chargesEnabled = Boolean(account.charges_enabled);
-    const payoutsEnabled = Boolean(account.payouts_enabled);
-    const onboardingComplete = Boolean(account.details_submitted);
-    const readyForLive =
-      processorConnected &&
-      bankConnected &&
-      chargesEnabled &&
-      payoutsEnabled &&
-      onboardingComplete &&
-      !requirementsDue;
-
-    const requirementsSummary = getRequirementsSummary(account);
-
-    const paymentStatus = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const paymentStatus = await tx.paymentConnectionStatus.upsert({
-        where: { propertyId },
-        update: {
-          processorConnected,
-          bankConnected,
-          chargesEnabled,
-          payoutsEnabled,
-          onboardingComplete,
-          requirementsDue,
-          requirementsSummary,
-          readyForLive,
-          lastSyncedAt: new Date(),
-        },
-        create: {
-          propertyId,
-          processorConnected,
-          bankConnected,
-          chargesEnabled,
-          payoutsEnabled,
-          onboardingComplete,
-          requirementsDue,
-          requirementsSummary,
-          readyForLive,
-          lastSyncedAt: new Date(),
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          propertyId,
-          actorType: "ADMIN",
-          actorAdminId: session.adminAccessId ?? null,
-          action: "STRIPE_STATUS_SYNCED",
-          targetType: "PROPERTY",
-          targetId: propertyId,
-          summary: "Admin refreshed Stripe account status from Stripe.",
-          metadataJson: JSON.stringify({
-            stripeAccountId: property.stripeAccountId,
-            chargesEnabled,
-            payoutsEnabled,
-            onboardingComplete,
-            requirementsDue,
-            readyForLive,
-          }),
-        },
-      });
-      return paymentStatus;
+    const { paymentStatus, account, data } = await reconcileStripeAccountStatus(propertyId, {
+      expectedAccountId: property.stripeAccountId,
+      audit: async (tx, mapped, stripeAccountId) => {
+        await tx.auditLog.create({
+          data: {
+            propertyId, actorType: "ADMIN", actorAdminId: session.adminAccessId ?? null,
+            action: "STRIPE_STATUS_SYNCED", targetType: "PROPERTY", targetId: propertyId,
+            summary: "Admin refreshed Stripe account status from Stripe.",
+            metadataJson: JSON.stringify({ stripeAccountId, chargesEnabled: mapped.chargesEnabled,
+              payoutsEnabled: mapped.payoutsEnabled, onboardingComplete: mapped.onboardingComplete,
+              requirementsDue: mapped.requirementsDue, readyForLive: mapped.readyForLive }),
+          },
+        });
+      },
     });
+    if (!account) return NextResponse.json({ ok: true, property, paymentStatus });
+    const { chargesEnabled, payoutsEnabled, onboardingComplete, requirementsDue, requirementsSummary } = data;
 
     return NextResponse.json({
       ok: true,

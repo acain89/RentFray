@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
+import { reconcileStripeAccountStatus } from "@/lib/stripeAccountStatus";
 import { getSession } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -143,36 +144,7 @@ export async function POST(request: Request) {
       accountId = updatedProperty.stripeAccountId;
     }
 
-    const stripeAccount = await stripe.accounts.retrieve(accountId);
-
-    const paymentStatusData = {
-      processorConnected: true,
-      bankConnected: true,
-      chargesEnabled: Boolean(stripeAccount.charges_enabled),
-      payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
-      onboardingComplete: Boolean(stripeAccount.details_submitted),
-      requirementsDue: Boolean(
-        stripeAccount.requirements?.currently_due?.length
-      ),
-      requirementsSummary:
-        stripeAccount.requirements?.disabled_reason ?? null,
-      lastSyncedAt: new Date(),
-      readyForLive:
-        Boolean(stripeAccount.charges_enabled) &&
-        Boolean(stripeAccount.payouts_enabled),
-    };
-
-    await prisma.property.update({
-      where: { id: property.id },
-      data: {
-        paymentStatus: {
-          upsert: {
-            create: paymentStatusData,
-            update: paymentStatusData,
-          },
-        },
-      },
-    });
+    await reconcileStripeAccountStatus(property.id, { stripe, expectedAccountId: accountId });
 
     const stripeReturnUrl =
       `${baseUrl}/manager/dashboard?panel=bank&returnTo=setup&stripeReturn=1`;

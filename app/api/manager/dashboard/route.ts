@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getStripeClient } from "@/lib/stripe";
+import { reconcileStripeAccountStatus } from "@/lib/stripeAccountStatus";
 import { getSession, refreshSessionCookie, verifySessionToken } from "@/lib/session";
 import {
   getBusinessDate,
@@ -431,66 +431,9 @@ export async function GET() {
     }
 
     if (property.stripeAccountId) {
-  const stripe = getStripeClient();
-  const account = await stripe.accounts.retrieve(property.stripeAccountId);
-
-  const requirementsDue = Boolean(
-    account.requirements?.currently_due?.length ||
-      account.requirements?.past_due?.length ||
-      account.requirements?.disabled_reason
-  );
-
-  const requirementsSummary =
-    account.requirements?.disabled_reason ??
-    (account.requirements?.currently_due?.length
-      ? `Currently due: ${account.requirements.currently_due.join(", ")}`
-      : account.requirements?.past_due?.length
-        ? `Past due: ${account.requirements.past_due.join(", ")}`
-        : null);
-
-  const processorConnected = true;
-  const bankConnected = Boolean(account.details_submitted);
-  const chargesEnabled = Boolean(account.charges_enabled);
-  const payoutsEnabled = Boolean(account.payouts_enabled);
-  const onboardingComplete = Boolean(account.details_submitted);
-
-  const readyForLive =
-    processorConnected &&
-    bankConnected &&
-    chargesEnabled &&
-    payoutsEnabled &&
-    onboardingComplete &&
-    !requirementsDue;
-
-  const syncedPaymentStatus = await prisma.paymentConnectionStatus.upsert({
-    where: { propertyId: property.id },
-    update: {
-      processorConnected,
-      bankConnected,
-      chargesEnabled,
-      payoutsEnabled,
-      onboardingComplete,
-      requirementsDue,
-      requirementsSummary,
-      readyForLive,
-      lastSyncedAt: new Date(),
-    },
-    create: {
-      propertyId: property.id,
-      processorConnected,
-      bankConnected,
-      chargesEnabled,
-      payoutsEnabled,
-      onboardingComplete,
-      requirementsDue,
-      requirementsSummary,
-      readyForLive,
-      lastSyncedAt: new Date(),
-    },
-  });
-
-  property.paymentStatus = syncedPaymentStatus;
-}
+      const { paymentStatus } = await reconcileStripeAccountStatus(property.id, { expectedAccountId: property.stripeAccountId });
+      property.paymentStatus = paymentStatus;
+    }
 
 let bankStatus: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "RESTRICTED" =
   "NOT_CONNECTED";

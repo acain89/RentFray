@@ -1,3 +1,4 @@
+import { assertRF19Change } from "./stripe-account-reconciliation.test";
 
 import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
 
@@ -82,6 +83,11 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     "app/api/payments/create-session/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts",
     "app/api/manager/dashboard/route.ts", "lib/realtime.ts", "app/api/stream/route.ts", "app/manager/units/[id]/page.tsx"]) {
     const baseline = file === "lib/ledger.ts" ? "10e0584aef611d965e49259f5e47d940304dc86c" : file === "app/api/payments/create-session/route.ts" ? "79a3bd5ebcc2e6149f7c9de168d3c43ef5af0eea" : "5da580d96891dabaa4926e661d6f44b23f7a5ae8";
+    if (["app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/webhook/route.ts"].includes(file)) {
+      const committed = execFileSync("git", ["show", "HEAD:" + file], { cwd: root, encoding: "utf8" });
+      assertRF19Change(file, committed, readFileSync(resolve(root, file), "utf8"));
+      continue;
+    }
     const before = execFileSync("git", ["show", baseline + ":" + file], { cwd: root, encoding: "utf8" });
     const after = readFileSync(resolve(root, file), "utf8");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));

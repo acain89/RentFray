@@ -1,3 +1,4 @@
+import { assertRF19Change } from "./stripe-account-reconciliation.test";
 
 function approvedAutomaticLifecycleChange(before: string): string {
   const oldBlock = "      await prisma.property.update({\n        where: { id: property.id },\n        data: { status: \"READY\" },\n      });\n\n      property.status = \"READY\";";
@@ -68,6 +69,11 @@ test("financial, session, banking and automatic system authorities are unchanged
   }
   for (const file of [ "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
     const baseline = file === "app/api/manager/dashboard/route.ts" ? "072eb51fdabd8f53d31b8a382e7b8fa513cab234" : "HEAD";
+    if (["app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/webhook/route.ts"].includes(file)) {
+      const committed = execFileSync("git", ["show", "HEAD:" + file], { cwd: root, encoding: "utf8" });
+      assertRF19Change(file, committed, readFileSync(resolve(root, file), "utf8"));
+      continue;
+    }
     const before = execFileSync("git", ["--no-optional-locks", "show", baseline + ":" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after);

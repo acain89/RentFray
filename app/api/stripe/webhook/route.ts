@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { reconcileStripeAccountStatus } from "@/lib/stripeAccountStatus";
 import { emitEvent } from "@/lib/realtime";
 import { assertValidTransition } from "@/lib/paymentStatus";
 import { getBusinessDate, getBusinessDateInstant } from "@/lib/rentDates";
@@ -345,49 +346,7 @@ if (!event) {
         return NextResponse.json({ received: true });
       }
 
- const requirementsDue = Boolean(
-  account.requirements?.currently_due?.length ||
-    account.requirements?.past_due?.length ||
-    account.requirements?.disabled_reason
-);
-
-      await prisma.property.update({
-        where: { id: property.id },
-        data: {
-          paymentStatus: {
-            upsert: {
-              create: {
-                processorConnected: true,
-                bankConnected: Boolean(account.details_submitted),
-                chargesEnabled: Boolean(account.charges_enabled),
-                payoutsEnabled: Boolean(account.payouts_enabled),
-                onboardingComplete: Boolean(account.details_submitted),
-                requirementsDue,
-                requirementsSummary: account.requirements?.disabled_reason ?? null,
-                lastSyncedAt: new Date(),
-                readyForLive:
-                  Boolean(account.details_submitted) &&
-              Boolean(account.charges_enabled) &&
-              Boolean(account.payouts_enabled) &&
-              !requirementsDue
-              },
-              update: {
-                processorConnected: true,
-                bankConnected: Boolean(account.details_submitted),
-                chargesEnabled: Boolean(account.charges_enabled),
-                payoutsEnabled: Boolean(account.payouts_enabled),
-                onboardingComplete: Boolean(account.details_submitted),
-                requirementsDue,
-                requirementsSummary: account.requirements?.disabled_reason ?? null,
-                lastSyncedAt: new Date(),
-                readyForLive:
-                  Boolean(account.charges_enabled) &&
-                  Boolean(account.payouts_enabled),
-              },
-            },
-          },
-        },
-      });
+      await reconcileStripeAccountStatus(property.id, { stripe, expectedAccountId: account.id });
 
       emitEvent("payment:update", { propertyId: property.id });
 
