@@ -23,6 +23,11 @@ for (const kind of ["public", "admin"] as const) for (const mailFailure of [fals
       assert.equal(committed, true); assert.equal(input.email, "owner@example.invalid"); assert.ok(input.managementUserId); emails++;
       if (mailFailure) throw Error("isolated mail unavailable");
     };
+    // No referral cookie: exercise unchanged canonical provisioning.
+    f.imports["next/headers"] = { cookies: async () => ({ get: () => undefined }) };
+    f.imports["@/lib/creatorReferrals"] = { attributeCreator: async (_tx: unknown, cookie: unknown) => {
+      assert.equal(cookie, undefined); return false;
+    }, REFERRAL_COOKIE: "rf_creator_referral", referralCookieOptions: {} };
     const file = kind === "public" ? "app/api/setup/create-account/route.ts" : "app/api/admin/properties/route.ts";
     const payload = kind === "public" ? { firstName: "Test", lastName: "Owner", email: "owner@example.invalid", password }
       : { account: { email: "owner@example.invalid", password, fullName: "Test Owner" }, property: { name: "Property", address: "Address" },
@@ -45,7 +50,38 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       ? "072eb51fdabd8f53d31b8a382e7b8fa513cab234"
       : "eda6c70dafc95079b2757d7ed5139ee03a225e5c";
     const before = execFileSync("git", ["--no-optional-locks", "show", baseline + ":" + file], { cwd: root, encoding: "utf8", windowsHide: true });
-    const after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
+    let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
+    // Reverse only the exact approved referral insertions; all prior authority
+    // assertions still compare every remaining byte against their original baseline.
+    const removeOnce = (value: string) => {
+      assert.equal(after.split(value).length, 2, "exactly one approved referral insertion");
+      after = after.replace(value, "");
+    };
+    if (file === "app/api/setup/create-account/route.ts") {
+      for (const insertion of [
+        'import { cookies } from "next/headers";\nimport { attributeCreator, REFERRAL_COOKIE, referralCookieOptions } from "@/lib/creatorReferrals";\n',
+        '    const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;\n',
+        '            name: true,\n',
+        '        const attributed = await attributeCreator(tx, referralCookie, property);\n\n',
+        '          attributed,\n',
+        'if (result.attributed) response.cookies.set(REFERRAL_COOKIE, "", { ...referralCookieOptions, maxAge: 0 });\nreturn response;\n',
+      ]) removeOnce(insertion.replace(/\\n/g, "\n"));
+      assert.equal(after.split('const response = NextResponse.json({').length, 2);
+      after = after.replace('const response = NextResponse.json({', 'return NextResponse.json({');
+    }
+    if (file === "proxy.ts") {
+      removeOnce('import { prisma } from "@/lib/prisma";\nimport { isCreatorSlug, normalizeCreatorSlug } from "@/lib/creatorSlugRules";\n'.replace(/\\n/g, "\n"));
+      const block = '  // Only an existing, nonreserved, single-segment creator URL is public.\n' +
+        '  const candidate = /^\\/([^/]+)\\/?$/.exec(pathname)?.[1];\n' +
+        '  const creatorSlug = candidate ? normalizeCreatorSlug(candidate) : "";\n' +
+        '  if (isCreatorSlug(creatorSlug)) {\n    try {\n' +
+        '      if (await prisma.creator.findUnique({ where: { slug: creatorSlug }, select: { id: true } })) {\n' +
+        '        return NextResponse.next();\n      }\n    } catch {\n' +
+        '      // Keep existing authentication routing on database/schema unavailability.\n    }\n  }\n\n';
+      removeOnce(block.replace(/\\n/g, "\n").replace(/\\\\/g, "\\"));
+      assert.equal(after.split('export async function proxy(').length, 2);
+      after = after.replace('export async function proxy(', 'export function proxy(');
+    }
     if (file === "app/api/admin/properties/route.ts") assertApprovedProvisioningChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "app/admin/properties/new/page.tsx") assertApprovedDraftChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "lib/session.ts" || file === "app/api/auth/verify-email/route.ts") assertApprovedCredentialChange(file, before, after);

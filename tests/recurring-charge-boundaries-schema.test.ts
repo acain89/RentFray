@@ -6,6 +6,15 @@ import { resolve } from "node:path";
 
 const root = resolve(__dirname, "..");
 export function assertApprovedSchemaChange(before: string, after: string) {
+  const creatorModels = "model Creator {\n  id        String   @id @default(cuid())\n  name      String\n  slug      String   @unique\n  startsAt  DateTime\n  expiresAt DateTime\n  createdAt DateTime @default(now())\n  referrals CreatorReferral[]\n}\n\nmodel CreatorReferral {\n  id                   String   @id @default(cuid())\n  creatorId            String\n  propertyId           String?  @unique\n  retainedPropertyId   String   @unique\n  businessNameSnapshot String\n  attributedAt         DateTime @default(now())\n  creator              Creator  @relation(fields: [creatorId], references: [id], onDelete: Restrict)\n  property             Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)\n\n  @@index([creatorId, attributedAt])\n}";
+  if (after.includes("model Creator {")) {
+    assert.ok(after.endsWith(creatorModels), "Only the exact approved creator models may be appended");
+    after = after.slice(0, -creatorModels.length);
+    const relation = "  creatorReferral             CreatorReferral?\n";
+    assert.equal(after.split(relation).length, 2, "Only one creator relation added to Property");
+    after = after.replace(relation, "").trimEnd();
+    before = before.trimEnd();
+  }
   if (before === after) return;
   assert.equal(after.replace(/^\s*effectiveUntil\s+DateTime\?[^\n]*\n/m, ""), before);
 }
@@ -27,7 +36,7 @@ export function assertApprovedProvisioningChange(before: string, after: string) 
     .replace(/            const recurringTotalCents = toCents\(recurringTotal\);\n\n            if \(recurringTotalCents > 0\) \{\n[\s\S]*?            \}\n/, '');
   assert.equal(after, expected);
 }
-test("nullable tier boundary is the sole schema change and migration is additive without backfill", () => {
+test("tier boundary and approved creator additions preserve existing schema; RF-01 migration remains additive without backfill", () => {
   const file = "prisma/schema.prisma";
   const before = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
   const after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");

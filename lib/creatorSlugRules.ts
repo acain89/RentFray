@@ -1,0 +1,12 @@
+export const RESERVED_CREATOR_SLUGS = new Set<string>(["_next",".well-known","account-deletion","admin","api","app-release-signed.apk","best-way-to-collect-rent","buy-here-pay-here-payment-system","campground-payment-system","collect-rent-online","commercial-property-rent-collection","components","duplex-landlord-rent-collection","easiest-way-for-tenants-to-pay-rent","equipment-rental-payment-system","faq","favicon.ico","file.svg","free-rent-collection-software","free-rent-collection-software-no-monthly-fee","globe.svg","hoa-payment-system","how-it-works","how-tenants-pay-rent-online","how-to-avoid-late-rent-payments","how-to-collect-rent-online","how-to-manage-rent-without-software","how-to-track-tenant-payments","icons","install","is-rentfray-right-for-me","landlord-payment-system","landlord-rent-payment-options","login","maintenance","manager","manager-login","manifest.webmanifest","manual-rent-tracking-vs-software","marina-slip-payment-system","mobile-home-park-rent-collection","New folder","next.svg","no-fee-rent-collection-system","office-rent-payment-system","offline","online-rent-payment-system","online-rent-payment-system-apartments","pricing","privacy","property-code","property-management-payment-system","rent-billing-system","rent-collection-software-alternative","rent-collection-software-landlords","rent-payment-app","rent-tracking-software","rental-payment-platform","robots.txt","role-select","rv-park-rent-collection","security-payments","self-storage-payment-system","setup","sitemap.xml","spreadsheet-vs-rent-software","student-housing-rent-payment","sw.js","tenant","tenant-instructions","tenant-online-rent-payments","tenant-payment-portal","tenant-rent-payment-options","terms","trailer-park-rent-collection","vercel.svg","verify-email","warehouse-rent-payment-system","why-rentfray","window.svg"]);
+export function normalizeCreatorSlug(value: string): string {
+  return value.trim().toLowerCase();
+}
+export function isCreatorSlug(value: string): boolean {
+  return /^[a-z][a-z0-9-]{1,47}$/.test(value) && !value.endsWith("-") && !RESERVED_CREATOR_SLUGS.has(value);
+}
+export function requireCreatorSlug(value: string): string {
+  const slug = normalizeCreatorSlug(value);
+  if (!isCreatorSlug(slug)) throw new Error("Slug must be 2–48 lowercase letters, digits or hyphens, start with a letter, and not conflict with an application route.");
+  return slug;
+}

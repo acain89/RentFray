@@ -54,6 +54,7 @@ model Property {
   paymentStatus               PaymentConnectionStatus?
   settings                    PropertySettings?
   tiers                       PropertyTier[]
+  creatorReferral             CreatorReferral?
   tierCharges                 PropertyTierCharge[]
   tenantAssignments           TenantAssignment[]
   units                       Unit[]
@@ -449,4 +450,27 @@ enum PaymentStatus {
   PAID
   FAILED
   REVERSED
+}
+
+model Creator {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  startsAt  DateTime
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  referrals CreatorReferral[]
+}
+
+model CreatorReferral {
+  id                   String   @id @default(cuid())
+  creatorId            String
+  propertyId           String?  @unique
+  retainedPropertyId   String   @unique
+  businessNameSnapshot String
+  attributedAt         DateTime @default(now())
+  creator              Creator  @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  property             Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([creatorId, attributedAt])
 }

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { attributeCreator, REFERRAL_COOKIE, referralCookieOptions } from "@/lib/creatorReferrals";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -139,6 +141,7 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;
 
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -157,8 +160,11 @@ export async function POST(req: Request) {
           select: {
             id: true,
             propertyCode: true,
+            name: true,
           },
         });
+
+        const attributed = await attributeCreator(tx, referralCookie, property);
 
         const manager = await tx.managementUser.create({
           data: {
@@ -192,6 +198,7 @@ export async function POST(req: Request) {
         return {
           propertyId: property.id,
           propertyCode: property.propertyCode,
+          attributed,
           managementUserId: manager.id,
         };
     },
@@ -215,7 +222,7 @@ await sendVerificationEmail({
   console.error("Initial verification email failed:", error);
 }
 
-return NextResponse.json({
+const response = NextResponse.json({
   ok: true,
   propertyId: result.propertyId,
   propertyCode: result.propertyCode,
@@ -224,6 +231,8 @@ return NextResponse.json({
     email
   )}&sent=${verificationEmailSent ? "1" : "0"}`,
 });
+if (result.attributed) response.cookies.set(REFERRAL_COOKIE, "", { ...referralCookieOptions, maxAge: 0 });
+return response;
   } catch (error) {
     console.error("Create manager account failed:", error);
 

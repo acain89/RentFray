@@ -1,6 +1,8 @@
 ﻿// /proxy.ts
 
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { isCreatorSlug, normalizeCreatorSlug } from "@/lib/creatorSlugRules";
 import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "rf_session";
@@ -102,7 +104,7 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = req.cookies.get(SESSION_COOKIE)?.value;
 
@@ -121,6 +123,19 @@ export function proxy(req: NextRequest) {
 
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
+  }
+
+  // Only an existing, nonreserved, single-segment creator URL is public.
+  const candidate = /^\/([^/]+)\/?$/.exec(pathname)?.[1];
+  const creatorSlug = candidate ? normalizeCreatorSlug(candidate) : "";
+  if (isCreatorSlug(creatorSlug)) {
+    try {
+      if (await prisma.creator.findUnique({ where: { slug: creatorSlug }, select: { id: true } })) {
+        return NextResponse.next();
+      }
+    } catch {
+      // Keep existing authentication routing on database/schema unavailability.
+    }
   }
 
   if (!session) {
