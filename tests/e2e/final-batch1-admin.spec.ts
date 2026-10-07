@@ -78,6 +78,14 @@ function fixture() {
   use("ADMIN");
   return { use, requests, property, operations, state: () => state, failDelete: () => { failDelete = true; } };
 }
+function rejectionForms(tree: any) {
+  const forms = nodes(tree).filter(n => n.type === "form");
+  expect(forms.length).toBeGreaterThan(0);
+  for (const form of forms) {
+    expect(nodes(form).filter(n => n.type === "button").map(n => n.props.children)).toEqual(["Reject"]);
+  }
+  return forms;
+}
 const denied = ["absent", "malformed", "signature-invalid", "expired", "TENANT", "OWNER", "MANAGER", "STAFF", "MAINTENANCE"];
 for (const kind of denied) {
   for (const page of ["requests", "property"] as const) test(`${kind}: ${page} rejects before protected data`, async () => {
@@ -87,7 +95,7 @@ for (const kind of denied) {
   });
   for (const actionIndex of [0, 1]) test(`${kind}: rendered action ${actionIndex} independently rejects`, async () => {
     const f = fixture(); const tree = await f.requests();
-    const forms = nodes(tree).filter(n => n.type === "form"); const action = forms[actionIndex].props.action;
+    const forms = rejectionForms(tree); const action = forms[actionIndex].props.action;
     f.operations.length = 0; f.use(kind); const form = new FormData(); form.set("id", "request");
     await expect(action(form)).rejects.toThrow(); expect(f.operations).toEqual([]);
     expect(f.state().requests).toHaveLength(1); expect(f.state().properties).toHaveLength(0);
@@ -97,21 +105,22 @@ test("ADMIN renders requests and arbitrary property globally", async () => {
   const f = fixture(); expect(JSON.stringify(await f.requests())).toContain("Requested Property");
   expect(JSON.stringify(await f.property({ params: Promise.resolve({ id: "foreign" }) }))).toContain("Arbitrary Property");
 });
-for (const fail of [false, true]) test(`ADMIN approval atomic; delete failure=${fail}`, async () => {
-  const f = fixture(); const action = nodes(await f.requests()).find(n => n.type === "form")!.props.action;
+for (const fail of [false, true]) test(`ADMIN rejection never provisions; delete failure=${fail}`, async () => {
+  const f = fixture(); const action = rejectionForms(await f.requests())[0].props.action;
   f.operations.length = 0; if (fail) f.failDelete(); const form = new FormData(); form.set("id", "request");
-  await expect(action(form)).rejects.toThrow(fail ? "Delete failed" : "REDIRECT:/admin/properties/created");
-  expect(f.state().properties).toHaveLength(fail ? 0 : 1); expect(f.state().requests).toHaveLength(fail ? 1 : 0);
-  expect(f.operations).toEqual(["request.read", "property.create", "request.delete"]);
+  await expect(action(form)).rejects.toThrow(fail ? "Delete failed" : "REDIRECT:/admin/requests");
+  expect(f.state().properties).toHaveLength(0); expect(f.state().requests).toHaveLength(fail ? 1 : 0);
+  expect(f.operations).toEqual(["request.delete"]);
 });
+
 test("ADMIN rejection deletes only selected request", async () => {
   const f = fixture(); f.state().requests.push({ ...f.state().requests[0], id: "other" });
-  const forms = nodes(await f.requests()).filter(n => n.type === "form"); const form = new FormData(); form.set("id", "request");
+  const forms = rejectionForms(await f.requests()); const form = new FormData(); form.set("id", "request");
   await expect(forms[1].props.action(form)).rejects.toThrow("REDIRECT:/admin/requests");
   expect(f.state().requests.map(r => r.id)).toEqual(["other"]); expect(f.state().properties).toHaveLength(0);
 });
 for (const index of [0, 1]) for (const id of ["", "missing"]) test(`ADMIN action ${index} retains missing-id behavior ${id}`, async () => {
-  const f = fixture(); const forms = nodes(await f.requests()).filter(n => n.type === "form");
+  const f = fixture(); const forms = rejectionForms(await f.requests());
   const form = new FormData(); form.set("id", id); await expect(forms[index].props.action(form)).rejects.toThrow(id ? "Request not found" : "Missing request id");
   expect(f.state().properties).toHaveLength(0); expect(f.state().requests).toHaveLength(1);
 });

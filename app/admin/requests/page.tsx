@@ -1,89 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { Prisma } from "@prisma/client";
 import { getSession, requireRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 function fmtDate(value: Date) {
   return new Date(value).toLocaleString("en-US");
-}
-
-function generateCode() {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-/* =========================
-   APPROVE (SAFE)
-========================= */
-async function approveRequest(formData: FormData) {
-  "use server";
-
-  await requireRole("ADMIN");
-
-  const id = String(formData.get("id") || "").trim();
-  if (!id) {
-    throw new Error("Missing request id");
-  }
-
-  const result = await prisma.$transaction(
-    async (tx: Prisma.TransactionClient) => {
-      const request = await tx.setupRequest.findUnique({
-        where: { id },
-      });
-
-      if (!request) {
-        throw new Error("Request not found");
-      }
-
-      let propertyCode = "";
-      let createdProperty: { id: string } | null = null;
-
-      for (let i = 0; i < 5; i++) {
-        try {
-          propertyCode = generateCode();
-
-          createdProperty = await tx.property.create({
-            data: {
-              name: request.propertyName || "Unnamed Property",
-              propertyCode,
-              propertyType: request.propertyType || null,
-              addressLine1: request.address || null,
-              contactEmail: request.contactInfo || null,
-              ownerDisplayName: request.contactName || null,
-              isActive: true,
-            },
-            select: {
-              id: true,
-            },
-          });
-
-          break;
-        } catch (error: unknown) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-          ) {
-            continue;
-          }
-
-          throw error;
-        }
-      }
-
-      if (!createdProperty) {
-        throw new Error("Failed to generate unique property code");
-      }
-
-      await tx.setupRequest.delete({
-        where: { id },
-      });
-
-      return createdProperty;
-    }
-  );
-
-  redirect(`/admin/properties/${result.id}`);
 }
 
 /* =========================
@@ -157,13 +79,6 @@ export default async function AdminRequestsPage() {
             <div className="text-xs text-gray-400">{fmtDate(r.createdAt)}</div>
 
             <div className="flex gap-2 pt-2">
-              <form action={approveRequest} className="flex-1">
-                <input type="hidden" name="id" value={r.id} />
-                <button className="w-full bg-black text-white py-2 rounded-lg text-sm">
-                  Approve
-                </button>
-              </form>
-
               <form action={rejectRequest} className="flex-1">
                 <input type="hidden" name="id" value={r.id} />
                 <button className="w-full border py-2 rounded-lg text-sm">
@@ -211,11 +126,6 @@ export default async function AdminRequestsPage() {
                   <td className="px-4 py-3">{fmtDate(r.createdAt)}</td>
 
                   <td className="px-4 py-3 text-right space-x-3">
-                    <form action={approveRequest} className="inline">
-                      <input type="hidden" name="id" value={r.id} />
-                      <button className="underline text-sm">Approve</button>
-                    </form>
-
                     <form action={rejectRequest} className="inline">
                       <input type="hidden" name="id" value={r.id} />
                       <button className="underline text-sm text-gray-500">
