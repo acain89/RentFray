@@ -555,7 +555,6 @@ export async function POST(req: NextRequest) {
           }
 
           const unitLabels = parseUnitLabels(tier.unitLabels);
-          const recurringTotal = getRecurringChargeTotal(tier.charges || []);
           const ruleSource: IncomingTier = applySameRulesToAll ? firstTier : tier;
           const calculatedProcessingFee = getMinimumProcessingFee(
             getMonthlySubtotal(tier)
@@ -620,21 +619,6 @@ export async function POST(req: NextRequest) {
               }
             }
 
-            const recurringTotalCents = toCents(recurringTotal);
-
-            if (recurringTotalCents > 0) {
-              await tx.ledgerEntry.create({
-                data: {
-                  propertyId: createdProperty.id,
-                  unitId: createdUnit.id,
-                  entryType: "CHARGE",
-                  chargeType: "RECURRING_FEE",
-                  amountCents: recurringTotalCents,
-                  effectiveDate: new Date(),
-                  memo: "Initial recurring fees setup",
-                },
-              });
-            }
           }
         }
 

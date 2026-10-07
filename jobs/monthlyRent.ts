@@ -15,6 +15,8 @@ const UNIT_CHUNK_SIZE = 500;
 const LEDGER_CREATE_CHUNK_SIZE = 1000;
 const MONTHLY_RENT_JOB_LOCK_ID = 91024001;
 
+type TierRecurringCharge = PropertyTierCharge & { effectiveUntil: Date | null };
+
 type MonthlyRentJobFailure = {
   propertyId: string;
   unitId: string;
@@ -236,7 +238,7 @@ export async function runMonthlyRentJob(
         )
       );
 
-      const tierCharges =
+      const tierCharges: TierRecurringCharge[] =
         tierIds.length > 0
           ? await prisma.propertyTierCharge.findMany({
               where: {
@@ -247,7 +249,7 @@ export async function runMonthlyRentJob(
             })
           : [];
 
-      const tierChargesByTierId = new Map<string, PropertyTierCharge[]>();
+      const tierChargesByTierId = new Map<string, TierRecurringCharge[]>();
 
       for (const charge of tierCharges) {
         const bucket = tierChargesByTierId.get(charge.tierId) ?? [];
@@ -489,8 +491,8 @@ export async function runMonthlyRentJob(
           const amountCents = Math.max(0, charge.amountCents);
           if (amountCents <= 0) continue;
 
-          const chargeStartDate = getBusinessDate(charge.effectiveDate);
-          if (chargeStartDate.getTime() > dueDate.getTime()) continue;
+          if (charge.effectiveDate.getTime() > dueDate.getTime()) continue;
+          if (charge.effectiveUntil && dueDate.getTime() >= charge.effectiveUntil.getTime()) continue;
 
           const idempotencyKey = tierRecurringFeeIdempotencyKey(
             unit.id,

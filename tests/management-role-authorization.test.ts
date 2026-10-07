@@ -35,6 +35,10 @@ export function fixture(role: string | null = "OWNER") {
     "@/lib/permissions": { isManagementRole: (r: string) => ["OWNER", "MANAGER", "STAFF"].includes(r),
       canManageFinancials: (r: string) => ["OWNER", "MANAGER"].includes(r), canManageMaintenancePins: (r: string) => ["OWNER", "MANAGER"].includes(r) },
     "@/lib/prisma": { prisma: db },
+    "@/lib/rentDates": {
+      getBusinessDate: () => new Date(2026, 9, 20),
+      getBusinessDateInstant: (value: string) => new Date(value + "T05:00:00Z"),
+    },
     "@prisma/client": { Prisma: { PrismaClientKnownRequestError: class extends Error {}, TransactionIsolationLevel: { Serializable: "Serializable" } } },
     "bcryptjs": { hash: async () => "bcrypt-isolated", compare: async () => true },
     "@/lib/email": { sendVerificationEmail: async (input: any) => { calls.push(["email", input]); },

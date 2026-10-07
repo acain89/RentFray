@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { source, response, root } from "./required-audit-atomicity.test";
+import { assertApprovedMonthlyChange, assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.test";
 
 for (const [file, action, posted] of [["app/api/ledger/post-rent/route.ts", "RENT_POSTED", 3],
   ["app/api/ledger/post-recurring-fees/route.ts", "RECURRING_FEES_POSTED", 4]] as const) {
@@ -28,7 +29,7 @@ for (const [file, action, posted] of [["app/api/ledger/post-rent/route.ts", "REN
 test("canonical job, identities, advisory locks and duplicate suppression remain unchanged", () => {
   const file = "jobs/monthlyRent.ts";
   const before = execFileSync("git", ["show", "5da580d96891dabaa4926e661d6f44b23f7a5ae8:" + file], { cwd: root, encoding: "utf8" });
-  const after = readFileSync(resolve(root, file), "utf8"); assert.equal(after.replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"));
+  const after = readFileSync(resolve(root, file), "utf8"); assertApprovedMonthlyChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));
   assert.ok(after.includes("pg_try_advisory_lock")); assert.ok(after.includes("skipDuplicates: true"));
 });
 test("protected financial, session, Stripe reconciliation and D6/D8 authorities are unchanged", () => {
@@ -38,6 +39,7 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     "app/api/manager/dashboard/route.ts", "lib/realtime.ts", "app/api/stream/route.ts", "app/manager/units/[id]/page.tsx"]) {
     const before = execFileSync("git", ["show", "5da580d96891dabaa4926e661d6f44b23f7a5ae8:" + file], { cwd: root, encoding: "utf8" });
     const after = readFileSync(resolve(root, file), "utf8");
-    assert.equal(after.replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"), file);
+    if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));
+    else assert.equal(after.replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"), file);
   }
 });

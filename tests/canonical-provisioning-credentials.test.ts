@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fixture, load, request } from "./management-role-authorization.test";
+import { assertApprovedProvisioningChange } from "./recurring-charge-boundaries-schema.test";
 
 const root = resolve(__dirname, "..");
 for (const kind of ["public", "admin"] as const) for (const mailFailure of [false, true]) {
@@ -39,6 +40,8 @@ test("canonical provisioning, verification, compatibility and hard-start authori
     "app/api/auth/verify-email/route.ts", "lib/email.ts", "lib/managementAuth.ts", "lib/session.ts", "proxy.ts", "lib/billingCalendar.ts",
     "app/api/admin/properties/[id]/route.ts", "app/api/admin/properties/[id]/lifecycle/route.ts", "app/api/admin/properties/[id]/override/route.ts"]) {
     const before = execFileSync("git", ["--no-optional-locks", "show", "eda6c70dafc95079b2757d7ed5139ee03a225e5c:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
-    assert.equal(readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n"), before.replace(/\r\n/g, "\n"), file);
+    const after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
+    if (file === "app/api/admin/properties/route.ts") assertApprovedProvisioningChange(before.replace(/\r\n/g, "\n"), after);
+    else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });

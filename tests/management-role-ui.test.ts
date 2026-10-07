@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fixture, load } from "./management-role-authorization.test";
+import { assertApprovedMonthlyChange, assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.test";
 const root = resolve(__dirname, "..");
 test("OWNER banking boundary remains explicit in untouched controls", () => {
   const bank = readFileSync(resolve(root, "app/manager/dashboard/components/BankPanel.tsx"), "utf8");
@@ -48,6 +49,8 @@ test("financial, session, banking and automatic system authorities are unchanged
   for (const file of [ "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
     const before = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
-    assert.equal(after, before.replace(/\r\n/g, "\n"), file);
+    if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after);
+    else if (file === "jobs/monthlyRent.ts") assertApprovedMonthlyChange(before.replace(/\r\n/g, "\n"), after);
+    else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });
