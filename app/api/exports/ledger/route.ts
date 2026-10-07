@@ -130,6 +130,7 @@ export async function GET(req: Request) {
 
     const requestedPropertyId = searchParams.get("propertyId");
     const unitSearch = searchParams.get("unit");
+    const requestedUnitId = searchParams.get("unitId");
     const requestedCycle =
   searchParams.get("month") ??
   searchParams.get("billingCycle") ??
@@ -149,9 +150,20 @@ export async function GET(req: Request) {
     }
 
 
+    if (requestedUnitId !== null) {
+      const unit = requestedUnitId ? await prisma.unit.findFirst({
+        where: { id: requestedUnitId, propertyId: session.propertyId },
+        select: { id: true },
+      }) : null;
+      if (!unit) {
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+    }
+
     const entries = await prisma.ledgerEntry.findMany({
       where: {
   propertyId: session.propertyId,
+  ...(requestedUnitId !== null ? { unitId: requestedUnitId } : {}),
 
   ...(unitSearch
     ? {

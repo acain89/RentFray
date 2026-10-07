@@ -111,7 +111,7 @@ export function assertRF19Change(file: string, before: string, after: string) {
   } else throw Error("Unexpected RF-19 file");
   assert.equal(restored, before, "Only RF-19 reconciliation changed: " + file);
 }
-for (const file of ["app/api/stripe/webhook/route.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/admin/properties/[id]/stripe-sync/route.ts"]) test("RF-19 whole-source preservation: " + file, () => assertRF19Change(file, execFileSync("git", ["show", "HEAD:" + file], { cwd: root, encoding: "utf8" }), readFileSync(resolve(root, file), "utf8")));
+for (const file of ["app/api/stripe/webhook/route.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/admin/properties/[id]/stripe-sync/route.ts"]) test("RF-19 whole-source preservation: " + file, () => assertRF19Change(file, execFileSync("git", ["show", "88c74f36ee7041399eb5ad94f086f4b9cb010db8:" + file], { cwd: root, encoding: "utf8" }), readFileSync(resolve(root, file), "utf8")));
 
 for (const role of ["OWNER", "MANAGER", "STAFF"]) test("Connect retains banking boundary: " + role, async () => {
   const f = fixture(); let links = 0;

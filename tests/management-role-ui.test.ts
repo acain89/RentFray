@@ -70,7 +70,7 @@ test("financial, session, banking and automatic system authorities are unchanged
   for (const file of [ "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts", "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/email.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts", "app/api/stripe/webhook/route.ts", "app/api/payments/create-session/route.ts", "app/manager/dashboard/components/BankPanel.tsx", "jobs/monthlyRent.ts", "jobs/lateFees.ts", "prisma/schema.prisma"]) {
     const baseline = file === "app/api/manager/dashboard/route.ts" ? "072eb51fdabd8f53d31b8a382e7b8fa513cab234" : "HEAD";
     if (["app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/webhook/route.ts"].includes(file)) {
-      const committed = execFileSync("git", ["show", "HEAD:" + file], { cwd: root, encoding: "utf8" });
+      const committed = execFileSync("git", ["show", "88c74f36ee7041399eb5ad94f086f4b9cb010db8:" + file], { cwd: root, encoding: "utf8" });
       assertRF19Change(file, committed, readFileSync(resolve(root, file), "utf8"));
       continue;
     }

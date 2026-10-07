@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { getUnitLedgerSummary } from "@/lib/ledger";
-import { getUnitDelinquencySummary } from "@/lib/delinquency";
+import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import { formatCentsToDollars } from "@/lib/billingConfig";
 
 
@@ -72,10 +71,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const propertyId = session.propertyId;
     const { searchParams } = new URL(req.url);
     const requestedPropertyId = searchParams.get("propertyId");
     const requestedCycle =
+      searchParams.get("month") ??
       searchParams.get("billingCycle") ?? searchParams.get("cycle");
+    const unitSearch = searchParams.get("unit");
 
     if (requestedPropertyId && requestedPropertyId !== session.propertyId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -94,6 +96,7 @@ export async function GET(req: Request) {
       where: {
   propertyId: session.propertyId,
   isActive: true,
+  ...(unitSearch ? { unitNumber: { contains: unitSearch, mode: "insensitive" as const } } : {}),
        },
       orderBy: { unitNumber: "asc" },
       include: {
@@ -101,12 +104,20 @@ export async function GET(req: Request) {
           select: {
             name: true,
             propertyCode: true,
+            rentFrayStartDate: true,
+            settings: true,
           },
         },
         tier: {
           select: {
             name: true,
             baseRentCents: true,
+            id: true,
+            rentDueDay: true,
+            gracePeriodDays: true,
+            lateFeeInitialCents: true,
+            lateFeeDailyCents: true,
+            maxLateFeeDays: true,
           },
         },
         tenantAssignments: {
@@ -132,55 +143,63 @@ export async function GET(req: Request) {
       units.map(async (unit: UnitWithRelations) => {
         const currentAssignment = unit.tenantAssignments?.[0] ?? null;
 
+        const now = new Date();
+        // Current state belongs only to the current tenancy, as on Unit Detail.
+        const state = currentAssignment
+          ? await getUnitFinancialState({
+              propertyId: propertyId,
+              unitId: unit.id,
+              tenantAssignmentId: currentAssignment.id,
+              tier: unit.tier,
+              propertySettings: unit.property.settings,
+              rentFrayStartDate: unit.property.rentFrayStartDate,
+              now,
+            })
+          : null;
+        const summary = state?.ledgerSummary;
+
+        // Period totals belong to the unit, including all historical assignments
+        // and legacy unassigned entries. billingCycle is the stored financial
+        // period identity; effectiveDate prevents future obligations counting now.
         const cycleEntries = billingCycle
-  ? await prisma.ledgerEntry.findMany({
-      where: {
-        propertyId: session.propertyId,
-        unitId: unit.id,
-        tenantAssignmentId: currentAssignment?.id ?? undefined,
-        billingCycle,
-        voidedAt: null,
-      },
-    })
-  : [];
-
-const summary = await getUnitLedgerSummary({
-  unitId: unit.id,
-  tenantAssignmentId: currentAssignment?.id,
-  asOf: new Date(),
-});
-
-let cycleChargesCents = summary.totalChargesCents;
-let cyclePaidCents = summary.totalPaidCents;
-let cycleBalanceCents = summary.balanceCents;
-
-if (billingCycle) {
-  cycleChargesCents = 0;
-  cyclePaidCents = 0;
-  cycleBalanceCents = 0;
-
-  for (const entry of cycleEntries) {
-    if (entry.entryType === "CHARGE") {
-      cycleChargesCents += entry.amountCents;
-      cycleBalanceCents += entry.amountCents;
-    }
-
-    if (
-      entry.entryType === "PAYMENT" &&
-      entry.payment &&
-      entry.payment.status === "PAID"
-    ) {
-      cyclePaidCents += Math.abs(entry.amountCents);
-      cycleBalanceCents -= Math.abs(entry.amountCents);
-    }
-
-    if (entry.entryType === "CREDIT") {
-      cycleBalanceCents -= Math.abs(entry.amountCents);
-    }
-  }
-}
-
-        const delinquency = await getUnitDelinquencySummary(unit.id);
+          ? await prisma.ledgerEntry.findMany({
+              where: {
+                propertyId: session.propertyId,
+                unitId: unit.id,
+                billingCycle,
+                voidedAt: null,
+                effectiveDate: { lte: now },
+              },
+              include: { payment: { select: { status: true } } },
+            })
+          : [];
+        let periodChargesCents = 0;
+        let periodPaidCents = 0;
+        let periodCreditsCents = 0;
+        let periodAdjustmentsCents = 0;
+        for (const entry of cycleEntries) {
+          switch (entry.entryType) {
+            case "CHARGE":
+              periodChargesCents += Math.abs(entry.amountCents);
+              break;
+            case "PAYMENT":
+              if (entry.payment?.status === "PAID") {
+                periodPaidCents += Math.abs(entry.amountCents);
+              }
+              break;
+            case "CREDIT":
+              periodCreditsCents += Math.abs(entry.amountCents);
+              break;
+            case "ADJUSTMENT":
+              periodAdjustmentsCents += entry.amountCents;
+              break;
+          }
+        }
+        const periodNetCents = periodChargesCents - periodPaidCents -
+          periodCreditsCents + periodAdjustmentsCents;
+        const currentBalanceCents = state?.ledgerBalanceCents ?? 0;
+        // Payable principal excludes convenience fees and is suppressed while pending.
+        const amountDueNowCents = state?.hasPendingPayment ? 0 : currentBalanceCents;
 
         const tenantName = `${currentAssignment?.firstName ?? ""} ${
           currentAssignment?.lastName ?? ""
@@ -199,27 +218,41 @@ if (billingCycle) {
           tierName: unit.tier?.name ?? "",
           marketRentCents,
           marketRent: formatCentsToDollars(marketRentCents),
-          currentBalanceCents: cycleBalanceCents,
-          currentBalance: formatCentsToDollars(cycleBalanceCents),
-          totalChargesCents: cycleChargesCents,
-          totalCharges: formatCentsToDollars(cycleChargesCents),
-          totalPaidCents: cyclePaidCents,
-          totalPaid: formatCentsToDollars(cyclePaidCents),
-          lastPaymentDate: fmtDate(summary.lastPaymentDate),
-          lastPaymentAmountCents: summary.lastPaymentAmountCents ?? 0,
+          currentBalanceCents: currentBalanceCents,
+          currentBalance: formatCentsToDollars(currentBalanceCents),
+          totalChargesCents: (summary?.totalChargesCents ?? 0),
+          totalCharges: formatCentsToDollars((summary?.totalChargesCents ?? 0)),
+          totalPaidCents: (summary?.totalPaidCents ?? 0),
+          totalPaid: formatCentsToDollars((summary?.totalPaidCents ?? 0)),
+          lastPaymentDate: fmtDate(summary?.lastPaymentDate),
+          lastPaymentAmountCents: summary?.lastPaymentAmountCents ?? 0,
           lastPaymentAmount:
-            summary.lastPaymentAmountCents === null
+            summary?.lastPaymentAmountCents == null
               ? ""
-              : formatCentsToDollars(summary.lastPaymentAmountCents),
-          amountDueNowCents: delinquency.amountDueNowCents ?? 0,
+              : formatCentsToDollars(summary?.lastPaymentAmountCents),
+          amountDueNowCents: amountDueNowCents,
           amountDueNow: formatCentsToDollars(
-            delinquency.amountDueNowCents ?? 0
+            amountDueNowCents
           ),
-          dueDate: fmtDate(delinquency.dueDate),
-          graceEndsOn: fmtDate(delinquency.graceEndsOn),
-          isDelinquent: delinquency.isDelinquent ? "YES" : "NO",
-          daysPastDue: Number(delinquency.daysPastDue ?? 0),
+          dueDate: state?.dueDate ?? "",
+          graceEndsOn: state?.graceEndsOn ?? "",
+          isDelinquent: state?.isDelinquent ? "YES" : "NO",
+          daysPastDue: state?.daysPastDue ?? 0,
           moveInDate: fmtDate(currentAssignment?.moveInDate),
+          currentBillingCycle: state?.billingCycle ?? "",
+          currentStatus: state?.status.status ?? "VACANT",
+          currentPending: state?.hasPendingPayment ? "YES" : "NO",
+          currentGrace: state?.isWithinGracePeriod ? "YES" : "NO",
+          periodChargesCents: billingCycle ? periodChargesCents : null,
+          periodCharges: billingCycle ? formatCentsToDollars(periodChargesCents) : "",
+          periodPaidCents: billingCycle ? periodPaidCents : null,
+          periodPaid: billingCycle ? formatCentsToDollars(periodPaidCents) : "",
+          periodCreditsCents: billingCycle ? periodCreditsCents : null,
+          periodCredits: billingCycle ? formatCentsToDollars(periodCreditsCents) : "",
+          periodAdjustmentsCents: billingCycle ? periodAdjustmentsCents : null,
+          periodAdjustments: billingCycle ? formatCentsToDollars(periodAdjustmentsCents) : "",
+          periodNetCents: billingCycle ? periodNetCents : null,
+          periodNet: billingCycle ? formatCentsToDollars(periodNetCents) : "",
         };
       })
     );
