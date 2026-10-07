@@ -6,6 +6,7 @@ type AdjustType = "CHARGE" | "CREDIT";
 
 type Props = {
   unitId: string;
+  tenantAssignmentId: string;
   propertyId?: string;
   tierId?: string;
   onClose: () => void;
@@ -18,9 +19,12 @@ function roundMoney(value: number): number {
 
 export default function AdjustBalanceForm({
   unitId,
+  tenantAssignmentId,
   onClose,
   onSuccess,
 }: Props) {
+  // Keep the tenancy shown when this form opened, even if props refresh.
+  const [expectedTenancy] = useState(() => ({ unitId, tenantAssignmentId }));
   const [type, setType] = useState<AdjustType>("CHARGE");
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -44,7 +48,8 @@ export default function AdjustBalanceForm({
   },
   credentials: "include",
   body: JSON.stringify({
-     unitId,
+     unitId: expectedTenancy.unitId,
+          tenantAssignmentId: expectedTenancy.tenantAssignmentId,
           type,
           amount: roundMoney(parsedAmount),
           memo: memo.trim(),

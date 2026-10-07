@@ -14,7 +14,7 @@ export function calendarFixture(dueDay = 15, now = "2026-10-14T17:00:00Z", role:
   f.imports["@/lib/billingCalendar"] = load("lib/billingCalendar.ts", { "@prisma/client": {}, "@/lib/prisma": { prisma: f.prisma }, "@/lib/rentDates": dates });
   f.prisma.payment.findFirst = async () => { throw Error("Payment status must not be consulted"); };
   const invoke = (file: string, body: any) => load(file, f.imports, "", { Date: Clock }).POST({ json: async () => body });
-  const adjust = (type = "CHARGE", extra: any = {}) => invoke("app/api/ledger/adjust/route.ts", { unitId:"u", type, amount:100, memo:"test", ...extra });
+  const adjust = (type = "CHARGE", extra: any = {}) => invoke("app/api/ledger/adjust/route.ts", { unitId:"u", tenantAssignmentId:"a", type, amount:100, memo:"test", ...extra });
   const charge = (effectiveDate = "2026-10-14", extra: any = {}) => invoke("app/api/ledger/charges/route.ts", { propertyId:"p", unitId:"u", tenantAssignmentId:"a", type:"OTHER_FEE", amount:100, memo:"test", effectiveDate, ...extra });
   return { ...f, dates, adjust, charge };
 }
@@ -33,5 +33,5 @@ for (const type of ["CHARGE","CREDIT"]) {
 }
 for(const role of [null,"STAFF","TENANT","MAINTENANCE","ADMIN"])test(`adjust rejects ${role}`,async()=>{const f=calendarFixture(15,undefined,role);assert.equal((await f.adjust()).status,401);assert.equal(f.state.ledgerEntry.length,0);});
 for(const role of ["OWNER","MANAGER"])test(`adjust permits ${role}`,async()=>{assert.equal((await calendarFixture(15,undefined,role).adjust()).status,200);});
-test("adjust retirement, amount and assignment contracts unchanged",async()=>{const f=calendarFixture();assert.equal((await f.adjust("PRORATION")).status,410);assert.equal((await f.adjust("CHARGE",{amount:0})).status,400);await f.adjust("CREDIT",{amount:0.001});assert.equal(f.state.ledgerEntry[0].amountCents,0);f.state.tenantAssignment=[];assert.equal((await f.adjust()).status,400);});
+test("adjust retirement, amount and exact assignment contracts",async()=>{const f=calendarFixture();assert.equal((await f.adjust("PRORATION")).status,410);assert.equal((await f.adjust("CHARGE",{amount:0})).status,400);assert.equal((await f.adjust("CHARGE",{tenantAssignmentId:undefined})).status,400);await f.adjust("CREDIT",{amount:0.001});assert.equal(f.state.ledgerEntry[0].amountCents,0);f.state.tenantAssignment=[];assert.equal((await f.adjust()).status,409);});
 test("adjust repeated submissions remain distinct without audit",async()=>{const f=calendarFixture();await f.adjust();await f.adjust();assert.equal(f.state.ledgerEntry.length,2);assert.equal(f.state.auditLog.length,0);});

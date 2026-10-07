@@ -32,8 +32,18 @@ for (const role of ["OWNER", "MANAGER", "STAFF"]) test(role + " management contr
   assert.equal(tree.filter(n => n.type === "select").every(n => n.props.disabled === true), role === "STAFF");
 });
 test("STAFF property and charge forms have disabled fieldsets", () => {
-  for (const file of ["app/manager/dashboard/components/PropertyPanel.tsx", "app/manager/getting-started/property/page.tsx", "app/manager/properties/[id]/tenants/new/page.tsx", "app/manager/properties/[id]/tenants/remove/page.tsx", "app/manager/properties/[id]/pin-reset/page.tsx"])
+  for (const file of ["app/manager/dashboard/components/PropertyPanel.tsx", "app/manager/getting-started/property/page.tsx"])
     assert.ok(readFileSync(resolve(root, file), "utf8").includes('<fieldset disabled={!canEdit}'));
+  for (const name of ["new", "remove"]) {
+    const source = readFileSync(resolve(root, `app/manager/properties/[id]/tenants/${name}/page.tsx`), "utf8");
+    assert.doesNotMatch(source, /<form|use server|createTenantAssignment|removeTenantAssignment/);
+    assert.match(source, /requireManagementSession/);
+    assert.match(source, /session\.propertyId !== id/);
+  }
+  const pin = readFileSync(resolve(root, "app/manager/properties/[id]/pin-reset/page.tsx"), "utf8");
+  assert.doesNotMatch(pin, /resetTenantPin|tenantPinHash/);
+  assert.match(pin, /form action=\{saveMaintenancePin\}/);
+  assert.match(pin, /canManageMaintenancePins\(session\.role\)/);
   assert.ok(readFileSync(resolve(root, "app/manager/dashboard/ManagerDashboardClient.tsx"), "utf8").includes('<fieldset disabled={!canManageMoney}'));
   for (const file of ["app/manager/properties/[id]/maintenance/page.tsx", "app/manager/properties/page.tsx"])
     assert.ok(readFileSync(resolve(root, file), "utf8").includes("disabled={!canEdit || savingId === row.id}"));

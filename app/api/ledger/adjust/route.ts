@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { assertTierBillingCalendar } from "@/lib/billingCalendar";
 import { getRentDateSummary, resolveEffectiveBillingSettings } from "@/lib/rentDates";
+import { lockManualRows, ManualOperationError, isManualLockContention } from "@/lib/manualFinancialOperations";
 
 
 export const runtime = "nodejs";
@@ -25,9 +27,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const propertyId = session.propertyId;
     const body = await req.json();
 
     const unitId = String(body.unitId || "").trim();
+    const tenantAssignmentId = typeof body.tenantAssignmentId === "string" ? body.tenantAssignmentId.trim() : "";
     const rawType = String(body.type || "").trim().toUpperCase();
     if (rawType === "PRORATION") {
       return NextResponse.json({ ok: false, error: "Manual move-in proration has been retired. Tenant activation and the billing calendar determine first-cycle rent." }, { status: 410 });
@@ -35,53 +39,44 @@ export async function POST(req: Request) {
     const amount = Number(body.amount);
     const memo = String(body.memo || "").trim();
 
-    if (!unitId || !isAdjustType(rawType)) {
+    if (!unitId || !tenantAssignmentId || !isAdjustType(rawType)) {
       return NextResponse.json(
         { ok: false, error: "Invalid input" },
         { status: 400 }
       );
     }
 
-    const unit = await prisma.unit.findFirst({
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, []);
+    const unit = await tx.unit.findFirst({
       where: {
         id: unitId,
-        propertyId: session.propertyId,
+        propertyId,
       },
       include: {
         tier: true,
         property: { include: { settings: true } },
-        tenantAssignments: {
-          where: { isCurrent: true },
-          take: 1,
-          select: { id: true },
-        },
       },
     });
 
     if (!unit) {
-      return NextResponse.json(
-        { ok: false, error: "Unit not found" },
-        { status: 404 }
-      );
+      throw new ManualOperationError("Unit not found", 404);
     }
 
-    const assignment = unit.tenantAssignments[0] ?? null;
+    const assignment = await tx.tenantAssignment.findFirst({
+      where: { id: tenantAssignmentId, propertyId, unitId: unit.id, isCurrent: true },
+      select: { id: true },
+    });
 
     if (!assignment) {
-      return NextResponse.json(
-        { ok: false, error: "No current tenant assignment for this unit" },
-        { status: 400 }
-      );
+      throw new ManualOperationError("The displayed tenant assignment is no longer current.");
     }
 
     // ============================
     // STANDARD ADJUSTMENTS
     // ============================
     if (!Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid amount" },
-        { status: 400 }
-      );
+      throw new ManualOperationError("Invalid amount", 400);
     }
 
     const amountCents = Math.round(amount * 100);
@@ -118,9 +113,9 @@ export async function POST(req: Request) {
       rentFrayStartDate: unit.property.rentFrayStartDate,
     });
 
-    await prisma.ledgerEntry.create({
+    await tx.ledgerEntry.create({
       data: {
-        propertyId: session.propertyId,
+        propertyId,
         unitId: unit.id,
         tenantAssignmentId: assignment.id,
         entryType,
@@ -132,9 +127,16 @@ export async function POST(req: Request) {
         createdByManagementUserId: session.managementUserId ?? null,
       },
     });
+    });
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    if (error instanceof ManualOperationError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    }
+    if (isManualLockContention(error)) {
+      return NextResponse.json({ ok: false, error: "Tenancy is busy. Refresh and try again." }, { status: 409 });
+    }
     return NextResponse.json(
       { ok: false, error: "Failed to adjust balance" },
       { status: 500 }

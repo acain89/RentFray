@@ -610,11 +610,13 @@ if (requestedPanel === "propertySetup") {
   const tierOperations = useRef<Record<string, { operationId: string; unitId: string; targetTierId: string; expectedSourceTierId: string | null; tenantAssignmentId: string | null }>>({});
   const [selectedUnit, setSelectedUnit] = useState<UnitWithStatus | null>(null);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState<{ unitId: string; tenantAssignmentId: string } | null>(null);
   const [manualPaymentAmount, setManualPaymentAmount] = useState("");
   const [showManualPaymentConfirm, setShowManualPaymentConfirm] = useState(false);
   const [submittingManualPayment, setSubmittingManualPayment] = useState(false);
   const [vacatingUnit, setVacatingUnit] = useState(false);
   const [showVacateConfirm, setShowVacateConfirm] = useState(false);
+  const [vacateTarget, setVacateTarget] = useState<{ unitId: string; tenantAssignmentId: string } | null>(null);
   const [showInactiveConfirm, setShowInactiveConfirm] = useState(false);
   const [togglingUnitActive, setTogglingUnitActive] = useState(false);
   const [showMoveTierModal, setShowMoveTierModal] = useState(false);
@@ -1421,7 +1423,7 @@ alert("Charges saved");
 } 
 
   async function submitVacateUnit(): Promise<void> {
-    if (!selectedUnit || vacatingUnit || !canVacateUnit) return;
+    if (!selectedUnit || !vacateTarget || vacatingUnit || !canVacateUnit) return;
 
     try {
       setVacatingUnit(true);
@@ -1434,7 +1436,8 @@ alert("Charges saved");
         },
         credentials: "include",
         body: JSON.stringify({
-          unitId: selectedUnit.unitId,
+          unitId: vacateTarget.unitId,
+          tenantAssignmentId: vacateTarget.tenantAssignmentId,
         }),
       });
 
@@ -3131,7 +3134,11 @@ const canSubmitMoveTier =
       <div className="sticky top-0 z-10 mt-4 block bg-white">
         <button
           type="button"
-          onClick={() => setShowAdjustModal(true)}
+          onClick={() => {
+            if (!selectedUnit.tenantAssignmentId) return;
+            setAdjustTarget({ unitId: selectedUnit.unitId, tenantAssignmentId: selectedUnit.tenantAssignmentId });
+            setShowAdjustModal(true);
+          }}
           disabled={!canManageMoney}
           className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
         >
@@ -3474,7 +3481,11 @@ const canSubmitMoveTier =
 ) : !showVacateConfirm ? (
   <button
     type="button"
-    onClick={() => setShowVacateConfirm(true)}
+    onClick={() => {
+      if (!selectedUnit.tenantAssignmentId) return;
+      setVacateTarget({ unitId: selectedUnit.unitId, tenantAssignmentId: selectedUnit.tenantAssignmentId });
+      setShowVacateConfirm(true);
+    }}
     disabled={!canVacateUnit}
     className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
   >
@@ -3614,7 +3625,7 @@ const canSubmitMoveTier =
 ) : null}
 
       
-{showAdjustModal && selectedUnit ? (
+{showAdjustModal && selectedUnit && adjustTarget ? (
   <OverlayShell
     title="Adjust Balance"
     subtitle={`Unit ${selectedUnit.unitNumber} • ${
@@ -3624,7 +3635,9 @@ const canSubmitMoveTier =
     showFooter={false}
   >
     <AdjustBalanceForm
-      unitId={selectedUnit.unitId}
+      key={adjustTarget.unitId}
+      unitId={adjustTarget.unitId}
+      tenantAssignmentId={adjustTarget.tenantAssignmentId}
       onClose={() => setShowAdjustModal(false)}
       onSuccess={async () => {
         await new Promise((r) => setTimeout(r, 150));

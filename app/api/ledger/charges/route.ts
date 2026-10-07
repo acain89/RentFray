@@ -12,6 +12,7 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 import { assertTierBillingCalendar } from "@/lib/billingCalendar";
+import { lockManualRows, ManualOperationError, isManualLockContention } from "@/lib/manualFinancialOperations";
 
 
 export const runtime = "nodejs";
@@ -32,7 +33,7 @@ type LedgerChargeType = "RENT" | "LATE_FEE" | "OTHER_FEE";
 type ParsedChargeBody = {
   propertyId: string;
   unitId: string;
-  tenantAssignmentId: string | null;
+  tenantAssignmentId: string;
   type: AllowedChargeType;
   amountCents: number;
   memo: string | null;
@@ -109,16 +110,16 @@ async function parseBody(req: Request): Promise<ParsedChargeBody | null> {
 
   const propertyId = clean(body.propertyId);
   const unitId = clean(body.unitId);
-  const tenantAssignmentIdRaw = clean(
-    body.tenantAssignmentId ?? body.tenantId
-  );
+  const assignmentInput = Object.prototype.hasOwnProperty.call(body, "tenantAssignmentId")
+    ? body.tenantAssignmentId : body.tenantId;
+  const tenantAssignmentIdRaw = typeof assignmentInput === "string" ? clean(assignmentInput) : "";
   const typeRaw = clean(body.type).toUpperCase();
   const amountCents = toCents(body.amount);
   const memo = normalizeOptional(body.memo);
   const effectiveDate = parseEffectiveDate(body.effectiveDate);
   const referenceNumber = normalizeOptional(body.referenceNumber);
 
-  if (!propertyId || !unitId) return null;
+  if (!propertyId || !unitId || !tenantAssignmentIdRaw) return null;
   if (!isAllowedChargeType(typeRaw)) return null;
   if (amountCents === null) return null;
   if (!effectiveDate) return null;
@@ -126,7 +127,7 @@ async function parseBody(req: Request): Promise<ParsedChargeBody | null> {
   return {
     propertyId,
     unitId,
-    tenantAssignmentId: tenantAssignmentIdRaw || null,
+    tenantAssignmentId: tenantAssignmentIdRaw,
     type: typeRaw,
     amountCents,
     memo,
@@ -187,7 +188,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const unit = await prisma.unit.findFirst({
+    const result = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, []);
+    const unit = await tx.unit.findFirst({
   where: {
     id: unitId,
     propertyId,
@@ -203,22 +207,10 @@ export async function POST(req: Request) {
 });
 
     if (!unit) {
-      return NextResponse.json<ApiError>(
-        { ok: false, error: "Unit not found for this property." },
-        { status: 404 }
-      );
+      throw new ManualOperationError("Unit not found for this property.", 404);
     }
 
-    type Assignment = {
-      id: string;
-      unitId: string;
-      propertyId: string;
-    };
-
-    let activeAssignment: Assignment | null = null;
-
-    if (tenantAssignmentId) {
-      activeAssignment = await prisma.tenantAssignment.findFirst({
+    const activeAssignment = await tx.tenantAssignment.findFirst({
         where: {
           id: tenantAssignmentId,
           unitId,
@@ -233,28 +225,8 @@ export async function POST(req: Request) {
       });
 
       if (!activeAssignment) {
-        return NextResponse.json<ApiError>(
-          {
-            ok: false,
-            error: "Tenant assignment is not active for this unit.",
-          },
-          { status: 400 }
-        );
+        throw new ManualOperationError("Tenant assignment is not active for this unit.");
       }
-    } else {
-      activeAssignment = await prisma.tenantAssignment.findFirst({
-        where: {
-          unitId,
-          propertyId,
-          isCurrent: true,
-        },
-        select: {
-          id: true,
-          unitId: true,
-          propertyId: true,
-        },
-      });
-    }
 
 
 const permanentDueDay = assertTierBillingCalendar({
@@ -283,13 +255,11 @@ const billingCycle = rentDates.billingCycle;
 
     const chargeType = toLedgerChargeType(type);
 
-    const result = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
         const entry = await tx.ledgerEntry.create({
   data: {
     propertyId,
     unitId,
-    tenantAssignmentId: activeAssignment?.id ?? null,
+    tenantAssignmentId: activeAssignment.id,
     entryType: "CHARGE",
     chargeType,
     amountCents,
@@ -315,7 +285,7 @@ const billingCycle = rentDates.billingCycle;
             metadataJson: JSON.stringify({
               unitId: unit.id,
               unitNumber: unit.unitNumber,
-              tenantAssignmentId: activeAssignment?.id ?? null,
+              tenantAssignmentId: activeAssignment.id,
               entryType: entry.entryType,
               chargeType: entry.chargeType,
               amountCents: entry.amountCents,
@@ -364,6 +334,12 @@ const billingCycle = rentDates.billingCycle;
       },
     });
   } catch (error: unknown) {
+    if (error instanceof ManualOperationError) {
+      return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
+    }
+    if (isManualLockContention(error)) {
+      return NextResponse.json<ApiError>({ ok: false, error: "Tenancy is busy. Refresh and try again." }, { status: 409 });
+    }
     console.error("POST /api/ledger/charges error:", error);
 
     return NextResponse.json<ApiError>(

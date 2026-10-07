@@ -31,3 +31,16 @@ test("existing IP limiter rejects before parsing and lookup", async () => {
   const f = fixture("1234", true); f.controls.ipAllowed = false; assert.equal((await f.login()).status, 429);
   assert.deepEqual(f.events, [["ip", "tenant-login:test-ip", 15, 60000]]);
 });
+
+test("successful PIN with stale assignment does not clear prior failures or issue a cookie", async () => {
+  const f = fixture("1234", true); f.controls.validPin = false;
+  assert.equal((await f.login()).status, 401);
+  f.controls.validPin = true; f.controls.staleAfterVerify = true;
+  assert.equal((await f.login()).status, 401);
+  assert.ok(f.events.some(e => e[0] === "assignment.revalidate"));
+  assert.equal(f.events.filter(e => e[0] === "clearPinAttempts").length, 0);
+  assert.equal(f.events.filter(e => e[0] === "cookie").length, 0);
+  f.controls.validPin = false; f.controls.staleAfterVerify = false;
+  for (let i = 0; i < 4; i++) assert.equal((await f.login()).status, 401);
+  assert.equal(f.helper.checkPinAllowed("u").ok, false);
+});

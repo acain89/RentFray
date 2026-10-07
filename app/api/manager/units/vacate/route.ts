@@ -5,12 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
 import { Prisma } from "@prisma/client";
+import { lockManualRows, ManualOperationError, isManualLockContention } from "@/lib/manualFinancialOperations";
 
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type VacateBody = {
   unitId?: unknown;
+  tenantAssignmentId?: unknown;
   moveOutDate?: unknown;
   note?: unknown;
 };
@@ -78,17 +80,21 @@ export async function POST(req: Request) {
     const body = (await req.json()) as VacateBody;
 
     const unitId = clean(body.unitId);
+    const tenantAssignmentId = typeof body.tenantAssignmentId === "string" ? clean(body.tenantAssignmentId) : "";
     const note = clean(body.note);
     const moveOutDate = parseMoveOutDate(body.moveOutDate);
 
-    if (!unitId) {
+    if (!unitId || !tenantAssignmentId) {
       return NextResponse.json<VacateErrorResponse>(
-        { ok: false, error: "Unit ID is required." },
+        { ok: false, error: "Unit ID and tenant assignment ID are required." },
         { status: 400 }
       );
     }
 
-    const unit = await prisma.unit.findFirst({
+    const result = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await lockManualRows(tx, session.propertyId!, unitId, tenantAssignmentId, []);
+    const unit = await tx.unit.findFirst({
       where: {
         id: unitId,
         propertyId: session.propertyId,
@@ -102,14 +108,12 @@ export async function POST(req: Request) {
     });
 
     if (!unit) {
-      return NextResponse.json<VacateErrorResponse>(
-        { ok: false, error: "Unit not found." },
-        { status: 404 }
-      );
+      throw new ManualOperationError("Unit not found.", 404);
     }
 
-    const activeAssignment = await prisma.tenantAssignment.findFirst({
+    const activeAssignment = await tx.tenantAssignment.findFirst({
       where: {
+        id: tenantAssignmentId,
         propertyId: session.propertyId,
         unitId: unit.id,
         isCurrent: true,
@@ -128,8 +132,9 @@ export async function POST(req: Request) {
       },
     });
 
-    const result = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
+        if (!activeAssignment) {
+          throw new ManualOperationError("The displayed tenant assignment is no longer current.");
+        }
         let vacatedAssignmentId: string | null = null;
 
         if (activeAssignment) {
@@ -211,6 +216,12 @@ export async function POST(req: Request) {
       data: result,
     });
   } catch (error) {
+    if (error instanceof ManualOperationError) {
+      return NextResponse.json<VacateErrorResponse>({ ok: false, error: error.message }, { status: error.status });
+    }
+    if (isManualLockContention(error)) {
+      return NextResponse.json<VacateErrorResponse>({ ok: false, error: "Tenancy is busy. Refresh and try again." }, { status: 409 });
+    }
     console.error("POST /api/manager/units/vacate failed", error);
 
     return NextResponse.json<VacateErrorResponse>(
