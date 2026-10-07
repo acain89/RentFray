@@ -62,6 +62,14 @@ function fixture(kind: string, file: string) {
     "@/lib/stripe": { getStripeClient: () => ({ accounts: { retrieve: async () => { assert.equal(inTransaction, false); stripeCalls++;
       return { id: "acct", charges_enabled: true, payouts_enabled: true, details_submitted: true, requirements: {} }; } } }) },
   };
+  Object.assign(imports, {
+    "@/lib/checkoutCollectibility": {
+      CheckoutConflict: class extends Error {},
+      inspectTenantCheckoutAttempts: async (_db: any, identity: any) => ({ identity, state: "NO_ATTEMPT", evidence: [] }),
+      assertCheckoutReductionAllowed: async () => {}, lockCheckout: async () => {},
+    },
+    "@/lib/manualFinancialOperations": { lockManualRows: async () => {}, isManualLockContention: () => false },
+  });
   const api = source(file, imports, kind === "worker" ? "\nexport { saveMaintenancePin };" : "");
   async function call() {
     if (kind === "worker") { const form = new FormData(); for (const [key, value] of Object.entries({ propertyId: "p", workerName: "Worker", pin: "1234" })) form.set(key, value);

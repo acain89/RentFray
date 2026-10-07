@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
 import { ManualOperationError, normalizeOperationId, lockManualOperation, lockManualTenancy,
@@ -96,6 +98,8 @@ const propertyId = session.propertyId;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         replayed = false;
+        const knownReplay = await replayTierMove<MoveTierResult>(prisma, propertyId, operationId, payload);
+        const inspection = tenantAssignmentId && !knownReplay ? await inspectTenantCheckoutAttempts(prisma, { propertyId, unitId, tenantAssignmentId }) : null;
         result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         await lockManualOperation(tx, "TIER_MOVE", propertyId, operationId);
@@ -108,6 +112,8 @@ const propertyId = session.propertyId;
             propertySettingsDueDay: provisional.property.settings?.rentDueDay, tier: provisional.tier }),
           now, rentFrayStartDate: provisional.property.rentFrayStartDate }).billingCycle;
         await lockManualTenancy(tx, propertyId, unitId, tenantAssignmentId, provisionalCycle);
+        if (tenantAssignmentId && !inspection) throw new CheckoutConflict("Operation state changed. Retry the same operation.");
+        if (inspection) await assertCheckoutReductionAllowed(tx, inspection);
         await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, [targetTierId, ...(provisional.tierId ? [provisional.tierId] : [])]);
         const property = await tx.property.findUnique({
           where: { id: propertyId },
@@ -435,6 +441,7 @@ if (shouldReplaceCurrentCycleRent) {
       data: result,
     });
   } catch (error) {
+    if (error instanceof CheckoutConflict) return NextResponse.json<MoveTierResponse>({ ok: false, error: error.message }, { status: error.status });
     if (error instanceof ManualOperationError) return NextResponse.json<MoveTierResponse>({ ok: false, error: error.message }, { status: error.status });
     if (isManualLockContention(error) || isManualRetryable(error)) return NextResponse.json<MoveTierResponse>({ ok: false, error: "Financial state is busy. Retry the same operation." }, { status: 409 });
     const message = error instanceof Error ? error.message : "";

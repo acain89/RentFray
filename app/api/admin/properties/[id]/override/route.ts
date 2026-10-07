@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { type CheckoutInspection, CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+import { lockManualRows, isManualLockContention } from "@/lib/manualFinancialOperations";
 
 
 export const runtime = "nodejs";
@@ -130,10 +132,22 @@ export async function POST(
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
 
+      const assignmentWhere = { propertyId: id, unitId, isCurrent: true };
+      const affected: { id: string }[] = await prisma.tenantAssignment.findMany({ where: assignmentWhere, select: { id: true }, orderBy: { id: "asc" } });
+      const inspections: CheckoutInspection[] = [];
+      for (const assignment of affected) inspections.push(await inspectTenantCheckoutAttempts(prisma, { propertyId: id, unitId, tenantAssignmentId: assignment.id }));
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        for (const inspection of inspections) await lockCheckout(tx, inspection.identity);
+        for (const inspection of inspections) await assertCheckoutReductionAllowed(tx, inspection);
+        await lockManualRows(tx, id, unitId, affected[0]?.id ?? null, []);
+        const current: { id: string }[] = await tx.tenantAssignment.findMany({ where: assignmentWhere, select: { id: true }, orderBy: { id: "asc" } });
+        if (JSON.stringify(current.map(a => a.id)) !== JSON.stringify(affected.map(a => a.id))) throw new CheckoutConflict("Tenant state changed. Refresh and retry.");
+        for (const assignment of current) await tx.$queryRaw`SELECT "id" FROM "TenantAssignment" WHERE "id" = ${assignment.id} AND "propertyId" = ${id} AND "unitId" = ${unitId} FOR UPDATE NOWAIT`;
         await tx.tenantAssignment.updateMany({
           where: {
+            propertyId: id,
             unitId,
+            id: { in: affected.map(a => a.id) },
             isCurrent: true,
           },
           data: {
@@ -225,6 +239,8 @@ export async function POST(
       { status: 400 }
     );
   } catch (error: unknown) {
+    if (error instanceof CheckoutConflict) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (isManualLockContention(error)) return NextResponse.json({ error: "Tenancy is busy. Refresh and retry." }, { status: 409 });
     console.error("POST /api/admin/properties/[id]/override error:", error);
     return NextResponse.json(
       { error: "Override action failed" },

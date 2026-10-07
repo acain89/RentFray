@@ -4,8 +4,14 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { resolve } from "node:path";
 import ts from "typescript";
-import { fixture, root } from "./tenant-login-assignment-race.test";
+import { fixture as tenancyFixture, root, load } from "./tenant-login-assignment-race.test";
 
+function fixture(role: string | null = "MANAGER") {
+  const f = tenancyFixture(role);
+  f.db.payment = { findMany: async () => [] };
+  f.imports["@/lib/checkoutCollectibility"] = load("lib/checkoutCollectibility.ts", { stripe: class {} }, { process: { env: {} } });
+  return f;
+}
 const file = "app/api/manager/units/vacate/route.ts";
 const vacate = (f: ReturnType<typeof fixture>, extra: any = {}) => f.invoke(file, { unitId: "u", tenantAssignmentId: "a", ...extra });
 for (const role of ["OWNER", "MANAGER"]) test(role + " exact vacancy preserves response, credentials, audit and realtime", async () => {

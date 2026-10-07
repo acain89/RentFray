@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixture, load } from "./tenant-login-assignment-race.test";
+import { fixture as tenancyFixture, load } from "./tenant-login-assignment-race.test";
 
+function fixture(role: string | null = "MANAGER") {
+  const f = tenancyFixture(role);
+  f.db.payment = { findMany: async () => [] };
+  f.imports["@/lib/checkoutCollectibility"] = load("lib/checkoutCollectibility.ts", { stripe: class {} }, { process: { env: {} } });
+  return f;
+}
 const file = "app/api/ledger/adjust/route.ts";
 const adjust = (f: ReturnType<typeof fixture>, type = "CHARGE", extra: any = {}) => f.invoke(file, { unitId: "u", tenantAssignmentId: "a", type, amount: 100, memo: "test", ...extra });
 for (const type of ["CHARGE", "CREDIT"]) test(type + " keeps N17 instant/cycle/memo and distinct submissions", async () => {
@@ -33,7 +39,7 @@ test("adjustment pre-start cycle still clamps without changing effective instant
   const f = fixture(); f.state().unit.property.rentFrayStartDate = new Date("2027-01-15T06:00:00Z");
   assert.equal((await adjust(f)).status, 200); assert.equal(f.state().ledger[0].billingCycle, "2027-01"); assert.equal(f.state().ledger[0].effectiveDate.getTime(), f.now.getTime());
 });
-test("adjustment does not consult payment state or retarget after financial state changes", async () => {
+test("CHARGE does not consult payment state or retarget after financial state changes", async () => {
   const f = fixture(); f.db.payment = new Proxy({}, { get() { throw Error("Payment state is outside this contract"); } });
   assert.equal((await adjust(f)).status, 200); assert.equal(f.state().ledger[0].tenantAssignmentId, "a");
 });

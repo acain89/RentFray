@@ -24,6 +24,7 @@ function match(row: any, where: any = {}): boolean {
       if ("in" in wanted) return wanted.in.includes(row[key]);
       if ("not" in wanted) return row[key] !== wanted.not;
       if ("lte" in wanted) return row[key] <= wanted.lte;
+      if ("gt" in wanted) return row[key] != null && row[key] > wanted.gt;
     }
     return row[key] === wanted;
   });
@@ -72,7 +73,7 @@ function fixture(fee = 0) {
   const unit = { id: "unit", unitNumber: "1", propertyId: "property", tier: null, tenantAssignments: [{ id: "historical" }],
     property: { ...db.property, name: "Test", stripeAccountId: "acct", settings: {}, paymentStatus: {}, units: [], rentFrayStartDate: null } };
   client.unit = { findFirst: async ({ where }: any) => match(unit, where) ? structuredClone(unit) : null };
-  client.tenantAssignment = { findFirst: async ({ where }: any) => match({ id: "historical", propertyId: "property", unitId: "unit" }, where) ? { id: "historical" } : null };
+  client.tenantAssignment = { findFirst: async ({ where }: any) => match({ id: "historical", propertyId: "property", unitId: "unit", isCurrent: true, moveOutDate: null }, where) ? { id: "historical" } : null };
   client.property = { updateMany: async ({ where, data }: any) => { if (match(db.property, where)) Object.assign(db.property, data); return { count: 1 }; } };
   let committedPayments: any[] = [];
   let tail = Promise.resolve();
@@ -132,6 +133,7 @@ function fixture(fee = 0) {
   const checkout = () => sourceModule("app/api/payments/create-session/route.ts", {
     "next/server": responses, stripe: FakeStripe, "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
     "@/lib/session": { getSession: async () => ({ role: "TENANT", propertyId: "property", unitId: "unit", tenantAssignmentId: "historical" }), refreshSessionCookie: async () => {} },
+    "@/lib/checkoutCollectibility": sourceModule("lib/checkoutCollectibility.ts", { stripe: FakeStripe }),
     "@/lib/paymentStatus": status, "@/lib/liveGating": { canMakePayments: () => true }, "@/lib/rateLimit": { checkRateLimit: () => ({ ok: true }) },
     "@/lib/unitFinancialState": { getUnitFinancialState: async () => {
       const balance = db.useLedgerBalance ? (await ledger.getUnitLedgerSummary({
@@ -183,6 +185,16 @@ test("balance/property name changes never reprice an open Checkout", async () =>
   f.db().balance = 175000; f.unit.property.name = "Changed";
   await start(f); expect(f.creations).toHaveLength(1); expect(f.creations[0]).toEqual(quote);
 });
+test("decreased debt fails closed without returning obsolete URL or creating replacement", async () => {
+  const f = fresh(); await start(f); f.db().balance = 50000;
+  const result = await f.checkout().POST(f.request());
+  expect(result.status).toBe(409); expect(result.body.data).toBeUndefined();
+  expect(f.creations).toHaveLength(1); expect(f.db().payments).toHaveLength(1);
+});
+test("FAILED with open Checkout remains protected", async () => {
+  const f = fresh(); const url = await start(f); f.payment().status = "FAILED";
+  expect(await start(f)).toBe(url); expect(f.creations).toHaveLength(1);
+});
 test("expired Checkout is replaced at current balance", async () => {
   const f = fresh(); await start(f); f.sessions.get(f.payment().stripeSessionId).status = "expired";
   f.db().balance = 175000; await start(f);
@@ -197,7 +209,7 @@ test("complete Checkout with processing Intent is not replaced", async () => {
 });
 test("complete Checkout with canceled Intent permits replacement", async () => {
   const f = fresh(); await start(f); const session = f.sessions.get(f.payment().stripeSessionId);
-  session.status = "complete"; session.payment_intent = "pi"; f.intent.status = "canceled";
+  session.status = "complete"; session.payment_intent = "pi"; f.intent.metadata = f.creations[0].params.metadata; f.intent.status = "canceled";
   await start(f); expect(f.creations).toHaveLength(2);
 });
 test("ambiguous timeout recovers same Payment with identical parameters/key/timestamp", async () => {
@@ -221,7 +233,13 @@ test("multiple pre-existing collectible Checkouts never create another", async (
 });
 test("wrong existing Checkout identity fails closed", async () => {
   const f = fresh(); await start(f); f.sessions.get(f.payment().stripeSessionId).metadata.unitId = "other";
-  await expect(start(f)).rejects.toThrow("identity"); expect(f.creations).toHaveLength(1);
+  const response = await f.checkout().POST(f.request());
+  expect(response.status).toBe(409); expect(response.body.ok).toBe(false);
+  expect(response.body.error).toBe("A payment is processing or awaiting authoritative reconciliation.");
+  expect(response.body.data).toBeUndefined(); expect(f.creations).toHaveLength(1);
+  expect(f.db().payments).toHaveLength(1);
+  expect(response.body.error).not.toContain(f.payment().stripeSessionId);
+  expect(response.body.error).not.toContain("other");
 });
 test("success races start: processing/successful Stripe state prevents replacement", async () => {
   const f = fresh(); await start(f);
@@ -246,6 +264,7 @@ test("canceled PENDING attempt commits retirement before the financial SSOT quot
   f.payment().status = "PENDING";
   const session = f.sessions.get(f.payment().stripeSessionId);
   session.status = "complete"; session.payment_intent = "pi";
+  f.intent.metadata = f.creations[0].params.metadata;
   f.intent.status = "canceled";
   await start(f);
   expect(f.db().payments[0].status).toBe("FAILED");

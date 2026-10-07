@@ -7,6 +7,7 @@ import { canMakePayments } from "@/lib/liveGating";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import { assertValidTransition } from "@/lib/paymentStatus";
+import { CheckoutConflict, inspectCheckout, findCheckoutAttempts, lockCheckout, type CheckoutPayment } from "@/lib/checkoutCollectibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,22 +28,6 @@ function toSafeInteger(value: unknown): number {
 }
 
 class CheckoutBlocked extends Error {}
-
-type CheckoutPayment = {
-  id: string; propertyId: string; unitId: string; tenantAssignmentId: string | null;
-  billingCycle: string | null; amountCents: number; processingFeeCents: number | null;
-  stripeSessionId: string | null; stripePaymentIntentId: string | null;
-  status: "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REVERSED"; createdAt: Date;
-};
-
-async function lockCheckout(tx: Prisma.TransactionClient, payment: {
-  propertyId: string; unitId: string; tenantAssignmentId: string; billingCycle?: string | null;
-}) {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${payment.propertyId}:${payment.unitId}:${payment.tenantAssignmentId}`}))`;
-  if (payment.billingCycle) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${payment.propertyId}:${payment.unitId}:${payment.tenantAssignmentId}:${payment.billingCycle}`}))`;
-  }
-}
 
 function checkoutParameters(payment: CheckoutPayment, property: { name: string; stripeAccountId: string | null }, unitNumber: string) {
   const origin = process.env.NODE_ENV === "production" ? "https://rentfray.com" : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:10000";
@@ -68,48 +53,32 @@ function checkoutParameters(payment: CheckoutPayment, property: { name: string; 
   } as Stripe.Checkout.SessionCreateParams;
 }
 
-async function inspectCheckout(stripe: Stripe, payment: CheckoutPayment): Promise<Stripe.Checkout.Session | null> {
-  if (!payment.stripeSessionId) {
-    if (payment.stripePaymentIntentId) {
-      const intent = await stripe.paymentIntents.retrieve(payment.stripePaymentIntentId);
-      if (intent.status === "canceled") return null;
-      throw new CheckoutBlocked("An existing payment requires reconciliation before another attempt.");
-    }
-    // No Stripe ID can mean a timed-out create. It remains a recoverable reservation, not proof of failure.
-    return { id: "", status: "open", url: null } as Stripe.Checkout.Session;
-  }
-  const checkout = await stripe.checkout.sessions.retrieve(payment.stripeSessionId);
-  const metadata = checkout.metadata ?? {};
-  if (metadata.paymentId !== payment.id || metadata.propertyId !== payment.propertyId ||
-    metadata.unitId !== payment.unitId || metadata.tenantAssignmentId !== payment.tenantAssignmentId ||
-    metadata.billingCycle !== payment.billingCycle ||
-    checkout.amount_total !== payment.amountCents + (payment.processingFeeCents ?? 0)) {
-    throw new CheckoutBlocked("Existing Checkout identity/quote mismatch.");
-  }
-  if (checkout.status === "expired") return null;
-  if (checkout.status === "open" && checkout.url) return checkout;
-  if (checkout.status === "complete" && checkout.payment_intent) {
-    const intentId = typeof checkout.payment_intent === "string" ? checkout.payment_intent : checkout.payment_intent.id;
-    if (payment.stripePaymentIntentId && payment.stripePaymentIntentId !== intentId) throw new CheckoutBlocked("Intent identity mismatch.");
-    const intent = await stripe.paymentIntents.retrieve(intentId);
-    if (intent.status === "canceled") return null;
-  }
-  throw new CheckoutBlocked("A payment is processing or awaiting authoritative reconciliation.");
+async function currentCheckoutFinancial(tx: Prisma.TransactionClient, identity: { propertyId: string; unitId: string; tenantAssignmentId: string }) {
+  const unit = await tx.unit.findFirst({ where: { id: identity.unitId, propertyId: identity.propertyId }, include: { tier: true, property: { include: { settings: true, paymentStatus: true, units: true } } } });
+  const assignment = await tx.tenantAssignment.findFirst({ where: { id: identity.tenantAssignmentId, propertyId: identity.propertyId, unitId: identity.unitId, isCurrent: true, OR: [{ moveOutDate: null }, { moveOutDate: { gt: new Date() } }] }, select: { id: true } });
+  if (!unit || !assignment || !canMakePayments({ status: unit.property.status, settings: unit.property.settings, units: unit.property.units, paymentStatus: unit.property.paymentStatus, isActive: unit.property.isActive }) || !unit.property.stripeAccountId) throw new CheckoutConflict("Payments unavailable for this tenancy.");
+  return getUnitFinancialState({ ...identity, tier: unit.tier, propertySettings: unit.property.settings, rentFrayStartDate: unit.property.rentFrayStartDate });
 }
-
+function assertCompatiblePrincipal(payment: CheckoutPayment, principal: number) {
+  if (!Number.isSafeInteger(principal) || payment.amountCents > Math.max(0, principal)) throw new CheckoutConflict("An existing tenant payment no longer matches the amount due. Contact management for resolution.");
+}
 async function recoverCheckout(stripe: Stripe, reservation: CheckoutPayment) {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await lockCheckout(tx, { ...reservation, tenantAssignmentId: reservation.tenantAssignmentId! });
     const payment = await tx.payment.findUnique({ where: { id: reservation.id } }) as CheckoutPayment | null;
     if (!payment || payment.status === "PAID" || payment.status === "REVERSED") throw new CheckoutBlocked("Payment already settled.");
-    const existing = await inspectCheckout(stripe, payment);
-    if (!existing) throw new CheckoutBlocked("Checkout is no longer collectible; retry to obtain a current quote.");
-    if (existing.id && existing.url) return existing.url;
+    const evidence = await inspectCheckout(stripe, payment);
+    if (evidence.state === "PROVEN_NONCOLLECTIBLE") throw new CheckoutBlocked("Checkout is no longer collectible; retry to obtain a current quote.");
+    if (evidence.dependencyFailure) throw new CheckoutConflict("Tenant payment status is temporarily unavailable. Please retry.", 503);
+    if (!evidence.checkout && !evidence.recoverable) throw new CheckoutConflict("A payment is processing or awaiting authoritative reconciliation.");
+    const financial = await currentCheckoutFinancial(tx, { ...reservation, tenantAssignmentId: reservation.tenantAssignmentId! });
+    assertCompatiblePrincipal(payment, financial.ledgerBalanceCents);
+    if (evidence.checkout?.url) return evidence.checkout.url;
     const quote = await tx.auditLog.findFirst({ where: {
       targetType: "PAYMENT", targetId: payment.id, action: "PAYMENT_CHECKOUT_RESERVED",
     }, orderBy: { createdAt: "desc" } });
     if (!quote?.metadataJson || Date.now() - payment.createdAt.getTime() >= 23 * 60 * 60 * 1000) {
-      throw new CheckoutBlocked("Unresolved Checkout reservation cannot safely be recreated.");
+      throw new CheckoutConflict("Unresolved Checkout reservation cannot safely be recreated.");
     }
     const params = JSON.parse(quote.metadataJson) as Stripe.Checkout.SessionCreateParams;
     if (params.metadata?.paymentId !== payment.id || Number(params.metadata?.ledgerBalanceCents) !== payment.amountCents ||
@@ -129,35 +98,35 @@ async function reserveCheckout(stripe: Stripe, unit: Prisma.UnitGetPayload<{
   include: { tier: true; property: { include: { settings: true; paymentStatus: true; units: true } } };
 }>, tenantAssignmentId: string): Promise<CheckoutPayment> {
   const property = unit.property;
-  const financialInput = {
-    propertyId: property.id, unitId: unit.id, tenantAssignmentId, tier: unit.tier,
-    propertySettings: property.settings, rentFrayStartDate: property.rentFrayStartDate,
-  };
+  const identity = { propertyId: property.id, unitId: unit.id, tenantAssignmentId };
   for (let pass = 0; pass < 2; pass++) {
     const reservation = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await lockCheckout(tx, { propertyId: property.id, unitId: unit.id, tenantAssignmentId });
-      const candidates = await tx.payment.findMany({ where: {
-        propertyId: property.id, unitId: unit.id, tenantAssignmentId, paymentMethod: "ACH",
-        status: { in: ["UNPAID", "PENDING", "FAILED"] },
-      }, orderBy: { createdAt: "asc" } });
+      const candidates = await findCheckoutAttempts(tx, identity);
       const collectible: CheckoutPayment[] = [];
       let retired = false;
       for (const candidate of candidates) {
-        const checkout = await inspectCheckout(stripe, candidate);
-        if (checkout) collectible.push(candidate);
+        const evidence = await inspectCheckout(stripe, candidate);
+        if (evidence.dependencyFailure) throw new CheckoutConflict("Tenant payment status is temporarily unavailable. Please retry.", 503);
+        if (evidence.state === "COLLECTIBLE" || evidence.recoverable) collectible.push(candidate);
+        else if (evidence.state === "UNRESOLVED") throw new CheckoutConflict("A payment is processing or awaiting authoritative reconciliation.");
         else if (candidate.status !== "FAILED") {
           retired = true;
           assertValidTransition(candidate.status, "FAILED");
           await tx.payment.update({ where: { id: candidate.id }, data: { status: "FAILED", failedAt: new Date() } });
         }
       }
-      if (collectible.length > 1) throw new CheckoutBlocked("Multiple existing payment attempts require reconciliation.");
-      if (collectible.length === 1) return collectible[0];
+      if (collectible.length > 1) throw new CheckoutConflict("Multiple existing payment attempts require reconciliation.");
+      if (collectible.length === 1) {
+        const financial = await currentCheckoutFinancial(tx, identity);
+        assertCompatiblePrincipal(collectible[0], financial.ledgerBalanceCents);
+        return collectible[0];
+      }
       // The financial SSOT uses the shared client, so commit retired PENDING states first.
       // Reacquire the same tenancy lock and recheck every attempt before quoting.
       if (retired) return null;
       // Recompute via the financial SSOT only after competing attempts have proven noncollectible.
-      const financial = await getUnitFinancialState(financialInput);
+      const financial = await currentCheckoutFinancial(tx, identity);
       await lockCheckout(tx, { propertyId: property.id, unitId: unit.id, tenantAssignmentId, billingCycle: financial.billingCycle });
       const principal = Math.max(0, toSafeInteger(financial.ledgerBalanceCents));
       if (principal <= 0) throw new CheckoutBlocked("No balance due.");
@@ -326,6 +295,7 @@ export async function POST(req: Request) {
       error
     );
 
+    if (error instanceof CheckoutConflict) return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
     if (error instanceof CheckoutBlocked) {
       return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: 400 });
     }

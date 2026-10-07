@@ -45,9 +45,9 @@ for (const operation of ["create", "reset"]) test("retained maintenance PIN " + 
   assert.equal(cost, 10); assert.equal(writes[0].pinHash, "bcrypt-hash"); assert.equal(audits.length, 1);
   assert.equal(audits[0].action, operation === "reset" ? "MAINTENANCE_PIN_RESET" : "MAINTENANCE_USER_CREATED_WITH_PIN");
 });
-test("canonical activation, Unit PIN, session SSOT, payments, tier move and RF-04 remain unchanged", () => {
+test("canonical activation, Unit PIN, session SSOT and excluded financial authorities remain unchanged", () => {
   for (const file of ["app/api/tenant/activate/route.ts", "app/manager/units/[id]/tenants/page.tsx", "lib/session.ts", "lib/pin.ts", "lib/pinLockout.ts",
-    "app/api/manual-payments/route.ts", "app/api/manager/units/move-tier/route.ts", "app/api/payments/create-session/route.ts", "app/api/stripe/webhook/route.ts",
+    "app/api/stripe/webhook/route.ts",
     "prisma/schema.prisma", "prisma/migrations/20261006010000_add_tier_charge_effective_until/migration.sql", "app/manager/properties/[id]/tenants/new/AssignmentFields.tsx"])
     assert.equal(read(file), baseline(file));
 });

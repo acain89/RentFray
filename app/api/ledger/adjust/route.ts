@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { assertTierBillingCalendar } from "@/lib/billingCalendar";
@@ -46,7 +48,12 @@ export async function POST(req: Request) {
       );
     }
 
+    const inspection = rawType === "CREDIT" ? await inspectTenantCheckoutAttempts(prisma, { propertyId, unitId, tenantAssignmentId }) : null;
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (inspection) {
+        await lockCheckout(tx, inspection.identity);
+        await assertCheckoutReductionAllowed(tx, inspection);
+      }
       await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, []);
     const unit = await tx.unit.findFirst({
       where: {
@@ -131,6 +138,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof CheckoutConflict) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     if (error instanceof ManualOperationError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     }

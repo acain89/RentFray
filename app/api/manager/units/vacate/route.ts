@@ -2,6 +2,8 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
 import { Prisma } from "@prisma/client";
@@ -91,8 +93,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const inspection = await inspectTenantCheckoutAttempts(prisma, { propertyId: session.propertyId, unitId, tenantAssignmentId });
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        await lockCheckout(tx, inspection.identity);
+        await assertCheckoutReductionAllowed(tx, inspection);
         await lockManualRows(tx, session.propertyId!, unitId, tenantAssignmentId, []);
     const unit = await tx.unit.findFirst({
       where: {
@@ -216,6 +221,7 @@ export async function POST(req: Request) {
       data: result,
     });
   } catch (error) {
+    if (error instanceof CheckoutConflict) return NextResponse.json<VacateErrorResponse>({ ok: false, error: error.message }, { status: error.status });
     if (error instanceof ManualOperationError) {
       return NextResponse.json<VacateErrorResponse>({ ok: false, error: error.message }, { status: error.status });
     }

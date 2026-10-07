@@ -3,6 +3,8 @@
 import { NextResponse } from "next/server";
 import { Prisma, PaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
 import { emitEvent } from "@/lib/realtime";
@@ -156,6 +158,8 @@ export async function POST(req: Request) {
     let completed: { entry: ManualPaymentEntryResponse; replayed: boolean } | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
+        const knownReplay = await replayManualPayment<ManualPaymentEntryResponse>(prisma, propertyId, key, payload);
+        const inspection = knownReplay ? null : await inspectTenantCheckoutAttempts(prisma, { propertyId, unitId, tenantAssignmentId });
         completed = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           await lockManualOperation(tx, "MANUAL_PAYMENT", propertyId, operationId);
           const replay = await replayManualPayment<ManualPaymentEntryResponse>(tx, propertyId, key, payload);
@@ -170,6 +174,8 @@ export async function POST(req: Request) {
           };
           const provisionalCycle = cycleFor(provisional);
           await lockManualTenancy(tx, propertyId, unitId, tenantAssignmentId, provisionalCycle);
+          if (!inspection) throw new CheckoutConflict("Operation state changed. Retry the same operation.");
+          await assertCheckoutReductionAllowed(tx, inspection);
           await lockManualRows(tx, propertyId, unitId, tenantAssignmentId, provisional.tierId ? [provisional.tierId] : []);
           const unit = await tx.unit.findFirst({ where: { id: unitId, propertyId }, include: { tier: true, property: { include: { settings: true } } } });
           if (!unit) throw new ManualOperationError("Unit not found.", 404);
@@ -220,6 +226,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json<ApiSuccess<{ entry: ManualPaymentEntryResponse }>>({ ok: true, data: { entry: completed.entry } });
   } catch (error) {
+    if (error instanceof CheckoutConflict) return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
     if (error instanceof ManualOperationError) return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
     if (isManualLockContention(error) || isManualRetryable(error)) return NextResponse.json<ApiError>({ ok: false, error: "Financial state is busy. Retry the same operation." }, { status: 409 });
     console.error("POST /api/manual-payments error:", error);
