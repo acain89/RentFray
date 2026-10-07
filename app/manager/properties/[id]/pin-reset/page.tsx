@@ -195,28 +195,30 @@ async function saveMaintenancePin(formData: FormData) {
     );
   }
 
-  const created = await prisma.maintenanceUser.create({
-    data: {
-      propertyId,
-      displayName: workerName,
-      pinHash,
-      createdByManagementUserId: session.managementUserId || null,
-    },
-  });
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const created = await tx.maintenanceUser.create({
+      data: {
+        propertyId,
+        displayName: workerName,
+        pinHash,
+        createdByManagementUserId: session.managementUserId || null,
+      },
+    });
 
-  await prisma.auditLog.create({
-    data: {
-      propertyId,
-      actorType: session.role,
-      actorManagementUserId: session.managementUserId || null,
-      action: "MAINTENANCE_USER_CREATED_WITH_PIN",
-      targetType: "MAINTENANCE_USER",
-      targetId: created.id,
-      summary: `Maintenance user created: ${workerName}`,
-      metadataJson: JSON.stringify({
-        workerName,
-      }),
-    },
+    await tx.auditLog.create({
+      data: {
+        propertyId,
+        actorType: session.role,
+        actorManagementUserId: session.managementUserId || null,
+        action: "MAINTENANCE_USER_CREATED_WITH_PIN",
+        targetType: "MAINTENANCE_USER",
+        targetId: created.id,
+        summary: `Maintenance user created: ${workerName}`,
+        metadataJson: JSON.stringify({
+          workerName,
+        }),
+      },
+    });
   });
 
   redirect(`/manager/properties/${propertyId}/pin-reset?maintenanceSuccess=1`);

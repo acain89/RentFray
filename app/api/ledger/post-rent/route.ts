@@ -92,36 +92,41 @@ export async function POST() {
      * The financial entries themselves are created only by the
      * canonical monthly obligation engine above.
      */
-    await prisma.auditLog.create({
-      data: {
-        propertyId,
-        actorType: "MANAGER",
-        actorManagementUserId:
-          session.managementUserId ?? null,
-        action: "RENT_POSTED",
-        targetType: "PROPERTY",
-        targetId: propertyId,
-        summary: "Monthly obligations processed",
-        metadataJson: JSON.stringify({
-          triggeredAt: triggeredAt.toISOString(),
-          processedUnits: result.processedUnits,
-          dueUnits: result.dueUnits,
-          rentChargesCreated:
-            result.rentChargesCreated,
-          recurringFeeChargesCreated:
-            result.recurringFeeChargesCreated,
-          existingChargesSkipped:
-            result.existingChargesSkipped,
-          skippedNoTenant:
-            result.skippedNoTenant,
-          skippedNotDue:
-            result.skippedNotDue,
-          skippedMoveInAfterDue:
-            result.skippedMoveInAfterDue,
-          failedUnits: result.failedUnits,
-        }),
-      },
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          propertyId,
+          actorType: "MANAGER",
+          actorManagementUserId:
+            session.managementUserId ?? null,
+          action: "RENT_POSTED",
+          targetType: "PROPERTY",
+          targetId: propertyId,
+          summary: "Monthly obligations processed",
+          metadataJson: JSON.stringify({
+            triggeredAt: triggeredAt.toISOString(),
+            processedUnits: result.processedUnits,
+            dueUnits: result.dueUnits,
+            rentChargesCreated:
+              result.rentChargesCreated,
+            recurringFeeChargesCreated:
+              result.recurringFeeChargesCreated,
+            existingChargesSkipped:
+              result.existingChargesSkipped,
+            skippedNoTenant:
+              result.skippedNoTenant,
+            skippedNotDue:
+              result.skippedNotDue,
+            skippedMoveInAfterDue:
+              result.skippedMoveInAfterDue,
+            failedUnits: result.failedUnits,
+          }),
+        },
+      });
+    } catch {
+      // The canonical job succeeded; this summary cannot change its result.
+      console.error("POST /api/ledger/post-rent summary audit failed after successful billing.");
+    }
 
     /*
      * Preserve the route's existing response shape so current UI

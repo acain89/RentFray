@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { NextResponse, type NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -115,38 +116,41 @@ export async function POST(
 
     const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
-    const updated = await prisma.managementUser.update({
-      where: { id: user.id },
-      data: {
-        passwordHash,
-        mustResetPassword: false,
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        role: true,
-        isActive: true,
-        updatedAt: true,
-      },
-    });
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const updated = await tx.managementUser.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          mustResetPassword: false,
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          isActive: true,
+          updatedAt: true,
+        },
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        propertyId,
-        actorType: "ADMIN",
-        actorAdminId: session.adminAccessId ?? null,
-        action: "MANAGEMENT_USER_PASSWORD_RESET",
-        targetType: "MANAGEMENT_USER",
-        targetId: user.id,
-        summary: "Admin reset a management user password.",
-        metadataJson: JSON.stringify({
-          propertyName: property.name,
-          propertyCode: property.propertyCode,
-          managementUserEmail: destinationEmail,
-          managementUserRole: user.role,
-        }),
-      },
+      await tx.auditLog.create({
+        data: {
+          propertyId,
+          actorType: "ADMIN",
+          actorAdminId: session.adminAccessId ?? null,
+          action: "MANAGEMENT_USER_PASSWORD_RESET",
+          targetType: "MANAGEMENT_USER",
+          targetId: user.id,
+          summary: "Admin reset a management user password.",
+          metadataJson: JSON.stringify({
+            propertyName: property.name,
+            propertyCode: property.propertyCode,
+            managementUserEmail: destinationEmail,
+            managementUserRole: user.role,
+          }),
+        },
+      });
+      return updated;
     });
 
     return NextResponse.json({

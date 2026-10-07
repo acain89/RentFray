@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -128,51 +129,54 @@ export async function POST(
 
     const requirementsSummary = getRequirementsSummary(account);
 
-    const paymentStatus = await prisma.paymentConnectionStatus.upsert({
-      where: { propertyId },
-      update: {
-        processorConnected,
-        bankConnected,
-        chargesEnabled,
-        payoutsEnabled,
-        onboardingComplete,
-        requirementsDue,
-        requirementsSummary,
-        readyForLive,
-        lastSyncedAt: new Date(),
-      },
-      create: {
-        propertyId,
-        processorConnected,
-        bankConnected,
-        chargesEnabled,
-        payoutsEnabled,
-        onboardingComplete,
-        requirementsDue,
-        requirementsSummary,
-        readyForLive,
-        lastSyncedAt: new Date(),
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        propertyId,
-        actorType: "ADMIN",
-        actorAdminId: session.adminAccessId ?? null,
-        action: "STRIPE_STATUS_SYNCED",
-        targetType: "PROPERTY",
-        targetId: propertyId,
-        summary: "Admin refreshed Stripe account status from Stripe.",
-        metadataJson: JSON.stringify({
-          stripeAccountId: property.stripeAccountId,
+    const paymentStatus = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const paymentStatus = await tx.paymentConnectionStatus.upsert({
+        where: { propertyId },
+        update: {
+          processorConnected,
+          bankConnected,
           chargesEnabled,
           payoutsEnabled,
           onboardingComplete,
           requirementsDue,
+          requirementsSummary,
           readyForLive,
-        }),
-      },
+          lastSyncedAt: new Date(),
+        },
+        create: {
+          propertyId,
+          processorConnected,
+          bankConnected,
+          chargesEnabled,
+          payoutsEnabled,
+          onboardingComplete,
+          requirementsDue,
+          requirementsSummary,
+          readyForLive,
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          propertyId,
+          actorType: "ADMIN",
+          actorAdminId: session.adminAccessId ?? null,
+          action: "STRIPE_STATUS_SYNCED",
+          targetType: "PROPERTY",
+          targetId: propertyId,
+          summary: "Admin refreshed Stripe account status from Stripe.",
+          metadataJson: JSON.stringify({
+            stripeAccountId: property.stripeAccountId,
+            chargesEnabled,
+            payoutsEnabled,
+            onboardingComplete,
+            requirementsDue,
+            readyForLive,
+          }),
+        },
+      });
+      return paymentStatus;
     });
 
     return NextResponse.json({

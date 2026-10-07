@@ -98,22 +98,6 @@ export async function POST(req: NextRequest) {
       managementUserId: managementUser.id,
     });
 
-    cookieStore.set(ADMIN_BACKUP_COOKIE_NAME, currentAdminToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60,
-    });
-
-    cookieStore.set(SESSION_COOKIE_NAME, impersonationToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60,
-    });
-
     await prisma.auditLog.create({
       data: {
         propertyId,
@@ -130,6 +114,22 @@ export async function POST(req: NextRequest) {
           managementUserRole: managementUser.role,
         }),
       },
+    });
+
+    cookieStore.set(ADMIN_BACKUP_COOKIE_NAME, currentAdminToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60,
+    });
+
+    cookieStore.set(SESSION_COOKIE_NAME, impersonationToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60,
     });
 
     return NextResponse.json({

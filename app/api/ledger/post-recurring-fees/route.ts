@@ -89,36 +89,41 @@ export async function POST() {
      * The route itself does not create financial ledger entries.
      * All obligations are created by the canonical engine above.
      */
-    await prisma.auditLog.create({
-      data: {
-        propertyId,
-        actorType: "MANAGER",
-        actorManagementUserId:
-          session.managementUserId ?? null,
-        action: "RECURRING_FEES_POSTED",
-        targetType: "PROPERTY",
-        targetId: propertyId,
-        summary: "Recurring obligations processed",
-        metadataJson: JSON.stringify({
-          triggeredAt: triggeredAt.toISOString(),
-          processedUnits: result.processedUnits,
-          dueUnits: result.dueUnits,
-          rentChargesCreated:
-            result.rentChargesCreated,
-          recurringFeeChargesCreated:
-            result.recurringFeeChargesCreated,
-          existingChargesSkipped:
-            result.existingChargesSkipped,
-          skippedNoTenant:
-            result.skippedNoTenant,
-          skippedNotDue:
-            result.skippedNotDue,
-          skippedMoveInAfterDue:
-            result.skippedMoveInAfterDue,
-          failedUnits: result.failedUnits,
-        }),
-      },
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          propertyId,
+          actorType: "MANAGER",
+          actorManagementUserId:
+            session.managementUserId ?? null,
+          action: "RECURRING_FEES_POSTED",
+          targetType: "PROPERTY",
+          targetId: propertyId,
+          summary: "Recurring obligations processed",
+          metadataJson: JSON.stringify({
+            triggeredAt: triggeredAt.toISOString(),
+            processedUnits: result.processedUnits,
+            dueUnits: result.dueUnits,
+            rentChargesCreated:
+              result.rentChargesCreated,
+            recurringFeeChargesCreated:
+              result.recurringFeeChargesCreated,
+            existingChargesSkipped:
+              result.existingChargesSkipped,
+            skippedNoTenant:
+              result.skippedNoTenant,
+            skippedNotDue:
+              result.skippedNotDue,
+            skippedMoveInAfterDue:
+              result.skippedMoveInAfterDue,
+            failedUnits: result.failedUnits,
+          }),
+        },
+      });
+    } catch {
+      // The canonical job succeeded; this summary cannot change its result.
+      console.error("POST /api/ledger/post-recurring-fees summary audit failed after successful billing.");
+    }
 
     /*
      * Preserve the existing API response shape.

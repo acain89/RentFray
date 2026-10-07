@@ -73,31 +73,34 @@ export async function POST(
     }
 
     if (action === "FORCE_LIVE") {
-      const updated = await prisma.property.update({
-        where: { id },
-        data: { status: "LIVE" },
-        select: {
-          id: true,
-          name: true,
-          propertyCode: true,
-          status: true,
-        },
-      });
+      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const updated = await tx.property.update({
+          where: { id },
+          data: { status: "LIVE" },
+          select: {
+            id: true,
+            name: true,
+            propertyCode: true,
+            status: true,
+          },
+        });
 
-      await prisma.auditLog.create({
-        data: {
-          propertyId: id,
-          actorType: "ADMIN",
-          action: "PROPERTY_FORCE_LIVE",
-          targetType: "PROPERTY",
-          targetId: id,
-          summary: "Property forced to LIVE by admin override.",
-          metadataJson: JSON.stringify({
-            reason: reason || null,
-            previousStatus: property.status,
-            nextStatus: "LIVE",
-          }),
-        },
+        await tx.auditLog.create({
+          data: {
+            propertyId: id,
+            actorType: "ADMIN",
+            action: "PROPERTY_FORCE_LIVE",
+            targetType: "PROPERTY",
+            targetId: id,
+            summary: "Property forced to LIVE by admin override.",
+            metadataJson: JSON.stringify({
+              reason: reason || null,
+              previousStatus: property.status,
+              nextStatus: "LIVE",
+            }),
+          },
+        });
+        return updated;
       });
 
       return NextResponse.json({
@@ -175,36 +178,39 @@ export async function POST(
     }
 
     if (action === "REPAIR_PAYMENT_STATUS") {
-      const repaired = await prisma.paymentConnectionStatus.upsert({
-        where: { propertyId: id },
-        update: {},
-        create: {
-          propertyId: id,
-          processorConnected: false,
-          bankConnected: false,
-          chargesEnabled: false,
-          payoutsEnabled: false,
-          onboardingComplete: false,
-          requirementsDue: false,
-          requirementsSummary: null,
-          lastSyncedAt: null,
-          readyForLive: false,
-        },
-      });
+      const repaired = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const repaired = await tx.paymentConnectionStatus.upsert({
+          where: { propertyId: id },
+          update: {},
+          create: {
+            propertyId: id,
+            processorConnected: false,
+            bankConnected: false,
+            chargesEnabled: false,
+            payoutsEnabled: false,
+            onboardingComplete: false,
+            requirementsDue: false,
+            requirementsSummary: null,
+            lastSyncedAt: null,
+            readyForLive: false,
+          },
+        });
 
-      await prisma.auditLog.create({
-        data: {
-          propertyId: id,
-          actorType: "ADMIN",
-          action: "PAYMENT_STATUS_REPAIRED",
-          targetType: "PROPERTY",
-          targetId: id,
-          summary: "Payment connection status record repaired.",
-          metadataJson: JSON.stringify({
-            reason: reason || null,
-            paymentStatusId: repaired.id,
-          }),
-        },
+        await tx.auditLog.create({
+          data: {
+            propertyId: id,
+            actorType: "ADMIN",
+            action: "PAYMENT_STATUS_REPAIRED",
+            targetType: "PROPERTY",
+            targetId: id,
+            summary: "Payment connection status record repaired.",
+            metadataJson: JSON.stringify({
+              reason: reason || null,
+              paymentStatusId: repaired.id,
+            }),
+          },
+        });
+        return repaired;
       });
 
       return NextResponse.json({

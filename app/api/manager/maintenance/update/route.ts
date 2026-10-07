@@ -175,64 +175,67 @@ export async function POST(req: Request): Promise<NextResponse> {
       });
     }
 
-    const updated = await prisma.maintenanceRequest.update({
-      where: { id: requestId },
-      data: {
-        status,
-        completedAt: status === "COMPLETE" ? new Date() : null,
-        lastUpdatedByMaintenanceUserId:
-          session.role === "MAINTENANCE"
-            ? session.maintenanceUserId ?? null
-            : requestRow.lastUpdatedByMaintenanceUserId,
-        lastUpdatedByManagementUserId:
-          session.role === "OWNER" ||
-          session.role === "MANAGER"
-            ? session.managementUserId ?? null
-            : requestRow.lastUpdatedByManagementUserId,
-      },
-      select: {
-        id: true,
-        propertyId: true,
-        unitId: true,
-        category: true,
-        urgency: true,
-        status: true,
-        description: true,
-        tenantVisibleName: true,
-        createdByTenant: true,
-        createdByManagementUserId: true,
-        createdByMaintenanceUserId: true,
-        lastUpdatedByManagementUserId: true,
-        lastUpdatedByMaintenanceUserId: true,
-        createdAt: true,
-        updatedAt: true,
-        completedAt: true,
-      },
-    });
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const updated = await tx.maintenanceRequest.update({
+        where: { id: requestId },
+        data: {
+          status: status!,
+          completedAt: status === "COMPLETE" ? new Date() : null,
+          lastUpdatedByMaintenanceUserId:
+            session.role === "MAINTENANCE"
+              ? session.maintenanceUserId ?? null
+              : requestRow.lastUpdatedByMaintenanceUserId,
+          lastUpdatedByManagementUserId:
+            session.role === "OWNER" ||
+            session.role === "MANAGER"
+              ? session.managementUserId ?? null
+              : requestRow.lastUpdatedByManagementUserId,
+        },
+        select: {
+          id: true,
+          propertyId: true,
+          unitId: true,
+          category: true,
+          urgency: true,
+          status: true,
+          description: true,
+          tenantVisibleName: true,
+          createdByTenant: true,
+          createdByManagementUserId: true,
+          createdByMaintenanceUserId: true,
+          lastUpdatedByManagementUserId: true,
+          lastUpdatedByMaintenanceUserId: true,
+          createdAt: true,
+          updatedAt: true,
+          completedAt: true,
+        },
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        propertyId: session.propertyId,
-        actorType: session.role,
-        actorManagementUserId:
-          session.role === "OWNER" ||
-          session.role === "MANAGER"
-            ? session.managementUserId ?? null
-            : null,
-        actorMaintenanceUserId:
-          session.role === "MAINTENANCE"
-            ? session.maintenanceUserId ?? null
-            : null,
-        action: "MAINTENANCE_REQUEST_UPDATED",
-        targetType: "MAINTENANCE_REQUEST",
-        targetId: requestId,
-        summary: `Maintenance request status changed from ${requestRow.status} to ${status}`,
-        metadataJson: JSON.stringify({
-          unitNumber: requestRow.unit.unitNumber,
-          previousStatus: requestRow.status,
-          nextStatus: status,
-        }),
-      },
+      await tx.auditLog.create({
+        data: {
+          propertyId: session.propertyId,
+          actorType: session.role,
+          actorManagementUserId:
+            session.role === "OWNER" ||
+            session.role === "MANAGER"
+              ? session.managementUserId ?? null
+              : null,
+          actorMaintenanceUserId:
+            session.role === "MAINTENANCE"
+              ? session.maintenanceUserId ?? null
+              : null,
+          action: "MAINTENANCE_REQUEST_UPDATED",
+          targetType: "MAINTENANCE_REQUEST",
+          targetId: requestId,
+          summary: `Maintenance request status changed from ${requestRow.status} to ${status}`,
+          metadataJson: JSON.stringify({
+            unitNumber: requestRow.unit.unitNumber,
+            previousStatus: requestRow.status,
+            nextStatus: status,
+          }),
+        },
+      });
+      return updated;
     });
 
     return NextResponse.json<UpdateSuccessResponse>({

@@ -11,14 +11,6 @@ type Unit = {
   portalActivated?: boolean | null;
 };
 
-type PaymentStatus = {
-  stripeConnected: boolean;
-  achEnabled: boolean;
-  onboardingComplete: boolean;
-  adminApproved: boolean;
-  notes: string | null;
-} | null;
-
 type Readiness = {
   hasUnits: boolean;
   hasSettings: boolean;
@@ -40,7 +32,6 @@ type Property = {
     convenienceFee: number;
   };
   units: Unit[];
-  paymentConnectionStatus?: PaymentStatus;
 };
 
 const STATUS_OPTIONS = ["SETUP", "TEST", "READY", "LIVE", "SUSPENDED"] as const;
@@ -56,14 +47,11 @@ export default function PropertySetupPage({
   const [loading, setLoading] = useState(true);
 
   const [savingSetup, setSavingSetup] = useState(false);
-  const [savingPayment, setSavingPayment] = useState(false);
   const [savingLifecycle, setSavingLifecycle] = useState(false);
   const [runningOverride, setRunningOverride] = useState(false);
 
   const [setupError, setSetupError] = useState("");
   const [setupSuccess, setSetupSuccess] = useState("");
-  const [paymentError, setPaymentError] = useState("");
-  const [paymentSuccess, setPaymentSuccess] = useState("");
   const [lifecycleError, setLifecycleError] = useState("");
   const [lifecycleSuccess, setLifecycleSuccess] = useState("");
   const [overrideError, setOverrideError] = useState("");
@@ -77,11 +65,6 @@ export default function PropertySetupPage({
 
   const [fees, setFees] = useState<{ name: string; amount: string }[]>([]);
 
-  const [stripeConnected, setStripeConnected] = useState(false);
-  const [achEnabled, setAchEnabled] = useState(false);
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
-  const [adminApproved, setAdminApproved] = useState(false);
-  const [paymentNotes, setPaymentNotes] = useState("");
 
   const [selectedStatus, setSelectedStatus] = useState("SETUP");
   const [statusReason, setStatusReason] = useState("");
@@ -107,18 +90,15 @@ export default function PropertySetupPage({
     try {
       setLoading(true);
       setSetupError("");
-      setPaymentError("");
       setLifecycleError("");
       setOverrideError("");
 
-      const [setupRes, paymentRes, lifecycleRes] = await Promise.all([
+      const [setupRes, lifecycleRes] = await Promise.all([
         fetch(`/api/admin/properties/${propertyId}/setup`, { cache: "no-store" }),
-        fetch(`/api/admin/properties/${propertyId}/payment-status`, { cache: "no-store" }),
         fetch(`/api/admin/properties/${propertyId}/lifecycle`, { cache: "no-store" }),
       ]);
 
       const setupData = await setupRes.json();
-      const paymentData = await paymentRes.json();
       const lifecycleData = await lifecycleRes.json();
 
       if (!setupRes.ok) {
@@ -129,7 +109,6 @@ export default function PropertySetupPage({
       const loadedProperty: Property = {
         ...setupData.property,
         status: lifecycleData?.property?.status || setupData.property.status,
-        paymentConnectionStatus: paymentData?.paymentStatus || null,
       };
 
       setProperty(loadedProperty);
@@ -139,12 +118,6 @@ export default function PropertySetupPage({
       setBaseRent(String(loadedProperty.settings?.baseRentDefault ?? ""));
       setConvenienceFee(String(loadedProperty.settings?.convenienceFee ?? ""));
 
-      const ps = paymentData?.paymentStatus;
-      setStripeConnected(Boolean(ps?.stripeConnected));
-      setAchEnabled(Boolean(ps?.achEnabled));
-      setOnboardingComplete(Boolean(ps?.onboardingComplete));
-      setAdminApproved(Boolean(ps?.adminApproved));
-      setPaymentNotes(ps?.notes || "");
 
       setSelectedStatus(lifecycleData?.property?.status || loadedProperty.status || "SETUP");
 
@@ -206,47 +179,6 @@ export default function PropertySetupPage({
       setSetupError("Failed to save setup.");
     } finally {
       setSavingSetup(false);
-    }
-  }
-
-  async function savePaymentStatus() {
-    if (savingPayment || !propertyId) return;
-
-    try {
-      setSavingPayment(true);
-      setPaymentError("");
-      setPaymentSuccess("");
-
-      const res = await fetch(`/api/admin/properties/${propertyId}/payment-status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stripeConnected,
-          achEnabled,
-          onboardingComplete,
-          adminApproved,
-          notes: paymentNotes,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setPaymentError(data?.error || "Failed to save payment status.");
-        return;
-      }
-
-      setPaymentSuccess(
-        data?.readyForLive
-          ? "Payment status saved. Property is payment-ready."
-          : "Payment status saved."
-      );
-
-      await load();
-    } catch {
-      setPaymentError("Failed to save payment status.");
-    } finally {
-      setSavingPayment(false);
     }
   }
 
@@ -466,69 +398,6 @@ export default function PropertySetupPage({
 
         <button onClick={addFee} className="text-sm underline">
           + Add Fee
-        </button>
-      </div>
-
-      <div className="border p-4 rounded-xl space-y-4">
-        <div>
-          <h2 className="font-semibold">Payment Status</h2>
-          <p className="text-sm text-neutral-600">
-            Track ACH/payment readiness and live gating.
-          </p>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={stripeConnected}
-            onChange={(e) => setStripeConnected(e.target.checked)}
-          />
-          Stripe connected
-        </label>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={achEnabled}
-            onChange={(e) => setAchEnabled(e.target.checked)}
-          />
-          ACH enabled
-        </label>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={onboardingComplete}
-            onChange={(e) => setOnboardingComplete(e.target.checked)}
-          />
-          Onboarding complete
-        </label>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={adminApproved}
-            onChange={(e) => setAdminApproved(e.target.checked)}
-          />
-          Admin approved
-        </label>
-
-        <textarea
-          className="border p-2 w-full rounded-lg min-h-[110px]"
-          placeholder="Notes"
-          value={paymentNotes}
-          onChange={(e) => setPaymentNotes(e.target.value)}
-        />
-
-        {paymentError ? <div className="text-sm text-red-600">{paymentError}</div> : null}
-        {paymentSuccess ? <div className="text-sm text-green-600">{paymentSuccess}</div> : null}
-
-        <button
-          onClick={savePaymentStatus}
-          className="bg-black text-white px-4 py-2 rounded-lg disabled:opacity-60"
-          disabled={savingPayment}
-        >
-          {savingPayment ? "Saving..." : "Save Payment Status"}
         </button>
       </div>
 
