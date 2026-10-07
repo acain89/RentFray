@@ -327,12 +327,12 @@ export default async function UnitDetail({ params }: Props) {
                 >
                   Tenant details
                 </Link>
-                <Link
-                  href={`/manager/units/${unit.id}/move-out`}
+                {canMutate && <Link
+                  href="/manager/dashboard"
                   className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
                 >
-                  Move out
-                </Link>
+                  Manage move-out on dashboard
+                </Link>}
               </>
             )}
 

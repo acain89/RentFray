@@ -66,14 +66,14 @@ const totalProperties = useMemo(
         if (!active) return;
 
         if (!res.ok) {
-          window.location.href = "/admin-login";
+          window.location.href = "/login/admin";
           return;
         }
 
         setAdminAllowed(true);
       } catch {
         if (!active) return;
-        window.location.href = "/admin-login";
+        window.location.href = "/login/admin";
         return;
       } finally {
         if (active) setAdminChecked(true);
