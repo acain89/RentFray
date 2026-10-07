@@ -17,11 +17,15 @@ function toCSV(rows: CsvRow[]): string {
   if (!rows.length) return "";
 
   const headers = Object.keys(rows[0]);
+  const textColumns = new Set(["unitNumber","tenantName"]);
 
-  const escape = (value: CsvValue): string => {
+  const escape = (value: CsvValue, isText: boolean): string => {
     if (value === null || value === undefined) return "";
-    const str = String(value);
-    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    let str = String(value);
+    if (isText && /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@＝＋－＠]/u.test(str)) {
+      str = "'" + str;
+    }
+    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
       return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
@@ -29,7 +33,7 @@ function toCSV(rows: CsvRow[]): string {
 
   const headerLine = headers.join(",");
   const lines = rows.map((row) =>
-    headers.map((h) => escape(row[h] ?? null)).join(",")
+    headers.map((h) => escape(row[h] ?? null, textColumns.has(h))).join(",")
   );
 
   return [headerLine, ...lines].join("\n");
