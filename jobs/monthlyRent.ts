@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient, type PropertyTierCharge } from "@prisma/client";
+import { Prisma, type PropertyTierCharge } from "@prisma/client";
 import {
   assertTierBillingCalendar,
   BillingCalendarError,
@@ -117,29 +117,8 @@ function hasLegacyRecurringFee(
   return false;
 }
 
-async function acquireMonthlyRentLock(db: PrismaClient): Promise<boolean> {
-  try {
-    const rows = await db.$queryRaw<Array<{ locked: boolean }>>`
-      SELECT pg_try_advisory_lock(${MONTHLY_RENT_JOB_LOCK_ID}) AS locked
-    `;
-
-    return rows[0]?.locked === true;
-  } catch {
-    return true;
-  }
-}
-
-async function releaseMonthlyRentLock(db: PrismaClient): Promise<void> {
-  try {
-    await db.$executeRaw`
-      SELECT pg_advisory_unlock(${MONTHLY_RENT_JOB_LOCK_ID})
-    `;
-  } catch {
-    // Local/non-Postgres fallback. No-op.
-  }
-}
-
 async function createLedgerEntriesInChunks(
+  tx: Prisma.TransactionClient,
   rows: Prisma.LedgerEntryCreateManyInput[]
 ): Promise<number> {
   let created = 0;
@@ -148,7 +127,7 @@ async function createLedgerEntriesInChunks(
     const chunk = rows.slice(i, i + LEDGER_CREATE_CHUNK_SIZE);
     if (chunk.length === 0) continue;
 
-    const result = await prisma.ledgerEntry.createMany({
+    const result = await tx.ledgerEntry.createMany({
       data: chunk,
       skipDuplicates: true,
     });
@@ -159,29 +138,18 @@ async function createLedgerEntriesInChunks(
   return created;
 }
 
-export async function runMonthlyRentJob(
-  asOf = new Date(),
+// Discovery is paginated; each unit's due cycles form one serialized chunk.
+async function processMonthlyUnit(
+  tx: Prisma.TransactionClient,
+  unitId: string,
+  asOf: Date,
   propertyId?: string
 ): Promise<MonthlyRentJobResult> {
-  const lockAcquired = await acquireMonthlyRentLock(prisma);
-
-  if (!lockAcquired) {
-    return {
-      ok: true,
-      processedUnits: 0,
-      dueUnits: 0,
-      skippedNoTenant: 0,
-      skippedNotDue: 0,
-      skippedMoveInAfterDue: 0,
-      rentChargesCreated: 0,
-      recurringFeeChargesCreated: 0,
-      existingChargesSkipped: 0,
-      failedUnits: 0,
-      failures: [],
-    };
-  }
-
-  let cursorId: string | undefined;
+  await tx.$executeRaw`
+    SELECT pg_advisory_xact_lock(
+      CAST(${MONTHLY_RENT_JOB_LOCK_ID} AS integer), hashtext(${unitId})
+    )
+  `;
   let processedUnits = 0;
   let dueUnits = 0;
   let skippedNoTenant = 0;
@@ -192,21 +160,24 @@ export async function runMonthlyRentJob(
   let existingChargesSkipped = 0;
   const failures: MonthlyRentJobFailure[] = [];
 
-  try {
-    while (true) {
-      const units: MonthlyRentUnit[] = await prisma.unit.findMany({
-        where: {
-          isActive: true,
-          ...(propertyId ? { propertyId } : {}),
-        },
-        orderBy: { id: "asc" },
-        take: UNIT_CHUNK_SIZE,
-        ...(cursorId
-          ? {
-              cursor: { id: cursorId },
-              skip: 1,
-            }
-          : {}),
+
+  function chunkResult(): MonthlyRentJobResult {
+    return {
+      ok: true,
+      processedUnits,
+      dueUnits,
+      skippedNoTenant,
+      skippedNotDue,
+      skippedMoveInAfterDue,
+      rentChargesCreated,
+      recurringFeeChargesCreated,
+      existingChargesSkipped,
+      failedUnits: failures.length,
+      failures,
+    };
+  }
+  const units: MonthlyRentUnit[] = await tx.unit.findMany({
+    where: { id: unitId, isActive: true, ...(propertyId ? { propertyId } : {}) },
         include: {
           property: {
             include: {
@@ -228,13 +199,8 @@ export async function runMonthlyRentJob(
             },
           },
         },
-      });
-
-      if (units.length === 0) break;
-
-      cursorId = units[units.length - 1]?.id;
-      processedUnits += units.length;
-
+  });
+  processedUnits = units.length;
       const tierIds = Array.from(
         new Set(
           units
@@ -245,7 +211,7 @@ export async function runMonthlyRentJob(
 
       const tierCharges: TierRecurringCharge[] =
         tierIds.length > 0
-          ? await prisma.propertyTierCharge.findMany({
+          ? await tx.propertyTierCharge.findMany({
               where: {
                 tierId: { in: tierIds },
                 isActive: true,
@@ -354,7 +320,7 @@ export async function runMonthlyRentJob(
         }
       }
 
-      if (dueUnitPayloads.length === 0) continue;
+      if (dueUnitPayloads.length === 0) return chunkResult();
 
       const dueUnitIds = dueUnitPayloads.map((item) => item.unit.id);
 
@@ -362,7 +328,7 @@ export async function runMonthlyRentJob(
         new Set(dueUnitPayloads.map((item) => item.billingCycle))
       );
 
-      const existingEntries = await prisma.ledgerEntry.findMany({
+      const existingEntries = await tx.ledgerEntry.findMany({
         where: {
           unitId: { in: dueUnitIds },
           billingCycle: { in: billingCycles },
@@ -527,12 +493,55 @@ export async function runMonthlyRentJob(
         }
       }
 
-      rentChargesCreated += await createLedgerEntriesInChunks(rentRows);
+      rentChargesCreated += await createLedgerEntriesInChunks(tx, rentRows);
       recurringFeeChargesCreated += await createLedgerEntriesInChunks(
-        recurringFeeRows
+        tx, recurringFeeRows
       );
-    }
+  return chunkResult();
+}
 
+export async function runMonthlyRentJob(
+  asOf = new Date(),
+  propertyId?: string
+): Promise<MonthlyRentJobResult> {
+  let cursorId: string | undefined;
+  let processedUnits = 0;
+  let dueUnits = 0;
+  let skippedNoTenant = 0;
+  let skippedNotDue = 0;
+  let skippedMoveInAfterDue = 0;
+  let rentChargesCreated = 0;
+  let recurringFeeChargesCreated = 0;
+  let existingChargesSkipped = 0;
+  const failures: MonthlyRentJobFailure[] = [];
+
+
+  while (true) {
+    const discovered = await prisma.unit.findMany({
+      where: { isActive: true, ...(propertyId ? { propertyId } : {}) },
+      orderBy: { id: "asc" },
+      take: UNIT_CHUNK_SIZE,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      select: { id: true },
+    });
+    if (discovered.length === 0) break;
+    cursorId = discovered[discovered.length - 1]?.id;
+    for (const unit of discovered) {
+      const committed = await prisma.$transaction(
+        (tx: Prisma.TransactionClient) => processMonthlyUnit(tx, unit.id, asOf, propertyId),
+        { maxWait: 10000, timeout: 30000 }
+      );
+      processedUnits += committed.processedUnits;
+      dueUnits += committed.dueUnits;
+      skippedNoTenant += committed.skippedNoTenant;
+      skippedNotDue += committed.skippedNotDue;
+      skippedMoveInAfterDue += committed.skippedMoveInAfterDue;
+      rentChargesCreated += committed.rentChargesCreated;
+      recurringFeeChargesCreated += committed.recurringFeeChargesCreated;
+      existingChargesSkipped += committed.existingChargesSkipped;
+      failures.push(...committed.failures);
+    }
+  }
     return {
       ok: true,
       processedUnits,
@@ -546,7 +555,4 @@ export async function runMonthlyRentJob(
       failedUnits: failures.length,
       failures,
     };
-  } finally {
-    await releaseMonthlyRentLock(prisma);
-  }
 }

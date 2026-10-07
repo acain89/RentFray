@@ -42,24 +42,37 @@ for (const [file, action, posted] of [["app/api/ledger/post-rent/route.ts", "REN
     if (mode === "audit-fail") { assert.equal(logs.length, 1); assert.match(String(logs[0]), /summary audit failed/); assert.ok(!String(logs[0]).includes("SECRET")); }
   });
 }
-test("canonical job, identities, advisory locks and duplicate suppression remain unchanged", () => {
-  const file = "jobs/monthlyRent.ts";
-  const before = execFileSync("git", ["show", "5da580d96891dabaa4926e661d6f44b23f7a5ae8:" + file], { cwd: root, encoding: "utf8" });
-  const after = readFileSync(resolve(root, file), "utf8"); assertApprovedMonthlyChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n")
-    .replace(monthlyDateHelper, "")
-    .replace("const assignmentStart = businessDateInstant(", "const assignmentStart = getBusinessDate(")
-    .replace("const feeStartDate = businessDateInstant(fee.createdAt);", "const feeStartDate = getBusinessDate(fee.createdAt);"));
-  assert.ok(after.replace(/\r\n/g, "\n").includes(monthlyDateHelper));
-  assert.ok(after.includes("const assignmentStart = businessDateInstant("));
-  assert.ok(after.includes("const feeStartDate = businessDateInstant(fee.createdAt);"));
-  assert.ok(after.includes("pg_try_advisory_lock")); assert.ok(after.includes("skipDuplicates: true"));
+test("canonical job preserves financial processing under transaction-scoped unit serialization", () => {
+  const before = execFileSync("git", ["show", "10e0584aef611d965e49259f5e47d940304dc86c:jobs/monthlyRent.ts"], { cwd: root, encoding: "utf8" }).replace(/\r\n/g, "\n");
+  const after = readFileSync(resolve(root, "jobs/monthlyRent.ts"), "utf8").replace(/\r\n/g, "\n");
+  const oldBody = before.slice(before.indexOf("      const tierIds"), before.indexOf("\n    }\n\n    return {", before.indexOf("      const tierIds")));
+  const newBody = after.slice(after.indexOf("      const tierIds"), after.indexOf("\n  return chunkResult();", after.indexOf("      const tierIds")));
+  assert.equal(newBody, oldBody.replaceAll("await prisma.", "await tx.")
+    .replace("if (dueUnitPayloads.length === 0) continue;", "if (dueUnitPayloads.length === 0) return chunkResult();")
+    .replace("createLedgerEntriesInChunks(rentRows)", "createLedgerEntriesInChunks(tx, rentRows)")
+    .replace("createLedgerEntriesInChunks(\n        recurringFeeRows", "createLedgerEntriesInChunks(\n        tx, recurringFeeRows"));
+  assert.equal(after.slice(0, after.indexOf("async function createLedgerEntriesInChunks")),
+    before.slice(0, before.indexOf("async function acquireMonthlyRentLock"))
+      .replace("Prisma, type PrismaClient, type PropertyTierCharge", "Prisma, type PropertyTierCharge"));
+  assert.ok(after.includes("await prisma.$transaction("));
+  assert.ok(after.includes("{ maxWait: 10000, timeout: 30000 }"));
+  const protectedWork = after.slice(after.indexOf("async function processMonthlyUnit"), after.indexOf("export async function runMonthlyRentJob"));
+  assert.ok(protectedWork.includes("await tx.$executeRaw"));
+  assert.ok(protectedWork.includes("pg_advisory_xact_lock"));
+  assert.ok(protectedWork.indexOf("pg_advisory_xact_lock") < protectedWork.indexOf("await tx.unit.findMany"));
+  assert.ok(!protectedWork.includes("prisma."));
+  assert.ok(after.includes("await tx.ledgerEntry.createMany"));
+  assert.ok(after.includes("skipDuplicates: true"));
+  assert.ok(!/pg_try_advisory_lock|pg_advisory_unlock|pg_advisory_lock\(/.test(after));
+  assert.ok(after.indexOf("const committed = await prisma.$transaction") < after.indexOf("processedUnits += committed.processedUnits"));
 });
+
 test("protected financial, session, Stripe reconciliation and D6/D8 authorities are unchanged", () => {
   for (const file of ["prisma/schema.prisma", "lib/session.ts", "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts",
     "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/paymentStatus.ts", "jobs/lateFees.ts", "app/api/stripe/webhook/route.ts",
     "app/api/payments/create-session/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts",
     "app/api/manager/dashboard/route.ts", "lib/realtime.ts", "app/api/stream/route.ts", "app/manager/units/[id]/page.tsx"]) {
-    const baseline = file === "app/api/payments/create-session/route.ts" ? "79a3bd5ebcc2e6149f7c9de168d3c43ef5af0eea" : "5da580d96891dabaa4926e661d6f44b23f7a5ae8";
+    const baseline = file === "lib/ledger.ts" ? "10e0584aef611d965e49259f5e47d940304dc86c" : file === "app/api/payments/create-session/route.ts" ? "79a3bd5ebcc2e6149f7c9de168d3c43ef5af0eea" : "5da580d96891dabaa4926e661d6f44b23f7a5ae8";
     const before = execFileSync("git", ["show", baseline + ":" + file], { cwd: root, encoding: "utf8" });
     const after = readFileSync(resolve(root, file), "utf8");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));

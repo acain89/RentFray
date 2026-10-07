@@ -9,8 +9,11 @@ export function monthlyFixture(charges: any[] = []) {
     property: { id: "p", rentFrayStartDate: new Date("2026-10-01T00:00:00Z"), settings: { rentDueDay: 1 } },
     tier: { id: "t", rentDueDay: 1, baseRentCents: 0 },
     tenantAssignments: [{ id: "assignment", moveInDate: new Date("2026-09-01T12:00:00Z"), isCurrent: true }], recurringFeeItems: [] };
+  const events: string[] = [];
+  const controls = { failStage: "", failLock: false, failCommit: false, onLock: undefined as undefined | (() => void) };
+  const tails = new Map<string, Promise<void>>();
   const db = {
-    $queryRaw: async () => [{ locked: true }], $executeRaw: async () => 1,
+
     unit: { findMany: async ({ cursor }: any) => cursor ? [] : unit.isActive ? [unit] : [] },
     propertyTierCharge: { findMany: async ({ where }: any) => charges.filter(r => matches(r, where)) },
     ledgerEntry: {
@@ -24,9 +27,53 @@ export function monthlyFixture(charges: any[] = []) {
       },
     },
   };
-  const job = load("jobs/monthlyRent.ts", { "@/lib/prisma": { prisma: db }, "@prisma/client": { Prisma: {} },
+  const database = {
+    unit: { findMany: db.unit.findMany },
+    $transaction: async (work: (tx: any) => Promise<any>, options: any) => {
+      assert.equal(options.timeout, 30000);
+      let staged: any[] = []; let release: (() => void) | undefined; let locked = false;
+      const tx = {
+        $executeRaw: async (sql: TemplateStringsArray, namespace: number, key: string) => {
+          const text = sql.join("?");
+          assert.ok(text.includes("pg_advisory_xact_lock"));
+          assert.ok(!text.includes("pg_try_advisory_lock"));
+          assert.equal(namespace, 91024001);
+          if (controls.failLock) throw Error("lock failure");
+          const previous = tails.get(key) ?? Promise.resolve();
+          const gate = new Promise<void>(resolve => { release = resolve; });
+          tails.set(key, previous.then(() => gate));
+          await previous; locked = true; events.push("lock:" + key);
+          controls.onLock?.(); staged = ledger.map(row => ({ ...row })); return 1;
+        },
+        unit: { findMany: async () => { assert.ok(locked); events.push("unit:read"); return unit.isActive ? [unit] : []; } },
+        propertyTierCharge: { findMany: async (query: any) => { assert.ok(locked); events.push("tier:read"); return db.propertyTierCharge.findMany(query); } },
+        ledgerEntry: {
+          findMany: async ({ where }: any) => { assert.ok(locked); events.push("ledger:read"); return staged.filter(row => matches(row, where)); },
+          createMany: async ({ data, skipDuplicates }: any) => {
+            assert.ok(locked); assert.equal(skipDuplicates, true); events.push("ledger:write");
+            let count = 0;
+            for (const row of data) {
+              const stage = row.chargeType === "RENT" ? "rent" : row.idempotencyKey.startsWith("UNIT_") ? "unit" : "tier";
+              if (controls.failStage === stage) throw Error(stage + " insertion failure");
+              if (!staged.some(existing => existing.idempotencyKey === row.idempotencyKey)) {
+                staged.push({ id: "ledger-" + staged.length, voidedAt: null, ...row }); count++;
+              }
+            }
+            return { count };
+          },
+        },
+      };
+      try {
+        const result = await work(tx);
+        if (controls.failCommit) throw Error("commit failure");
+        ledger.splice(0, ledger.length, ...staged); events.push("commit"); return result;
+      } catch (error) { events.push("rollback"); throw error; }
+      finally { release?.(); }
+    },
+  };
+  const job = load("jobs/monthlyRent.ts", { "@/lib/prisma": { prisma: database }, "@prisma/client": { Prisma: {} },
     "@/lib/rentDates": calendar, "@/lib/billingCalendar": { assertTierBillingCalendar: () => 1, BillingCalendarError: class extends Error {} } });
-  return { unit, ledger, run: (asOf: Date) => job.runMonthlyRentJob(asOf, "p") };
+  return { unit, ledger, events, controls, run: (asOf: Date) => job.runMonthlyRentJob(asOf, "p") };
 }
 const charge = (id: string, amountCents: number, effectiveDate: Date, effectiveUntil: Date | null = null, tierId = "t") =>
   ({ id, propertyId: "p", tierId, label: "Same label", amountCents, effectiveDate, effectiveUntil, isActive: true, sortOrder: 0 });
