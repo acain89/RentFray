@@ -25,12 +25,8 @@ type Readiness = {
 type Property = {
   id: string;
   name: string;
-  code: string;
+  propertyCode: string;
   status: string;
-  settings: {
-    baseRentDefault: number;
-    convenienceFee: number;
-  };
   units: Unit[];
 };
 
@@ -46,24 +42,17 @@ export default function PropertySetupPage({
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [savingSetup, setSavingSetup] = useState(false);
   const [savingLifecycle, setSavingLifecycle] = useState(false);
   const [runningOverride, setRunningOverride] = useState(false);
 
   const [setupError, setSetupError] = useState("");
-  const [setupSuccess, setSetupSuccess] = useState("");
   const [lifecycleError, setLifecycleError] = useState("");
   const [lifecycleSuccess, setLifecycleSuccess] = useState("");
   const [overrideError, setOverrideError] = useState("");
   const [overrideSuccess, setOverrideSuccess] = useState("");
 
-  const [baseRent, setBaseRent] = useState("");
-  const [convenienceFee, setConvenienceFee] = useState("");
 
-  const [unitStart, setUnitStart] = useState("");
-  const [unitEnd, setUnitEnd] = useState("");
 
-  const [fees, setFees] = useState<{ name: string; amount: string }[]>([]);
 
 
   const [selectedStatus, setSelectedStatus] = useState("SETUP");
@@ -115,8 +104,6 @@ export default function PropertySetupPage({
       setReadiness(lifecycleRes.ok ? lifecycleData?.readiness || null : null);
       setLifecycleError(lifecycleRes.ok ? "" : lifecycleData?.error || "Failed to load lifecycle state.");
 
-      setBaseRent(String(loadedProperty.settings?.baseRentDefault ?? ""));
-      setConvenienceFee(String(loadedProperty.settings?.convenienceFee ?? ""));
 
 
       setSelectedStatus(lifecycleData?.property?.status || loadedProperty.status || "SETUP");
@@ -128,57 +115,6 @@ export default function PropertySetupPage({
       setSetupError("Failed to load property setup.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  function addFee() {
-    setFees((prev) => [...prev, { name: "", amount: "" }]);
-  }
-
-  function updateFee(index: number, key: "name" | "amount", value: string) {
-    setFees((prev) => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], [key]: value };
-      return copy;
-    });
-  }
-
-  async function saveSetup() {
-    if (savingSetup || !propertyId) return;
-
-    try {
-      setSavingSetup(true);
-      setSetupError("");
-      setSetupSuccess("");
-
-      const res = await fetch(`/api/admin/properties/${propertyId}/setup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseRent,
-          convenienceFee,
-          unitStart,
-          unitEnd,
-          recurringFees: fees,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSetupError(data?.error || "Failed to save setup.");
-        return;
-      }
-
-      setSetupSuccess("Setup saved.");
-      setUnitStart("");
-      setUnitEnd("");
-      setFees([]);
-      await load();
-    } catch {
-      setSetupError("Failed to save setup.");
-    } finally {
-      setSavingSetup(false);
     }
   }
 
@@ -275,9 +211,10 @@ export default function PropertySetupPage({
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-xl font-semibold">
-          {property.name} ({property.code})
+          {property.name} ({property.propertyCode})
         </h1>
         <p className="text-sm text-neutral-600">Setup Panel</p>
+        <div className="text-sm text-neutral-600">Existing Units: {property.units.length}</div>
       </div>
 
       <div className="border p-4 rounded-xl space-y-3">
@@ -330,74 +267,6 @@ export default function PropertySetupPage({
           disabled={savingLifecycle}
         >
           {savingLifecycle ? "Saving..." : "Save Lifecycle Status"}
-        </button>
-      </div>
-
-      <div className="border p-4 rounded-xl space-y-3">
-        <h2 className="font-semibold">Defaults</h2>
-
-        <input
-          className="border p-2 w-full rounded-lg"
-          placeholder="Base Rent"
-          value={baseRent}
-          onChange={(e) => setBaseRent(e.target.value)}
-        />
-
-        <input
-          className="border p-2 w-full rounded-lg"
-          placeholder="Convenience Fee"
-          value={convenienceFee}
-          onChange={(e) => setConvenienceFee(e.target.value)}
-        />
-      </div>
-
-      <div className="border p-4 rounded-xl space-y-3">
-        <h2 className="font-semibold">Create Units</h2>
-
-        <div className="flex gap-2">
-          <input
-            className="border p-2 w-full rounded-lg"
-            placeholder="Start (e.g. 1)"
-            value={unitStart}
-            onChange={(e) => setUnitStart(e.target.value)}
-          />
-
-          <input
-            className="border p-2 w-full rounded-lg"
-            placeholder="End (e.g. 50)"
-            value={unitEnd}
-            onChange={(e) => setUnitEnd(e.target.value)}
-          />
-        </div>
-
-        <div className="text-sm text-neutral-600">
-          Existing Units: {property.units.length}
-        </div>
-      </div>
-
-      <div className="border p-4 rounded-xl space-y-3">
-        <h2 className="font-semibold">Recurring Fees</h2>
-
-        {fees.map((fee, index) => (
-          <div key={index} className="flex gap-2">
-            <input
-              className="border p-2 w-full rounded-lg"
-              placeholder="Fee Name"
-              value={fee.name}
-              onChange={(e) => updateFee(index, "name", e.target.value)}
-            />
-
-            <input
-              className="border p-2 w-full rounded-lg"
-              placeholder="Amount"
-              value={fee.amount}
-              onChange={(e) => updateFee(index, "amount", e.target.value)}
-            />
-          </div>
-        ))}
-
-        <button onClick={addFee} className="text-sm underline">
-          + Add Fee
         </button>
       </div>
 
@@ -461,15 +330,6 @@ export default function PropertySetupPage({
       </div>
 
       {setupError ? <div className="text-sm text-red-600">{setupError}</div> : null}
-      {setupSuccess ? <div className="text-sm text-green-600">{setupSuccess}</div> : null}
-
-      <button
-        onClick={saveSetup}
-        className="bg-black text-white px-4 py-2 rounded-lg disabled:opacity-60"
-        disabled={savingSetup}
-      >
-        {savingSetup ? "Saving..." : "Save Setup"}
-      </button>
     </div>
   );
 }

@@ -13,14 +13,13 @@ test("ADMIN setup has no manual payment controls or submission", () => {
   for (const display of ["Live Readiness", "readiness?.stripeConnected", "readiness?.chargesEnabled", "readiness?.payoutsEnabled", "readiness?.readyForLive"])
     assert.ok(current.includes(display), display);
 });
-test("ADMIN setup unrelated saves, lifecycle and overrides are unchanged", () => {
-  for (const [start, end] of [["  async function saveSetup()", "  async function savePaymentStatus()"],
-    ["  async function saveLifecycle()", "  async function runOverride"], ["  async function runOverride", "  if (loading"]]) {
+test("ADMIN setup retires obsolete saves and preserves lifecycle and overrides", () => {
+  for (const [start, end] of [["  async function saveLifecycle()", "  async function runOverride"], ["  async function runOverride", "  if (loading"]]) {
     const before = baseline.slice(baseline.indexOf(start), baseline.indexOf(end));
-    const afterEnd = end.includes("savePaymentStatus") ? "  async function saveLifecycle()" : end;
-    assert.equal(current.slice(current.indexOf(start), current.indexOf(afterEnd)).trim(), before.trim());
+    assert.equal(current.slice(current.indexOf(start), current.indexOf(end)).trim(), before.trim());
   }
-  for (const label of ["Create Units", "Recurring Fees", "Save Setup", "Lifecycle", "FORCE_LIVE", "UNLOCK_UNIT", "REPAIR_PAYMENT_STATUS"])
+  for (const label of ["Lifecycle", "FORCE_LIVE", "UNLOCK_UNIT", "REPAIR_PAYMENT_STATUS"])
     assert.ok(current.includes(label), label);
+  for (const obsolete of ["Create Units", "Recurring Fees", "Save Setup", "saveSetup"]) assert.ok(!current.includes(obsolete), obsolete);
   assert.equal(current.includes("rentFrayStartDate"), baseline.includes("rentFrayStartDate"));
 });
