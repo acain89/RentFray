@@ -75,10 +75,10 @@ function parseDateOnly(
     : date;
 }
 
-function startOfDay(
+function calendarOrdinal(
   date: Date
-): Date {
-  return new Date(
+): number {
+  return Date.UTC(
     date.getFullYear(),
     date.getMonth(),
     date.getDate()
@@ -96,8 +96,8 @@ function diffDays(
     0,
     Math.floor(
       (
-        startOfDay(later).getTime() -
-        startOfDay(earlier).getTime()
+        calendarOrdinal(later) -
+        calendarOrdinal(earlier)
       ) / msPerDay
     )
   );

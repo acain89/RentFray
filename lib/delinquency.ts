@@ -10,7 +10,8 @@ function diffDays(later: Date, earlier: Date) {
   const msPerDay = 1000 * 60 * 60 * 24;
   return Math.max(
     0,
-    Math.floor((later.getTime() - earlier.getTime()) / msPerDay)
+    Math.floor((Date.UTC(later.getFullYear(), later.getMonth(), later.getDate()) -
+      Date.UTC(earlier.getFullYear(), earlier.getMonth(), earlier.getDate())) / msPerDay)
   );
 }
 

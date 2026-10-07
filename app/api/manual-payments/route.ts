@@ -11,6 +11,7 @@ import { emitEvent } from "@/lib/realtime";
 import { ManualOperationError, normalizeOperationId, lockManualOperation, lockManualTenancy,
   lockManualRows, replayManualPayment, isManualRetryable, isManualLockContention } from "@/lib/manualFinancialOperations";
 import {
+  getBusinessDateInstant,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -51,6 +52,7 @@ type ParsedBody = {
   amountCents: number;
   memo: string | null;
   effectiveDate: Date;
+  effectiveDateLabel: string;
 };
 
 type UnitForManualPayment = {
@@ -100,10 +102,8 @@ function parseEffectiveDate(value: unknown): Date | null {
   const raw = clean(value);
   if (!raw) return null;
 
-  const date = new Date(`${raw}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return date;
+  try { return getBusinessDateInstant(raw); }
+  catch { return null; }
 }
 
 function badRequest(error: string) {
@@ -131,6 +131,7 @@ async function parseBody(req: Request): Promise<ParsedBody | null> {
     amountCents,
     memo,
     effectiveDate,
+    effectiveDateLabel: clean(body.effectiveDate),
   };
 }
 
@@ -155,14 +156,34 @@ export async function POST(req: Request) {
     const propertyId = session.propertyId;
     const payload = { unitId, tenantAssignmentId, amountCents, effectiveDate: effectiveDate.toISOString(), memo };
     const key = `MANUAL_PAYMENT:${propertyId}:${operationId}`;
+    // Legacy completed operations recorded host-local midnight (production UTC).
+    // Delegate every identity/payload check to the existing replay authority;
+    // these encodings are replay-only and are never used for new writes.
+    const legacyDates = [...new Set([
+      new Date(`${parsed.effectiveDateLabel}T00:00:00`).toISOString(),
+      new Date(`${parsed.effectiveDateLabel}T00:00:00Z`).toISOString(),
+    ])].filter(date => date !== payload.effectiveDate);
+    const replayCompleted = async (tx: Prisma.TransactionClient) => {
+      try { return await replayManualPayment<ManualPaymentEntryResponse>(tx, propertyId, key, payload); }
+      catch (error) {
+        if (!(error instanceof ManualOperationError) || error.message !== "Operation ID was already used with a different payload.") throw error;
+        for (const date of legacyDates) {
+          try { return await replayManualPayment<ManualPaymentEntryResponse>(tx, propertyId, key, { ...payload, effectiveDate: date }); }
+          catch (legacyError) {
+            if (!(legacyError instanceof ManualOperationError) || legacyError.message !== error.message) throw legacyError;
+          }
+        }
+        throw error;
+      }
+    };
     let completed: { entry: ManualPaymentEntryResponse; replayed: boolean } | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const knownReplay = await replayManualPayment<ManualPaymentEntryResponse>(prisma, propertyId, key, payload);
+        const knownReplay = await replayCompleted(prisma);
         const inspection = knownReplay ? null : await inspectTenantCheckoutAttempts(prisma, { propertyId, unitId, tenantAssignmentId });
         completed = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           await lockManualOperation(tx, "MANUAL_PAYMENT", propertyId, operationId);
-          const replay = await replayManualPayment<ManualPaymentEntryResponse>(tx, propertyId, key, payload);
+          const replay = await replayCompleted(tx);
           if (replay) return { entry: replay, replayed: true };
           const provisional = await tx.unit.findFirst({ where: { id: unitId, propertyId }, include: { tier: true, property: { include: { settings: true } } } });
           if (!provisional) throw new ManualOperationError("Unit not found.", 404);

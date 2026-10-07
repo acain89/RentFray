@@ -2,12 +2,18 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getBusinessDate } from "@/lib/rentDates";
 
 type ManualPaymentFormProps = {
   propertyId: string;
   unitId: string;
   tenantAssignmentId: string;
 };
+
+function getTodayDate(): string {
+  const day = getBusinessDate();
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+}
 
 function parseMoney(value: string): number | null {
   const n = Number(value);
@@ -28,7 +34,7 @@ export default function ManualPaymentForm({
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    getTodayDate()
   );
 
   const [loading, setLoading] = useState(false);
@@ -97,7 +103,7 @@ export default function ManualPaymentForm({
       // reset form
       setAmount("");
       setMemo("");
-      setEffectiveDate(new Date().toISOString().slice(0, 10));
+      setEffectiveDate(getTodayDate());
 
       // refresh server data
       router.refresh();

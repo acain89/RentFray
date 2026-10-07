@@ -12,6 +12,7 @@ import {
   BillingCalendarError,
 } from "@/lib/billingCalendar";
 import {
+  getBusinessDateInstant,
   getRentDateSummary,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
@@ -53,59 +54,15 @@ function clean(value: unknown): string {
 }
 
 function parseMoveInDate(value: string): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    return null;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
-
-  const valid =
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day;
-
-  return valid ? date : null;
+  try { return getBusinessDateInstant(value); }
+  catch { return null; }
 }
 
 function parseRentDate(value: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    throw new TenantActivationError(
-      "RentFray returned an invalid billing date.",
-      500
-    );
+  try { return getBusinessDateInstant(value); }
+  catch {
+    throw new TenantActivationError("RentFray returned an invalid billing date.", 500);
   }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
-
-  const valid =
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day;
-
-  if (!valid) {
-    throw new TenantActivationError(
-      "RentFray returned an invalid billing date.",
-      500
-    );
-  }
-
-  return date;
 }
 
 function isPrismaKnownError(

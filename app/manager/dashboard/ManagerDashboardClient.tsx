@@ -1,5 +1,7 @@
 "use client";
 
+import { getBusinessDate } from "@/lib/rentDates";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import BankPanel from "./components/BankPanel";
@@ -1627,7 +1629,7 @@ async function submitMoveTier(): Promise<void> {
 
       const pending = paymentOperations.current[selectedUnit.unitId];
       if (!pending && !selectedUnit.tenantAssignmentId) { alert("No current tenant assignment."); return; }
-      const operation = pending ?? { operationId: crypto.randomUUID(), unitId: selectedUnit.unitId, tenantAssignmentId: selectedUnit.tenantAssignmentId!, amount: Math.round(amount * 100) / 100, effectiveDate: new Date().toISOString().slice(0, 10) };
+      const operation = pending ?? { operationId: crypto.randomUUID(), unitId: selectedUnit.unitId, tenantAssignmentId: selectedUnit.tenantAssignmentId!, amount: Math.round(amount * 100) / 100, effectiveDate: (() => { const day = getBusinessDate(); return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`; })() };
       paymentOperations.current[selectedUnit.unitId] = operation;
       const response = await fetch("/api/manual-payments", {
         method: "POST",

@@ -13,7 +13,7 @@ export function writerFixture(role = "MANAGER") {
     assert.ok(row); f.events.push("tenantAssignment.update"); Object.assign(row, data); return structuredClone(row);
   };
   const dates = load("lib/rentDates.ts", {});
-  f.imports["@/lib/rentDates"] = { ...f.imports["@/lib/rentDates"], getBusinessDateInstant: dates.getBusinessDateInstant };
+  f.imports["@/lib/rentDates"] = { ...f.imports["@/lib/rentDates"], getBusinessDate: dates.getBusinessDate, getBusinessDateInstant: dates.getBusinessDateInstant };
   Object.assign(f.state.units[0], { portalActivated: true, tenantPinHash: "tenant-pin", portalFirstName: "Tenant" });
   const add = (status = "open", id = "one") => { const a = c.add(status, id); f.state.payment.push(a.p); return a; };
   const invoke = (kind: string, extra: any = {}) => {

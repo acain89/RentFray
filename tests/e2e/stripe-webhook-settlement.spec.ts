@@ -124,7 +124,7 @@ function fixture(fee = 0) {
   const webhook = sourceModule("app/api/stripe/webhook/route.ts", {
     "next/server": responses, stripe: FakeStripe, "next/headers": { headers: async () => ({ get: () => "signature" }) },
     "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
-    "@/lib/paymentStatus": status, "@/lib/rentDates": { getBusinessDate: () => date },
+    "@/lib/paymentStatus": status, "@/lib/rentDates": { getBusinessDate: () => new Date(2026, 9, 5), getBusinessDateInstant: sourceModule("lib/rentDates.ts", {}).getBusinessDateInstant },
     "@/lib/realtime": { emitEvent() {} }, "@/lib/liveGating": { canMakePayments: () => true },
   });
   const ledger = sourceModule("lib/ledger.ts", { "@/lib/prisma": { prisma: client } });

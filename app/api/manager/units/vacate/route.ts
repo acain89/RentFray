@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
 
+import { getBusinessDate, getBusinessDateInstant } from "@/lib/rentDates";
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
 import { Prisma } from "@prisma/client";
@@ -40,24 +41,16 @@ function clean(value: unknown): string {
 
 function parseMoveOutDate(value: unknown): Date {
   const raw = clean(value);
-
-  if (!raw) {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (raw) {
+    try { return getBusinessDateInstant(raw); }
+    catch { /* Preserve the existing invalid-date fallback to today. */ }
   }
-
-  const parsed = new Date(`${raw}T00:00:00`);
-
-  if (Number.isNaN(parsed.getTime())) {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  }
-
-  return parsed;
+  return getBusinessDateInstant(formatDateOnly(new Date()));
 }
 
 function formatDateOnly(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const day = getBusinessDate(date);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
 }
 
 function isAllowedRole(role: string): role is "OWNER" | "MANAGER" {

@@ -11,6 +11,11 @@ import {
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
 
+function businessDateInstant(value: Date): Date {
+  const day = getBusinessDate(value);
+  return getBusinessDateInstant(`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`);
+}
+
 const UNIT_CHUNK_SIZE = 500;
 const LEDGER_CREATE_CHUNK_SIZE = 1000;
 const MONTHLY_RENT_JOB_LOCK_ID = 91024001;
@@ -298,7 +303,7 @@ export async function runMonthlyRentJob(
             continue;
           }
 
-          const assignmentStart = getBusinessDate(
+          const assignmentStart = businessDateInstant(
             assignment.moveInDate ?? assignment.createdAt
           );
 
@@ -443,7 +448,7 @@ export async function runMonthlyRentJob(
           const amountCents = Math.max(0, fee.amountCents);
           if (amountCents <= 0) continue;
 
-          const feeStartDate = getBusinessDate(fee.createdAt);
+          const feeStartDate = businessDateInstant(fee.createdAt);
           if (feeStartDate.getTime() > dueDate.getTime()) continue;
 
           const memo = fee.label;

@@ -7,7 +7,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/realtime";
 import { assertValidTransition } from "@/lib/paymentStatus";
-import { getBusinessDate } from "@/lib/rentDates";
+import { getBusinessDate, getBusinessDateInstant } from "@/lib/rentDates";
+
+function businessDateInstant(): Date {
+  const day = getBusinessDate();
+  return getBusinessDateInstant(`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`);
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -123,7 +128,7 @@ async function reconcileReturnedFunds(tx: Prisma.TransactionClient, payment: Pay
     await tx.ledgerEntry.upsert({ where: { idempotencyKey: adjustmentKey }, update: data, create: {
       ...data, idempotencyKey: adjustmentKey, propertyId: payment.propertyId, unitId: payment.unitId,
       tenantAssignmentId: payment.tenantAssignmentId, paymentId: payment.id,
-      billingCycle: payment.billingCycle, entryType: "ADJUSTMENT", effectiveDate: getBusinessDate(),
+      billingCycle: payment.billingCycle, entryType: "ADJUSTMENT", effectiveDate: businessDateInstant(),
       referenceNumber: `${intentId}:returned-principal`, memo: "Actual returned tenant principal",
     } });
   } else if (adjustment && !adjustment.voidedAt) {
@@ -148,7 +153,7 @@ async function ensureCollection(tx: Prisma.TransactionClient, payment: PaymentRe
   const common = {
     propertyId: payment.propertyId, unitId: payment.unitId,
     tenantAssignmentId: payment.tenantAssignmentId, billingCycle: payment.billingCycle,
-    paymentId: payment.id, effectiveDate: getBusinessDate(),
+    paymentId: payment.id, effectiveDate: businessDateInstant(),
   };
   const expected = payment.amountCents + (payment.processingFeeCents ?? 0);
   const existing = await tx.ledgerEntry.findFirst({ where: {
