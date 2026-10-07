@@ -178,7 +178,7 @@ test("creator route preserves first touch, replaces expired/unknown touches, and
       headers = { set() {} };
       cookies = { set(name: string, value: string, options: typeof writes[number]["options"]) { writes.push({ name, value, options }); } };
       constructor(_body: unknown, options: { status: number }) { this.status = options.status; }
-      static redirect(url: URL, status: number) { assert.equal(url.pathname, "/setup"); return new FakeResponse(null, { status }); }
+    static redirect(url: URL, status: number) { assert.equal(url.pathname, "/"); return new FakeResponse(null, { status }); }
     }
     const route = load<{ GET(req: unknown, ctx: unknown): Promise<FakeResponse> }>("app/[creatorSlug]/route.ts", {
       "next/server": { NextResponse: FakeResponse }, "@/lib/prisma": { prisma: { creator: { findUnique: async ({ where }: { where: { id?: string; slug?: string } }) => {
@@ -256,13 +256,13 @@ test("creator script normalizes, creates one exact-window record and rejects dup
   }
 });
 for (const [environment, requestUrl, destination] of [
-  ["production", "http://srv-example:10000/andrew", "https://www.rentfray.com/setup"],
-  ["production", "https://attacker.example/andrew", "https://www.rentfray.com/setup"],
-  ["development", "http://localhost:3001/andrew", "http://localhost:3001/setup"],
-  ["development", "http://127.0.0.1:4000/andrew", "http://127.0.0.1:4000/setup"],
-  ["development", "http://[::1]:4000/andrew", "http://[::1]:4000/setup"],
-  ["development", "http://srv-example:10000/andrew", "http://localhost:3000/setup"],
-  ["development", "https://localhost.attacker.example/andrew", "http://localhost:3000/setup"],
+    ["production", "http://srv-example:10000/andrew", "https://www.rentfray.com/"],
+    ["production", "https://attacker.example/andrew", "https://www.rentfray.com/"],
+    ["development", "http://localhost:3001/andrew", "http://localhost:3001/"],
+    ["development", "http://127.0.0.1:4000/andrew", "http://127.0.0.1:4000/"],
+    ["development", "http://[::1]:4000/andrew", "http://[::1]:4000/"],
+    ["development", "http://srv-example:10000/andrew", "http://localhost:3000/"],
+    ["development", "https://localhost.attacker.example/andrew", "http://localhost:3000/"],
 ]) test(`trusted referral redirect: ${environment} ${requestUrl}`, async () => {
   let location = "";
   const writes: { name: string; value: string; options: typeof referrals.referralCookieOptions & { maxAge: number } }[] = [];

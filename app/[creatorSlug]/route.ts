@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ creator
   if (!isCreatorSlug(slug)) return new NextResponse(null, { status: 404 });
   const creator = await prisma.creator.findUnique({ where: { slug } });
   if (!creator) return new NextResponse(null, { status: 404 });
-  const response = NextResponse.redirect(new URL("/setup", referralPublicOrigin(req.url)), 303);
+const response = NextResponse.redirect(new URL("/", referralPublicOrigin(req.url)), 303);
   response.headers.set("Cache-Control", "private, no-store");
   const now = new Date();
   const first = await validFirstTouch(prisma, req.cookies.get(REFERRAL_COOKIE)?.value, now);
