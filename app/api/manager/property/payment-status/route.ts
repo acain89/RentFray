@@ -13,7 +13,7 @@ export async function GET() {
     const session = await getSession();
 
     if (!session || !session.propertyId || !isManagementRole(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
     }
 
     const status = await prisma.paymentConnectionStatus.findUnique({

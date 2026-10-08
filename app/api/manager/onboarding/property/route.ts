@@ -57,7 +57,7 @@ async function getAuthorizedSession(readOnly = false) {
     !session.propertyId ||
     !(session.role === "OWNER" || session.role === "MANAGER" || (readOnly && session.role === "STAFF"))
   ) {
-    return null;
+    return session && session.propertyId ? session : null;
   }
 
   await refreshSessionCookie(session);
@@ -69,14 +69,14 @@ export async function GET() {
   try {
     const session = await getAuthorizedSession(true);
 
-    if (!session) {
+    if (!session || !(session.role === "OWNER" || session.role === "MANAGER" || session.role === "STAFF")) {
       return NextResponse.json(
         {
           ok: false,
           error: "Unauthorized.",
         },
         {
-          status: 401,
+          status: !session ? 401 : 403,
         }
       );
     }
@@ -133,14 +133,14 @@ export async function PATCH(request: Request) {
   try {
     const session = await getAuthorizedSession();
 
-    if (!session) {
+    if (!session || !(session.role === "OWNER" || session.role === "MANAGER")) {
       return NextResponse.json(
         {
           ok: false,
           error: "Unauthorized.",
         },
         {
-          status: 401,
+          status: !session ? 401 : 403,
         }
       );
     }

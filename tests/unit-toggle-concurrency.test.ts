@@ -67,7 +67,7 @@ test("occupied unit rejection preserves the existing error", async () => {
   assert.equal(response.body.error, "Cannot inactivate an occupied unit"); assert.equal(f.state.units[0].isActive, true);
 });
 test("STAFF cannot toggle and foreign unit is not mutated", async () => {
-  const staff = setup("STAFF"); assert.equal((await staff.toggle()).status, 400); assert.equal(staff.events.length, 0);
+  const staff = setup("STAFF"); assert.equal((await staff.toggle()).status, 403); assert.equal(staff.events.length, 0);
   const f = setup(); f.state.units[0].propertyId = "other";
   assert.equal((await f.toggle()).status, 404); assert.equal(f.state.units[0].isActive, true);
 });
@@ -122,7 +122,7 @@ test("session rejection and invalid input retain existing response conventions",
   const f = setup();
   f.imports["@/lib/session"].requireManagerLevelSession = async () => { throw new Error("Unauthorized"); };
   const unauthorized = await f.toggle();
-  assert.equal(unauthorized.status, 400); assert.equal(unauthorized.body.error, "Unauthorized");
+  assert.equal(unauthorized.status, 401); assert.equal(unauthorized.body.error, "Unauthorized");
   f.imports["@/lib/session"].requireManagerLevelSession = async () => ({ propertyId: null });
   assert.equal((await f.toggle()).status, 401);
   f.imports["@/lib/session"].requireManagerLevelSession = async () => ({ propertyId: "p" });

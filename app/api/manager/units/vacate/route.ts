@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     ) {
       return NextResponse.json<VacateErrorResponse>(
         { ok: false, error: "Unauthorized" },
-        { status: 401 }
+        { status: !session ? 401 : 403 }
       );
     }
 

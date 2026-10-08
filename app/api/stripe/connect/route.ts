@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (!session || session.role !== "OWNER" || !session.propertyId) {
       return NextResponse.json<ApiError>(
         { error: "Unauthorized" },
-        { status: 401 }
+        { status: !session ? 401 : 403 }
       );
     }
 
@@ -164,12 +164,9 @@ export async function POST(request: Request) {
       url: accountLink.url,
     });
   } catch (error: unknown) {
-    console.error("POST /api/stripe/connect error:", error);
+    console.error("POST /api/stripe/connect failed", { code: error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^(P\d{4}|[a-z_]{1,50})$/.test(error.code) ? error.code : "UNKNOWN" });
 
-    const message =
-      error instanceof Error && error.message
-        ? error.message
-        : "Stripe error";
+    const message = "Stripe error";
 
     return NextResponse.json<ApiError>(
       { error: message },

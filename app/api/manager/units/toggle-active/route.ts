@@ -106,8 +106,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, unit: result });
   } catch (err) {
     const businessErrors = new Map<string, number>([
-      ["Unauthorized", 400],
-      ["Forbidden", 400],
+      ["Unauthorized", 401],
+      ["Forbidden", 403],
       ["Unit not found", 404],
       ["Tier does not belong to property.", 404],
       ["Cannot inactivate an occupied unit", 400],

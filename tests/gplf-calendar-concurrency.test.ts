@@ -108,7 +108,7 @@ test("disabled late fees and numeric conversion remain unchanged", async () => {
   assert.equal(tier.gracePeriodDays, 7); assert.equal(tier.lateFeeInitialCents, 0); assert.equal(tier.lateFeeDailyCents, 0); assert.equal(tier.maxLateFeeDays, 0);
 });
 for (const role of ["OWNER", "MANAGER", "STAFF", "TENANT", "MAINTENANCE", "ADMIN"]) test("role policy unchanged: " + role, async () => {
-  const f = fixture(); f.controls.role = role; const result = await f.save(); assert.equal(result.status, ["OWNER", "MANAGER"].includes(role) ? 200 : 401);
+  const f = fixture(); f.controls.role = role; const result = await f.save(); assert.equal(result.status, ["OWNER", "MANAGER"].includes(role) ? 200 : 403);
 });
 test("missing session and wrong property are rejected before DB access", async () => {
   const f = fixture(); f.controls.missingSession = true; assert.equal((await f.save()).status, 401); assert.equal(f.events.length, 0);

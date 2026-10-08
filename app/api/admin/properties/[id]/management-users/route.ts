@@ -49,7 +49,7 @@ if (
   !session.propertyId ||
   !["OWNER", "MANAGER", "STAFF"].includes(session.role)
 ) {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
 }
 
   const { id: propertyId } = await params;
@@ -83,7 +83,7 @@ export async function POST(
   const session = await getSession();
 
   if (!session || (session.role !== "OWNER" && session.role !== "MANAGER")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
   }
 
   const { id: propertyId } = await params;
@@ -165,7 +165,7 @@ export async function PATCH(
   const session = await getSession();
 
   if (!session || (session.role !== "OWNER" && session.role !== "MANAGER")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
   }
 
   const { id: propertyId } = await params;

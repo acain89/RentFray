@@ -81,7 +81,7 @@ export async function GET() {
     ) {
       return NextResponse.json<MaintenanceErrorResponse>(
         { ok: false, error: "Unauthorized" },
-        { status: 401 }
+        { status: !session ? 401 : 403 }
       );
     }
 

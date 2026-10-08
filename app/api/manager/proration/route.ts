@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const session = await getSession();
 
     if (!session || !["OWNER", "MANAGER", "STAFF"].includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
     }
 
     const body = await req.json();

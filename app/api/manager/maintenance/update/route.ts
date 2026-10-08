@@ -90,7 +90,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     ) {
       return NextResponse.json<UpdateErrorResponse>(
         { ok: false, error: "Unauthorized" },
-        { status: 401 }
+        { status: !session ? 401 : 403 }
       );
     }
 

@@ -92,6 +92,24 @@ test("webhook retrieval failure is retryable and never falls back to event paylo
 // Restore only approved reconciliation spans before enforcing whole-file equality.
 export function assertRF19Change(file: string, before: string, after: string) {
   before = before.replace(/\r\n/g, "\n"); after = after.replace(/\r\n/g, "\n");
+  // F1 and the response-security batch supersede RF-19's historical whole-file baseline.
+  // Keep exact equality against the committed F1-F3 source plus only reviewed response edits.
+  if (["app/api/stripe/webhook/route.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts"].includes(file)) {
+    let expected = execFileSync("git", ["show", "24e5d002f69e8ee7cecb64435b4f88a7e6b3ca59:" + file], { cwd: root, encoding: "utf8" }).replace(/\r\n/g, "\n");
+    if (file === "app/api/manager/dashboard/route.ts") {
+      const boundary = expected.indexOf("    await refreshSessionCookie(session);");
+      assert.ok(boundary >= 0);
+      expected = expected.slice(0, boundary) + expected.slice(boundary).replace('{ status: 401 }', '{ status: 403 }');
+    }
+    if (file === "app/api/stripe/connect/route.ts") {
+      expected = expected.replace('{ status: 401 }', '{ status: !session ? 401 : 403 }');
+      expected = expected.replace('console.error("POST /api/stripe/connect error:", error);',
+        'console.error("POST /api/stripe/connect failed", { code: error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^(P\\d{4}|[a-z_]{1,50})$/.test(error.code) ? error.code : "UNKNOWN" });');
+      expected = expected.replace('    const message =\n      error instanceof Error && error.message\n        ? error.message\n        : "Stripe error";', '    const message = "Stripe error";');
+    }
+    assert.equal(after, expected, "Only reviewed response edits may differ from committed F1-F3: " + file);
+    return;
+  }
   assert.ok(after.includes('import { reconcileStripeAccountStatus } from "@/lib/stripeAccountStatus";'));
   let restored = after.replace('import { reconcileStripeAccountStatus } from "@/lib/stripeAccountStatus";\n', "");
   function restore(oldStart: string, newStart: string, end: string) {
@@ -120,7 +138,7 @@ for (const role of ["OWNER", "MANAGER", "STAFF"]) test("Connect retains banking 
   class FakeStripe { constructor() { return f.stripe; } }
   const api = isolatedSource("app/api/stripe/connect/route.ts", { stripe: FakeStripe, "@/lib/prisma": { prisma: f.db }, "@/lib/session": { getSession: async () => ({ role, propertyId: "p" }) }, "@/lib/stripeAccountStatus": f.helper, "next/server": { NextResponse: { json: (body: any, options: any = {}) => ({ body, status: options.status ?? 200 }) } } });
   const result = await api.POST({ url: "https://isolated.invalid/api/stripe/connect" });
-  assert.equal(result.status, role === "OWNER" ? 200 : 401);
+  assert.equal(result.status, role === "OWNER" ? 200 : 403);
   assert.equal(f.calls(), role === "OWNER" ? 1 : 0); assert.equal(links, role === "OWNER" ? 1 : 0);
 });
 test("no-account sync cannot clear a newly associated account", async () => {
@@ -129,4 +147,9 @@ test("no-account sync cannot clear a newly associated account", async () => {
   f.db.$queryRaw = async (...args: any[]) => { const rows = await raw(...args); if (first) { first = false; f.properties.get("p").stripeAccountId = "acct"; f.properties.get("p").propertyVersion = "99"; } return rows; };
   await assert.rejects(f.helper.reconcileStripeAccountStatus("p", { expectedAccountId: null }), /mapping changed/);
   assert.equal(f.writes.length, 0);
+});
+
+for (const file of ["app/api/stripe/webhook/route.ts", "app/api/manager/dashboard/route.ts", "app/api/stripe/connect/route.ts"]) test("response baseline rejects unrelated source changes: " + file, () => {
+  const current = readFileSync(resolve(root, file), "utf8");
+  assert.throws(() => assertRF19Change(file, "", current + "\n// unauthorized source change"), /Only reviewed response edits/);
 });

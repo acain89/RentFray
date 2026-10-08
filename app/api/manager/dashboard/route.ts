@@ -392,7 +392,7 @@ export async function GET() {
         session.role !== "STAFF") ||
       !session.propertyId
     ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const adminToken = (await cookies()).get("rf_admin_session")?.value;

@@ -27,7 +27,7 @@ export async function PATCH(req: Request) {
       !session.propertyId ||
       (session.role !== "OWNER" && session.role !== "MANAGER")
     ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
     }
 
     const body = (await req.json()) as UpdateUnitCountBody;

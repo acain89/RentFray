@@ -44,7 +44,7 @@ test("required vacancy audit failure rolls back assignment and credential cleari
   assert.equal(f.state().assignments[0].isCurrent, true); assert.equal(f.state().unit.tenantPinHash, "hash-A"); assert.equal(f.realtime.length, 0);
 });
 for (const role of [null, "STAFF", "TENANT", "MAINTENANCE", "ADMIN"]) test("vacancy role denial " + role, async () => {
-  const f = fixture(role); assert.equal((await vacate(f)).status, 401); assert.equal(f.events.length, 0);
+  const f = fixture(role); assert.equal((await vacate(f)).status, role ? 403 : 401); assert.equal(f.events.length, 0);
 });
 for (const value of [undefined, null, ""]) test("vacancy requires expected assignment " + value, async () => {
   const f = fixture(); assert.equal((await vacate(f, { tenantAssignmentId: value })).status, 400); assert.equal(f.events.length, 0);

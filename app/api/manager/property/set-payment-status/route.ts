@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const session = await getSession();
 
     if (!session || !session.propertyId || !canManageFinancials(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
     }
 
     return NextResponse.json(

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getLockedMonthlyDueDay } from "@/lib/billingCalendar";
 
+class TierBusinessError extends Error {}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -175,7 +177,7 @@ export async function POST(
         });
 
         if (!currentProperty) {
-          throw new Error("Property not found.");
+          throw new TierBusinessError("Property not found.");
         }
 
         /*
@@ -196,7 +198,7 @@ export async function POST(
           transactionDueDay < 1 ||
           transactionDueDay > 31
         ) {
-          throw new Error(
+          throw new TierBusinessError(
             "The property's billing calendar is invalid."
           );
         }
@@ -235,7 +237,7 @@ export async function POST(
           );
 
           if (baseRentCents < 0) {
-            throw new Error(
+            throw new TierBusinessError(
               `Tier "${name}" has an invalid rent amount.`
             );
           }
@@ -245,7 +247,7 @@ export async function POST(
             gracePeriodDays < 0 ||
             gracePeriodDays > 31
           ) {
-            throw new Error(
+            throw new TierBusinessError(
               `Tier "${name}" must have a grace period from 0 to 31 days.`
             );
           }
@@ -255,7 +257,7 @@ export async function POST(
             lateFeeDailyCents < 0 ||
             maxLateFeeDays < 0
           ) {
-            throw new Error(
+            throw new TierBusinessError(
               `Tier "${name}" has invalid late-fee settings.`
             );
           }
@@ -274,7 +276,7 @@ export async function POST(
               });
 
             if (occupiedUnits > 0) {
-              throw new Error(
+              throw new TierBusinessError(
                 `Cannot delete tier "${name}" because units are still assigned.`
               );
             }
@@ -291,7 +293,7 @@ export async function POST(
               });
 
             if (!existingTier) {
-              throw new Error(
+              throw new TierBusinessError(
                 `Tier "${name}" was not found.`
               );
             }
@@ -326,7 +328,7 @@ export async function POST(
               });
 
             if (!existingTier) {
-              throw new Error(
+              throw new TierBusinessError(
                 `Tier "${name}" was not found.`
               );
             }
@@ -352,7 +354,7 @@ export async function POST(
                 : submittedUnitCount;
 
             if (nextUnitCount < activeTierUnitCount) {
-              throw new Error(
+              throw new TierBusinessError(
                 `Tier "${name}" cannot be lower than ${activeTierUnitCount} active units.`
               );
             }
@@ -453,7 +455,7 @@ export async function POST(
             });
 
           if (mismatchedTier) {
-            throw new Error(
+            throw new TierBusinessError(
               `Billing calendar verification failed for tier ${mismatchedTier.id}.`
             );
           }
@@ -487,16 +489,15 @@ export async function POST(
       billingCalendarLocked: lockedDueDay !== null,
     });
   } catch (error: unknown) {
-    console.error("SAVE TIERS FAILED", error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to save tiers.";
-
+    const detail = error instanceof TierBusinessError ? error.message : "";
+    const businessError = error instanceof TierBusinessError;
+    if (!businessError) {
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+      console.error("SAVE TIERS FAILED", { code: typeof code === "string" && /^P\d{4}$/.test(code) ? code : "UNKNOWN" });
+    }
     return NextResponse.json(
-      { error: message },
-      { status: 400 }
+      { error: businessError ? detail : "Failed to save tiers." },
+      { status: businessError ? 400 : 500 }
     );
   }
 }

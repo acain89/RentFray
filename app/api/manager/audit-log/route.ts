@@ -18,7 +18,7 @@ export async function GET() {
         session.role !== "STAFF") ||
       !session.propertyId
     ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: !session ? 401 : 403 });
     }
 
     const payments = await prisma.payment.findMany({

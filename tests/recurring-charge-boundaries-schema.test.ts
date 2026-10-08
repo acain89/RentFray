@@ -6,6 +6,8 @@ import { resolve } from "node:path";
 
 const root = resolve(__dirname, "..");
 export function assertApprovedSchemaChange(before: string, after: string) {
+  // A baseline already containing the creator models must not have them stripped again.
+  if (before === after) return;
   const creatorModels = "model Creator {\n  id        String   @id @default(cuid())\n  name      String\n  slug      String   @unique\n  startsAt  DateTime\n  expiresAt DateTime\n  createdAt DateTime @default(now())\n  referrals CreatorReferral[]\n}\n\nmodel CreatorReferral {\n  id                   String   @id @default(cuid())\n  creatorId            String\n  propertyId           String?  @unique\n  retainedPropertyId   String   @unique\n  businessNameSnapshot String\n  attributedAt         DateTime @default(now())\n  creator              Creator  @relation(fields: [creatorId], references: [id], onDelete: Restrict)\n  property             Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)\n\n  @@index([creatorId, attributedAt])\n}";
   if (after.includes("model Creator {")) {
     assert.ok(after.endsWith(creatorModels), "Only the exact approved creator models may be appended");
@@ -44,4 +46,11 @@ test("tier boundary and approved creator additions preserve existing schema; RF-
   assertApprovedSchemaChange(before, after);
   const sql = readFileSync(resolve(root, "prisma/migrations/20261006010000_add_tier_charge_effective_until/migration.sql"), "utf8").trim();
   assert.equal(sql, 'ALTER TABLE "PropertyTierCharge" ADD COLUMN "effectiveUntil" TIMESTAMP(3);');
+});
+
+test("identical committed creator schema passes but unapproved schema changes fail", () => {
+  const committed = execFileSync("git", ["show", "24e5d002f69e8ee7cecb64435b4f88a7e6b3ca59:prisma/schema.prisma"], { cwd: root, encoding: "utf8" }).replace(/\r\n/g, "\n");
+  assert.doesNotThrow(() => assertApprovedSchemaChange(committed, committed));
+  assert.throws(() => assertApprovedSchemaChange(committed, committed.replace("slug      String   @unique", "slug      String")));
+  assert.throws(() => assertApprovedSchemaChange(committed, committed.replace("onDelete: Restrict", "onDelete: Cascade")));
 });

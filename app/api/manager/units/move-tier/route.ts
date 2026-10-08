@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     if (!session || !session.propertyId || !isAllowedRole(session.role)) {
   return NextResponse.json<MoveTierResponse>(
     { ok: false, error: "Unauthorized" },
-    { status: 401 }
+    { status: !session ? 401 : 403 }
   );
 }
 
