@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, refreshSessionCookie } from "@/lib/session";
+import { getSession, refreshSessionCookie, SessionAuthorizationError } from "@/lib/session";
 import {
 getProcessingFeeCents,
   formatCentsToDollars,
@@ -78,13 +78,17 @@ function buildStatementLabel(entry: {
 
 export async function POST() {
   try {
-    const session = await getSession();
+    const session = await getSession({ strictAuthority: true });
 
 if (!session) {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
-await refreshSessionCookie(session);
+if (session.role !== "TENANT") {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
+await refreshSessionCookie(session, { strictAuthority: true });
 
     if (
       !session ||
@@ -497,6 +501,9 @@ paymentMessage: unitStatus.tenantMessage,
       ),
     });
   } catch (error) {
+    if (error instanceof SessionAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("POST /api/tenant/dashboard failed", error);
 
     return NextResponse.json(

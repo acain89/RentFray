@@ -13,6 +13,7 @@ const root = resolve(__dirname, "..");
 for (const kind of ["public", "admin"] as const) for (const mailFailure of [false, true]) {
   test(kind + " provisioning retains bcrypt, one OWNER and verification; mailFailure=" + mailFailure, async () => {
     const f = fixture(kind === "admin" ? "ADMIN" : null); let committed = false, emails = 0;
+    f.imports["@prisma/client"].Prisma.TransactionIsolationLevel.ReadCommitted = "ReadCommitted";
     f.db.property.findUnique = async () => null;
     f.db.$transaction = async (fn: any) => { const result = await fn(f.db); committed = true; return result; };
     const password = "isolated-password-123";
@@ -43,6 +44,111 @@ for (const kind of ["public", "admin"] as const) for (const mailFailure of [fals
   });
 }
 test("canonical provisioning, verification, compatibility and hard-start authorities remain unchanged", () => {
+    const restoreAUD06Session = (source: string): string => {
+      let restored = source.replace(/\r\n/g, "\n");
+      const deltas: Array<[string, string, number]> = [
+  [
+    "",
+    "export type SessionValidationOptions = Readonly<{ strictAuthority?: boolean }>;\n\n// Only errors created by session authorization may become 401/403 responses.\nexport class SessionAuthorizationError extends Error {\n  readonly status: 401 | 403;\n  constructor(status: 401 | 403) {\n    super(status === 401 ? \"Unauthorized\" : \"Forbidden\");\n    this.name = \"SessionAuthorizationError\";\n    this.status = status;\n  }\n}\n\n",
+    1
+  ],
+  [
+    "async function hasCurrentManagementAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentManagementAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "async function hasCurrentTenantAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentTenantAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "export async function validateSessionToken(token: string): Promise<SessionPayload | null> {",
+    "export async function validateSessionToken(token: string, options: SessionValidationOptions = {}): Promise<SessionPayload | null> {",
+    1
+  ],
+  [
+    "export async function getSession() {",
+    "export async function getSession(options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function requireSession() {",
+    "export async function requireSession(options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function requireRole(role: SessionRole) {",
+    "export async function requireRole(role: SessionRole, options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function refreshSessionCookie(session: SessionPayload) {",
+    "export async function refreshSessionCookie(session: SessionPayload, options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "} catch {\n    return false;",
+    "} catch (error) {\n    if (options.strictAuthority) throw error;\n    return false;",
+    2
+  ],
+  [
+    "} catch {\n      return false;",
+    "} catch (error) {\n      if (options.strictAuthority) throw error;\n      return false;",
+    2
+  ],
+  [
+    "hasCurrentManagementAuthority(session)",
+    "hasCurrentManagementAuthority(session, options)",
+    2
+  ],
+  [
+    "hasCurrentTenantAuthority(session)",
+    "hasCurrentTenantAuthority(session, options)",
+    2
+  ],
+  [
+    "hasCurrentAuthority(session)",
+    "hasCurrentAuthority(session, options)",
+    3
+  ],
+  [
+    "validateSessionToken(token)",
+    "validateSessionToken(token, options)",
+    1
+  ],
+  [
+    "getSession()",
+    "getSession(options)",
+    1
+  ],
+  [
+    "requireSession()",
+    "requireSession(options)",
+    1
+  ],
+  [
+    "throw new Error(\"Unauthorized\");",
+    "throw new SessionAuthorizationError(401);",
+    5
+  ],
+  [
+    "throw new Error(\"Forbidden\");",
+    "throw new SessionAuthorizationError(403);",
+    1
+  ]
+];
+      for (const [original, approved, count] of deltas) {
+        assert.equal(restored.split(approved).length - 1, count, "Exact AUD-06 session delta: " + approved);
+        restored = restored.split(approved).join(original);
+      }
+      return restored;
+    };
   for (const file of ["app/api/setup/create-account/route.ts", "app/setup/page.tsx", "app/api/admin/properties/route.ts", "app/admin/properties/new/page.tsx",
     "app/api/auth/verify-email/route.ts", "lib/email.ts", "lib/managementAuth.ts", "lib/session.ts", "proxy.ts", "lib/billingCalendar.ts",
     "app/api/admin/properties/[id]/route.ts", "app/api/admin/properties/[id]/lifecycle/route.ts", "app/api/admin/properties/[id]/override/route.ts"]) {
@@ -58,6 +164,36 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       after = after.replace(value, "");
     };
     if (file === "app/api/setup/create-account/route.ts") {
+      const approvedRegistrationChanges: Array<[string, string]> = [
+  [
+    "function clean(value: unknown): string {",
+    "class RegistrationConflictError extends Error {\n  constructor() { super(\"An account with that email already exists.\"); }\n}\n\nfunction logSignupFailure(stage: \"account_creation\" | \"verification_email\", error: unknown): void {\n  const code = typeof error === \"object\" && error !== null && \"code\" in error &&\n    typeof error.code === \"string\" && /^(P[0-9]{4}|40001|40P01|55P03)$/.test(error.code)\n    ? error.code : undefined;\n  console.error(\"Public signup failed:\", { stage, category: code ? \"DATABASE_ERROR\" : \"UNEXPECTED_ERROR\", ...(code ? { code } : {}) });\n}\n\nfunction clean(value: unknown): string {"
+  ],
+  [
+    "    const existingManager = await prisma.managementUser.findFirst({\n      where: {\n        OR: [\n          {\n            email,\n          },\n          {\n            username: email,\n          },\n        ],\n      },\n      select: {\n        id: true,\n      },\n    });\n\n    if (existingManager) {\n      return NextResponse.json(\n        {\n          ok: false,\n          error: \"An account with that email already exists.\",\n        },\n        {\n          status: 409,\n        }\n      );\n    }\n\n    const passwordHash",
+    "    const passwordHash"
+  ],
+  [
+    "      async (tx: Prisma.TransactionClient) => {\n",
+    "      async (tx: Prisma.TransactionClient) => {\n        // Two-integer keys occupy a separate advisory-lock space from existing\n        // single-key property/tenancy locks. Read the identity only after waiting.\n        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${\"public-registration\"}), hashtext(${email}))`;\n        const existingManager = await tx.managementUser.findFirst({\n          where: { OR: [{ email }, { username: email }] },\n          select: { id: true },\n        });\n        if (existingManager) throw new RegistrationConflictError();\n\n"
+  ],
+  [
+    "    maxWait: 10_000,\n",
+    "    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,\n    maxWait: 10_000,\n"
+  ],
+  [
+    "  console.error(\"Initial verification email failed:\", error);",
+    "  logSignupFailure(\"verification_email\", error);"
+  ],
+  [
+    "    console.error(\"Create manager account failed:\", error);\n\n    const message =\n      error instanceof Error\n        ? error.message\n        : \"Could not create your account.\";",
+    "    if (error instanceof RegistrationConflictError) {\n      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });\n    }\n    logSignupFailure(\"account_creation\", error);\n    const message = \"Could not create your account.\";"
+  ]
+];
+      for (const [original, approved] of approvedRegistrationChanges.reverse()) {
+        assert.equal(after.split(approved).length, 2, "Exactly one approved registration change must remain present");
+        after = after.replace(approved, original);
+      }
       for (const insertion of [
         'import { cookies } from "next/headers";\nimport { attributeCreator, REFERRAL_COOKIE, referralCookieOptions } from "@/lib/creatorReferrals";\n',
         '    const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;\n',
@@ -84,7 +220,8 @@ test("canonical provisioning, verification, compatibility and hard-start authori
     }
     if (file === "app/api/admin/properties/route.ts") assertApprovedProvisioningChange(before.replace(/\r\n/g, "\n"), after);
     else if (file === "app/admin/properties/new/page.tsx") assertApprovedDraftChange(before.replace(/\r\n/g, "\n"), after);
-    else if (file === "lib/session.ts" || file === "app/api/auth/verify-email/route.ts") assertApprovedCredentialChange(file, before, after);
+    else if (file === "lib/session.ts") assertApprovedCredentialChange(file, before, restoreAUD06Session(after));
+    else if (file === "app/api/auth/verify-email/route.ts") assertApprovedCredentialChange(file, before, after);
     else if (file === "proxy.ts") {
       const original = before.replace(/\r\n/g, "\n");
       const anchor = '  "/role-select",\n';

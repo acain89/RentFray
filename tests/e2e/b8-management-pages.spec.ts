@@ -16,7 +16,7 @@ function load(file: string, imports: Record<string, any>, extras: Record<string,
       jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
-    process: { env: { NODE_ENV: "production", SESSION_SECRET: "b8-isolated-secret" } },
+    process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-b8-isolated-secret-session-secret-key" } },
     console: { error() {} },
     require(name: string) { if (!(name in imports)) throw new Error("Unexpected import " + name); return imports[name]; },
     ...extras,
@@ -317,7 +317,7 @@ for (const change of ["valid", "vacated", "replaced", "foreign-unit", "unit-only
       const payload = { role: "TENANT", propertyId: "property", unitId: "unit",
         iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-      const signature = crypto.createHmac("sha256", "b8-isolated-secret").update(encoded).digest("base64url");
+      const signature = crypto.createHmac("sha256", "synthetic-b8-isolated-secret-session-secret-key").update(encoded).digest("base64url");
       f.token(encoded + "." + signature);
     }
     expect(Boolean(await f.session.getSession())).toBe(change === "valid");

@@ -30,6 +30,11 @@ function load<T>(path: string, mocks: Record<string, unknown>, extra: Record<str
   return fixtureModule.exports as T;
 }
 
+test("creator URLs use canonical host without changing the slug", () => {
+  assert.equal(referrals.CREATOR_ORIGIN, "https://www.rentfray.com");
+  assert.equal(`${referrals.CREATOR_ORIGIN}/${requireCreatorSlug(" SeanPan ")}`, "https://www.rentfray.com/seanpan");
+});
+
 test("normalization, reserved routes, invalid input and root-route inventory", () => {
   assert.equal(normalizeCreatorSlug(" SeanPan "), "seanpan");
   assert.equal(requireCreatorSlug(" SeanPan "), "seanpan");
@@ -135,10 +140,11 @@ test("public signup captures attribution atomically, clears only success, and pr
     let committed: unknown[] = [];
     let cleared = false;
     const tx = {
+      $executeRaw: async () => 0,
       property: { findUnique: async () => null, create: async () => ({ id: "new-p", name: "My Property", propertyCode: "1234" }) },
       creator: { findUnique: async () => scenario === "creator-missing" ? null : creator },
       creatorReferral: { create: async ({ data }: { data: unknown }) => { committed.push(data); } },
-      managementUser: { create: async () => { if (scenario === "owner-fails") throw Error("owner failed"); return { id: "owner" }; } },
+      managementUser: { findFirst: async () => null, create: async () => { if (scenario === "owner-fails") throw Error("owner failed"); return { id: "owner" }; } },
       propertySettings: { create: async () => ({}) }, paymentConnectionStatus: { create: async () => ({}) },
     };
     const db = { managementUser: { findFirst: async () => null }, $transaction: async (fn: (value: typeof tx) => Promise<unknown>) => {
@@ -147,7 +153,7 @@ test("public signup captures attribution atomically, clears only success, and pr
     const route = load<{ POST(req: Request): Promise<{ status: number }> }>("app/api/setup/create-account/route.ts", {
       "next/server": { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200,
         cookies: { set() { cleared = true; } } }) } }, "next/headers": { cookies: async () => ({ get: () => cookie ? { value: cookie } : undefined }) },
-      "@prisma/client": { Prisma: {} }, bcryptjs: { default: { hash: async () => "hash" } },
+      "@prisma/client": { Prisma: { TransactionIsolationLevel: { ReadCommitted: "ReadCommitted" } } }, bcryptjs: { default: { hash: async () => "hash" } },
       "@/lib/prisma": { prisma: db }, "@/lib/email": { sendVerificationEmail: async () => {} },
       "@/lib/creatorReferrals": { attributeCreator, REFERRAL_COOKIE: "rf_creator_referral", referralCookieOptions: {} },
     });
@@ -256,6 +262,8 @@ test("creator script normalizes, creates one exact-window record and rejects dup
   }
 });
 for (const [environment, requestUrl, destination] of [
+    ["production", "https://rentfray.com/andrew", "https://www.rentfray.com/"],
+    ["production", "https://www.rentfray.com/andrew", "https://www.rentfray.com/"],
     ["production", "http://srv-example:10000/andrew", "https://www.rentfray.com/"],
     ["production", "https://attacker.example/andrew", "https://www.rentfray.com/"],
     ["development", "http://localhost:3001/andrew", "http://localhost:3001/"],
@@ -287,4 +295,5 @@ for (const [environment, requestUrl, destination] of [
   assert.equal(writes[0].options.sameSite, "lax");
   assert.equal(writes[0].options.secure, referrals.referralCookieOptions.secure);
   assert.equal(writes[0].options.path, "/");
+  assert.equal(Object.hasOwn(writes[0].options, "domain"), false);
 });

@@ -15,7 +15,7 @@ function load(file: string, imports: Record<string, any>) {
   runInNewContext(ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true,
   } }).outputText, { module, exports: module.exports, Date: Clock, Intl, URL, Buffer,
-    process: { env: { SESSION_SECRET: "isolated-export-contract", NODE_ENV: "production" } }, console: { error() {} },
+    process: { env: { SESSION_SECRET: "synthetic-isolated-export-contract-session-secret-key", NODE_ENV: "production" } }, console: { error() {} },
     require(name: string) { assert.ok(name in imports, `Unmocked: ${name}`); return imports[name]; } });
   return module.exports;
 }

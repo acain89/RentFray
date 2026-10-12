@@ -5,43 +5,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type TenantInfo = {
-  id: string;
-  fullName: string;
-  email?: string | null;
-  phone?: string | null;
-} | null;
-
 type BalanceData = {
   ok: true;
-  property: {
-    id: string;
-    name: string;
-    code: string;
-  };
-  unit: {
-    id: string;
-    unitNumber: string;
-    bedrooms?: number | null;
-    bathrooms?: number | null;
-    squareFeet?: number | null;
-    marketRent?: number | null;
-  };
-  tenant: TenantInfo;
-  balance: {
-    currentBalance: number;
-    totalCharges: number;
-    totalPaid: number;
-    lastPaymentDate?: string | null;
-    lastPaymentAmount: number;
-  };
-  delinquency: {
-    isDelinquent: boolean;
-    daysPastDue: number;
-    lateFeesOwed: number;
-    unpaidRent: number;
-  };
+  balanceCents: number;
+  chargesCents: number;
+  paymentsCents: number;
+  lastPaymentDate?: string | null;
+  lastPaymentAmountCents?: number | null;
 };
+
+function isBalanceData(value: unknown): value is BalanceData {
+  if (!value || typeof value !== "object" || !("ok" in value) || value.ok !== true) return false;
+  if (!("balanceCents" in value) || typeof value.balanceCents !== "number" || !Number.isSafeInteger(value.balanceCents) ||
+      !("chargesCents" in value) || typeof value.chargesCents !== "number" || !Number.isSafeInteger(value.chargesCents) ||
+      !("paymentsCents" in value) || typeof value.paymentsCents !== "number" || !Number.isSafeInteger(value.paymentsCents)) return false;
+  if ("lastPaymentDate" in value && value.lastPaymentDate !== null && value.lastPaymentDate !== undefined &&
+      (typeof value.lastPaymentDate !== "string" || !Number.isFinite(new Date(value.lastPaymentDate).getTime()))) return false;
+  return !("lastPaymentAmountCents" in value) || value.lastPaymentAmountCents === null ||
+    value.lastPaymentAmountCents === undefined ||
+    (typeof value.lastPaymentAmountCents === "number" && Number.isSafeInteger(value.lastPaymentAmountCents));
+}
 
 function money(v: number) {
   return `$${Number(v || 0).toFixed(2)}`;
@@ -73,7 +56,7 @@ export default function TenantBalancePage() {
           cache: "no-store",
         });
 
-        const result = await res.json().catch(() => null);
+        const result: unknown = await res.json().catch(() => null);
 
         if (!active) return;
 
@@ -82,8 +65,9 @@ export default function TenantBalancePage() {
           return;
         }
 
-        if (!res.ok || !result?.ok) {
-          setError(result?.error || "Failed to load balance detail.");
+        if (!res.ok || !isBalanceData(result)) {
+          setError(result && typeof result === "object" && "error" in result && typeof result.error === "string"
+            ? result.error : "Failed to load balance detail. Invalid balance data.");
           return;
         }
 
@@ -148,30 +132,27 @@ export default function TenantBalancePage() {
           <h1 className="text-3xl font-semibold tracking-tight">
             Balance Detail
           </h1>
-          <div className="mt-2 text-sm text-neutral-600">
-            {data.property.name} · Unit {data.unit.unitNumber}
-          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-xl border border-neutral-200 p-4">
             <div className="text-xs text-neutral-500">Total Charges</div>
             <div className="text-lg font-semibold">
-              {money(data.balance.totalCharges)}
+              {money(data.chargesCents / 100)}
             </div>
           </div>
 
           <div className="rounded-xl border border-neutral-200 p-4">
             <div className="text-xs text-neutral-500">Total Paid</div>
             <div className="text-lg font-semibold">
-              {money(data.balance.totalPaid)}
+              {money(data.paymentsCents / 100)}
             </div>
           </div>
 
           <div className="rounded-xl border border-neutral-200 p-4">
             <div className="text-xs text-neutral-500">Current Balance</div>
             <div className="text-lg font-semibold">
-              {money(data.balance.currentBalance)}
+              {money(data.balanceCents / 100)}
             </div>
           </div>
         </div>
@@ -180,44 +161,14 @@ export default function TenantBalancePage() {
           <div className="rounded-xl border border-neutral-200 p-4">
             <div className="text-xs text-neutral-500">Last Payment Date</div>
             <div className="text-sm font-medium">
-              {fmtDate(data.balance.lastPaymentDate)}
+              {fmtDate(data.lastPaymentDate)}
             </div>
           </div>
 
           <div className="rounded-xl border border-neutral-200 p-4">
             <div className="text-xs text-neutral-500">Last Payment Amount</div>
             <div className="text-sm font-medium">
-              {money(data.balance.lastPaymentAmount)}
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-neutral-200 p-4">
-          <h2 className="mb-3 font-semibold">Delinquency</h2>
-          <div className="grid gap-3 md:grid-cols-4">
-            <div>
-              <div className="text-xs text-neutral-500">Status</div>
-              <div className="text-sm font-medium">
-                {data.delinquency.isDelinquent ? "DELINQUENT" : "CURRENT"}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-neutral-500">Days Past Due</div>
-              <div className="text-sm font-medium">
-                {data.delinquency.daysPastDue}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-neutral-500">Late Fees Owed</div>
-              <div className="text-sm font-medium">
-                {money(data.delinquency.lateFeesOwed)}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-neutral-500">Unpaid Rent</div>
-              <div className="text-sm font-medium">
-                {money(data.delinquency.unpaidRent)}
-              </div>
+              {data.lastPaymentAmountCents == null ? "—" : money(data.lastPaymentAmountCents / 100)}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import { getSession, refreshSessionCookie } from "@/lib/session";
+import { getSession, refreshSessionCookie, SessionAuthorizationError } from "@/lib/session";
 import { canMakePayments } from "@/lib/liveGating";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
@@ -30,7 +30,7 @@ function toSafeInteger(value: unknown): number {
 class CheckoutBlocked extends Error {}
 
 function checkoutParameters(payment: CheckoutPayment, property: { name: string; stripeAccountId: string | null }, unitNumber: string) {
-  const origin = process.env.NODE_ENV === "production" ? "https://rentfray.com" : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:10000";
+  const origin = process.env.NODE_ENV === "production" ? "https://www.rentfray.com" : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:10000";
   const fee = payment.processingFeeCents ?? 0;
   const metadata = {
     paymentId: payment.id, propertyId: payment.propertyId, unitId: payment.unitId,
@@ -189,11 +189,14 @@ export async function POST(req: Request) {
       apiVersion: "2026-02-25.clover",
     });
 
-    const session = await getSession();
+    const session = await getSession({ strictAuthority: true });
+
+    if (session && session.role !== "TENANT") {
+      return NextResponse.json<ApiError>({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
 
     if (
       !session ||
-      session.role !== "TENANT" ||
       !session.unitId ||
       !session.propertyId ||
       !session.tenantAssignmentId
@@ -207,7 +210,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await refreshSessionCookie(session);
+    await refreshSessionCookie(session, { strictAuthority: true });
 
     const unit = await prisma.unit.findFirst({
       where: {
@@ -290,6 +293,9 @@ export async function POST(req: Request) {
     const url = await recoverCheckout(stripe, reservation);
     return NextResponse.json<ApiSuccess<{ url: string }>>({ ok: true, data: { url } });
   } catch (error) {
+    if (error instanceof SessionAuthorizationError) {
+      return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
+    }
     console.error(
       "create-session error:",
       error

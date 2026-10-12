@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isCreatorSlug, normalizeCreatorSlug } from "@/lib/creatorSlugRules";
-import { REFERRAL_COOKIE, REFERRAL_TTL_SECONDS, referralCookieOptions, signReferral, validFirstTouch } from "@/lib/creatorReferrals";
+import { CREATOR_ORIGIN, REFERRAL_COOKIE, REFERRAL_TTL_SECONDS, referralCookieOptions, signReferral, validFirstTouch } from "@/lib/creatorReferrals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 function referralPublicOrigin(requestUrl: string): string {
-  if (process.env.NODE_ENV === "production") return "https://www.rentfray.com";
+  if (process.env.NODE_ENV === "production") return CREATOR_ORIGIN;
   const url = new URL(requestUrl);
   if (["http:", "https:"].includes(url.protocol) &&
     ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) && !url.username && !url.password) {

@@ -17,6 +17,17 @@ type CreateAccountPayload = {
   password?: string;
 };
 
+class RegistrationConflictError extends Error {
+  constructor() { super("An account with that email already exists."); }
+}
+
+function logSignupFailure(stage: "account_creation" | "verification_email", error: unknown): void {
+  const code = typeof error === "object" && error !== null && "code" in error &&
+    typeof error.code === "string" && /^(P[0-9]{4}|40001|40P01|55P03)$/.test(error.code)
+    ? error.code : undefined;
+  console.error("Public signup failed:", { stage, category: code ? "DATABASE_ERROR" : "UNEXPECTED_ERROR", ...(code ? { code } : {}) });
+}
+
 function clean(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -112,39 +123,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingManager = await prisma.managementUser.findFirst({
-      where: {
-        OR: [
-          {
-            email,
-          },
-          {
-            username: email,
-          },
-        ],
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (existingManager) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "An account with that email already exists.",
-        },
-        {
-          status: 409,
-        }
-      );
-    }
-
     const passwordHash = await bcrypt.hash(password, 12);
     const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;
 
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        // Two-integer keys occupy a separate advisory-lock space from existing
+        // single-key property/tenancy locks. Read the identity only after waiting.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"public-registration"}), hashtext(${email}))`;
+        const existingManager = await tx.managementUser.findFirst({
+          where: { OR: [{ email }, { username: email }] },
+          select: { id: true },
+        });
+        if (existingManager) throw new RegistrationConflictError();
+
         const propertyCode = await generateUniquePropertyCode(tx);
 
         const property = await tx.property.create({
@@ -203,6 +195,7 @@ export async function POST(req: Request) {
         };
     },
   {
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     maxWait: 10_000,
     timeout: 20_000,
   }
@@ -219,7 +212,7 @@ await sendVerificationEmail({
 });
 } catch (error) {
   verificationEmailSent = false;
-  console.error("Initial verification email failed:", error);
+  logSignupFailure("verification_email", error);
 }
 
 const response = NextResponse.json({
@@ -234,12 +227,11 @@ const response = NextResponse.json({
 if (result.attributed) response.cookies.set(REFERRAL_COOKIE, "", { ...referralCookieOptions, maxAge: 0 });
 return response;
   } catch (error) {
-    console.error("Create manager account failed:", error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Could not create your account.";
+    if (error instanceof RegistrationConflictError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
+    logSignupFailure("account_creation", error);
+    const message = "Could not create your account.";
 
     return NextResponse.json(
       {

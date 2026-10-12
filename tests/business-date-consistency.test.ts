@@ -33,6 +33,7 @@ function fixtureModule(file, append='') {
     if(name==='node:test')imports[name]={test(){}};
     else if(name==='@playwright/test')imports[name]={test(){},expect:require('@playwright/test').expect};
     else if(name.startsWith('.'))imports[name]=fixtureModule(path.relative(root,path.resolve(root,path.dirname(file),name+'.ts')));
+    else if(name==='next/server')imports[name]=require(name);
     else if(name.startsWith('node:')||name==='typescript')imports[name]=require(name);
     else throw Error('Disallowed fixture dependency '+name);
   }

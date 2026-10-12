@@ -13,7 +13,7 @@ function load(file: string, imports: Record<string, any>, extras = {}) {
       jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
-    process: { env: { NODE_ENV: "production", SESSION_SECRET: "batch1-isolated" } },
+    process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-batch1-isolated-session-secret-key" } },
     require(name: string) { if (!(name in imports)) throw Error("Unexpected import: " + name); return imports[name]; }, ...extras });
   return module.exports;
 }

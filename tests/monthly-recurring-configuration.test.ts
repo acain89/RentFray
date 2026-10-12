@@ -10,8 +10,19 @@ export function monthlyFixture(charges: any[] = []) {
     tier: { id: "t", rentDueDay: 1, baseRentCents: 0 },
     tenantAssignments: [{ id: "assignment", moveInDate: new Date("2026-09-01T12:00:00Z"), isCurrent: true }], recurringFeeItems: [] };
   const events: string[] = [];
-  const controls = { failStage: "", failLock: false, failCommit: false, onLock: undefined as undefined | (() => void) };
+  const controls = { failStage: "", failLock: false, failCommit: false, onLock: undefined as undefined | (() => void | Promise<void>), onRead: undefined as undefined | (() => void | Promise<void>), missingUnit: false, missingProperty: false, commitErrors: [] as unknown[] };
   const tails = new Map<string, Promise<void>>();
+  let propertyTail = Promise.resolve();
+  async function acquireProperty() {
+    const previous = propertyTail; let release!: () => void;
+    propertyTail = new Promise<void>(resolve => { release = resolve; });
+    await previous; return release;
+  }
+  async function mutate(change: () => void) {
+    events.push("writer:wait"); const release = await acquireProperty();
+    try { events.push("writer:locked"); change(); events.push("writer:commit"); }
+    finally { release(); }
+  }
   const db = {
 
     unit: { findMany: async ({ cursor }: any) => cursor ? [] : unit.isActive ? [unit] : [] },
@@ -30,8 +41,8 @@ export function monthlyFixture(charges: any[] = []) {
   const database = {
     unit: { findMany: db.unit.findMany },
     $transaction: async (work: (tx: any) => Promise<any>, options: any) => {
-      assert.equal(options.timeout, 30000);
-      let staged: any[] = []; let release: (() => void) | undefined; let locked = false;
+      assert.equal(options.timeout, 30000); assert.equal(options.isolationLevel, "ReadCommitted");
+      let staged: any[] = []; let release: (() => void) | undefined; let propertyRelease: (() => void) | undefined; let locked = false;
       const tx = {
         $executeRaw: async (sql: TemplateStringsArray, namespace: number, key: string) => {
           const text = sql.join("?");
@@ -43,10 +54,20 @@ export function monthlyFixture(charges: any[] = []) {
           const gate = new Promise<void>(resolve => { release = resolve; });
           tails.set(key, previous.then(() => gate));
           await previous; locked = true; events.push("lock:" + key);
-          controls.onLock?.(); staged = ledger.map(row => ({ ...row })); return 1;
+          await controls.onLock?.(); staged = structuredClone(ledger); return 1;
         },
-        unit: { findMany: async () => { assert.ok(locked); events.push("unit:read"); return unit.isActive ? [unit] : []; } },
-        propertyTierCharge: { findMany: async (query: any) => { assert.ok(locked); events.push("tier:read"); return db.propertyTierCharge.findMany(query); } },
+        $queryRaw: async (sql: TemplateStringsArray, propertyId: string) => {
+          assert.ok(locked); assert.match(sql.join("?"), /FROM "Property"[\s\S]*FOR UPDATE/);
+          assert.equal(propertyId, unit.propertyId);
+          propertyRelease = await acquireProperty(); events.push("property:lock"); staged = structuredClone(ledger);
+          return controls.missingProperty ? [] : [{ id: propertyId }];
+        },
+        unit: {
+          findFirst: async () => { assert.ok(locked); events.push("unit:identity"); return controls.missingUnit ? null : { propertyId: unit.propertyId }; },
+          findMany: async () => { assert.ok(locked); events.push("unit:read"); const snapshot = structuredClone(unit);
+            await controls.onRead?.(); return !controls.missingUnit && snapshot.isActive ? [snapshot] : []; },
+        },
+        propertyTierCharge: { findMany: async (query: any) => { assert.ok(locked); events.push("tier:read"); return structuredClone(await db.propertyTierCharge.findMany(query)); } },
         ledgerEntry: {
           findMany: async ({ where }: any) => { assert.ok(locked); events.push("ledger:read"); return staged.filter(row => matches(row, where)); },
           createMany: async ({ data, skipDuplicates }: any) => {
@@ -66,14 +87,15 @@ export function monthlyFixture(charges: any[] = []) {
       try {
         const result = await work(tx);
         if (controls.failCommit) throw Error("commit failure");
+        if (controls.commitErrors.length) throw controls.commitErrors.shift();
         ledger.splice(0, ledger.length, ...staged); events.push("commit"); return result;
       } catch (error) { events.push("rollback"); throw error; }
-      finally { release?.(); }
+      finally { propertyRelease?.(); release?.(); }
     },
   };
-  const job = load("jobs/monthlyRent.ts", { "@/lib/prisma": { prisma: database }, "@prisma/client": { Prisma: {} },
+  const job = load("jobs/monthlyRent.ts", { "@/lib/prisma": { prisma: database }, "@prisma/client": { Prisma: { TransactionIsolationLevel: { ReadCommitted: "ReadCommitted" } } }, "@/lib/manualFinancialOperations": load("lib/manualFinancialOperations.ts", {}),
     "@/lib/rentDates": calendar, "@/lib/billingCalendar": { assertTierBillingCalendar: () => 1, BillingCalendarError: class extends Error {} } });
-  return { unit, ledger, events, controls, run: (asOf: Date) => job.runMonthlyRentJob(asOf, "p") };
+  return { unit, ledger, events, controls, mutate, run: (asOf: Date) => job.runMonthlyRentJob(asOf, "p") };
 }
 const charge = (id: string, amountCents: number, effectiveDate: Date, effectiveUntil: Date | null = null, tierId = "t") =>
   ({ id, propertyId: "p", tierId, label: "Same label", amountCents, effectiveDate, effectiveUntil, isActive: true, sortOrder: 0 });

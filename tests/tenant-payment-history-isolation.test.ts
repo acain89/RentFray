@@ -11,7 +11,7 @@ export function load(file: string, imports: Record<string, any>, source?: string
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
   runInNewContext(code, { module, exports: module.exports, Date, Buffer, URL, Set, Map,
-    process: { env: { SESSION_SECRET: "isolated-history", NODE_ENV: "test" } }, console: { log() {}, error() {} },
+    process: { env: { SESSION_SECRET: "synthetic-isolated-history-session-secret-key", NODE_ENV: "test" } }, console: { log() {}, error() {} },
     require(name: string) { if (!(name in imports)) throw Error("Unmocked import: " + name); return imports[name]; } });
   return module.exports;
 }

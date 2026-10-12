@@ -60,7 +60,7 @@ for (const actor of ["OWNER", "MANAGER"]) {
 }
 for (const method of ["POST", "PATCH"]) test("STAFF administration denied " + method, async () => {
   const f = fixture("STAFF"); const result = await load(path, f.imports)[method](request({ role: "STAFF" }), context());
-  assert.equal(result.status, 401); assert.equal(f.calls.length, 0);
+  assert.equal(result.status, 403); assert.equal(f.calls.length, 0);
 });
 for (const actor of ["OWNER", "MANAGER"]) for (const role of ["MANAGER", "STAFF"]) test(actor + " edits/disables " + role, async () => {
   const f = fixture(actor); f.db.managementUser.findFirst = async (args: any) => { assert.equal(args.where.propertyId, "p"); return { id: "target", role, isActive: true }; };

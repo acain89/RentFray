@@ -9,10 +9,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getSession();
+    const session = await getSession({ strictAuthority: true });
 
-    if (!session || session.role !== "TENANT") {
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (session.role !== "TENANT") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { propertyId, unitId, tenantAssignmentId } = session;

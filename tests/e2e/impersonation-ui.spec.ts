@@ -24,7 +24,7 @@ function loadSource(source: string, imports: Record<string, unknown>, extras = {
   }).outputText;
   runInNewContext(output, {
     module, exports: module.exports, Buffer, URL, Date,
-    process: { env: { NODE_ENV: "production", SESSION_SECRET: "isolated-test-secret" } },
+    process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-isolated-test-secret-session-secret-key" } },
     console,
     require: (name: string) => {
       if (!(name in imports)) throw new Error(`Unexpected import: ${name}`);
@@ -73,7 +73,7 @@ function setBackup(f: ReturnType<typeof fixture>, kind: string) {
   if (kind === "expired") f.expire();
   if (kind === "invalid-shape") {
     const body = Buffer.from(JSON.stringify({ role: "ADMIN" })).toString("base64url");
-    token = `${body}.${crypto.createHmac("sha256", "isolated-test-secret").update(body).digest("base64url")}`;
+    token = `${body}.${crypto.createHmac("sha256", "synthetic-isolated-test-secret-session-secret-key").update(body).digest("base64url")}`;
   }
   f.values.set("rf_admin_session", token);
 }
@@ -131,6 +131,7 @@ for (const role of ["OWNER", "MANAGER", "STAFF"]) {
           refreshSessionCookie: async () => {},
         },
         "@/lib/stripe": { getStripeClient: forbidden },
+        "@/lib/stripeAccountStatus": { reconcileStripeAccountStatus: forbidden },
         "@/lib/propertyStatus": { shouldAutoSetPropertyReady: () => false },
         "@/lib/rentDates": {
           getBusinessDate: () => new Date(), resolveEffectiveBillingSettings: () => ({}),

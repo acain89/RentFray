@@ -144,9 +144,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    if (!session || !session.propertyId || !canManageFinancials(session.role)) {
+    const session = await getSession({ strictAuthority: true });
+    if (!session) {
       return NextResponse.json<ApiError>({ ok: false, error: "Only owner or manager can post manual payments." }, { status: 401 });
+    }
+    if (!session.propertyId || !canManageFinancials(session.role)) {
+      return NextResponse.json<ApiError>({ ok: false, error: "Only owner or manager can post manual payments." }, { status: 403 });
     }
     let parsed: ParsedBody | null;
     try { parsed = await parseBody(req); }

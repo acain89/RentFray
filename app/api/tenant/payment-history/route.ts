@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireRole, SessionAuthorizationError } from "@/lib/session";
 import { PaymentStatus } from "@prisma/client";
 
 
@@ -22,7 +22,7 @@ type TenantPaymentHistoryItem = {
 
 export async function GET() {
   try {
-    const session = await requireRole("TENANT");
+    const session = await requireRole("TENANT", { strictAuthority: true });
 
     if (!session.propertyId || !session.unitId || !session.tenantAssignmentId?.trim()) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
@@ -92,6 +92,9 @@ export async function GET() {
       payments,
     });
   } catch (error: unknown) {
+    if (error instanceof SessionAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("tenant payment-history GET error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

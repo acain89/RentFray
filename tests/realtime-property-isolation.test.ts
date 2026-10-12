@@ -65,7 +65,7 @@ export function sessionFixture() {
   runInNewContext(ts.transpileModule(readFileSync("lib/session.ts", "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText, { module, exports: module.exports, Buffer, Date: Clock,
-    process: { env: { SESSION_SECRET: "isolated-realtime-test", NODE_ENV: "test" } },
+    process: { env: { SESSION_SECRET: "synthetic-isolated-realtime-test-session-secret-key", NODE_ENV: "test" } },
     require: (name: string) => { assert.ok(name in imports, name); return imports[name]; } });
   token = module.exports.createSessionToken({ role: "OWNER", propertyId: "a", managementUserId: "m",
     managementCredentialBinding: module.exports.createManagementCredentialBinding(user.id, user.passwordHash) });

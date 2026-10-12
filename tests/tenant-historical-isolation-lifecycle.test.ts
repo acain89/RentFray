@@ -23,7 +23,7 @@ test("real B4a session rejects vacancy, replacement, malformed binding and stale
     token = authority.createSessionToken({ ...session, ...changes }); assert.equal(await authority.getSession(), null);
   }
   const payload = Buffer.from(JSON.stringify({ role: "TENANT", propertyId: "p", unitId: "u", iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000)+100 })).toString("base64url");
-  token = payload + "." + crypto.createHmac("sha256", "isolated-history").update(payload).digest("base64url");
+  token = payload + "." + crypto.createHmac("sha256", "synthetic-isolated-history-session-secret-key").update(payload).digest("base64url");
   assert.equal(await authority.getSession(), null);
 });
 for (const role of ["OWNER", "MANAGER", "STAFF", "MAINTENANCE"]) test("operational history retained for " + role, async () => {

@@ -12,7 +12,7 @@ export function load(file: string, imports: Record<string, any>) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
   runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
-    process: { env: { SESSION_SECRET: "isolated-revalidation", NODE_ENV: "production" } }, console: { error() {} },
+    process: { env: { SESSION_SECRET: "synthetic-isolated-revalidation-session-secret-key", NODE_ENV: "production" } }, console: { error() {} },
     require(name: string) { if (!(name in imports)) throw Error("Unmocked import " + name); return imports[name]; } });
   return module.exports;
 }
@@ -29,7 +29,7 @@ export function fixture(role = "ADMIN") {
   const payload = role === "ADMIN" ? { role, adminAccessId: "a" } : { role, maintenanceUserId: "w", propertyId: "p" };
   const token = session.createSessionToken(payload); values.set("rf_session", token);
   function signed(extra: any) { const body = Buffer.from(JSON.stringify({ ...payload, iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000)+1000, ...extra })).toString("base64url");
-    return body + "." + crypto.createHmac("sha256", "isolated-revalidation").update(body).digest("base64url"); }
+    return body + "." + crypto.createHmac("sha256", "synthetic-isolated-revalidation-session-secret-key").update(body).digest("base64url"); }
   return { session, state, values, writes, reads, headers, token, signed };
 }
 for (const condition of ["active", "deleted", "inactive", "different", "db-error", "hash-only"]) test("ADMIN " + condition, async () => {

@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type BalanceData = {
+  ok: true;
+  balanceCents: number;
   propertyName?: string;
   unitNumber?: string;
-  balance?: number;
-  ledgerSummary?: {
-    balance?: number;
-  };
-  summary?: {
-    balance?: number;
-  };
   property?: {
     settings?: {
       convenienceFee?: number;
@@ -20,11 +15,33 @@ type BalanceData = {
   };
 };
 
+function isBalanceData(value: unknown): value is BalanceData {
+  if (!value || typeof value !== "object" || !("ok" in value) || value.ok !== true ||
+      !("balanceCents" in value) || typeof value.balanceCents !== "number" ||
+      !Number.isSafeInteger(value.balanceCents)) return false;
+  if ("propertyName" in value && value.propertyName !== undefined && typeof value.propertyName !== "string") return false;
+  if ("unitNumber" in value && value.unitNumber !== undefined && typeof value.unitNumber !== "string") return false;
+  if (!("property" in value) || value.property === undefined) return true;
+  const property = value.property;
+  if (!property || typeof property !== "object") return false;
+  if (!("settings" in property) || property.settings === undefined) return true;
+  const settings = property.settings;
+  return Boolean(settings && typeof settings === "object" &&
+    (!("convenienceFee" in settings) || settings.convenienceFee === undefined ||
+      (typeof settings.convenienceFee === "number" && Number.isFinite(settings.convenienceFee))));
+}
+
+function responseError(value: unknown, fallback: string): string {
+  return value && typeof value === "object" && "error" in value && typeof value.error === "string"
+    ? value.error : fallback;
+}
+
 function money(value: number) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
 export default function TenantPayPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
@@ -48,6 +65,7 @@ export default function TenantPayPage() {
       try {
         setLoading(true);
         setError("");
+        setData(null);
 
         const res =
           await fetch(
@@ -57,17 +75,25 @@ export default function TenantPayPage() {
             }
           );
 
-        const json =
+        const json: unknown =
           await res.json();
+
+        if (res.status === 401 || res.status === 403) {
+          router.replace("/property-code");
+          return;
+        }
 
         if (!res.ok) {
           setError(
-            json?.error ||
-              "Failed to load payment page."
+            responseError(json, "Failed to load payment page.")
           );
           return;
         }
 
+        if (!isBalanceData(json)) {
+          setError("Failed to load payment page. Invalid balance data.");
+          return;
+        }
         setData(json);
 
         /*
@@ -99,30 +125,13 @@ export default function TenantPayPage() {
     }
 
     load();
-  }, [isSuccess, isCancelled]);
+  }, [isSuccess, isCancelled, router]);
 
   const baseAmountDue =
     useMemo(() => {
       if (!data) return 0;
 
-      const candidates = [
-        data.balance,
-        data.summary?.balance,
-        data.ledgerSummary?.balance,
-      ];
-
-      const found =
-        candidates.find(
-          (value) =>
-            Number.isFinite(
-              Number(value)
-            )
-        );
-
-      return Math.max(
-        0,
-        Number(found || 0)
-      );
+      return Math.max(0, data.balanceCents / 100);
     }, [data]);
 
   const convenienceFee =
@@ -150,7 +159,7 @@ export default function TenantPayPage() {
     ]);
 
   async function handlePayNow() {
-    if (paying) return;
+    if (paying || !data || baseAmountDue <= 0) return;
 
     try {
       setPaying(true);
@@ -165,26 +174,31 @@ export default function TenantPayPage() {
           }
         );
 
-      const json =
+      const json: unknown =
         await res.json();
+
+      if (res.status === 401 || res.status === 403) {
+        router.replace("/property-code");
+        return;
+      }
 
       if (!res.ok) {
         setError(
-          json?.error ||
-            "Failed to start payment."
+          responseError(json, "Failed to start payment.")
         );
         return;
       }
 
-      if (json?.preview) {
+      if (json && typeof json === "object" && "preview" in json && json.preview) {
         setMessage(
-          json?.message ||
+          "message" in json && typeof json.message === "string" ? json.message :
             "Payment preview only. No live session created."
         );
         return;
       }
 
-      if (json?.data?.url) {
+      if (json && typeof json === "object" && "data" in json && json.data &&
+          typeof json.data === "object" && "url" in json.data && typeof json.data.url === "string") {
         window.location.href =
           json.data.url;
         return;
@@ -208,6 +222,10 @@ export default function TenantPayPage() {
         Loading...
       </div>
     );
+  }
+
+  if (!data) {
+    return <div className="p-6 text-sm text-red-600">{error || "Failed to load payment page."}</div>;
   }
 
   return (
@@ -285,6 +303,7 @@ export default function TenantPayPage() {
           onClick={handlePayNow}
           disabled={
             paying ||
+            baseAmountDue <= 0 ||
             totalAmountDue <= 0
           }
           className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-60"

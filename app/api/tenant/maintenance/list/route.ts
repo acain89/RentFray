@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireRole, SessionAuthorizationError } from "@/lib/session";
 
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     // ✅ enforce session + role
-    const session = await requireRole("TENANT");
+    const session = await requireRole("TENANT", { strictAuthority: true });
 
     if (!session.unitId || !session.propertyId || !session.tenantAssignmentId?.trim()) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
@@ -39,6 +39,9 @@ export async function GET() {
       requests,
     });
   } catch (error) {
+    if (error instanceof SessionAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("tenant maintenance list GET error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

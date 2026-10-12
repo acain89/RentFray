@@ -115,10 +115,22 @@ for (const issuer of ["verification", "impersonation"]) test(issuer + " binds cu
   f.state.management.passwordHash = credentialB; assert.equal(await f.session.validateSessionToken(issued[0]), null);
 });
 
+function restoreApprovedSessionConfiguration(before: string, after: string): string {
+  const approved = "function getSessionSecret(): string {\n  const secret = process.env.SESSION_SECRET;\n  if (\n    typeof secret !== \"string\" ||\n    secret.trim().length === 0 ||\n    Buffer.byteLength(secret, \"utf8\") < 32 ||\n    secret === \"rentfray-dev-session-secret-change-me\"\n  ) {\n    throw new Error(\"Invalid session configuration.\");\n  }\n  return secret;\n}\n\nexport function validateSessionConfiguration(): void {\n  getSessionSecret();\n}\n\n";
+  const original = "function getSessionSecret() {\n  return process.env.SESSION_SECRET || \"rentfray-dev-session-secret-change-me\";\n}\n\n";
+  assert.equal(after.split(approved).length, 2, "Exactly one fail-closed AUD-02 validator must remain present");
+  return before.replace(/\r\n/g, "\n").includes(approved) ? after : after.replace(approved, original);
+}
+export function assertApprovedSessionConfigurationChange(before: string, after: string): void {
+  assert.equal(restoreApprovedSessionConfiguration(before, after.replace(/\r\n/g, "\n")), before.replace(/\r\n/g, "\n"),
+    "Only the exact AUD-02 secret validator may differ; all session authority remains preserved");
+}
+
 // Reverse only the exact RF-15 additions, then retain whole-source equality.
 export function assertApprovedCredentialChange(file: string, before: string, after: string) {
   let restored = after.replace(/\r\n/g, "\n"); const original = before.replace(/\r\n/g, "\n");
   if (file === "lib/session.ts") {
+    restored = restoreApprovedSessionConfiguration(original, restored);
     restored = restored.replace(/export function createManagementCredentialBinding[\s\S]*?\n}\n\nfunction isManagementCredentialBinding[\s\S]*?\n}\n\n/, "");
     restored = restored.replace(/^  managementCredentialBinding\?: string;\n/m, "").replace(/^      managementCredentialBinding: string;\n/m, "");
     restored = restored.replace('isNonEmptyString(parsed.managementUserId) &&\n      isManagementCredentialBinding(parsed.managementCredentialBinding)', 'isNonEmptyString(parsed.managementUserId)');

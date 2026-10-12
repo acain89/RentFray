@@ -13,7 +13,7 @@ export function load(file: string, imports: Record<string, any>, extras = {}) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true,
   } }).outputText;
   runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
-    process: { env: { NODE_ENV: "production", SESSION_SECRET: "isolated-retention" } },
+    process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-isolated-retention-session-secret-key" } },
     console: { error() {} }, require(name: string) {
       if (!(name in imports)) throw Error("Unmocked import: " + name);
       return imports[name];
@@ -86,7 +86,7 @@ export function fixture(role = "ADMIN") {
 }
 for (const kind of ["manager", "admin"] as const) {
   for (const role of ["absent", "invalid", "STAFF", ...(kind === "manager" ? ["ADMIN"] : ["OWNER", "MANAGER"])])
-    test(kind + ": rejects " + role, async () => { const f = fixture(role); assert.equal((await f.callUnit(kind)).status, 401); assert.equal(f.writes(), 0); assert.equal(f.events.length, 0); });
+    test(kind + ": rejects " + role, async () => { const f = fixture(role); assert.equal((await f.callUnit(kind)).status, kind === "manager" && ["STAFF", "ADMIN"].includes(role) ? 403 : 401); assert.equal(f.writes(), 0); assert.equal(f.events.length, 0); });
   for (const role of kind === "manager" ? ["OWNER", "MANAGER"] : ["ADMIN"])
     test(kind + ": pristine succeeds for " + role, async () => { const f = fixture(role); const response = await f.callUnit(kind);
       assert.equal(response.status, 200); assert.equal(response.body.ok, true);

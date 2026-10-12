@@ -51,8 +51,21 @@ type CreateSessionInput =
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 export const SESSION_COOKIE_NAME = "rf_session";
 
-function getSessionSecret() {
-  return process.env.SESSION_SECRET || "rentfray-dev-session-secret-change-me";
+function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (
+    typeof secret !== "string" ||
+    secret.trim().length === 0 ||
+    Buffer.byteLength(secret, "utf8") < 32 ||
+    secret === "rentfray-dev-session-secret-change-me"
+  ) {
+    throw new Error("Invalid session configuration.");
+  }
+  return secret;
+}
+
+export function validateSessionConfiguration(): void {
+  getSessionSecret();
 }
 
 export function createManagementCredentialBinding(userId: string, passwordHash: string): string {
@@ -316,7 +329,19 @@ export function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
-async function hasCurrentManagementAuthority(session: SessionPayload): Promise<boolean> {
+export type SessionValidationOptions = Readonly<{ strictAuthority?: boolean }>;
+
+// Only errors created by session authorization may become 401/403 responses.
+export class SessionAuthorizationError extends Error {
+  readonly status: 401 | 403;
+  constructor(status: 401 | 403) {
+    super(status === 401 ? "Unauthorized" : "Forbidden");
+    this.name = "SessionAuthorizationError";
+    this.status = status;
+  }
+}
+
+async function hasCurrentManagementAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {
   if (!isNonEmptyString(session.managementUserId) || !isNonEmptyString(session.propertyId) ||
       !isManagementCredentialBinding(session.managementCredentialBinding)) {
     return false;
@@ -344,12 +369,13 @@ async function hasCurrentManagementAuthority(session: SessionPayload): Promise<b
       isNonEmptyString(user.passwordHash) &&
       safeEqual(session.managementCredentialBinding, createManagementCredentialBinding(user.id, user.passwordHash))
     );
-  } catch {
+  } catch (error) {
+    if (options.strictAuthority) throw error;
     return false;
   }
 }
 
-async function hasCurrentTenantAuthority(session: SessionPayload): Promise<boolean> {
+async function hasCurrentTenantAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {
   if (!isNonEmptyString(session.tenantAssignmentId) || !isNonEmptyString(session.propertyId) || !isNonEmptyString(session.unitId)) {
     return false;
   }
@@ -376,12 +402,13 @@ async function hasCurrentTenantAuthority(session: SessionPayload): Promise<boole
       assignment.unit.id === session.unitId &&
       assignment.unit.propertyId === session.propertyId
     );
-  } catch {
+  } catch (error) {
+    if (options.strictAuthority) throw error;
     return false;
   }
 }
 
-async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {
+async function hasCurrentAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {
   if (session.role === "ADMIN") {
     if (!isNonEmptyString(session.adminAccessId)) return false;
     try {
@@ -390,7 +417,8 @@ async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {
         select: { id: true, isActive: true },
       });
       return Boolean(access && access.isActive === true);
-    } catch {
+    } catch (error) {
+      if (options.strictAuthority) throw error;
       return false;
     }
   }
@@ -402,43 +430,44 @@ async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {
         select: { id: true, isActive: true, propertyId: true },
       });
       return Boolean(worker && worker.isActive === true && worker.propertyId === session.propertyId);
-    } catch {
+    } catch (error) {
+      if (options.strictAuthority) throw error;
       return false;
     }
   }
   if (session.role === "OWNER" || session.role === "MANAGER" || session.role === "STAFF") {
-    return hasCurrentManagementAuthority(session);
+    return hasCurrentManagementAuthority(session, options);
   }
-  if (session.role === "TENANT") return hasCurrentTenantAuthority(session);
+  if (session.role === "TENANT") return hasCurrentTenantAuthority(session, options);
   return false;
 }
 
-export async function validateSessionToken(token: string): Promise<SessionPayload | null> {
+export async function validateSessionToken(token: string, options: SessionValidationOptions = {}): Promise<SessionPayload | null> {
   const session = verifySessionToken(token);
-  return session && await hasCurrentAuthority(session) ? session : null;
+  return session && await hasCurrentAuthority(session, options) ? session : null;
 }
 
-export async function getSession() {
+export async function getSession(options: SessionValidationOptions = {}) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  return token ? validateSessionToken(token) : null;
+  return token ? validateSessionToken(token, options) : null;
 }
 
-export async function requireSession() {
-  const session = await getSession();
+export async function requireSession(options: SessionValidationOptions = {}) {
+  const session = await getSession(options);
 
   if (!session) {
-    throw new Error("Unauthorized");
+    throw new SessionAuthorizationError(401);
   }
 
   return session;
 }
 
-export async function requireRole(role: SessionRole) {
-  const session = await requireSession();
+export async function requireRole(role: SessionRole, options: SessionValidationOptions = {}) {
+  const session = await requireSession(options);
 
   if (session.role !== role) {
-    throw new Error("Forbidden");
+    throw new SessionAuthorizationError(403);
   }
 
   return session;
@@ -497,12 +526,12 @@ export async function setSessionCookie(token: string) {
   });
 }
 
-export async function refreshSessionCookie(session: SessionPayload) {
+export async function refreshSessionCookie(session: SessionPayload, options: SessionValidationOptions = {}) {
   let refreshedToken: string;
 
   if (session.role === "ADMIN") {
-    if (!(await hasCurrentAuthority(session))) {
-      throw new Error("Unauthorized");
+    if (!(await hasCurrentAuthority(session, options))) {
+      throw new SessionAuthorizationError(401);
     }
     refreshedToken = createSessionToken({
       role: "ADMIN",
@@ -515,8 +544,8 @@ export async function refreshSessionCookie(session: SessionPayload) {
   ) {
     if (!session.propertyId || !session.managementUserId) return;
 
-    if (!(await hasCurrentManagementAuthority(session))) {
-      throw new Error("Unauthorized");
+    if (!(await hasCurrentManagementAuthority(session, options))) {
+      throw new SessionAuthorizationError(401);
     }
 
     refreshedToken = createSessionToken({
@@ -526,8 +555,8 @@ export async function refreshSessionCookie(session: SessionPayload) {
       managementCredentialBinding: session.managementCredentialBinding!,
     });
   } else if (session.role === "TENANT") {
-    if (!session.propertyId || !session.unitId || !session.tenantAssignmentId || !(await hasCurrentTenantAuthority(session))) {
-      throw new Error("Unauthorized");
+    if (!session.propertyId || !session.unitId || !session.tenantAssignmentId || !(await hasCurrentTenantAuthority(session, options))) {
+      throw new SessionAuthorizationError(401);
     }
 
     refreshedToken = createSessionToken({
@@ -537,8 +566,8 @@ export async function refreshSessionCookie(session: SessionPayload) {
       tenantAssignmentId: session.tenantAssignmentId,
     });
   } else {
-    if (!(await hasCurrentAuthority(session))) {
-      throw new Error("Unauthorized");
+    if (!(await hasCurrentAuthority(session, options))) {
+      throw new SessionAuthorizationError(401);
     }
     if (!session.propertyId || !session.maintenanceUserId) return;
 

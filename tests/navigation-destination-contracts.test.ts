@@ -1,3 +1,4 @@
+import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
@@ -44,8 +45,114 @@ for (const role of ["OWNER", "MANAGER", "STAFF"]) test("Unit Detail navigation: 
   assert.match(dashboard, /Vacate Unit/);
 });
 test("destination auth and canonical vacancy writer unchanged", () => {
+    const restoreAUD06Session = (source: string): string => {
+      let restored = source.replace(/\r\n/g, "\n");
+      const deltas: Array<[string, string, number]> = [
+  [
+    "",
+    "export type SessionValidationOptions = Readonly<{ strictAuthority?: boolean }>;\n\n// Only errors created by session authorization may become 401/403 responses.\nexport class SessionAuthorizationError extends Error {\n  readonly status: 401 | 403;\n  constructor(status: 401 | 403) {\n    super(status === 401 ? \"Unauthorized\" : \"Forbidden\");\n    this.name = \"SessionAuthorizationError\";\n    this.status = status;\n  }\n}\n\n",
+    1
+  ],
+  [
+    "async function hasCurrentManagementAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentManagementAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "async function hasCurrentTenantAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentTenantAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "export async function validateSessionToken(token: string): Promise<SessionPayload | null> {",
+    "export async function validateSessionToken(token: string, options: SessionValidationOptions = {}): Promise<SessionPayload | null> {",
+    1
+  ],
+  [
+    "export async function getSession() {",
+    "export async function getSession(options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function requireSession() {",
+    "export async function requireSession(options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function requireRole(role: SessionRole) {",
+    "export async function requireRole(role: SessionRole, options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function refreshSessionCookie(session: SessionPayload) {",
+    "export async function refreshSessionCookie(session: SessionPayload, options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "} catch {\n    return false;",
+    "} catch (error) {\n    if (options.strictAuthority) throw error;\n    return false;",
+    2
+  ],
+  [
+    "} catch {\n      return false;",
+    "} catch (error) {\n      if (options.strictAuthority) throw error;\n      return false;",
+    2
+  ],
+  [
+    "hasCurrentManagementAuthority(session)",
+    "hasCurrentManagementAuthority(session, options)",
+    2
+  ],
+  [
+    "hasCurrentTenantAuthority(session)",
+    "hasCurrentTenantAuthority(session, options)",
+    2
+  ],
+  [
+    "hasCurrentAuthority(session)",
+    "hasCurrentAuthority(session, options)",
+    3
+  ],
+  [
+    "validateSessionToken(token)",
+    "validateSessionToken(token, options)",
+    1
+  ],
+  [
+    "getSession()",
+    "getSession(options)",
+    1
+  ],
+  [
+    "requireSession()",
+    "requireSession(options)",
+    1
+  ],
+  [
+    "throw new Error(\"Unauthorized\");",
+    "throw new SessionAuthorizationError(401);",
+    5
+  ],
+  [
+    "throw new Error(\"Forbidden\");",
+    "throw new SessionAuthorizationError(403);",
+    1
+  ]
+];
+      for (const [original, approved, count] of deltas) {
+        assert.equal(restored.split(approved).length - 1, count, "Exact AUD-06 session delta: " + approved);
+        restored = restored.split(approved).join(original);
+      }
+      return restored;
+    };
   for (const file of ["app/login/admin/page.tsx", "app/api/admin/session/route.ts", "lib/session.ts", "proxy.ts", "app/manager/dashboard/page.tsx", "app/manager/dashboard/ManagerDashboardClient.tsx", "app/api/manager/units/vacate/route.ts"]) {
     const committed = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
-    assert.equal(source(file).replace(/\r\n/g, "\n"), committed.replace(/\r\n/g, "\n"), file);
+    if (file === "lib/session.ts") assertApprovedSessionConfigurationChange(committed, restoreAUD06Session(source(file)));
+    else assert.equal(source(file).replace(/\r\n/g, "\n"), committed.replace(/\r\n/g, "\n"), file);
   }
 });

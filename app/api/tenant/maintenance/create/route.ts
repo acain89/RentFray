@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireRole, SessionAuthorizationError } from "@/lib/session";
 
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ const VALID_URGENCY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 
 export async function POST(req: Request) {
   try {
-    const session = await requireRole("TENANT");
+    const session = await requireRole("TENANT", { strictAuthority: true });
 
     // ✅ EARLY HARD GUARD (TS + runtime safe)
     if (!session.unitId || !session.propertyId || !session.tenantAssignmentId?.trim()) {
@@ -96,6 +96,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, request });
   } catch (error) {
+    if (error instanceof SessionAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("tenant maintenance create POST error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

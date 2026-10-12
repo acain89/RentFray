@@ -10,8 +10,11 @@ export function maintenanceFixture(auth: any = session) {
   const prisma = { unit: { findFirst: async (args: any) => { queries.push(args); return matches({ id: "u", propertyId: "p" }, args.where) ? { id: "u", propertyId: "p" } : null; } },
     maintenanceRequest: { create: async ({ data, select }: any) => { writes.push(data); const row = { ...data, id: "new", createdAt: new Date(), updatedAt: new Date() }; rows.push(row); return Object.fromEntries(Object.keys(select).map(key => [key, (row as any)[key]])); },
       findMany: async (args: any) => { queries.push(args); return rows.filter(row => matches(row, args.where)); } } };
+  class SessionAuthorizationError extends Error {
+    constructor(readonly status: 401 | 403) { super(status === 401 ? "Unauthorized" : "Forbidden"); }
+  }
   const imports = { "next/server": json, "@/lib/prisma": { prisma }, "@/lib/session": { getSession: async () => auth,
-    requireRole: async (role: string) => { if (!auth || auth.role !== role) throw Error("Unauthorized"); return auth; } } };
+    SessionAuthorizationError, requireRole: async (role: string) => { if (!auth) throw new SessionAuthorizationError(401); if (auth.role !== role) throw new SessionAuthorizationError(403); return auth; } } };
   return { rows, writes, queries, prisma, imports };
 }
 test("tenant create persists server identity despite hostile body identity and preserves response", async () => {

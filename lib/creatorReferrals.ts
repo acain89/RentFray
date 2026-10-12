@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 export const REFERRAL_COOKIE = "rf_creator_referral";
 export const REFERRAL_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const COMMISSION_CENTS = 250;
-export const CREATOR_ORIGIN = "https://rentfray.com";
+export const CREATOR_ORIGIN = "https://www.rentfray.com";
 
 function signingSecret(): string {
   const secret = process.env.CREATOR_REFERRAL_SECRET || process.env.SESSION_SECRET;

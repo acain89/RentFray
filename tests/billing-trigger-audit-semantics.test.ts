@@ -61,23 +61,141 @@ test("canonical job preserves financial processing under transaction-scoped unit
     .replace("if (dueUnitPayloads.length === 0) continue;", "if (dueUnitPayloads.length === 0) return chunkResult();")
     .replace("createLedgerEntriesInChunks(rentRows)", "createLedgerEntriesInChunks(tx, rentRows)")
     .replace("createLedgerEntriesInChunks(\n        recurringFeeRows", "createLedgerEntriesInChunks(\n        tx, recurringFeeRows"));
-  assert.equal(after.slice(0, after.indexOf("async function createLedgerEntriesInChunks")),
+  assert.equal(after.slice(0, after.indexOf("async function createLedgerEntriesInChunks"))
+    .replace('import { isManualRetryable } from "@/lib/manualFinancialOperations";\n', ""),
     before.slice(0, before.indexOf("async function acquireMonthlyRentLock"))
       .replace("Prisma, type PrismaClient, type PropertyTierCharge", "Prisma, type PropertyTierCharge"));
   assert.ok(after.includes("await prisma.$transaction("));
-  assert.ok(after.includes("{ maxWait: 10000, timeout: 30000 }"));
+  assert.ok(after.includes("isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 10000, timeout: 30000"));
   const protectedWork = after.slice(after.indexOf("async function processMonthlyUnit"), after.indexOf("export async function runMonthlyRentJob"));
   assert.ok(protectedWork.includes("await tx.$executeRaw"));
   assert.ok(protectedWork.includes("pg_advisory_xact_lock"));
-  assert.ok(protectedWork.indexOf("pg_advisory_xact_lock") < protectedWork.indexOf("await tx.unit.findMany"));
+  assert.ok(protectedWork.indexOf("pg_advisory_xact_lock") < protectedWork.indexOf("FOR UPDATE"));
+  assert.ok(protectedWork.indexOf("FOR UPDATE") < protectedWork.indexOf("await tx.unit.findMany"));
+  assert.ok(!protectedWork.includes("lockManualTenancy(") && !protectedWork.includes("lockCheckout("));
   assert.ok(!protectedWork.includes("prisma."));
   assert.ok(after.includes("await tx.ledgerEntry.createMany"));
   assert.ok(after.includes("skipDuplicates: true"));
   assert.ok(!/pg_try_advisory_lock|pg_advisory_unlock|pg_advisory_lock\(/.test(after));
-  assert.ok(after.indexOf("const committed = await prisma.$transaction") < after.indexOf("processedUnits += committed.processedUnits"));
+  assert.ok(after.indexOf("committed = await prisma.$transaction") < after.indexOf("processedUnits += committed.processedUnits"));
 });
 
+
+// Permit only the navigation block committed before AUD-01 through AUD-06.
+export function approvedHistoricalUnitDetailChange(before: string): string {
+  const original = "                <Link\n                  href={`/manager/units/${unit.id}/move-out`}\n                  className=\"inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100\"\n                >\n                  Move out\n                </Link>";
+  const approved = "                {canMutate && <Link\n                  href=\"/manager/dashboard\"\n                  className=\"inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100\"\n                >\n                  Manage move-out on dashboard\n                </Link>}";
+  assert.equal(before.split(original).length, 2, "Exactly one historical move-out link");
+  return before.replace(original, approved);
+}
+
 test("protected financial, session, Stripe reconciliation and D6/D8 authorities are unchanged", () => {
+    // Reverse only enumerated AUD-06 deltas, then retain the existing whole-source checks.
+    const restoreAUD06Session = (source: string): string => {
+      let restored = source.replace(/\r\n/g, "\n");
+      const deltas: Array<[string, string, number]> = [
+  [
+    "",
+    "export type SessionValidationOptions = Readonly<{ strictAuthority?: boolean }>;\n\n// Only errors created by session authorization may become 401/403 responses.\nexport class SessionAuthorizationError extends Error {\n  readonly status: 401 | 403;\n  constructor(status: 401 | 403) {\n    super(status === 401 ? \"Unauthorized\" : \"Forbidden\");\n    this.name = \"SessionAuthorizationError\";\n    this.status = status;\n  }\n}\n\n",
+    1
+  ],
+  [
+    "async function hasCurrentManagementAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentManagementAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "async function hasCurrentTenantAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentTenantAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "async function hasCurrentAuthority(session: SessionPayload): Promise<boolean> {",
+    "async function hasCurrentAuthority(session: SessionPayload, options: SessionValidationOptions = {}): Promise<boolean> {",
+    1
+  ],
+  [
+    "export async function validateSessionToken(token: string): Promise<SessionPayload | null> {",
+    "export async function validateSessionToken(token: string, options: SessionValidationOptions = {}): Promise<SessionPayload | null> {",
+    1
+  ],
+  [
+    "export async function getSession() {",
+    "export async function getSession(options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function requireSession() {",
+    "export async function requireSession(options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function requireRole(role: SessionRole) {",
+    "export async function requireRole(role: SessionRole, options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "export async function refreshSessionCookie(session: SessionPayload) {",
+    "export async function refreshSessionCookie(session: SessionPayload, options: SessionValidationOptions = {}) {",
+    1
+  ],
+  [
+    "} catch {\n    return false;",
+    "} catch (error) {\n    if (options.strictAuthority) throw error;\n    return false;",
+    2
+  ],
+  [
+    "} catch {\n      return false;",
+    "} catch (error) {\n      if (options.strictAuthority) throw error;\n      return false;",
+    2
+  ],
+  [
+    "hasCurrentManagementAuthority(session)",
+    "hasCurrentManagementAuthority(session, options)",
+    2
+  ],
+  [
+    "hasCurrentTenantAuthority(session)",
+    "hasCurrentTenantAuthority(session, options)",
+    2
+  ],
+  [
+    "hasCurrentAuthority(session)",
+    "hasCurrentAuthority(session, options)",
+    3
+  ],
+  [
+    "validateSessionToken(token)",
+    "validateSessionToken(token, options)",
+    1
+  ],
+  [
+    "getSession()",
+    "getSession(options)",
+    1
+  ],
+  [
+    "requireSession()",
+    "requireSession(options)",
+    1
+  ],
+  [
+    "throw new Error(\"Unauthorized\");",
+    "throw new SessionAuthorizationError(401);",
+    5
+  ],
+  [
+    "throw new Error(\"Forbidden\");",
+    "throw new SessionAuthorizationError(403);",
+    1
+  ]
+];
+      for (const [original, approved, count] of deltas) {
+        assert.equal(restored.split(approved).length - 1, count, "Exact AUD-06 session delta: " + approved);
+        restored = restored.split(approved).join(original);
+      }
+      return restored;
+    };
   for (const file of ["prisma/schema.prisma", "lib/session.ts", "lib/ledger.ts", "lib/unitFinancialState.ts", "lib/billingCalendar.ts",
     "lib/rentDates.ts", "lib/manualFinancialOperations.ts", "lib/paymentStatus.ts", "jobs/lateFees.ts", "app/api/stripe/webhook/route.ts",
     "app/api/payments/create-session/route.ts", "app/api/stripe/connect/route.ts", "app/api/stripe/onboard/route.ts",
@@ -92,14 +210,50 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     const after = readFileSync(resolve(root, file), "utf8");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));
     else if (file === "app/api/manager/dashboard/route.ts") assert.equal(after.replace(/\r\n/g, "\n"), approvedAutomaticLifecycleChange(before.replace(/\r\n/g, "\n")), file);
-    else if (file === "lib/session.ts") assertApprovedCredentialChange(file, before, after);
+    else if (file === "app/manager/units/[id]/page.tsx") assert.equal(after.replace(/\r\n/g, "\n"), approvedHistoricalUnitDetailChange(before.replace(/\r\n/g, "\n")), file);
+    else if (file === "lib/session.ts") assertApprovedCredentialChange(file, before, restoreAUD06Session(after));
     else if (file === "app/api/payments/create-session/route.ts") {
       const original = before.replace(/\r\n/g, "\n");
       const oldCancel = 'cancel_url: `${origin}/tenant/pay?checkout=cancelled`';
       const newCancel = 'cancel_url: `${origin}/tenant/dashboard`';
       assert.equal(original.split(oldCancel).length, 2);
-      assert.equal(after.replace(/\r\n/g, "\n"), original.replace(oldCancel, newCancel),
-        "Only RF-13 cancel navigation changed; success and Checkout authority preserved");
+      const oldOrigin = 'process.env.NODE_ENV === "production" ? "https://rentfray.com"';
+      const canonicalOrigin = 'process.env.NODE_ENV === "production" ? "https://www.rentfray.com"';
+      assert.equal(original.split(oldOrigin).length, 2, "Exactly one committed production origin");
+      assert.equal(after.split(canonicalOrigin).length, 2, "Exactly one approved canonical production origin");
+      let restoredCheckout = after.replace(/\r\n/g, "\n");
+      const authorizationDeltas: Array<[string, string]> = [
+  [
+    "import { getSession, refreshSessionCookie } from \"@/lib/session\";",
+    "import { getSession, refreshSessionCookie, SessionAuthorizationError } from \"@/lib/session\";"
+  ],
+  [
+    "await getSession()",
+    "await getSession({ strictAuthority: true })"
+  ],
+  [
+    "",
+    "    if (session && session.role !== \"TENANT\") {\n      return NextResponse.json<ApiError>({ ok: false, error: \"Forbidden\" }, { status: 403 });\n    }\n\n"
+  ],
+  [
+    "      !session ||\n      session.role !== \"TENANT\" ||",
+    "      !session ||"
+  ],
+  [
+    "await refreshSessionCookie(session);",
+    "await refreshSessionCookie(session, { strictAuthority: true });"
+  ],
+  [
+    "",
+    "    if (error instanceof SessionAuthorizationError) {\n      return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });\n    }\n"
+  ]
+];
+      for (const [previous, approved] of authorizationDeltas) {
+        assert.equal(restoredCheckout.split(approved).length, 2, "Exactly one approved AUD-06 Checkout authorization delta");
+        restoredCheckout = restoredCheckout.replace(approved, previous);
+      }
+      assert.equal(restoredCheckout, original.replace(oldCancel, newCancel).replace(oldOrigin, canonicalOrigin),
+        "Only RF-13 navigation, AUD-05 hostname and exact AUD-06 authorization deltas; complete Checkout authority preserved");
     }
     else assert.equal(after.replace(/\r\n/g, "\n"), approvedDateChange(file, before.replace(/\r\n/g, "\n")), file);
   }

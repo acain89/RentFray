@@ -30,7 +30,7 @@ for (const [file, role] of [[adminFile, "ADMIN"], [managerFile, "OWNER"], [manag
 }
 for (const [file, roles] of [[adminFile, [null, "OWNER", "MANAGER", "STAFF", "TENANT"]], [managerFile, [null, "ADMIN", "STAFF", "TENANT", "MAINTENANCE"]]] as const)
   for (const role of roles) test(file + ": retains authorization " + role, async () => {
-    const f = fixture(file, role); assert.equal((await f.call({})).status, 401); assert.equal(f.mutations(), 0); assert.equal(f.parsed(), 0);
+    const f = fixture(file, role); assert.equal((await f.call({})).status, file === managerFile && role !== null ? 403 : 401); assert.equal(f.mutations(), 0); assert.equal(f.parsed(), 0);
   });
 test("ADMIN payment status GET retains current response", async () => {
   const f = fixture(adminFile, "ADMIN"); const result = await f.api.GET(request({}), context);
@@ -68,5 +68,5 @@ test("manager retirement retains requirement for an authenticated property", asy
   const api = source(managerFile, { "next/server": response,
     "@/lib/session": { getSession: async () => ({ role: "OWNER", propertyId: null }) },
     "@/lib/permissions": { canManageFinancials: () => true } });
-  assert.equal((await api.POST(request({ propertyId: "foreign" }))).status, 401);
+  assert.equal((await api.POST(request({ propertyId: "foreign" }))).status, 403);
 });

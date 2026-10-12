@@ -96,7 +96,7 @@ test("RF-07 legacy tenant PIN writer remains retired while canonical authority i
 });
 for (const role of ["STAFF", "TENANT", "MAINTENANCE", "ADMIN"]) test(role + " cannot write maintenance PIN", async () => {
   const f = writerFixture(false, role); await assert.rejects(f.legacy(), /redirect:/); assert.deepEqual(f.events, []);
-  assert.equal((await f.dashboard()).status, 401); assert.deepEqual(f.events, []);
+  assert.equal((await f.dashboard()).status, 403); assert.deepEqual(f.events, []);
 });
 for (const role of ["OWNER", "MANAGER"]) test(role + " cannot change foreign property/worker", async () => {
   const f = writerFixture(true, role); await assert.rejects(f.legacy({ propertyId: "other" }), /redirect:/);

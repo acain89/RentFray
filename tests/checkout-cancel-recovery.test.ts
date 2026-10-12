@@ -7,10 +7,13 @@ import ts from "typescript";
 
 // Reuse the existing source-mocked reservation fixture without changing it,
 // registering Playwright tests, or starting an application/browser/service.
-function fixture() {
+function fixture(environment = "production", appUrl?: string) {
   const file = "tests/e2e/checkout-reservation.spec.ts";
   const source = readFileSync(file, "utf8");
-  const declarations = source.slice(0, source.indexOf('\ntest('));
+  const environmentAnchor = 'NODE_ENV: "production", STRIPE_SECRET_KEY: "isolated", STRIPE_WEBHOOK_SECRET: "isolated"';
+  const prefix = source.slice(0, source.indexOf('\ntest('));
+  assert.equal(prefix.split(environmentAnchor).length, 2);
+  const declarations = prefix.replace(environmentAnchor, `NODE_ENV: ${JSON.stringify(environment)}, NEXT_PUBLIC_APP_URL: ${JSON.stringify(appUrl)}, STRIPE_SECRET_KEY: "isolated", STRIPE_WEBHOOK_SECRET: "isolated"`);
   const module = { exports: {} as any };
   const imports: Record<string, any> = { "node:fs": { readFileSync }, "node:path": { resolve },
     "node:vm": { runInNewContext }, typescript: ts, "@playwright/test": {
@@ -28,8 +31,8 @@ test("Checkout emits canonical cancel URL and preserves success URL", async () =
   const f = fixture(); const result = await f.checkout().POST(f.request());
   assert.equal(result.status, 200); assert.equal(f.creations.length, 1);
   const parameters = f.creations[0].params;
-  assert.equal(parameters.cancel_url, "https://rentfray.com/tenant/dashboard");
-  assert.equal(parameters.success_url, "https://rentfray.com/tenant/dashboard");
+  assert.equal(parameters.cancel_url, "https://www.rentfray.com/tenant/dashboard");
+  assert.equal(parameters.success_url, "https://www.rentfray.com/tenant/dashboard");
   assert.equal(new URL(parameters.cancel_url).search, "");
   assert.ok(!parameters.cancel_url.includes("/tenant/pay"));
   assert.equal(parameters.metadata.tenantAssignmentId, "historical");
@@ -59,4 +62,31 @@ test("dashboard canonical Pay action is explicit; no cancel-specific writer adde
   assert.ok(button.includes('fetch("/api/payments/create-session"')); assert.ok(button.includes("JSON.stringify({ unitId })"));
   const route = readFileSync("app/api/payments/create-session/route.ts", "utf8");
   assert.ok(!route.includes("checkout=cancelled"));
+});
+
+
+for (const [environment, appUrl, origin] of [
+  ["development", "http://localhost:3007", "http://localhost:3007"],
+  ["test", "http://127.0.0.1:3010", "http://127.0.0.1:3010"],
+  ["development", undefined, "http://localhost:10000"],
+  ["production", "https://attacker.example", "https://www.rentfray.com"],
+] as const) test("Checkout return origin: " + environment + " " + String(appUrl), async () => {
+  const f = fixture(environment, appUrl); assert.equal((await f.checkout().POST(f.request())).status, 200);
+  assert.equal(f.creations[0].params.success_url, origin + "/tenant/dashboard");
+  assert.equal(f.creations[0].params.cancel_url, origin + "/tenant/dashboard");
+  assert.equal(new URL(f.creations[0].params.success_url).search, "");
+});
+
+test("retry leaves a legacy frozen apex reservation intact", async () => {
+  const f = fixture(); const first = await f.checkout().POST(f.request()); assert.equal(first.status, 200);
+  for (const audit of f.db().audits) if (audit.action === "PAYMENT_CHECKOUT_RESERVED") {
+    const params = JSON.parse(audit.metadataJson);
+    params.success_url = "https://rentfray.com/tenant/dashboard";
+    params.cancel_url = "https://rentfray.com/tenant/dashboard";
+    audit.metadataJson = JSON.stringify(params);
+  }
+  const frozen = JSON.stringify(f.db());
+  const second = await f.checkout().POST(f.request());
+  assert.equal(second.status, 200); assert.equal(second.body.data.url, first.body.data.url);
+  assert.equal(f.creations.length, 1); assert.equal(JSON.stringify(f.db()), frozen);
 });

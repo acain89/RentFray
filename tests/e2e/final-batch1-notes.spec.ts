@@ -12,7 +12,7 @@ function load(file: string, imports: Record<string, any>, extras = {}) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   } }).outputText;
   runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
-    process: { env: { NODE_ENV: "production", SESSION_SECRET: "batch1-notes" } }, console: { error() {} },
+    process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-batch1-notes-session-secret-key" } }, console: { error() {} },
     require(name: string) { if (!(name in imports)) throw Error("Unexpected import " + name); return imports[name]; }, ...extras });
   return module.exports;
 }

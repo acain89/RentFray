@@ -133,7 +133,7 @@ function fixture(fee = 0) {
   const ledger = sourceModule("lib/ledger.ts", { "@/lib/prisma": { prisma: client } });
   const checkout = () => sourceModule("app/api/payments/create-session/route.ts", {
     "next/server": responses, stripe: FakeStripe, "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma: client },
-    "@/lib/session": { getSession: async () => ({ role: "TENANT", propertyId: "property", unitId: "unit", tenantAssignmentId: "historical" }), refreshSessionCookie: async () => {} },
+    "@/lib/session": { SessionAuthorizationError: sourceModule("lib/session.ts", { crypto: {}, "next/headers": {}, "@/lib/prisma": {} }).SessionAuthorizationError, getSession: async () => ({ role: "TENANT", propertyId: "property", unitId: "unit", tenantAssignmentId: "historical" }), refreshSessionCookie: async () => {} },
     "@/lib/checkoutCollectibility": sourceModule("lib/checkoutCollectibility.ts", { stripe: FakeStripe }),
     "@/lib/paymentStatus": status, "@/lib/liveGating": { canMakePayments: () => true }, "@/lib/rateLimit": { checkRateLimit: () => ({ ok: true }) },
     "@/lib/unitFinancialState": { getUnitFinancialState: async () => {

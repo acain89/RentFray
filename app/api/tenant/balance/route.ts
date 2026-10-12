@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/lib/session";
+import { requireRole, SessionAuthorizationError } from "@/lib/session";
 import { getUnitLedgerSummary } from "@/lib/ledger";
 import { prisma } from "@/lib/prisma";
 
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
-    const session = await requireRole("TENANT");
+    const session = await requireRole("TENANT", { strictAuthority: true });
 
     if (!session.propertyId || !session.unitId || !session.tenantAssignmentId) {
       return NextResponse.json({ error: "Invalid session." }, { status: 401 });
@@ -70,6 +70,9 @@ const summary = await getUnitLedgerSummary({
       lastPaymentAmountCents: lastPayment ? Math.abs(lastPayment.amountCents) : null,
     });
   } catch (error: unknown) {
+    if (error instanceof SessionAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("GET /api/tenant/balance failed", error);
 
     return NextResponse.json(

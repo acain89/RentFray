@@ -10,6 +10,7 @@ import {
   getDueBillingCyclesThrough,
   resolveEffectiveBillingSettings,
 } from "@/lib/rentDates";
+import { isManualRetryable } from "@/lib/manualFinancialOperations";
 
 function businessDateInstant(value: Date): Date {
   const day = getBusinessDate(value);
@@ -176,8 +177,21 @@ async function processMonthlyUnit(
       failures,
     };
   }
+  // Only identity is read before the shared Property lock. Never reuse billing
+  // snapshots across the lock or across a transaction retry.
+  const identity = await tx.unit.findFirst({
+    where: { id: unitId, ...(propertyId ? { propertyId } : {}) },
+    select: { propertyId: true },
+  });
+  if (!identity) return chunkResult();
+  const lockedProperties = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "Property" WHERE "id" = ${identity.propertyId} FOR UPDATE
+  `;
+  if (lockedProperties.length === 0) return chunkResult();
+  // Do not take assignment/cycle advisory locks after Property: existing
+  // financial writers take those locks first, then Property.
   const units: MonthlyRentUnit[] = await tx.unit.findMany({
-    where: { id: unitId, isActive: true, ...(propertyId ? { propertyId } : {}) },
+    where: { id: unitId, propertyId: identity.propertyId, isActive: true },
         include: {
           property: {
             include: {
@@ -527,10 +541,20 @@ export async function runMonthlyRentJob(
     if (discovered.length === 0) break;
     cursorId = discovered[discovered.length - 1]?.id;
     for (const unit of discovered) {
-      const committed = await prisma.$transaction(
-        (tx: Prisma.TransactionClient) => processMonthlyUnit(tx, unit.id, asOf, propertyId),
-        { maxWait: 10000, timeout: 30000 }
-      );
+      let committed: MonthlyRentJobResult | undefined;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          committed = await prisma.$transaction(
+            (tx: Prisma.TransactionClient) => processMonthlyUnit(tx, unit.id, asOf, propertyId),
+            { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 10000, timeout: 30000 }
+          );
+          break;
+        } catch (error) {
+          if (attempt < 2 && isManualRetryable(error)) continue;
+          throw error;
+        }
+      }
+      if (!committed) throw new Error("Monthly billing transaction did not complete.");
       processedUnits += committed.processedUnits;
       dueUnits += committed.dueUnits;
       skippedNoTenant += committed.skippedNoTenant;
