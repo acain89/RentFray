@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import PwaServiceWorker from "./components/PwaServiceWorker";
+import AnalyticsTags from "./components/AnalyticsTags";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -115,25 +116,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-{process.env.NODE_ENV === "production" && (
-  <>
-    <Script
-      src="https://www.googletagmanager.com/gtag/js?id=G-PZ5HJJNRTS"
-      strategy="afterInteractive"
-    />
-
-    <Script id="google-tags" strategy="afterInteractive">
-      {`
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-
-        gtag('config', 'G-PZ5HJJNRTS');
-        gtag('config', 'AW-18311599021');
-      `}
-    </Script>
-  </>
-)}
+<AnalyticsTags />
 
 <Script
   id="rentfray-structured-data"

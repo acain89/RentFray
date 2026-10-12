@@ -9,6 +9,13 @@ import { assertApprovedProvisioningChange } from "./recurring-charge-boundaries-
 import { assertApprovedDraftChange } from "./admin-draft-credential-safety.test";
 import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
 
+export function assertApprovedRecoveryEmailChange(before: string, after: string): void {
+  if (before === after) return;
+  const addition = "export async function sendPasswordRecoveryEmail(input: { email: string; token: string }): Promise<void> {\n  const origin = process.env.NODE_ENV === \"production\" ? \"https://www.rentfray.com\" : getBaseUrl();\n  const url = new URL(origin);\n  if (process.env.NODE_ENV !== \"production\" && ![\"localhost\", \"127.0.0.1\", \"[::1]\"].includes(url.hostname)) {\n    throw new Error(\"Invalid recovery email configuration.\");\n  }\n  const resetUrl = `${url.origin}/login/manager/reset-password#token=${encodeURIComponent(input.token)}`;\n  const { error } = await resend.emails.send({ from: EMAIL_FROM, to: input.email,\n    subject: \"Reset your RentFray password\", html: `<p>A password reset was requested for your RentFray management account.</p><p><a href=\"${escapeHtml(resetUrl)}\">Reset password</a></p><p>This link expires in 30 minutes. Only the latest link can be used. If you did not request this, ignore this email.</p>` });\n  if (error) throw new Error(\"Password recovery email delivery failed.\");\n}\n\n";
+  assert.equal(after.split(addition).length, 2, "Exactly one approved reset email function");
+  assert.equal(after.replace(addition, ""), before, "All verification-email behavior preserved");
+}
+
 const root = resolve(__dirname, "..");
 for (const kind of ["public", "admin"] as const) for (const mailFailure of [false, true]) {
   test(kind + " provisioning retains bcrypt, one OWNER and verification; mailFailure=" + mailFailure, async () => {
@@ -229,6 +236,16 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       assert.equal(after, original.replace(anchor, anchor + '  "/verify-email",\n'),
         "Only RF-12 verification recovery page admission changed");
     }
+    else if (file === "lib/email.ts") assertApprovedRecoveryEmailChange(before.replace(/\r\n/g, "\n"), after);
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
+});
+
+test("recovery email normalization rejects verification and destination mutations", () => {
+  const after = readFileSync(resolve(root, "lib/email.ts"), "utf8").replace(/\r\n/g, "\n");
+  const addition = "export async function sendPasswordRecoveryEmail(input: { email: string; token: string }): Promise<void> {\n  const origin = process.env.NODE_ENV === \"production\" ? \"https://www.rentfray.com\" : getBaseUrl();\n  const url = new URL(origin);\n  if (process.env.NODE_ENV !== \"production\" && ![\"localhost\", \"127.0.0.1\", \"[::1]\"].includes(url.hostname)) {\n    throw new Error(\"Invalid recovery email configuration.\");\n  }\n  const resetUrl = `${url.origin}/login/manager/reset-password#token=${encodeURIComponent(input.token)}`;\n  const { error } = await resend.emails.send({ from: EMAIL_FROM, to: input.email,\n    subject: \"Reset your RentFray password\", html: `<p>A password reset was requested for your RentFray management account.</p><p><a href=\"${escapeHtml(resetUrl)}\">Reset password</a></p><p>This link expires in 30 minutes. Only the latest link can be used. If you did not request this, ignore this email.</p>` });\n  if (error) throw new Error(\"Password recovery email delivery failed.\");\n}\n\n";
+  const before = after.replace(addition, "");
+  assert.doesNotThrow(() => assertApprovedRecoveryEmailChange(before, after));
+  assert.throws(() => assertApprovedRecoveryEmailChange(before, after.replace("24 * 60 * 60 * 1000", "60 * 1000")));
+  assert.throws(() => assertApprovedRecoveryEmailChange(before, after.replace("https://www.rentfray.com", "https://attacker.invalid")));
 });

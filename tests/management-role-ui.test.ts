@@ -1,3 +1,4 @@
+import { assertApprovedRecoveryEmailChange } from "./canonical-provisioning-credentials.test";
 import { assertRF19Change } from "./stripe-account-reconciliation.test";
 
 function approvedAutomaticLifecycleChange(before: string): string {
@@ -164,7 +165,7 @@ test("financial, session, banking and automatic system authorities are unchanged
       }
       return restored;
     };
-  const sessionBefore = execFileSync("git", ["--no-optional-locks", "show", "HEAD:lib/session.ts"], { cwd: root, encoding: "utf8", windowsHide: true });
+  const sessionBefore = restoreAUD06Session(execFileSync("git", ["--no-optional-locks", "show", "HEAD:lib/session.ts"], { cwd: root, encoding: "utf8", windowsHide: true }));
   const sessionAfter = restoreAUD06Session(readFileSync(resolve(root, "lib/session.ts"), "utf8"));
   assertApprovedSessionConfigurationChange(sessionBefore, sessionAfter);
   for (const name of ["hasCurrentTenantAuthority"]) {
@@ -221,7 +222,8 @@ test("financial, session, banking and automatic system authorities are unchanged
       assert.equal(original.split(newCancel).length, 2);
       const oldOrigin = 'process.env.NODE_ENV === "production" ? "https://rentfray.com"';
       const canonicalOrigin = 'process.env.NODE_ENV === "production" ? "https://www.rentfray.com"';
-      assert.equal(original.split(oldOrigin).length, 2, "Exactly one committed production origin");
+      assert.equal(original.split(canonicalOrigin).length, 2, "Exactly one committed canonical production origin");
+      assert.equal(original.split(oldOrigin).length, 1, "Committed apex origin remains retired");
       assert.equal(after.split(canonicalOrigin).length, 2, "Exactly one approved canonical production origin");
       let restoredCheckout = after.replace(/\r\n/g, "\n");
       const authorizationDeltas: Array<[string, string]> = [
@@ -250,13 +252,17 @@ test("financial, session, banking and automatic system authorities are unchanged
     "    if (error instanceof SessionAuthorizationError) {\n      return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });\n    }\n"
   ]
 ];
+      let restoredCommittedCheckout = original;
       for (const [previous, approved] of authorizationDeltas) {
         assert.equal(restoredCheckout.split(approved).length, 2, "Exactly one approved AUD-06 Checkout authorization delta");
+        assert.equal(restoredCommittedCheckout.split(approved).length, 2, "Exactly one committed AUD-06 Checkout authorization delta");
         restoredCheckout = restoredCheckout.replace(approved, previous);
+        restoredCommittedCheckout = restoredCommittedCheckout.replace(approved, previous);
       }
-      assert.equal(restoredCheckout, original.replace(oldOrigin, canonicalOrigin),
+      assert.equal(restoredCheckout, restoredCommittedCheckout,
         "Only AUD-05 hostname and exact AUD-06 authorization deltas; complete Checkout authority remains preserved");
     }
+    else if (file === "lib/email.ts") assertApprovedRecoveryEmailChange(before.replace(/\r\n/g, "\n"), after);
     else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
   }
 });

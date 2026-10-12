@@ -156,13 +156,12 @@ export default function ManagerLoginClient({
             </div>
 
              <div className="text-right">
-  <button
-    type="button"
+  <a
+    href={`/login/manager/forgot-password?code=${encodeURIComponent(resolvedPropertyCode)}`}
     className="text-xs text-neutral-600 hover:underline"
-    onClick={() => alert("Contact property admin to reset password.")}
   >
     Forgot password?
-  </button>
+  </a>
 </div>
 
             {error ? (

@@ -50,6 +50,7 @@ model Property {
   maintenanceRequests         MaintenanceRequest[]
   maintenanceUsers            MaintenanceUser[]
   managementUsers             ManagementUser[]
+  managementPasswordResetTokens ManagementPasswordResetToken[]
   payments                    Payment[]
   paymentStatus               PaymentConnectionStatus?
   settings                    PropertySettings?
@@ -173,11 +174,29 @@ model ManagementUser {
   property                   Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   createdAssignments         TenantAssignment[]       @relation("TenantAssignmentCreatedBy")
   emailVerificationTokens    EmailVerificationToken[]
+  passwordResetTokens        ManagementPasswordResetToken[]
 
   @@unique([propertyId, username])
   @@index([propertyId, email])
   @@index([propertyId, role])
   @@index([propertyId, isActive])
+}
+
+model ManagementPasswordResetToken {
+  id                        String @id @default(cuid())
+  tokenHash                 String @unique
+  managementUserId          String
+  propertyId                String
+  emailSnapshot             String
+  credentialBindingSnapshot String
+  createdAt                 DateTime @default(now())
+  expiresAt                 DateTime
+  usedAt                    DateTime?
+  managementUser ManagementUser @relation(fields: [managementUserId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([managementUserId])
+  @@index([expiresAt])
 }
 
 model EmailVerificationToken {

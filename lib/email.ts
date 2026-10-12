@@ -195,6 +195,18 @@ export function hashEmailVerificationToken(token: string): string {
   return hashToken(token);
 }
 
+export async function sendPasswordRecoveryEmail(input: { email: string; token: string }): Promise<void> {
+  const origin = process.env.NODE_ENV === "production" ? "https://www.rentfray.com" : getBaseUrl();
+  const url = new URL(origin);
+  if (process.env.NODE_ENV !== "production" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+    throw new Error("Invalid recovery email configuration.");
+  }
+  const resetUrl = `${url.origin}/login/manager/reset-password#token=${encodeURIComponent(input.token)}`;
+  const { error } = await resend.emails.send({ from: EMAIL_FROM, to: input.email,
+    subject: "Reset your RentFray password", html: `<p>A password reset was requested for your RentFray management account.</p><p><a href="${escapeHtml(resetUrl)}">Reset password</a></p><p>This link expires in 30 minutes. Only the latest link can be used. If you did not request this, ignore this email.</p>` });
+  if (error) throw new Error("Password recovery email delivery failed.");
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")

@@ -1,3 +1,4 @@
+import { assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.test";
 import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -155,7 +156,11 @@ test("canonical activation, Unit PIN, session SSOT and excluded financial author
   for (const file of ["app/api/tenant/activate/route.ts", "app/manager/units/[id]/tenants/page.tsx", "lib/session.ts", "lib/pin.ts", "lib/pinLockout.ts",
     "app/api/stripe/webhook/route.ts",
     "prisma/schema.prisma", "prisma/migrations/20261006010000_add_tier_charge_effective_until/migration.sql", "app/manager/properties/[id]/tenants/new/AssignmentFields.tsx"]) {
-    if (file === "lib/session.ts") assertApprovedSessionConfigurationChange(baseline(file), restoreAUD06Session(read(file)));
+    if (file === "lib/session.ts") {
+      restoreAUD06Session(read(file)); // Verify the exact committed AUD-06 deltas remain present.
+      assertApprovedSessionConfigurationChange(baseline(file), read(file));
+    }
+    else if (file === "prisma/schema.prisma") assertApprovedSchemaChange(baseline(file), read(file));
     else assert.equal(read(file), baseline(file));
   }
 });

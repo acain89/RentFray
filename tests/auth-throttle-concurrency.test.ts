@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -48,7 +49,7 @@ export function throttleFixture() {
     } catch (e) { rows.clear(); saved.forEach((v, k) => rows.set(k, v)); throw e; }
     finally { controls.inTransaction = false; release(); }
   } };
-  const imports = { "@/lib/prisma": { prisma }, "@prisma/client": { Prisma: { TransactionIsolationLevel: { ReadCommitted: "ReadCommitted" } } } };
+  const imports = { "node:crypto": crypto, "@/lib/prisma": { prisma }, "@prisma/client": { Prisma: { TransactionIsolationLevel: { ReadCommitted: "ReadCommitted" } } } };
   const caller = () => load("lib/authThrottle.ts", imports);
   return { rows, properties, events, controls, caller, api: caller() };
 }
@@ -114,7 +115,11 @@ test("source SQL/storage contract and narrowly scoped exports", () => {
   const source = readFileSync(resolve(root, "lib/authThrottle.ts"), "utf8");
   assert.ok(source.includes("ON CONFLICT")); assert.ok(source.includes("LIMIT 100 FOR UPDATE SKIP LOCKED"));
   assert.ok(source.includes('AND "windowExpiresAt" <= clock_timestamp()'));
-  assert.equal((source.match(/export async function/g) ?? []).length, 2);
+  const approvedExports = ["admitAdminLogin", "admitMaintenanceLogin", "admitPasswordRecoveryRequest", "admitPasswordRecoveryRedemption"].sort();
+  assert.deepEqual(Array.from(source.matchAll(/export async function (\w+)/g), match => match[1]).sort(), approvedExports);
+  const api = throttleFixture().api;
+  assert.deepEqual(Object.keys(api).sort(), approvedExports);
+  for (const name of approvedExports) assert.equal(typeof api[name], "function");
   assert.ok(!/bcrypt|rateLimit|ipAddress|codeHash|pinHash/.test(source));
   const migration = readFileSync(resolve(root, "prisma/migrations/20261005000000_add_auth_throttle_bucket/migration.sql"), "utf8");
   assert.ok(migration.includes('CHECK ("attemptCount" >= 0)')); assert.ok(!/ALTER|REFERENCES|DROP/.test(migration));

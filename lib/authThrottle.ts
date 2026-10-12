@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 const WINDOW_MS = 5 * 60 * 1000;
@@ -6,7 +7,7 @@ const MAX_RETRIES = 3;
 type Admission = { admitted: true } | { admitted: false; retryAfter: number };
 type Bucket = { attemptCount: number; windowExpiresAt: Date };
 
-async function consume(tx: Prisma.TransactionClient, key: string, limit: number): Promise<Admission> {
+async function consume(tx: Prisma.TransactionClient, key: string, limit: number, windowMs = WINDOW_MS): Promise<Admission> {
   await tx.$executeRaw`
     INSERT INTO "AuthThrottleBucket" ("key", "attemptCount", "windowExpiresAt")
     VALUES (${key}, 0, TIMESTAMPTZ 'epoch') ON CONFLICT ("key") DO NOTHING
@@ -22,7 +23,7 @@ async function consume(tx: Prisma.TransactionClient, key: string, limit: number)
   if (!now || !Number.isFinite(now.getTime())) throw new Error("Authentication admission clock unavailable");
   const bucket = rows[0];
   if (now.getTime() >= bucket.windowExpiresAt.getTime()) {
-    const expires = new Date(now.getTime() + WINDOW_MS);
+    const expires = new Date(now.getTime() + windowMs);
     await tx.$executeRaw`
       UPDATE "AuthThrottleBucket" SET "attemptCount" = 1, "windowExpiresAt" = ${expires}
       WHERE "key" = ${key}
@@ -76,6 +77,27 @@ async function admit<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>)
 
 export async function admitAdminLogin(): Promise<Admission> {
   return admit((tx) => consume(tx, "admin:global", 10));
+}
+
+const RECOVERY_WINDOW_MS = 60 * 60 * 1000;
+function recoveryKey(parts: string[]): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+}
+
+export async function admitPasswordRecoveryRequest(email: string, propertyCode: string): Promise<Admission> {
+  return admit(async (tx) => {
+    const global = await consume(tx, "recovery:request:global", 300, RECOVERY_WINDOW_MS);
+    if (!global.admitted) return global;
+    return consume(tx, `recovery:request:account:${recoveryKey([email.trim().toLowerCase(), propertyCode.trim()])}`, 5, RECOVERY_WINDOW_MS);
+  });
+}
+
+export async function admitPasswordRecoveryRedemption(token: string): Promise<Admission> {
+  return admit(async (tx) => {
+    const global = await consume(tx, "recovery:reset:global", 600, RECOVERY_WINDOW_MS);
+    if (!global.admitted) return global;
+    return consume(tx, `recovery:reset:token:${recoveryKey([token])}`, 5, RECOVERY_WINDOW_MS);
+  });
 }
 
 export async function admitMaintenanceLogin(propertyCode: string) {
