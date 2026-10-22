@@ -184,11 +184,6 @@ title={
                 <span key={feature}>{feature}</span>
               ))}
             </div>
-
-            <p className="rfw-card-punchline">
-              If you manage 82 apartments, you probably do not need software
-              capable of launching a space shuttle.
-            </p>
           </article>
 
           <article className="rfw-choice-card is-rentfray">
