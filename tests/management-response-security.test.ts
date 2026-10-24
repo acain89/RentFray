@@ -1,3 +1,4 @@
+import * as gracePolicy from "../lib/gracePeriod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -56,7 +57,7 @@ function tierFailure(message: string, business = false) {
   };
   const source = readFileSync(resolve(__dirname, "../app/api/admin/properties/[id]/tiers/route.ts"), "utf8") + "\nexports.businessError = (message) => new TierBusinessError(message);";
   runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText,
-    { module: loadedModule, exports: loadedModule.exports, Error, console: { error() {} }, require(name: string) {
+    { module: loadedModule, exports: loadedModule.exports, Error, console: { error() {} }, require(name: string) { if (name === "@/lib/gracePeriod") return gracePolicy;
       if (!(name in imports)) throw Error("Unmocked dependency " + name); return imports[name];
     } });
   return loadedModule.exports.POST(new Request("https://isolated.invalid", { method: "POST" }), { params: Promise.resolve({ id: "p" }) });
@@ -65,7 +66,7 @@ for (const message of ["Prisma SQL internal credential", "PostgreSQL deadlock de
   const response = await tierFailure(message); assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), { error: "Failed to save tiers." });
 });
-for (const message of ["Property not found.", "The property's billing calendar is invalid.", 'Tier "A" has an invalid rent amount.', 'Tier "A" must have a grace period from 0 to 31 days.', 'Tier "A" has invalid late-fee settings.', 'Tier "A" was not found.', 'Tier "A" cannot be lower than 3 active units.', 'Cannot delete tier "A" because units are still assigned.', 'Billing calendar verification failed for tier t.']) test("tier controlled rejection preserved: " + message, async () => {
+for (const message of ["Property not found.", "The property's billing calendar is invalid.", 'Tier "A" has an invalid rent amount.', 'Grace period must be a whole number between 0 and 25 days.', 'Tier "A" has invalid late-fee settings.', 'Tier "A" was not found.', 'Tier "A" cannot be lower than 3 active units.', 'Cannot delete tier "A" because units are still assigned.', 'Billing calendar verification failed for tier t.']) test("tier controlled rejection preserved: " + message, async () => {
   const response = await tierFailure(message, true); assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: message });
 });
@@ -95,7 +96,7 @@ for (const [route, method] of deniedRoutes) for (const role of [null, "TENANT"])
   const source = readFileSync(resolve(__dirname, `../app/api/${route}/route.ts`), "utf8");
   runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText,
     { module: loadedModule, exports: loadedModule.exports, Error, Date, URL, Set, console: { error() {} },
-      process: { env: {} }, require(name: string) {
+      process: { env: {} }, require(name: string) { if (name === "@/lib/gracePeriod") return gracePolicy;
         if (name === "next/server") return { NextResponse };
         return dependency;
       } });

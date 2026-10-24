@@ -1,3 +1,4 @@
+import { parseGracePeriod, GracePeriodError } from "@/lib/gracePeriod";
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -103,7 +104,7 @@ if (!property) {
       const uniqueTierIds = [...new Set(tierIds)];
       const ownedTiers = await tx.propertyTier.findMany({
         where: { propertyId: id, id: { in: uniqueTierIds } },
-        select: { id: true },
+        select: { id: true, gracePeriodDays: true },
       });
 
       if (ownedTiers.length !== uniqueTierIds.length) {
@@ -117,7 +118,8 @@ if (!property) {
       continue;
     }
 
-    const gracePeriodDays = toInt(tier.graceDays, 0);
+    const saved = ownedTiers.find((row) => row.id === tierId)!;
+    const gracePeriodDays = tier.graceDays === undefined ? undefined : parseGracePeriod(tier.graceDays, saved.gracePeriodDays);
     const lateFeeInitialCents = tier.lateFeeEnabled
       ? toCents(tier.lateFeeAmount)
       : 0;
@@ -169,6 +171,7 @@ if (!property) {
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
+    if (err instanceof GracePeriodError) return NextResponse.json({ error: err.message }, { status: 400 });
     console.error("SAVE GP&LF FAILED", err);
     return NextResponse.json(
       { error: "Failed to save GP&LF settings" },

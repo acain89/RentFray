@@ -1,5 +1,9 @@
 "use client";
 
+import GracePeriodInput from "@/app/components/GracePeriodInput";
+import { gracePeriodError, GRACE_PERIOD_MESSAGE, GRACE_PERIOD_LEGACY_MESSAGE } from "@/lib/gracePeriod";
+
+
 import type React from "react";
 
 type LocalTier = {
@@ -16,6 +20,7 @@ type GpLfSettings = {
 };
 
 type Props = {
+  savedGraceByTier: Record<string, number>;
   onClose: () => void;
   canEditLateFeeSettings: boolean;
   localTiers: LocalTier[];
@@ -73,15 +78,12 @@ function OverlayShell({
   );
 }
 
-function isValidSettings(settings: GpLfSettings): boolean {
+function isValidSettings(settings: GpLfSettings, savedGrace?: number): boolean {
+  if (gracePeriodError(settings.graceDays, savedGrace)) return false;
   if (!settings.lateFeeEnabled) {
     return true;
   }
 
-  const graceDays = Number.parseInt(settings.graceDays || "", 10);
-  if (!Number.isInteger(graceDays) || graceDays < 0) {
-    return false;
-  }
 
   const dailyLateFee = Number(settings.lateFeeDaily || 0);
   if (dailyLateFee <= 0) {
@@ -93,6 +95,7 @@ function isValidSettings(settings: GpLfSettings): boolean {
 }
 
 export default function GpLfPanel({
+  savedGraceByTier,
   onClose,
   canEditLateFeeSettings,
   localTiers,
@@ -116,7 +119,7 @@ export default function GpLfPanel({
   );
   const maximumDaysRequired =
     gpLfSettings.lateFeeEnabled && dailyLateFee > 0;
-  const activeTierValid = isValidSettings(gpLfSettings);
+  const activeTierValid = isValidSettings(gpLfSettings, savedGraceByTier[activeTier?.id]);
 
   const allTiersConfigured =
     localTiers.length > 0 &&
@@ -241,6 +244,9 @@ export default function GpLfPanel({
               </div>
             </label>
 
+            {!gpLfSettings.lateFeeEnabled && savedGraceByTier[activeTier?.id] > 25 && (
+              <p className="text-sm text-gray-600">Saved grace period: {savedGraceByTier[activeTier?.id]} days. {GRACE_PERIOD_LEGACY_MESSAGE}</p>
+            )}
             {gpLfSettings.lateFeeEnabled ? (
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 <div>
@@ -249,11 +255,13 @@ export default function GpLfPanel({
                     <span className="text-red-600">*</span>
                   </label>
 
-                  <input
+                  <GracePeriodInput
+                    savedValue={savedGraceByTier[activeTier?.id]}
+                    serverError={gpLfSaveMessage === GRACE_PERIOD_MESSAGE ? gpLfSaveMessage : undefined}
                     value={gpLfSettings.graceDays}
                     onChange={(event) =>
                       updateGpLf({
-                        graceDays: event.target.value.replace(/\D/g, ""),
+                        graceDays: event.target.value,
                       })
                     }
                     disabled={!canEditLateFeeSettings}

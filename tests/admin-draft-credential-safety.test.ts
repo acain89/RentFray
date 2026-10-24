@@ -1,3 +1,4 @@
+import * as gracePolicy from "../lib/gracePeriod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -50,7 +51,7 @@ function fixture(raw?: string) {
       submissions.push(JSON.parse(options.body)); return { ok: resultOk, json: async () => resultOk
         ? { property: { id: "p", name: "Property", propertyCode: "01234" }, verificationEmailSent: true }
         : { error: "isolated rejection" } }; },
-    require: (name: string) => { assert.ok(name in imports, "Unmocked import " + name); return imports[name]; },
+    require: (name: string) => { if (name === "@/lib/gracePeriod") return gracePolicy; if (name === "@/app/components/GracePeriodInput") return { default: () => null, __esModule: true }; assert.ok(name in imports, "Unmocked import " + name); return imports[name]; },
   });
   const render = () => { index = 0; return module.exports.default(); };
   render(); mounted = true;

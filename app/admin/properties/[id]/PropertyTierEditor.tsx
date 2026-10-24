@@ -1,5 +1,9 @@
 "use client";
 
+import GracePeriodInput from "@/app/components/GracePeriodInput";
+import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
+
+
 import { useMemo, useState } from "react";
 import styles from "./page.module.css";
 
@@ -118,9 +122,8 @@ export default function PropertyTierEditor({
         errors.rentDueDay = "Due day must be between 1 and 31.";
       }
 
-      const grace = Number(state.gracePeriodDays);
-      if (!Number.isInteger(grace) || grace < 0 || grace > 31) {
-        errors.gracePeriodDays = "Grace period must be between 0 and 31.";
+      if (gracePeriodError(state.gracePeriodDays, tier.gracePeriodDays ?? undefined)) {
+        errors.gracePeriodDays = GRACE_PERIOD_MESSAGE;
       }
 
       const lateInitial = Number(state.lateFeeInitial);
@@ -203,7 +206,7 @@ export default function PropertyTierEditor({
           baseRent: Number(state.baseRent || 0),
           processingFee: Number(state.processingFee || 0),
           rentDueDay: Number(state.rentDueDay || 1),
-          gracePeriodDays: Number(state.gracePeriodDays || 0),
+          gracePeriodDays: state.gracePeriodDays,
           lateFeeInitial: Number(state.lateFeeInitial || 0),
           lateFeeDaily: Number(state.lateFeeDaily || 0),
           lateFeeMaxDays: Number(state.lateFeeMaxDays || 0),
@@ -375,14 +378,16 @@ export default function PropertyTierEditor({
 
                 <div className={styles.editorField}>
                   <label className={styles.editorLabel}>Grace Period (days)</label>
-                  <input
+                  <GracePeriodInput
+                    serverError={errorByTier[tier.id] === GRACE_PERIOD_MESSAGE ? errorByTier[tier.id] : undefined}
+                    savedValue={tier.gracePeriodDays ?? undefined}
                     className={styles.editorInput}
                     value={state.gracePeriodDays}
                     onChange={(e) =>
                       updateTierField(
                         tier.id,
                         "gracePeriodDays",
-                        sanitizeIntegerInput(e.target.value)
+                        e.target.value
                       )
                     }
                     inputMode="numeric"

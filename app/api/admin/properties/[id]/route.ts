@@ -1,3 +1,4 @@
+import { parseGracePeriod, GracePeriodError } from "@/lib/gracePeriod";
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -270,7 +271,7 @@ export async function PATCH(
     const propertyType = safeString(body.propertyType || "OTHER");
     const isActive = toBoolean(body.isActive, true);
 
-    const gracePeriodDays = toNumber(body.gracePeriodDays, 0);
+
     const lateFeeEnabled = toBoolean(body.lateFeeEnabled, true);
     const lateFeeFlatCents = Math.round(
       toNumber(body.lateFeeFlat, 0) * 100
@@ -293,17 +294,6 @@ export async function PATCH(
     if (!address) {
       return NextResponse.json(
         { error: "Property address is required." },
-        { status: 400 }
-      );
-    }
-
-    if (
-      !Number.isInteger(gracePeriodDays) ||
-      gracePeriodDays < 0 ||
-      gracePeriodDays > 31
-    ) {
-      return NextResponse.json(
-        { error: "Grace period must be 0–31." },
         { status: 400 }
       );
     }
@@ -341,7 +331,10 @@ export async function PATCH(
           },
         });
 
-        const settings = existing.settings
+        // property.update above holds the Property row lock through commit.
+        const savedSettings = await tx.propertySettings.findUnique({ where: { propertyId: id }, select: { id: true, gracePeriodDays: true } });
+        const gracePeriodDays = body.gracePeriodDays === undefined ? undefined : parseGracePeriod(body.gracePeriodDays, savedSettings?.gracePeriodDays);
+        const settings = savedSettings
           ? await tx.propertySettings.update({
               where: { propertyId: id },
               data: {
@@ -357,7 +350,7 @@ export async function PATCH(
                 propertyId: id,
                 rentDueDay:
                   existing.rentFrayStartDate?.getUTCDate() ?? 1,
-                gracePeriodDays,
+                gracePeriodDays: gracePeriodDays ?? 0,
                 lateFeeEnabled,
                 lateFeeFlatCents,
                 convenienceFeeEnabled,
@@ -378,6 +371,7 @@ export async function PATCH(
       settings: updated.settings,
     });
   } catch (error: unknown) {
+    if (error instanceof GracePeriodError) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof BillingCalendarError) {
       return NextResponse.json(
         { error: error.message },

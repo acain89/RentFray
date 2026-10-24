@@ -1,5 +1,7 @@
 "use client";
 
+import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
+
 import { getBusinessDate } from "@/lib/rentDates";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -56,6 +58,7 @@ type DashboardPayment = {
 };
 
 type DashboardTier = {
+  gracePeriodDays: number;
   id: string;
   name: string;
 
@@ -2351,6 +2354,16 @@ async function saveGpLfSettings(): Promise<void> {
       : {}),
   };
 
+  const invalidGraceTier = activeTiers.find(tier =>
+    currentDrafts[tier.id] && gracePeriodError(currentDrafts[tier.id].graceDays, data.tiers.find(saved => saved.id === tier.id)?.gracePeriodDays)
+  );
+  if (invalidGraceTier) {
+    setActiveGpLfTierId(invalidGraceTier.id);
+    setGpLfSettings(currentDrafts[invalidGraceTier.id]);
+    setGpLfSaveMessage(GRACE_PERIOD_MESSAGE);
+    return;
+  }
+
   const tiersToUpdate = activeTiers.map((tier) => {
     const settings = currentDrafts[tier.id];
 
@@ -2362,9 +2375,8 @@ async function saveGpLfSettings(): Promise<void> {
 
     return {
       id: tier.id,
-      graceDays: settings.lateFeeEnabled
-        ? settings.graceDays || "0"
-        : "0",
+      // Explicit OFF toggles set grace to zero; unrelated saves preserve the saved input.
+      graceDays: settings.graceDays,
       lateFeeEnabled: settings.lateFeeEnabled,
       lateFeeAmount: settings.lateFeeEnabled
         ? settings.lateFeeInitial || "0"
@@ -2486,6 +2498,12 @@ await loadDashboard({ silent: true });
 async function saveLocalRentSettings(): Promise<void> {
   if (!data?.property?.id) {
     throw new Error("Property information is unavailable.");
+  }
+
+  for (const tier of localTiers) {
+    if (!tier.markedForDelete && gracePeriodError(tier.graceDays, data.tiers.find(saved => saved.id === tier.id)?.gracePeriodDays)) {
+      throw new Error(GRACE_PERIOD_MESSAGE);
+    }
   }
 
   const propertyId = data.property.id;
@@ -3919,6 +3937,7 @@ await loadDashboard({ silent: true });
 
       {activePanel === "gplf" ? (
 <GpLfPanel
+  savedGraceByTier={Object.fromEntries(data.tiers.map(tier => [tier.id, tier.gracePeriodDays]))}
   onClose={closeActivePanel}
   canEditLateFeeSettings={canEditLateFeeSettings}
   localTiers={localTiers.filter(

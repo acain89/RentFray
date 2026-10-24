@@ -1,3 +1,4 @@
+import * as gracePolicy from "../lib/gracePeriod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,7 +14,7 @@ export function loadSource(file: string, imports: Record<string, any>, append = 
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   runInNewContext(code, { module, exports: module.exports, Date, Buffer, console: { error() {} },
-    require(name: string) { if (!(name in imports)) throw Error("Unmocked import: " + name); return imports[name]; } });
+    require(name: string) { if (name === "@/lib/gracePeriod") return gracePolicy; if (!(name in imports)) throw Error("Unmocked import: " + name); return imports[name]; } });
   return module.exports;
 }
 

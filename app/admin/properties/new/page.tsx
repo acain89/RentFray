@@ -2,6 +2,10 @@
 
 "use client";
 
+import GracePeriodInput from "@/app/components/GracePeriodInput";
+import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
+
+
 import "./page.css";
 
 import { useEffect, useMemo, useState } from "react";
@@ -317,8 +321,8 @@ if (data.account.password !== data.account.confirmPassword) {
         errors[`tier-${index}-dueDay`] = "Select a due day.";
       }
 
-      if (tier.graceDays.trim() === "") {
-        errors[`tier-${index}-graceDays`] = "Enter grace period.";
+      if (gracePeriodError((data.applySameRulesToAll ? data.tiers[0] : tier).graceDays)) {
+        errors[`tier-${index}-graceDays`] = GRACE_PERIOD_MESSAGE;
       }
 
       if (tier.lateFeeInitial.trim() === "") {
@@ -1157,14 +1161,15 @@ Click "Tenants" to log in and view balance.`
 
                     <div>
                       <label className="wizard-label">Grace Period (days)</label>
-                      <input
+                      <GracePeriodInput
+                        serverError={serverError === GRACE_PERIOD_MESSAGE ? serverError : undefined}
                         className="wizard-input"
                         value={tier.graceDays}
                         onChange={(e) =>
                           updateTier(
                             tier.id,
                             "graceDays",
-                            sanitizeIntegerInput(e.target.value)
+                            e.target.value
                           )
                         }
                         placeholder="5"

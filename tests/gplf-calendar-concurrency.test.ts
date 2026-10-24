@@ -1,3 +1,4 @@
+import * as gracePolicy from "../lib/gracePeriod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -11,7 +12,7 @@ function load(file: string, imports: Record<string, unknown>) {
   const module = { exports: {} as any };
   const text = readFileSync(resolve(root, file), "utf8");
   const code = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-  runInNewContext(code, { module, exports: module.exports, Date, console: { error() {} }, require(name: string) {
+  runInNewContext(code, { module, exports: module.exports, Date, console: { error() {} }, require(name: string) { if (name === "@/lib/gracePeriod") return gracePolicy;
     assert.ok(name in imports, "Unexpected dependency " + name); return imports[name];
   } }); return module.exports;
 }
@@ -75,6 +76,15 @@ test("ISOLATED MODEL: calendar commits after old read, GPLF rereads due day 15 a
   assert.equal(f.events[0], "pre:read"); assert.ok(f.events.indexOf("calendar:commit") < f.events.indexOf("locked:read"));
   for (const tier of f.state.p.tiers) { assert.equal(tier.rentDueDay, 15); assert.equal(tier.gracePeriodDays, 7);
     assert.equal(tier.lateFeeInitialCents, 2500); assert.equal(tier.lateFeeDailyCents, 200); assert.equal(tier.maxLateFeeDays, 10); assert.equal(tier.lateFeeType, "FLAT"); }
+});
+
+test("ISOLATED MODEL: legacy grace is compared after acquiring the property lock", async () => {
+  const f = fixture(); f.state.p.tiers[0].gracePeriodDays = 55;
+  f.controls.beforeLock = async () => { f.state.p.tiers[0].gracePeriodDays = 31; };
+  const response = await f.save([{ ...f.input("t1"), graceDays: "55" }]);
+  assert.equal(response.status, 400);
+  assert.equal(response.body.error, gracePolicy.GRACE_PERIOD_MESSAGE);
+  assert.equal(f.state.p.tiers[0].gracePeriodDays, 31);
 });
 test("ISOLATED MODEL: GPLF first makes calendar wait; calendar then leaves every due day consistent", async () => {
   const f = fixture(); const entered = deferred(); const resume = deferred();

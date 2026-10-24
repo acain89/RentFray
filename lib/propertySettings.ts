@@ -1,9 +1,10 @@
+import { parseGracePeriod } from "@/lib/gracePeriod";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 export type PropertySettingsInput = {
   rentDueDay?: number;
-  gracePeriodDays: number;
+  gracePeriodDays?: unknown;
   lateFeeFlatCents?: number | null;
   lateFeeEnabled?: boolean;
   convenienceFeeEnabled?: boolean;
@@ -65,7 +66,7 @@ function normalizeInput(
 
 const normalized: Prisma.PropertySettingsUncheckedCreateInput = {
   propertyId: "",
-    gracePeriodDays: toNonNegativeInt(data.gracePeriodDays, 0),
+    gracePeriodDays: 0, // Existing creation default; explicit inputs are validated under lock.
     lateFeeFlatCents,
     lateFeeEnabled:
       data.lateFeeEnabled ?? (lateFeeFlatCents !== null && lateFeeFlatCents > 0),
@@ -123,28 +124,32 @@ export async function upsertPropertySettings(
   propertyId: string,
   data: PropertySettingsInput
 ) {
-  const normalized = normalizeInput(data);
-
-  return prisma.propertySettings.upsert({
-    where: { propertyId },
-create: {
-  ...normalized,
-  propertyId,
-  rentDueDay: normalized.rentDueDay ?? 1,
-},
-    update: {
-      // Creation defaults must not overwrite omitted fields on existing rows.
-      ...(data.gracePeriodDays !== undefined && { gracePeriodDays: normalized.gracePeriodDays }),
-      ...(data.lateFeeFlatCents !== undefined && { lateFeeFlatCents: normalized.lateFeeFlatCents }),
-      ...((data.lateFeeEnabled !== undefined || data.lateFeeFlatCents !== undefined) && { lateFeeEnabled: normalized.lateFeeEnabled }),
-      ...(data.convenienceFeeEnabled !== undefined && { convenienceFeeEnabled: normalized.convenienceFeeEnabled }),
-      ...(data.convenienceFeeType !== undefined && { convenienceFeeType: normalized.convenienceFeeType }),
-      ...(data.convenienceFeeAmountCents !== undefined && { convenienceFeeAmountCents: normalized.convenienceFeeAmountCents }),
-      ...(data.allowTestMode !== undefined && { allowTestMode: normalized.allowTestMode }),
-      ...(data.tenantPortalEnabled !== undefined && { tenantPortalEnabled: normalized.tenantPortalEnabled }),
-      ...(data.maintenancePortalEnabled !== undefined && { maintenancePortalEnabled: normalized.maintenancePortalEnabled }),
-      ...(data.onboardingComplete !== undefined && { onboardingComplete: normalized.onboardingComplete }),
-      ...(data.setupComplete !== undefined && { setupComplete: normalized.setupComplete }),
-    },
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${propertyId} FOR UPDATE`;
+    const saved = await tx.propertySettings.findUnique({ where: { propertyId }, select: { gracePeriodDays: true } });
+    const normalized = normalizeInput(data);
+    if (data.gracePeriodDays !== undefined) normalized.gracePeriodDays = parseGracePeriod(data.gracePeriodDays, saved?.gracePeriodDays);
+    return tx.propertySettings.upsert({
+      where: { propertyId },
+      create: {
+        ...normalized,
+        propertyId,
+        rentDueDay: normalized.rentDueDay ?? 1,
+      },
+      update: {
+        // Creation defaults must not overwrite omitted fields on existing rows.
+        ...(data.gracePeriodDays !== undefined && { gracePeriodDays: normalized.gracePeriodDays }),
+        ...(data.lateFeeFlatCents !== undefined && { lateFeeFlatCents: normalized.lateFeeFlatCents }),
+        ...((data.lateFeeEnabled !== undefined || data.lateFeeFlatCents !== undefined) && { lateFeeEnabled: normalized.lateFeeEnabled }),
+        ...(data.convenienceFeeEnabled !== undefined && { convenienceFeeEnabled: normalized.convenienceFeeEnabled }),
+        ...(data.convenienceFeeType !== undefined && { convenienceFeeType: normalized.convenienceFeeType }),
+        ...(data.convenienceFeeAmountCents !== undefined && { convenienceFeeAmountCents: normalized.convenienceFeeAmountCents }),
+        ...(data.allowTestMode !== undefined && { allowTestMode: normalized.allowTestMode }),
+        ...(data.tenantPortalEnabled !== undefined && { tenantPortalEnabled: normalized.tenantPortalEnabled }),
+        ...(data.maintenancePortalEnabled !== undefined && { maintenancePortalEnabled: normalized.maintenancePortalEnabled }),
+        ...(data.onboardingComplete !== undefined && { onboardingComplete: normalized.onboardingComplete }),
+        ...(data.setupComplete !== undefined && { setupComplete: normalized.setupComplete }),
+      },
+    });
   });
 }

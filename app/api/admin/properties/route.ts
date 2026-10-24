@@ -1,3 +1,4 @@
+import { parseGracePeriod, GracePeriodError } from "@/lib/gracePeriod";
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -403,7 +404,7 @@ export async function POST(req: NextRequest) {
       const baseRent = toNumber(tier.baseRent);
       const ruleSource: IncomingTier = applySameRulesToAll ? firstTier : tier;
       const dueDay = toNumber(ruleSource.dueDay);
-      const graceDays = toNumber(ruleSource.graceDays);
+      parseGracePeriod(ruleSource.graceDays === undefined ? 0 : ruleSource.graceDays);
       const lateFeeInitial = toNumber(ruleSource.lateFeeInitial);
       const lateFeeDaily = toNumber(ruleSource.lateFeeDaily);
       const lateFeeMaxDays = toNumber(ruleSource.lateFeeMaxDays);
@@ -434,13 +435,6 @@ export async function POST(req: NextRequest) {
       if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
         return NextResponse.json(
           { error: `Tier "${tierName}" must have a due day between 1 and 31.` },
-          { status: 400 }
-        );
-      }
-
-      if (!Number.isInteger(graceDays) || graceDays < 0) {
-        return NextResponse.json(
-          { error: `Tier "${tierName}" has an invalid grace period.` },
           { status: 400 }
         );
       }
@@ -536,7 +530,7 @@ export async function POST(req: NextRequest) {
           data: {
             propertyId: createdProperty.id,
             rentDueDay: toNumber(firstTier.dueDay, 1),
-            gracePeriodDays: toNumber(firstTier.graceDays, 0),
+            gracePeriodDays: parseGracePeriod(firstTier.graceDays === undefined ? 0 : firstTier.graceDays),
             lateFeeEnabled: true,
             lateFeeFlatCents: toCents(firstTier.lateFeeInitial),
             convenienceFeeEnabled: true,
@@ -566,7 +560,7 @@ export async function POST(req: NextRequest) {
             baseRentCents: toCents(tier.baseRent),
             unitCount: unitLabels.length,
             rentDueDay: toNumber(ruleSource.dueDay, 1),
-            gracePeriodDays: toNumber(ruleSource.graceDays, 0),
+            gracePeriodDays: parseGracePeriod(ruleSource.graceDays === undefined ? 0 : ruleSource.graceDays),
             lateFeeInitialCents: toCents(ruleSource.lateFeeInitial),
             lateFeeDailyCents: toCents(ruleSource.lateFeeDaily),
             maxLateFeeDays: toNumber(ruleSource.lateFeeMaxDays, 0),
@@ -653,6 +647,7 @@ export async function POST(req: NextRequest) {
       verificationRecoveryUrl: `/verify-email?email=${encodeURIComponent(email)}&code=${encodeURIComponent(result.property.propertyCode)}&sent=${verificationEmailSent ? "1" : "0"}`,
     });
   } catch (err: unknown) {
+    if (err instanceof GracePeriodError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (isPrismaKnownError(err) && err.code === "P2002") {
       return NextResponse.json(
         { error: "A unique property code could not be assigned." },

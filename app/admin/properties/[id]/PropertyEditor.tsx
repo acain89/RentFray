@@ -1,5 +1,9 @@
 "use client";
 
+import GracePeriodInput from "@/app/components/GracePeriodInput";
+import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
+
+
 import { useMemo, useState } from "react";
 import styles from "./page.module.css";
 
@@ -102,9 +106,8 @@ export default function PropertyEditor({ property }: PropertyEditorProps) {
       errors.rentDueDay = "Rent due day must be between 1 and 31.";
     }
 
-    const grace = Number(gracePeriodDays);
-    if (!Number.isInteger(grace) || grace < 0 || grace > 31) {
-      errors.gracePeriodDays = "Grace period must be between 0 and 31.";
+    if (gracePeriodError(gracePeriodDays, property.propertySettings?.gracePeriodDays ?? undefined)) {
+      errors.gracePeriodDays = GRACE_PERIOD_MESSAGE;
     }
 
     const lateFee = Number(lateFeeFlat);
@@ -118,7 +121,7 @@ export default function PropertyEditor({ property }: PropertyEditorProps) {
     }
 
     return errors;
-  }, [name, address, rentDueDay, gracePeriodDays, lateFeeFlat, convenienceFeeAmount]);
+  }, [name, address, rentDueDay, gracePeriodDays, lateFeeFlat, convenienceFeeAmount, property.propertySettings?.gracePeriodDays]);
 
   const isValid = Object.keys(validation).length === 0;
 
@@ -143,7 +146,7 @@ export default function PropertyEditor({ property }: PropertyEditorProps) {
           propertyType,
           isActive,
           rentDueDay: Number(rentDueDay),
-          gracePeriodDays: Number(gracePeriodDays),
+          gracePeriodDays,
           lateFeeEnabled,
           lateFeeFlat: Number(lateFeeFlat || 0),
           convenienceFeeEnabled,
@@ -271,11 +274,13 @@ export default function PropertyEditor({ property }: PropertyEditorProps) {
 
         <div className={styles.editorField}>
           <label className={styles.editorLabel}>Grace Period (days)</label>
-          <input
+          <GracePeriodInput
+            serverError={error === GRACE_PERIOD_MESSAGE ? error : undefined}
+            savedValue={property.propertySettings?.gracePeriodDays ?? undefined}
             className={styles.editorInput}
             value={gracePeriodDays}
             onChange={(e) =>
-              setGracePeriodDays(sanitizeIntegerInput(e.target.value))
+              setGracePeriodDays(e.target.value)
             }
             inputMode="numeric"
             placeholder="0"

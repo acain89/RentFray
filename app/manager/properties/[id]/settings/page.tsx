@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+import GracePeriodInput from "@/app/components/GracePeriodInput";
+import { GracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
 import { prisma } from "@/lib/prisma";
 import { requireManagementSession, requireManagerLevelSession } from "@/lib/session";
 import {
@@ -6,12 +9,6 @@ import {
 } from "@/lib/propertySettings";
 
 export const dynamic = "force-dynamic";
-
-function clampInt(value: unknown, fallback: number, min: number, max: number) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(n)));
-}
 
 function clampFloat(
   value: unknown,
@@ -42,24 +39,32 @@ async function saveSettings(formData: FormData) {
     throw new Error("Forbidden");
   }
 
-  const gracePeriodDays = clampInt(formData.get("gracePeriodDays"), 5, 0, 31);
+  const gracePeriodDays = formData.has("gracePeriodDays") ? formData.get("gracePeriodDays") : undefined;
 
   const lateFeeFlatCents = Math.round(
     clampFloat(formData.get("lateFeeValue"), 50, 0, 100000) * 100
   );
 
-await upsertPropertySettings(session.propertyId, {
-  gracePeriodDays,
-  lateFeeFlatCents,
-  lateFeeEnabled: lateFeeFlatCents > 0,
-});
+  try {
+    await upsertPropertySettings(session.propertyId, {
+      gracePeriodDays,
+      lateFeeFlatCents,
+      lateFeeEnabled: lateFeeFlatCents > 0,
+    });
+  } catch (error) {
+    if (error instanceof GracePeriodError) redirect(`/manager/properties/${propertyId}/settings?graceError=1`);
+    throw error;
+  }
+  redirect(`/manager/properties/${propertyId}/settings`);
 
 }
 
 export default async function PropertySettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ graceError?: string }>;
 }) {
   const session = await requireManagementSession();
 
@@ -73,6 +78,7 @@ export default async function PropertySettingsPage({
     throw new Error("Forbidden");
   }
 
+  const graceError = (await searchParams)?.graceError === "1" ? GRACE_PERIOD_MESSAGE : undefined;
   const canEdit = session.role === "OWNER" || session.role === "MANAGER";
 
   const property = await prisma.property.findUnique({
@@ -116,12 +122,11 @@ export default async function PropertySettingsPage({
 
         <div className="space-y-1">
           <label className="text-sm font-medium">Grace Period Days</label>
-          <input
+          <GracePeriodInput
+            savedValue={settings.gracePeriodDays}
+            serverError={graceError}
             name="gracePeriodDays"
             disabled={!canEdit}
-            type="number"
-            min={0}
-            max={31}
             defaultValue={settings.gracePeriodDays}
             className="w-full rounded border px-3 py-2"
           />

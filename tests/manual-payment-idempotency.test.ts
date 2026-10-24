@@ -1,3 +1,4 @@
+import * as gracePolicy from "../lib/gracePeriod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -8,7 +9,7 @@ export const root = resolve(__dirname, "..");
 export function load(file: string, imports: Record<string, any>, append = "", extras: any = {}) {
  const module = { exports: {} as any };
  const source = ts.transpileModule(readFileSync(resolve(root,file),"utf8")+append,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- runInNewContext(source,{module,exports:module.exports,Date,Error,Buffer,URL,console:{error(){}},process:{env:{}},require(name:string){if(!(name in imports))throw Error("Unmocked import "+name);return imports[name];},...extras});return module.exports;
+ runInNewContext(source,{module,exports:module.exports,Date,Error,Buffer,URL,console:{error(){}},process:{env:{}},require(name:string){ if (name === "@/lib/gracePeriod") return gracePolicy;if(!(name in imports))throw Error("Unmocked import "+name);return imports[name];},...extras});return module.exports;
 }
 export const uuid = "11111111-1111-4111-8111-111111111111";
 export const second = "22222222-2222-4222-8222-222222222222";

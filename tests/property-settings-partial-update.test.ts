@@ -6,16 +6,20 @@ function fixture(existing: any = null) {
   let row = existing ? { ...existing } : null;
   const calls: any[] = [];
   const forbidden = new Proxy({}, { get() { throw Error("Unexpected database access"); } });
-  const api = loadSource("lib/propertySettings.ts", { "@/lib/prisma": { prisma: {
+  const db: any = {
+    $queryRaw: async () => [],
+    $transaction: async (fn: any) => fn(db),
+  };
+  const api = loadSource("lib/propertySettings.ts", { "@/lib/prisma": { prisma: Object.assign(db, {
     property: forbidden, paymentConnectionStatus: forbidden,
     propertySettings: {
-      findUnique: async () => { throw Error("Read-merge-write forbidden"); },
+      findUnique: async () => row,
       upsert: async (query: any) => {
         calls.push(query); assert.equal(query.where.propertyId, "p");
         row = row ? { ...row, ...query.update } : { ...query.create }; return row;
       },
     },
-  } } });
+  }) } });
   return { calls, row: () => row, save: (data: any) => api.upsertPropertySettings("p", data) };
 }
 const unrelated = { convenienceFeeEnabled: true, convenienceFeeType: "FLAT", convenienceFeeAmountCents: 495,
@@ -34,15 +38,22 @@ test("creation defaults unchanged", async () => {
     convenienceFeeAmountCents: null, allowTestMode: true, tenantPortalEnabled: true, maintenancePortalEnabled: true,
     onboardingComplete: false, setupComplete: false });
 });
-for (const [grace, cents, expectedGrace, expectedCents] of [[-2, -1, 0, 0], [7.9, 1234.9, 7, 1234], [NaN, NaN, 0, 0]]) {
-  test("creation/update normalization " + grace + "/" + cents, async () => {
+for (const grace of [-2, 7.9, NaN]) test("invalid grace rejects without normalization " + grace, async () => {
+  const f = fixture({ ...unrelated, gracePeriodDays: 5 });
+  await assert.rejects(f.save({ gracePeriodDays: grace }), /Grace period must be a whole number between 0 and 25 days\./);
+  assert.equal(f.calls.length, 0);
+});
+
+for (const [cents, expectedCents] of [[-1, 0], [1234.9, 1234], [NaN, 0]]) {
+  test("fee normalization remains unchanged " + cents, async () => {
     for (const existing of [null, { ...unrelated }]) {
-      const f = fixture(existing); await f.save({ gracePeriodDays: grace, lateFeeFlatCents: cents });
-      assert.equal(f.row().gracePeriodDays, expectedGrace); assert.equal(f.row().lateFeeFlatCents, expectedCents);
+      const f = fixture(existing); await f.save({ gracePeriodDays: 5, lateFeeFlatCents: cents });
+      assert.equal(f.row().lateFeeFlatCents, expectedCents);
       assert.equal(f.row().lateFeeEnabled, expectedCents > 0);
     }
   });
 }
+
 test("explicit false, zero, and nullable values remain writable", async () => {
   const f = fixture({ ...unrelated, lateFeeFlatCents: 5000, lateFeeEnabled: true });
   const data = { gracePeriodDays: 0, lateFeeFlatCents: null, lateFeeEnabled: false, convenienceFeeEnabled: false,

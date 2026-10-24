@@ -1,3 +1,4 @@
+import { parseGracePeriod, GracePeriodError } from "@/lib/gracePeriod";
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -217,7 +218,7 @@ export async function POST(
             `Tier ${index + 1}`;
 
           const baseRentCents = toCents(tier.baseRent);
-          const gracePeriodDays = toInt(tier.graceDays, 0);
+          // Existing grace is validated against the locked, property-scoped row below.
 
           const lateFeeInitialCents = tier.lateFeeEnabled
             ? toCents(tier.lateFeeAmount)
@@ -239,16 +240,6 @@ export async function POST(
           if (baseRentCents < 0) {
             throw new TierBusinessError(
               `Tier "${name}" has an invalid rent amount.`
-            );
-          }
-
-          if (
-            !Number.isInteger(gracePeriodDays) ||
-            gracePeriodDays < 0 ||
-            gracePeriodDays > 31
-          ) {
-            throw new TierBusinessError(
-              `Tier "${name}" must have a grace period from 0 to 31 days.`
             );
           }
 
@@ -324,6 +315,7 @@ export async function POST(
                 select: {
                   id: true,
                   unitCount: true,
+                  gracePeriodDays: true,
                 },
               });
 
@@ -377,7 +369,7 @@ export async function POST(
                    */
                   rentDueDay: transactionDueDay,
 
-                  gracePeriodDays,
+                  gracePeriodDays: tier.graceDays === undefined ? undefined : parseGracePeriod(tier.graceDays, existingTier.gracePeriodDays),
                   lateFeeInitialCents,
                   lateFeeDailyCents,
                   maxLateFeeDays,
@@ -415,7 +407,7 @@ export async function POST(
                  */
                 rentDueDay: transactionDueDay,
 
-                gracePeriodDays,
+                gracePeriodDays: parseGracePeriod(tier.graceDays === undefined ? 0 : tier.graceDays),
                 lateFeeInitialCents,
                 lateFeeDailyCents,
                 maxLateFeeDays,
@@ -489,8 +481,8 @@ export async function POST(
       billingCalendarLocked: lockedDueDay !== null,
     });
   } catch (error: unknown) {
-    const detail = error instanceof TierBusinessError ? error.message : "";
-    const businessError = error instanceof TierBusinessError;
+    const detail = (error instanceof TierBusinessError || error instanceof GracePeriodError) ? error.message : "";
+    const businessError = (error instanceof TierBusinessError || error instanceof GracePeriodError);
     if (!businessError) {
       const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       console.error("SAVE TIERS FAILED", { code: typeof code === "string" && /^P\d{4}$/.test(code) ? code : "UNKNOWN" });

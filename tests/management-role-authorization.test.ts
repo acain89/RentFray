@@ -1,3 +1,4 @@
+import * as gracePolicy from "../lib/gracePeriod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -15,7 +16,7 @@ export function load(file: string, imports: Record<string, any>, append = "") {
   }).outputText, { module, exports: module.exports, Date, URL, Buffer,
     process: { env: { NEXT_PUBLIC_BASE_URL: "https://isolated.invalid", NODE_ENV: "test" } },
     console: { error() {} },
-    require(name: string) { if (!(name in imports)) throw Error("Unmocked import: " + name); return imports[name]; },
+    require(name: string) { if (name === "@/lib/gracePeriod") return gracePolicy; if (!(name in imports)) throw Error("Unmocked import: " + name); return imports[name]; },
   });
   return module.exports;
 }
