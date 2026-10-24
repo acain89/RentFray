@@ -620,6 +620,18 @@ export async function POST(req: NextRequest) {
             }
 
           }
+
+          const activeUnitCount = await tx.unit.count({
+            where: {
+              propertyId: createdProperty.id,
+              tierId: createdTier.id,
+              isActive: true,
+            },
+          });
+          await tx.propertyTier.update({
+            where: { id: createdTier.id },
+            data: { activeUnitCount },
+          });
         }
 
         return { property: createdProperty, managementUserId: owner.id };

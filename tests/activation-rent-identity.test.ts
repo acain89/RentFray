@@ -17,3 +17,51 @@ for(const change of [{isActive:false},{portalActivated:true}])test("existing act
 test("existing assigned unit rejected",async()=>{const f=activationFixture();f.state.tenantAssignment.push({id:"old",propertyId:"p",unitId:"u",isCurrent:true,moveOutDate:null});assert.equal((await f.activate()).status,409);assert.equal(f.state.units[0].portalActivated,undefined);});
 test("conflicting historical canonical rent rolls back portal and assignment",async()=>{const f=activationFixture();f.state.ledgerEntry.push(row({tenantAssignmentId:"historical"}));assert.equal((await f.activate()).status,409);assert.equal(f.state.tenantAssignment.length,0);assert.equal(f.state.units[0].portalActivated,undefined);assert.equal(f.state.ledgerEntry[0].tenantAssignmentId,"historical");});
 test("serialization retry rechecks changed eligibility",async()=>{const f=activationFixture();const original=f.prisma.$transaction;let calls=0;f.prisma.$transaction=async(fn:any,options:any)=>{calls++;if(calls===1){f.state.units[0].portalActivated=true;const K=f.imports["@prisma/client"].Prisma.PrismaClientKnownRequestError;throw new K("serialization",{code:"P2034"});}return original(fn,options);};assert.equal((await f.activate()).status,400);assert.equal(calls,2);assert.equal(f.state.tenantAssignment.length,0);});
+
+for (const source of ["new", "s", "t", null] as const) {
+ test("activation reconciles stale inventory counters from " + source, async () => {
+  const f = activationFixture();
+  f.tiers.forEach(tier => { tier.activeUnitCount = 99; });
+  if (source === "new") f.state.units = [];
+  else f.state.units[0].tierId = source;
+  f.state.units.push({ id: "inactive", propertyId: "p", tierId: "s", isActive: false });
+  f.state.units.push({ id: "foreign", propertyId: "other", tierId: "other-tier", isActive: true });
+  assert.equal((await f.activate()).status, 200);
+  assert.equal(f.tiers[0].activeUnitCount, 1);
+  assert.equal(f.tiers[1].activeUnitCount, source === "t" ? 0 : 99);
+  assert.equal(f.events.filter(event => event === "tier.update").length, source === "t" ? 2 : 1);
+  const lock = f.events.findIndex(event => event.includes('FROM "Property"'));
+  assert.ok(lock >= 0 && lock < f.events.indexOf("tier.update"));
+  assert.equal(f.state.ledgerEntry.length, 1);
+  assert.equal(f.state.ledgerEntry[0].amountCents, 10000);
+ });
+}
+
+for (const fail of ["tier.update", "tenantAssignment.create", "ledgerEntry.create"]) {
+ test("activation inventory and counters roll back at " + fail, async () => {
+  const f = activationFixture(); f.state.units[0].tierId = "t";
+  f.tiers[0].activeUnitCount = 77; f.tiers[1].activeUnitCount = 88;
+  const before = structuredClone({ units: f.state.units, tiers: f.tiers });
+  f.controls.fail = fail;
+  assert.equal((await f.activate()).status, 500);
+  assert.deepEqual(f.state.units, before.units);
+  assert.deepEqual(f.tiers, before.tiers);
+  assert.equal(f.state.tenantAssignment.length, 0);
+  assert.equal(f.state.ledgerEntry.length, 0);
+ });
+}
+
+test("activation capacity still uses occupancy rather than stale counters", async () => {
+ const f = activationFixture(); f.tiers[0].unitCount = 1; f.tiers[0].activeUnitCount = 100;
+ assert.equal((await f.activate()).status, 200);
+ assert.equal(f.tiers[0].activeUnitCount, 1);
+});
+
+test("serialized activation model preserves final capacity slot and counter", async () => {
+ const f = activationFixture(); f.state.units = []; f.tiers[0].unitCount = 1;
+ // Model the existing relation filter; PostgreSQL coverage verifies real joins.
+ f.prisma.tenantAssignment.count = async () => f.state.tenantAssignment.length;
+ const results = await Promise.all([f.activate(), f.activate({ unitNumber: "2", confirmUnitNumber: "2" })]);
+ assert.deepEqual(results.map(result => result.status).sort(), [200, 409]);
+ assert.equal(f.state.units.length, 1); assert.equal(f.tiers[0].activeUnitCount, 1);
+});

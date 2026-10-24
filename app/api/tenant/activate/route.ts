@@ -486,6 +486,24 @@ export async function POST(req: Request) {
               },
             });
 
+        // Reconcile from inventory while holding the property lock. Existing
+        // counters may already be stale, and activation can change tiers.
+        const affectedTierIds = new Set([selectedTier.id]);
+        if (existingUnit?.tierId) affectedTierIds.add(existingUnit.tierId);
+        for (const affectedTierId of affectedTierIds) {
+          const activeUnitCount = await tx.unit.count({
+            where: {
+              propertyId: property.id,
+              tierId: affectedTierId,
+              isActive: true,
+            },
+          });
+          await tx.propertyTier.update({
+            where: { id: affectedTierId },
+            data: { activeUnitCount },
+          });
+        }
+
         const tenantAssignment =
           await tx.tenantAssignment.create({
             data: {

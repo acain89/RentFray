@@ -139,21 +139,33 @@ async function main() {
     const simulatedStatus = statusForUnit(i);
     const tenantName = `Tenant ${num}`;
 
-    const unit = await prisma.unit.create({
-      data: {
-        propertyId: property.id,
-        tierId: tier.id,
-        unitNumber: num,
-        unitType: i % 2 === 0 ? "2BR" : "1BR",
-        baseRentCents: BASE_RENT_CENTS,
-        isActive: true,
-        portalActivated: true,
-        portalFirstName: "Tenant",
-        portalLastName: num,
-        tenantPinHash,
-        activatedAt: new Date(),
-        activationSource: "SCALE_TEST",
-      },
+    const unit = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${property.id} FOR UPDATE`;
+      const createdUnit = await tx.unit.create({
+        data: {
+          propertyId: property.id,
+          tierId: tier.id,
+          unitNumber: num,
+          unitType: i % 2 === 0 ? "2BR" : "1BR",
+          baseRentCents: BASE_RENT_CENTS,
+          isActive: true,
+          portalActivated: true,
+          portalFirstName: "Tenant",
+          portalLastName: num,
+          tenantPinHash,
+          activatedAt: new Date(),
+          activationSource: "SCALE_TEST",
+        },
+      });
+
+      const activeUnitCount = await tx.unit.count({
+        where: { propertyId: property.id, tierId: tier.id, isActive: true },
+      });
+      await tx.propertyTier.update({
+        where: { id: tier.id },
+        data: { activeUnitCount },
+      });
+      return createdUnit;
     });
 
     const assignment = await prisma.tenantAssignment.create({

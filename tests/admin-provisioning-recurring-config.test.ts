@@ -27,3 +27,30 @@ test("ADMIN provisioning keeps recurring configuration and credentials but creat
   const monthly = monthlyFixture(); monthly.unit.recurringFeeItems = fees.map((r: any, i: number) => ({ ...r, id: "fee-" + i, createdAt: new Date("2026-09-01T12:00:00Z") }));
   await monthly.run(new Date("2026-10-20T12:00:00Z")); assert.equal(monthly.ledger.reduce((sum, r) => sum + r.amountCents, 0), 3500);
 });
+
+test("ADMIN provisioning recounts each tier independently after creating its units", async () => {
+  const f = fixture("ADMIN");
+  const tiers: { id: string; activeUnitCount: number }[] = [];
+  const units: { propertyId: string; tierId: string; isActive: boolean }[] = [];
+  f.db.property.findUnique = async () => null;
+  f.db.propertyTier.create = async ({ data }: { data: { activeUnitCount?: number } }) => {
+    const tier = { ...data, id: "tier-" + tiers.length, activeUnitCount: 99 };
+    tiers.push(tier); return tier;
+  };
+  f.db.unit.create = async ({ data }: { data: (typeof units)[number] }) => {
+    units.push(data); return { ...data, id: "unit-" + units.length };
+  };
+  f.db.unit.count = async ({ where }: { where: (typeof units)[number] }) =>
+    units.filter(unit => unit.propertyId === where.propertyId && unit.tierId === where.tierId && unit.isActive === where.isActive).length;
+  f.db.propertyTier.update = async ({ where, data }: { where: { id: string }; data: { activeUnitCount: number } }) => {
+    Object.assign(tiers.find(tier => tier.id === where.id)!, data);
+  };
+  const result = await load("app/api/admin/properties/route.ts", f.imports).POST(request({
+    account: { fullName: "Owner", email: "owner@example.invalid", password: "password123" },
+    property: { name: "Property", address: "Address" },
+    tiers: [{ name: "First", unitLabels: "1,2", baseRent: 100, dueDay: 1 }, { name: "Second", unitLabels: "3", baseRent: 200, dueDay: 1 }],
+  }));
+  assert.equal(result.status, 200);
+  assert.deepEqual(tiers.map(tier => tier.activeUnitCount), [2, 1]);
+  assert.equal(units.length, 3);
+});
