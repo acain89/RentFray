@@ -186,7 +186,7 @@ test("canonical provisioning, verification, compatibility and hard-start authori
         'import { attributeRepresentative, readRepresentativeReferral, REPRESENTATIVE_COOKIE, representativeCookieOptions } from "@/lib/representativeReferrals";\n',
         '    const representativeTouch = readRepresentativeReferral((await cookies()).get(REPRESENTATIVE_COOKIE)?.value);\n',
         '            createdAt: true,\n',
-        '        const representativeAttributed = await attributeRepresentative(tx, representativeTouch, property);\n',
+        '        const representativeAttributed = await attributeRepresentative(tx, representativeTouch, property, "RENTFRAY");\n',
         '          representativeAttributed,\n',
         'if (result.representativeAttributed) response.cookies.set(REPRESENTATIVE_COOKIE, "", { ...representativeCookieOptions, maxAge: 0 });\n',
       ]) removeOnce(insertion);

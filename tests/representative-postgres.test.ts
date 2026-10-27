@@ -168,8 +168,9 @@ test("isolated PostgreSQL representative foundation and signup", { skip: !fixtur
         } },
       });
     };
-    const submit = (handler: ReturnType<typeof route>, email: string) => handler.POST({ json: async () => ({
+    const submit = (handler: ReturnType<typeof route>, email: string, overrides: Record<string, unknown> = {}) => handler.POST({ json: async () => ({
       firstName: "Isolated", lastName: "Owner", email, password: "isolated-password", representativeId: "client-forged", productScope: "RENTFRAY",
+      ...overrides,
     }) });
 
     await t.test("real signup atomically preserves creator/representative coexistence and clears after commit", async () => {
@@ -180,12 +181,50 @@ test("isolated PostgreSQL representative foundation and signup", { skip: !fixtur
       const p = await db.property.findUniqueOrThrow({ where: { id: result.body.propertyId } });
       const ref = await db.representativeReferral.findUniqueOrThrow({ where: { propertyId: p.id } });
       assert.equal(ref.representativeId, representative.id); assert.equal(ref.businessCreatedAt.getTime(), p.createdAt.getTime());
-      assert.equal(ref.productScope, "UNKNOWN"); assert.equal(ref.authorizingAgreementId, null);
+      assert.equal(ref.productScope, "RENTFRAY"); assert.equal(ref.authorizingAgreementId, agreement.id);
       assert.equal((await db.creatorReferral.findUniqueOrThrow({ where: { propertyId: p.id } })).creatorId, c.id);
       assert.equal(await db.managementUser.count({ where: { propertyId: p.id } }), 1);
       assert.equal(await db.propertySettings.count({ where: { propertyId: p.id } }), 1);
       assert.equal(await db.paymentConnectionStatus.count({ where: { propertyId: p.id } }), 1);
       assert.deepEqual(result.cleared.sort(), [creator.REFERRAL_COOKIE, referrals.REPRESENTATIVE_COOKIE].sort());
+    });
+
+    for (const kind of ["approved", "expired", "none", "future-effective", "future-approval"] as const) {
+      await t.test("public signup fixes RENTFRAY scope despite client product values; agreement=" + kind, async () => {
+        const now = new Date();
+        const rep = await db.representative.create({ data: {
+          email: `${kind}-${runId}@example.invalid`, displayName: "Classification fixture",
+          slug: `scope-${randomUUID()}`, createdAt: new Date("2020-01-01"),
+        } });
+        const effectiveAt = kind === "expired" ? new Date("2020-01-01") :
+          new Date(now.getTime() + (kind === "future-effective" ? 86400000 : -86400000));
+        const applicable = kind === "none" ? null : await db.representativeAgreement.create({ data: {
+          representativeId: rep.id, ...representativeAgreementDates(effectiveAt),
+          approvedAt: new Date(now.getTime() + (kind === "future-approval" ? 86400000 : -86400000)),
+          approvedByAdminId: "isolated-admin",
+        } });
+        for (const productScope of ["LITE", "UNKNOWN", "RENTFRAY", "arbitrary"]) {
+          const result = await submit(route(referrals.signRepresentativeReferral(rep.id)),
+            `${kind}-${productScope.toLowerCase()}-${runId}@example.invalid`,
+            { productScope, product: "RentFrayLite", productId: "lite", productType: "LITE", isLite: true });
+          assert.equal(result.status, 200);
+          const ref = await db.representativeReferral.findUniqueOrThrow({ where: { propertyId: result.body.propertyId } });
+          assert.equal(ref.productScope, "RENTFRAY"); assert.equal(ref.representativeId, rep.id);
+          assert.equal(ref.authorizingAgreementId, kind === "approved" ? applicable!.id : null);
+          const p = await db.property.findUniqueOrThrow({ where: { id: result.body.propertyId } });
+          assert.equal(ref.businessCreatedAt.getTime(), p.createdAt.getTime());
+          assert.equal(ref.businessExpiresAt.getTime(), representativeExpiration(p.createdAt).getTime());
+        }
+      });
+    }
+
+    await t.test("new public signups never backfill existing UNKNOWN referrals", async () => {
+      const unknownBefore = await db.representativeReferral.findMany({ where: { productScope: "UNKNOWN" }, orderBy: { id: "asc" } });
+      assert.ok(unknownBefore.length > 0);
+      const result = await submit(route(referrals.signRepresentativeReferral(representative.id)), `preserve-unknown-${runId}@example.invalid`);
+      assert.equal(result.status, 200);
+      assert.equal((await db.representativeReferral.findUniqueOrThrow({ where: { propertyId: result.body.propertyId } })).productScope, "RENTFRAY");
+      assert.deepEqual(await db.representativeReferral.findMany({ where: { productScope: "UNKNOWN" }, orderBy: { id: "asc" } }), unknownBefore);
     });
 
     await t.test("invalid/missing/expired/unknown cookies preserve legitimate signup", async () => {

@@ -160,7 +160,7 @@ export async function POST(req: Request) {
         });
 
         const attributed = await attributeCreator(tx, referralCookie, property);
-        const representativeAttributed = await attributeRepresentative(tx, representativeTouch, property);
+        const representativeAttributed = await attributeRepresentative(tx, representativeTouch, property, "RENTFRAY");
 
         const manager = await tx.managementUser.create({
           data: {
