@@ -125,6 +125,14 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // The representative portal validates its own dedicated session server-side.
+  if (/^\/r\/portal\/?$/.test(pathname)) {
+    const response = NextResponse.next();
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
+  }
+
   // Only the representative redirect shape is public; the handler validates slugs.
   if (/^\/r\/[a-z][a-z0-9-]{1,47}\/?$/i.test(pathname) && !/^\/r\/portal\/?$/i.test(pathname)) {
     return NextResponse.next();

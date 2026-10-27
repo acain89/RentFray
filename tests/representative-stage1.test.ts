@@ -151,15 +151,16 @@ test("redirect rejects invalid and unknown slugs without exposing account fields
   assert.equal(reads, 1);
 });
 
-test("proxy admits only representative redirects and keeps portal/nested paths protected", async () => {
+test("proxy admits representative redirects and portal while keeping nested/management paths protected", async () => {
   const proxy = loadRepresentativeModule<{ proxy(req: unknown): Promise<{ allowed?: boolean; destination?: string }> }>("proxy.ts", {
-    "next/server": { NextResponse: { next: () => ({ allowed: true }), redirect: (url: URL) => ({ destination: url.pathname }) } },
+    "next/server": { NextResponse: { next: () => ({ allowed: true, headers: new Map<string, string>() }), redirect: (url: URL) => ({ destination: url.pathname }) } },
     "@/lib/prisma": { prisma: { creator: { findUnique: async () => null } } },
     "@/lib/creatorSlugRules": { isCreatorSlug: () => false, normalizeCreatorSlug: (value: string) => value },
   });
   const navigate = (pathname: string) => proxy.proxy({ nextUrl: { pathname, clone: () => new URL(pathname, "https://www.rentfray.com") }, cookies: { get: () => undefined } });
   assert.equal((await navigate("/r/valid-rep")).allowed, true);
-  for (const path of ["/r/portal", "/r/valid-rep/private", "/r", "/admin", "/manager"]) {
+  assert.equal((await navigate("/r/portal")).allowed, true);
+  for (const path of ["/r/portal/private", "/r/valid-rep/private", "/r", "/admin", "/manager"]) {
     assert.equal((await navigate(path)).destination, "/property-code");
   }
 });

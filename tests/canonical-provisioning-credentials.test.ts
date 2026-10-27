@@ -232,6 +232,12 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       after = after.replace('const response = NextResponse.json({', 'return NextResponse.json({');
     }
     if (file === "proxy.ts") {
+      removeOnce('  // The representative portal validates its own dedicated session server-side.\n' +
+        '  if (/^\\/r\\/portal\\/?$/.test(pathname)) {\n' +
+        '    const response = NextResponse.next();\n' +
+        '    response.headers.set("Cache-Control", "private, no-store");\n' +
+        '    response.headers.set("Referrer-Policy", "no-referrer");\n' +
+        '    return response;\n  }\n\n');
       removeOnce('  // Only the representative redirect shape is public; the handler validates slugs.\n' +
         '  if (/^\\/r\\/[a-z][a-z0-9-]{1,47}\\/?$/i.test(pathname) && !/^\\/r\\/portal\\/?$/i.test(pathname)) {\n' +
         '    return NextResponse.next();\n  }\n\n');
