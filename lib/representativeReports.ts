@@ -60,6 +60,26 @@ function safeCount(value: bigint | number): number {
 }
 const remaining = (expiration: Date, now: Date) => Math.max(0, Math.ceil((expiration.getTime() - now.getTime()) / 86400000));
 
+export function representativeQualifyingPayments(representativeId: string, now: Date): Prisma.Sql {
+  return Prisma.sql`FROM "Payment" p
+      JOIN "RepresentativeReferral" r ON r."propertyId" = p."propertyId"
+      JOIN "RepresentativeAgreement" a ON a."id" = r."authorizingAgreementId" AND a."representativeId" = r."representativeId"
+      WHERE r."representativeId" = ${representativeId} AND r."productScope" = 'RENTFRAY'
+        AND (r."commissionEligibleFrom" IS NULL OR (r."businessCreatedAt" <= r."commissionEligibleFrom" AND r."commissionEligibleFrom" < r."businessExpiresAt"))
+        AND a."effectiveAt" <= COALESCE(r."commissionEligibleFrom", r."businessCreatedAt") AND COALESCE(r."commissionEligibleFrom", r."businessCreatedAt") < a."expiresAt" AND a."approvedAt" <= COALESCE(r."commissionEligibleFrom", r."businessCreatedAt")
+        AND p."status" = 'PAID' AND p."paymentMethod" = 'ACH' AND p."amountCents" > 0
+        AND COALESCE(p."processingFeeCents", 0) >= 0 AND p."paidAt" IS NOT NULL AND isfinite(p."paidAt")
+        AND p."paidAt" >= (COALESCE(r."commissionEligibleFrom", r."businessCreatedAt") AT TIME ZONE 'UTC') AND p."paidAt" < (r."businessExpiresAt" AT TIME ZONE 'UTC')
+        AND p."paidAt" <= (${now}::timestamptz AT TIME ZONE 'UTC') AND p."stripePaymentIntentId" ~ '^pi_[A-Za-z0-9]+$'
+        AND EXISTS (SELECT 1 FROM "TenantAssignment" t WHERE t."id" = p."tenantAssignmentId" AND t."propertyId" = p."propertyId" AND t."unitId" = p."unitId")
+        AND EXISTS (SELECT 1 FROM "LedgerEntry" l WHERE l."paymentId" = p."id" AND l."entryType" = 'PAYMENT'
+          AND l."referenceNumber" = p."stripePaymentIntentId" AND l."voidedAt" IS NULL
+          AND l."propertyId" = p."propertyId" AND l."unitId" = p."unitId" AND l."tenantAssignmentId" = p."tenantAssignmentId"
+          AND l."amountCents"::bigint = -(p."amountCents"::bigint + COALESCE(p."processingFeeCents", 0)::bigint))
+        AND NOT EXISTS (SELECT 1 FROM "LedgerEntry" l WHERE l."paymentId" = p."id" AND l."voidedAt" IS NULL AND l."amountCents" > 0
+          AND l."referenceNumber" IN (p."stripePaymentIntentId" || ':returned-principal', p."stripePaymentIntentId" || ':reversal'))`;
+}
+
 export async function getRepresentativeDashboard(representativeId: string, options: RepresentativeReportOptions = {}, now = new Date()): Promise<RepresentativeDashboard> {
   const businessCursor = cursor(options.businessCursor), payoutCursor = cursor(options.payoutCursor);
   const month = representativeMonth(now), currentStart = representativeMonthStart(month);
@@ -79,29 +99,12 @@ export async function getRepresentativeDashboard(representativeId: string, optio
     const referrals = await tx.representativeReferral.findMany({ where: { representativeId,
       ...(businessCursor ? { OR: [{ businessCreatedAt: { lt: businessCursor.date } }, { businessCreatedAt: businessCursor.date, id: { lt: businessCursor.id } }] } : {}) },
       orderBy: [{ businessCreatedAt: "desc" }, { id: "desc" }], take: 26,
-      select: { id: true, propertyId: true, businessNameSnapshot: true, businessCreatedAt: true, businessExpiresAt: true, productScope: true,
+      select: { id: true, propertyId: true, businessNameSnapshot: true, businessCreatedAt: true, businessExpiresAt: true, productScope: true, commissionEligibleFrom: true,
         authorizingAgreement: { select: { representativeId: true, effectiveAt: true, expiresAt: true, approvedAt: true } } } });
     const page = referrals.slice(0, 25), propertyIds = page.map(row => row.propertyId);
     const properties = propertyIds.length ? await tx.property.findMany({ where: { id: { in: propertyIds } }, select: { id: true, name: true } }) : [];
     const units = propertyIds.length ? await tx.unit.groupBy({ by: ["propertyId"], where: { propertyId: { in: propertyIds }, isActive: true }, _count: { _all: true } }) : [];
-    // Payment.paidAt is timestamp-without-time-zone containing UTC instants.
-    // Explicit conversion keeps comparisons independent of the DB session timezone.
-    const qualifying = Prisma.sql`FROM "Payment" p
-      JOIN "RepresentativeReferral" r ON r."propertyId" = p."propertyId"
-      JOIN "RepresentativeAgreement" a ON a."id" = r."authorizingAgreementId" AND a."representativeId" = r."representativeId"
-      WHERE r."representativeId" = ${representativeId} AND r."productScope" = 'RENTFRAY'
-        AND a."effectiveAt" <= r."businessCreatedAt" AND r."businessCreatedAt" < a."expiresAt" AND a."approvedAt" <= r."businessCreatedAt"
-        AND p."status" = 'PAID' AND p."paymentMethod" = 'ACH' AND p."amountCents" > 0
-        AND COALESCE(p."processingFeeCents", 0) >= 0 AND p."paidAt" IS NOT NULL AND isfinite(p."paidAt")
-        AND p."paidAt" >= (r."businessCreatedAt" AT TIME ZONE 'UTC') AND p."paidAt" < (r."businessExpiresAt" AT TIME ZONE 'UTC')
-        AND p."paidAt" <= (${now}::timestamptz AT TIME ZONE 'UTC') AND p."stripePaymentIntentId" ~ '^pi_[A-Za-z0-9]+$'
-        AND EXISTS (SELECT 1 FROM "TenantAssignment" t WHERE t."id" = p."tenantAssignmentId" AND t."propertyId" = p."propertyId" AND t."unitId" = p."unitId")
-        AND EXISTS (SELECT 1 FROM "LedgerEntry" l WHERE l."paymentId" = p."id" AND l."entryType" = 'PAYMENT'
-          AND l."referenceNumber" = p."stripePaymentIntentId" AND l."voidedAt" IS NULL
-          AND l."propertyId" = p."propertyId" AND l."unitId" = p."unitId" AND l."tenantAssignmentId" = p."tenantAssignmentId"
-          AND l."amountCents"::bigint = -(p."amountCents"::bigint + COALESCE(p."processingFeeCents", 0)::bigint))
-        AND NOT EXISTS (SELECT 1 FROM "LedgerEntry" l WHERE l."paymentId" = p."id" AND l."voidedAt" IS NULL AND l."amountCents" > 0
-          AND l."referenceNumber" IN (p."stripePaymentIntentId" || ':returned-principal', p."stripePaymentIntentId" || ':reversal'))`;
+    const qualifying = representativeQualifyingPayments(representativeId, now);
     const [totals] = await tx.$queryRaw<{ lifetime: bigint; current: bigint }[]>`SELECT COUNT(DISTINCT p."id") AS lifetime,
       COUNT(DISTINCT p."id") FILTER (WHERE p."paidAt" >= (${currentStart}::timestamptz AT TIME ZONE 'UTC')) AS current ${qualifying}`;
     const perBusiness = propertyIds.length ? await tx.$queryRaw<{ propertyId: string; count: bigint }[]>`
@@ -130,8 +133,9 @@ export async function getRepresentativeDashboard(representativeId: string, optio
       summary: { acquiredBusinesses: acquired, currentMonthPayments, currentMonthCents: currentMonthPayments * 250, lifetimeCents, paidCents, outstandingCents: lifetimeCents - paidCents },
       businesses: { items: page.map(row => {
         const a = row.authorizingAgreement;
-        const eligible = row.productScope === "RENTFRAY" && a && a.representativeId === representativeId && a.effectiveAt <= row.businessCreatedAt &&
-          row.businessCreatedAt < a.expiresAt && a.approvedAt <= row.businessCreatedAt;
+        const from = row.commissionEligibleFrom ?? row.businessCreatedAt;
+        const eligible = row.productScope === "RENTFRAY" && a && a.representativeId === representativeId && row.businessCreatedAt <= from && from < row.businessExpiresAt && a.effectiveAt <= from &&
+          from < a.expiresAt && a.approvedAt <= from;
         return { id: row.id, name: propertyMap.get(row.propertyId) ?? row.businessNameSnapshot, createdAt: row.businessCreatedAt.toISOString(),
           activeUnits: unitMap.get(row.propertyId) ?? 0, currentMonthPayments: counts.get(row.propertyId) ?? 0,
           currentMonthCents: (counts.get(row.propertyId) ?? 0) * 250, expiresAt: row.businessExpiresAt.toISOString(), daysRemaining: remaining(row.businessExpiresAt, now),

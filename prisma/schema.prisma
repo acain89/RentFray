@@ -539,6 +539,7 @@ model RepresentativeReferral {
   attributedAt           DateTime @db.Timestamptz(3)
   businessExpiresAt      DateTime @db.Timestamptz(3)
   authorizingAgreementId String?
+  commissionEligibleFrom DateTime? @db.Timestamptz(3)
   productScope           String @default("UNKNOWN")
   representative Representative @relation(fields: [representativeId], references: [id], onDelete: Restrict)
   authorizingAgreement RepresentativeAgreement? @relation(fields: [authorizingAgreementId, representativeId], references: [id, representativeId], onDelete: Restrict, map: "RepresentativeReferral_agreement_fkey")

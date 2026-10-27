@@ -187,6 +187,7 @@ const totalProperties = useMemo(
             <Link href="/setup" className={styles.primaryButton}>
               + New Property
             </Link>
+            <Link href="/admin/representatives" className={styles.primaryButton}>Representatives</Link>
 
             <button
               type="button"
