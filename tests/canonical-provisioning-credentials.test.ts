@@ -33,6 +33,8 @@ for (const kind of ["public", "admin"] as const) for (const mailFailure of [fals
     };
     // No referral cookie: exercise unchanged canonical provisioning.
     f.imports["next/headers"] = { cookies: async () => ({ get: () => undefined }) };
+    f.imports["@/lib/representativeReferrals"] = { readRepresentativeReferral: () => null, attributeRepresentative: async () => false,
+      REPRESENTATIVE_COOKIE: "rf_representative_referral", representativeCookieOptions: {} };
     f.imports["@/lib/creatorReferrals"] = { attributeCreator: async (_tx: unknown, cookie: unknown) => {
       assert.equal(cookie, undefined); return false;
     }, REFERRAL_COOKIE: "rf_creator_referral", referralCookieOptions: {} };
@@ -164,6 +166,15 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       : "eda6c70dafc95079b2757d7ed5139ee03a225e5c";
     const before = execFileSync("git", ["--no-optional-locks", "show", baseline + ":" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     let after = readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n");
+    // The approved starting HEAD already contains the grace-period validation
+    // changes in these protected files. Pin every byte to that approved version
+    // rather than comparing them with the older pre-grace historical baseline.
+    if (["app/api/admin/properties/route.ts", "app/admin/properties/new/page.tsx", "app/api/admin/properties/[id]/route.ts"].includes(file)) {
+      const approved = execFileSync("git", ["--no-optional-locks", "show", "34d386ff721e61acd331847c4354dd4dc7525013:" + file],
+        { cwd: root, encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
+      assert.equal(after, approved, "Protected approved baseline: " + file);
+      continue;
+    }
     // Reverse only the exact approved referral insertions; all prior authority
     // assertions still compare every remaining byte against their original baseline.
     const removeOnce = (value: string) => {
@@ -171,6 +182,14 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       after = after.replace(value, "");
     };
     if (file === "app/api/setup/create-account/route.ts") {
+      for (const insertion of [
+        'import { attributeRepresentative, readRepresentativeReferral, REPRESENTATIVE_COOKIE, representativeCookieOptions } from "@/lib/representativeReferrals";\n',
+        '    const representativeTouch = readRepresentativeReferral((await cookies()).get(REPRESENTATIVE_COOKIE)?.value);\n',
+        '            createdAt: true,\n',
+        '        const representativeAttributed = await attributeRepresentative(tx, representativeTouch, property);\n',
+        '          representativeAttributed,\n',
+        'if (result.representativeAttributed) response.cookies.set(REPRESENTATIVE_COOKIE, "", { ...representativeCookieOptions, maxAge: 0 });\n',
+      ]) removeOnce(insertion);
       const approvedRegistrationChanges: Array<[string, string]> = [
   [
     "function clean(value: unknown): string {",
@@ -213,6 +232,9 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       after = after.replace('const response = NextResponse.json({', 'return NextResponse.json({');
     }
     if (file === "proxy.ts") {
+      removeOnce('  // Only the representative redirect shape is public; the handler validates slugs.\n' +
+        '  if (/^\\/r\\/[a-z][a-z0-9-]{1,47}\\/?$/i.test(pathname) && !/^\\/r\\/portal\\/?$/i.test(pathname)) {\n' +
+        '    return NextResponse.next();\n  }\n\n');
       removeOnce('import { prisma } from "@/lib/prisma";\nimport { isCreatorSlug, normalizeCreatorSlug } from "@/lib/creatorSlugRules";\n'.replace(/\\n/g, "\n"));
       const block = '  // Only an existing, nonreserved, single-segment creator URL is public.\n' +
         '  const candidate = /^\\/([^/]+)\\/?$/.exec(pathname)?.[1];\n' +

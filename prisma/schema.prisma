@@ -493,3 +493,71 @@ model CreatorReferral {
 
   @@index([creatorId, attributedAt])
 }
+
+model Representative {
+  id                       String @id @default(cuid())
+  email                    String @unique
+  displayName              String
+  slug                     String @unique
+  passwordHash             String?
+  loginEnabled             Boolean @default(false)
+  sessionVersion           Int @default(0)
+  createdAt                DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime @updatedAt @db.Timestamptz(3)
+  resetTokenHash           String? @unique
+  resetTokenExpiresAt      DateTime? @db.Timestamptz(3)
+  resetTokenSessionVersion Int?
+  agreements               RepresentativeAgreement[]
+  referrals                RepresentativeReferral[]
+  payouts                  RepresentativePayout[]
+}
+
+model RepresentativeAgreement {
+  id                String @id @default(cuid())
+  representativeId  String
+  effectiveAt       DateTime @db.Timestamptz(3)
+  expiresAt         DateTime @db.Timestamptz(3)
+  approvedAt        DateTime @db.Timestamptz(3)
+  approvedByAdminId String
+  agreementReference String?
+  agreementVersion   String?
+  representative Representative @relation(fields: [representativeId], references: [id], onDelete: Restrict)
+  referrals RepresentativeReferral[]
+
+  @@unique([id, representativeId])
+  @@index([representativeId, effectiveAt])
+}
+
+model RepresentativeReferral {
+  id                     String @id @default(cuid())
+  representativeId       String
+  // Retained scalar only: no Property FK or changes to Property lifecycle.
+  propertyId             String @unique
+  businessNameSnapshot   String
+  businessCreatedAt      DateTime @db.Timestamptz(3)
+  capturedAt             DateTime @db.Timestamptz(3)
+  attributedAt           DateTime @db.Timestamptz(3)
+  businessExpiresAt      DateTime @db.Timestamptz(3)
+  authorizingAgreementId String?
+  productScope           String @default("UNKNOWN")
+  representative Representative @relation(fields: [representativeId], references: [id], onDelete: Restrict)
+  authorizingAgreement RepresentativeAgreement? @relation(fields: [authorizingAgreementId, representativeId], references: [id, representativeId], onDelete: Restrict, map: "RepresentativeReferral_agreement_fkey")
+
+  @@index([representativeId, businessCreatedAt, id], map: "RepresentativeReferral_portfolio_idx")
+}
+
+model RepresentativePayout {
+  id                    String @id @default(cuid())
+  representativeId      String
+  amountCents           Int
+  paidAt                DateTime @db.Timestamptz(3)
+  recordedAt            DateTime @default(now()) @db.Timestamptz(3)
+  recordedByAdminId     String
+  reportingMonth        String
+  operationKey          String @unique
+  externalPayoutReference String @unique
+  note                  String?
+  representative Representative @relation(fields: [representativeId], references: [id], onDelete: Restrict)
+
+  @@index([representativeId, paidAt, id])
+}

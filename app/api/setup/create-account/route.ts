@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { attributeCreator, REFERRAL_COOKIE, referralCookieOptions } from "@/lib/creatorReferrals";
+import { attributeRepresentative, readRepresentativeReferral, REPRESENTATIVE_COOKIE, representativeCookieOptions } from "@/lib/representativeReferrals";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -125,6 +126,7 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;
+    const representativeTouch = readRepresentativeReferral((await cookies()).get(REPRESENTATIVE_COOKIE)?.value);
 
     const result = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -153,10 +155,12 @@ export async function POST(req: Request) {
             id: true,
             propertyCode: true,
             name: true,
+            createdAt: true,
           },
         });
 
         const attributed = await attributeCreator(tx, referralCookie, property);
+        const representativeAttributed = await attributeRepresentative(tx, representativeTouch, property);
 
         const manager = await tx.managementUser.create({
           data: {
@@ -191,6 +195,7 @@ export async function POST(req: Request) {
           propertyId: property.id,
           propertyCode: property.propertyCode,
           attributed,
+          representativeAttributed,
           managementUserId: manager.id,
         };
     },
@@ -225,6 +230,7 @@ const response = NextResponse.json({
   )}&sent=${verificationEmailSent ? "1" : "0"}`,
 });
 if (result.attributed) response.cookies.set(REFERRAL_COOKIE, "", { ...referralCookieOptions, maxAge: 0 });
+if (result.representativeAttributed) response.cookies.set(REPRESENTATIVE_COOKIE, "", { ...representativeCookieOptions, maxAge: 0 });
 return response;
   } catch (error) {
     if (error instanceof RegistrationConflictError) {

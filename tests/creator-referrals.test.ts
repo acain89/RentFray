@@ -44,7 +44,11 @@ test("normalization, reserved routes, invalid input and root-route inventory", (
   for (const entry of readdirSync(resolve(root, "app"), { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith("[")) continue;
     const names = entry.name.startsWith("(") ? readdirSync(resolve(root, "app", entry.name), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name) : [entry.name];
-    for (const name of names) assert.ok(RESERVED_CREATOR_SLUGS.has(name), `Missing reserved route: ${name}`);
+    for (const name of names) {
+      // /r is the representative namespace; single-character creator slugs are invalid.
+      if (name === "r") { assert.throws(() => requireCreatorSlug(name)); continue; }
+      assert.ok(RESERVED_CREATOR_SLUGS.has(name), `Missing reserved route: ${name}`);
+    }
   }
   for (const name of readdirSync(resolve(root, "public"))) assert.ok(RESERVED_CREATOR_SLUGS.has(name));
 });

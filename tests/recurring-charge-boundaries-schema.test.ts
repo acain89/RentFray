@@ -16,6 +16,11 @@ export function normalizePasswordResetSchema(source: string): string {
 }
 
 export function assertApprovedSchemaChange(before: string, after: string) {
+  // Stage 1 only appends these four models. Their full baseline boundary is
+  // independently checked in representative-core-boundary.test.ts.
+  const representativeModels = /\nmodel Representative(?:Agreement|Referral|Payout)? \{[\s\S]*?\n\}/g;
+  before = before.replace(representativeModels, "").trimEnd();
+  after = after.replace(representativeModels, "").trimEnd();
   after = normalizePasswordResetSchema(after);
   before = normalizePasswordResetSchema(before);
   // A baseline already containing the creator models must not have them stripped again.

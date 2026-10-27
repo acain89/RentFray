@@ -90,6 +90,8 @@ function fixture(options: { competing?: boolean; sameCode?: boolean; failure?: s
     "next/headers": { cookies: async () => ({ get: () => ({ value: "synthetic-referral" }) }) },
     "@prisma/client": { Prisma: { TransactionIsolationLevel: { ReadCommitted: "ReadCommitted" } } },
     "@/lib/prisma": { prisma: db },
+    "@/lib/representativeReferrals": { readRepresentativeReferral: () => null, attributeRepresentative: async () => false,
+      REPRESENTATIVE_COOKIE: "rf_representative_referral", representativeCookieOptions: {} },
     bcryptjs: { hash: async (password: string, cost: number) => { assert.equal(cost, 12); assert.equal(password, "synthetic-password"); hashes++; trace.push("hash"); return "synthetic-hash"; } },
     "@/lib/creatorReferrals": { REFERRAL_COOKIE: "synthetic-referral", referralCookieOptions: {}, attributeCreator: async (tx: ReturnType<typeof transaction>, cookie: string, property: Row) => {
       assert.equal(cookie, "synthetic-referral"); if (options.failure === "referral") throw new Error("PRIVATE_REFERRAL_DIAGNOSTIC"); await tx.creatorReferral.create({ data: { propertyId: property.id } }); return true;

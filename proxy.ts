@@ -125,6 +125,11 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Only the representative redirect shape is public; the handler validates slugs.
+  if (/^\/r\/[a-z][a-z0-9-]{1,47}\/?$/i.test(pathname) && !/^\/r\/portal\/?$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Only an existing, nonreserved, single-segment creator URL is public.
   const candidate = /^\/([^/]+)\/?$/.exec(pathname)?.[1];
   const creatorSlug = candidate ? normalizeCreatorSlug(candidate) : "";
