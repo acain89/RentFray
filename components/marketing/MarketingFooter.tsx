@@ -36,6 +36,7 @@ export default function MarketingFooter() {
             <strong>Access</strong>
             <button type="button" onClick={() => router.push("/setup")}>Create Account</button>
             <button type="button" onClick={() => router.push("/property-code")}>Sign In</button>
+            <a href="https://www.rentfray.com/login/representative">Representative Login</a>
             <a href="mailto:helpdesk@rentfray.com">Contact support</a>
           </div>
         </div>
