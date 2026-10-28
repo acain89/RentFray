@@ -11,7 +11,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ slug: s
   const slug = normalizeRepresentativeSlug((await context.params).slug);
   const headers = { "Cache-Control": "private, no-store" };
   if (!isRepresentativeSlug(slug)) return new NextResponse(null, { status: 404, headers });
-  const representative = await prisma.representative.findUnique({ where: { slug }, select: { id: true } });
+  const canonical = await prisma.representative.findFirst({ where: { slug: { equals: slug, mode: "insensitive" } }, select: { id: true } });
+  const alias = canonical ? null : await prisma.representativeReferralAlias.findUnique({ where: { slug }, select: { representativeId: true } });
+  const representative = canonical ?? (alias ? { id: alias.representativeId } : null);
   if (!representative) return new NextResponse(null, { status: 404, headers });
   const response = NextResponse.redirect(new URL("/", REPRESENTATIVE_ORIGIN), 303);
   response.headers.set("Cache-Control", headers["Cache-Control"]);

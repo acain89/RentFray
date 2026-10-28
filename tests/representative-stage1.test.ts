@@ -111,8 +111,10 @@ for (const scenario of ["missing", "first", "invalid", "expired", "unknown", "se
   const helper = scenario === "secret-missing" ? loadRepresentativeModule<typeof ReferralModule>("lib/representativeReferrals.ts", {}, {}) : referrals;
   const route = loadRepresentativeModule<{ GET(req: unknown, ctx: unknown): Promise<Response> }>("app/r/[slug]/route.ts", {
     "next/server": { NextResponse: Response }, "@/lib/representativeReferrals": helper,
-    "@/lib/prisma": { prisma: { representative: { findUnique: async ({ where }: { where: { id?: string; slug?: string } }) =>
-      where.slug ? { id: "rep-b", loginEnabled: false } : where.id === "rep-a" ? representative : null } } },
+    "@/lib/prisma": { prisma: { representative: {
+      findFirst: async () => ({ id: "rep-b", loginEnabled: false }),
+      findUnique: async ({ where }: { where: { id?: string } }) => where.id === "rep-a" ? representative : null,
+    } } },
   });
   const result = await route.GET({ cookies: { get: () => scenario === "missing" ? undefined : { value: initial } } }, { params: Promise.resolve({ slug: "REP-B" }) });
   assert.equal(result.destination, "https://www.rentfray.com/");
@@ -139,9 +141,9 @@ test("redirect rejects invalid and unknown slugs without exposing account fields
   }
   const route = loadRepresentativeModule<{ GET(req: unknown, ctx: unknown): Promise<Response> }>("app/r/[slug]/route.ts", {
     "next/server": { NextResponse: Response }, "@/lib/representativeReferrals": referrals,
-    "@/lib/prisma": { prisma: { representative: { findUnique: async (query: unknown) => {
-      reads++; assert.deepEqual(JSON.parse(JSON.stringify(query)), { where: { slug: "unknown" }, select: { id: true } }); return null;
-    } } } },
+    "@/lib/prisma": { prisma: { representative: { findFirst: async (query: unknown) => {
+      reads++; assert.deepEqual(JSON.parse(JSON.stringify(query)), { where: { slug: { equals: "unknown", mode: "insensitive" } }, select: { id: true } }); return null;
+    } }, representativeReferralAlias: { findUnique: async () => null } } },
   });
   for (const slug of ["portal", "../admin", "unknown"]) {
     const result = await route.GET({}, { params: Promise.resolve({ slug }) });

@@ -510,6 +510,17 @@ model Representative {
   agreements               RepresentativeAgreement[]
   referrals                RepresentativeReferral[]
   payouts                  RepresentativePayout[]
+  referralAliases          RepresentativeReferralAlias[]
+}
+
+model RepresentativeReferralAlias {
+  slug             String @id
+  representativeId String
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  representative Representative @relation(fields: [representativeId], references: [id], onDelete: Restrict)
+
+  @@index([representativeId])
 }
 
 model RepresentativeAgreement {

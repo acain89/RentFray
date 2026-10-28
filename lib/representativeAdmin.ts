@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -129,10 +128,29 @@ export async function listRepresentatives(cursor?: string) {
     orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 26, select: profileSelect });
   return { items: rows.slice(0, 25).map(profileDto), nextCursor: rows.length > 25 ? encodeCursor(rows[24].createdAt, rows[24].id) : null };
 }
-function generatedSlug(name: string) {
-  let base = name.normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  if (!/^[a-z]/.test(base)) base = "rep-" + base;
-  return base.slice(0, 35).replace(/-+$/g, "") + "-" + randomBytes(6).toString("hex");
+const reservedReferralSlugs = new Set(["portal", "admin", "api", "login", "logout", "setup", "forgot-password", "reset-password"]);
+export function representativeNameSlug(name: string): string {
+  const base = name.normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
+  if (!/^[a-z][a-z0-9-]{1,47}$/.test(base)) fail(400, "The name must produce a valid referral URL using at least two ASCII characters, starting with a letter.");
+  return base;
+}
+async function lockReferralSlugs(tx: Prisma.TransactionClient) {
+  // Canonical names and aliases share one namespace. Every allocation/rename
+  // takes this transaction lock before checking either table.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('representative-referral-slug-namespace'), 0)`;
+}
+async function allocateReferralSlug(tx: Prisma.TransactionClient, name: string, representativeId?: string) {
+  const base = representativeNameSlug(name);
+  for (let number = 1; number <= 10000; number++) {
+    const suffix = number === 1 ? "" : `-${number}`;
+    const slug = base.slice(0, 48 - suffix.length).replace(/-+$/g, "") + suffix;
+    if (reservedReferralSlugs.has(slug)) continue;
+    const canonical = await tx.representative.findFirst({ where: { slug: { equals: slug, mode: "insensitive" } }, select: { id: true } });
+    const alias = await tx.representativeReferralAlias.findFirst({ where: { slug: { equals: slug, mode: "insensitive" } }, select: { representativeId: true } });
+    if ((!canonical || canonical.id === representativeId) && (!alias || alias.representativeId === representativeId)) return slug;
+  }
+  return fail(409, "Could not allocate a unique referral URL. Please try again.");
 }
 export async function createRepresentative(actor: RepresentativeAdminActor, input: Record<string, unknown>) {
   const body = representativeAdminFields(input, ["displayName", "email"]);
@@ -141,7 +159,9 @@ export async function createRepresentative(actor: RepresentativeAdminActor, inpu
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       return await db.$transaction(async (tx: Prisma.TransactionClient) => {
-        const row = await tx.representative.create({ data: { displayName, email: email!, slug: generatedSlug(displayName), loginEnabled: true }, select: profileSelect });
+        await lockReferralSlugs(tx);
+        const slug = await allocateReferralSlug(tx, displayName);
+        const row = await tx.representative.create({ data: { displayName, email: email!, slug, loginEnabled: true }, select: profileSelect });
         await audit(tx, actor, "REPRESENTATIVE_CREATED", "REPRESENTATIVE", row.id, { representativeId: row.id, loginEnabled: true });
         return profileDto(row);
       });
@@ -153,6 +173,24 @@ export async function createRepresentative(actor: RepresentativeAdminActor, inpu
     }
   }
   return fail(409, "Could not generate a unique referral slug. Please try again.");
+}
+/** Explicit maintenance operation only; no automatic backfill or public/admin UI.
+ * Invoke only after all serving instances support alias resolution. */
+export async function shortenRepresentativeReferralSlug(actor: RepresentativeAdminActor, id: string) {
+  representativeAdminId(id);
+  return db.$transaction(async (tx: Prisma.TransactionClient) => {
+    await lockReferralSlugs(tx);
+    const previous = await lockRepresentative(tx, id);
+    const slug = await allocateReferralSlug(tx, previous.displayName, id);
+    if (slug === previous.slug) return profileDto(previous);
+    const oldSlug = previous.slug.toLowerCase();
+    const existingAlias = await tx.representativeReferralAlias.findUnique({ where: { slug: oldSlug }, select: { representativeId: true } });
+    if (existingAlias && existingAlias.representativeId !== id) fail(409, "The historical referral URL belongs to another representative.");
+    if (!existingAlias) await tx.representativeReferralAlias.create({ data: { slug: oldSlug, representativeId: id } });
+    const row = await tx.representative.update({ where: { id }, data: { slug }, select: profileSelect });
+    await audit(tx, actor, "REPRESENTATIVE_REFERRAL_SLUG_SHORTENED", "REPRESENTATIVE", id, { representativeId: id, previousSlug: previous.slug, slug });
+    return profileDto(row);
+  });
 }
 export async function setRepresentativeLogin(actor: RepresentativeAdminActor, id: string, input: Record<string, unknown>) {
   const body = representativeAdminFields(input, ["loginEnabled"]);

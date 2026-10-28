@@ -250,13 +250,13 @@ test("pre-existing exceptions accept only their precise approved edits and never
   assert.equal(approvedWorkingCopy("lib/ledger.ts", "financial source"), undefined);
 });
 
-test("existing schema models/enums are unchanged; exactly four representative models appended", () => {
+test("existing financial models/enums are unchanged; only five representative models appended", () => {
   const original = execFileSync("git", ["show", "34d386ff721e61acd331847c4354dd4dc7525013:prisma/schema.prisma"], { cwd: root, encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n").trimEnd();
   const current = readFileSync(resolve(root, "prisma/schema.prisma"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(current.slice(0, original.length), original);
   const added = current.slice(original.length);
   assert.deepEqual([...added.matchAll(/^model (\w+) \{/gm)].map(match => match[1]),
-    ["Representative", "RepresentativeAgreement", "RepresentativeReferral", "RepresentativePayout"]);
+    ["Representative", "RepresentativeReferralAlias", "RepresentativeAgreement", "RepresentativeReferral", "RepresentativePayout"]);
   assert.doesNotMatch(added, /^enum /m);
   assert.doesNotMatch(added, /references: \[.*propertyId/);
   assert.doesNotMatch(added, /Property\??\s+@relation/);

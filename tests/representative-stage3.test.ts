@@ -19,7 +19,9 @@ test("administrative dates preserve Chicago midnight on DST days", () => {
 });
 test("schema adds exactly one nullable field and migration contains only ADD COLUMN", () => {
   const before = execFileSync("git", ["show", "ceac0e18bb8992198128ec358483f4ee29ad66ed:prisma/schema.prisma"], { encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
-  const current = readFileSync("prisma/schema.prisma", "utf8").replace(/\r\n/g, "\n");
+  const current = readFileSync("prisma/schema.prisma", "utf8").replace(/\r\n/g, "\n")
+    .replace("  referralAliases          RepresentativeReferralAlias[]\n", "")
+    .replace(/\nmodel RepresentativeReferralAlias \{[\s\S]*?\n\}\n/, "");
   const addition = "  commissionEligibleFrom DateTime? @db.Timestamptz(3)\n";
   assert.equal(current.split(addition).length, 2); assert.equal(current.replace(addition, ""), before);
   assert.equal(readFileSync("prisma/migrations/20261027020000_add_representative_eligibility_timestamp/migration.sql", "utf8").trim(),

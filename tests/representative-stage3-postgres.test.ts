@@ -36,7 +36,7 @@ test("isolated PostgreSQL representative administration", { skip: !fixturePath }
       f.cookies.clear();
     });
     await t.test("provisioning normalizes email, generates permanent slug, and audits without credentials", async () => {
-      assert.equal(rep.email, `stage3-${run}@example.invalid`); assert.match(rep.slug, /^stage-three-[a-f0-9]{12}$/);
+      assert.equal(rep.email, `stage3-${run}@example.invalid`); assert.equal(rep.slug, "stage-three");
       const row = await db.representative.findUniqueOrThrow({ where: { id: rep.id } });
       assert.equal(row.passwordHash, null); assert.equal(row.loginEnabled, true);
       assert.equal(await db.auditLog.count({ where: { action: "REPRESENTATIVE_CREATED", targetId: rep.id, actorAdminId: actor.adminAccessId } }), 1);
@@ -46,13 +46,11 @@ test("isolated PostgreSQL representative administration", { skip: !fixturePath }
       await assert.rejects(a.createRepresentative(actor, { displayName: "Duplicate", email: rep.email }), /already exists/);
       assert.equal(await db.representative.count({ where: { email: rep.email } }), 1);
     });
-    await t.test("slug collisions retry without altering the existing representative", async () => {
+    await t.test("slug collisions use numeric suffixes without altering the existing representative", async () => {
       const name = `collision-${run.slice(0, 8)}`;
-      await db.representative.create({ data: { email: `collision-${run}@example.invalid`, displayName: "Existing", slug: `${name}-000000000000` } });
-      let attempt = 0;
-      const collision = stage3Fixture(db, runtime.Prisma, { crypto: { randomBytes: () => Buffer.alloc(6, attempt++) } }).admin;
-      const created = await collision.createRepresentative(actor, { displayName: name, email: `retry-${run}@example.invalid` });
-      assert.equal(created.slug, `${name}-010101010101`);
+      await db.representative.create({ data: { email: `collision-${run}@example.invalid`, displayName: "Existing", slug: name } });
+      const created = await a.createRepresentative(actor, { displayName: name, email: `retry-${run}@example.invalid` });
+      assert.equal(created.slug, `${name}-2`);
     });
     await t.test("provisioned account survives mocked email delivery failure", async () => {
       const failedEmail = stage3Fixture(db, runtime.Prisma, { send: async () => { throw new Error("mock transport unavailable"); } }).admin;
