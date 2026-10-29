@@ -15,6 +15,7 @@ export function representativePasswordInput(value: unknown): value is string {
 }
 export const isRepresentativeResetToken = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const hashToken = (value: string) => createHash("sha256").update(value).digest("hex");
+export type RepresentativePasswordLink = { email: string; token: string; purpose: "ACTIVATION" | "PASSWORD_RESET" };
 
 export async function authenticateRepresentative(email: string, password: string): Promise<RepresentativeSession | null> {
   const row = await prisma.representative.findUnique({ where: { email },
@@ -30,19 +31,30 @@ export async function authenticateRepresentative(email: string, password: string
     ? { id: row.id, displayName: row.displayName, sessionVersion: row.sessionVersion } : null;
 }
 
-export async function issueRepresentativeRecovery(email: string): Promise<{ email: string; token: string } | null> {
+export function issueRepresentativeRecovery(email: string): Promise<RepresentativePasswordLink | null> {
+  return issueRepresentativePasswordLink(email, false);
+}
+export function issueRepresentativeSetup(email: string): Promise<RepresentativePasswordLink | null> {
+  return issueRepresentativePasswordLink(email, true);
+}
+async function issueRepresentativePasswordLink(email: string, initialSetup: boolean): Promise<RepresentativePasswordLink | null> {
   const initial = await prisma.representative.findUnique({ where: { email }, select: { id: true } });
   if (!initial) return null;
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.$queryRaw`SELECT "id" FROM "Representative" WHERE "id" = ${initial.id} FOR UPDATE`;
-    const row = await tx.representative.findUnique({ where: { id: initial.id }, select: { email: true, loginEnabled: true, sessionVersion: true } });
+    const row = await tx.representative.findUnique({ where: { id: initial.id }, select: { email: true, loginEnabled: true, sessionVersion: true, passwordHash: true } });
     if (!row?.loginEnabled || row.email !== email) return null;
+    // Only administrator setup for an account without credentials is activation.
+    // Public recovery always stays at 30 minutes, including unactivated accounts.
+    // Decide under the row lock; existing tokens keep their stored expiry.
+    const purpose: RepresentativePasswordLink["purpose"] = initialSetup && row.passwordHash === null ? "ACTIVATION" : "PASSWORD_RESET";
+    const lifetime = purpose === "ACTIVATION" ? 168 * 60 * 60 * 1000 : 30 * 60 * 1000;
     const [{ now }] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS "now"`;
     const token = randomBytes(32).toString("hex");
     await tx.representative.update({ where: { id: initial.id }, data: {
-      resetTokenHash: hashToken(token), resetTokenExpiresAt: new Date(now.getTime() + 30 * 60 * 1000), resetTokenSessionVersion: row.sessionVersion,
+      resetTokenHash: hashToken(token), resetTokenExpiresAt: new Date(now.getTime() + lifetime), resetTokenSessionVersion: row.sessionVersion,
     } });
-    return { email: row.email, token };
+    return { email: row.email, token, purpose };
   });
 }
 export async function redeemRepresentativeRecovery(token: string, password: string): Promise<boolean> {

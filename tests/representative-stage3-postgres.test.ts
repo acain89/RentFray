@@ -57,13 +57,14 @@ test("isolated PostgreSQL representative administration", { skip: !fixturePath }
       assert.equal(await failedEmail.sendRepresentativeSetup(actor, rep.id), false);
       assert.ok(await db.representative.findUnique({ where: { id: rep.id } }));
     });
-    await t.test("setup uses hashed thirty-minute latest-only recovery and mocked email", async () => {
+    await t.test("initial setup uses hashed seven-day latest-only activation and mocked email", async () => {
       assert.equal(await a.sendRepresentativeSetup(actor, rep.id), true);
       const first = f.delivered[0].token;
       assert.equal(await a.sendRepresentativeSetup(actor, rep.id), true);
       const row = await db.representative.findUniqueOrThrow({ where: { id: rep.id } });
       assert.notEqual(f.delivered[1].token, first); assert.notEqual(row.resetTokenHash, first);
-      assert.ok(row.resetTokenExpiresAt!.getTime() > Date.now());
+      assert.equal(f.delivered[1].purpose, "ACTIVATION");
+      assert.ok(row.resetTokenExpiresAt!.getTime() > Date.now() + 167 * 60 * 60 * 1000);
     });
     await t.test("disable revokes sessions and reset tokens without changing referral URL", async () => {
       const token = f.repSession.createRepresentativeSessionToken(rep.id, 0);

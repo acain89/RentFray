@@ -55,7 +55,8 @@ for (const flow of ["account setup", "password recovery"]) {
     const entry = readFileSync(flow === "account setup" ? "lib/representativeAdmin.ts" : "app/api/representative/password-recovery/request/route.ts", "utf8");
     assert.match(entry, /sendRepresentativeRecoveryEmail\(issued\)/);
     const token = "a".repeat(64);
-    await helper.sendRepresentativeRecoveryEmail({ email: "test@example.invalid", token });
+    await helper.sendRepresentativeRecoveryEmail({ email: "test@example.invalid", token,
+      purpose: flow === "account setup" ? "ACTIVATION" : "PASSWORD_RESET" });
     const text = String(delivered.text);
     const urls = text.match(/https:\/\/[^\s]+/g)!.map(url => new URL(url.replace(/\.$/, "")));
     assert.equal(urls.length, 2);
@@ -63,7 +64,14 @@ for (const flow of ["account setup", "password recovery"]) {
     assert.equal(urls[1].href, loginUrl);
     assert.equal(urls[1].search, ""); assert.equal(urls[1].hash, "");
     assert.equal(text.split(token).length, 2);
-    assert.match(text, /expires in 30 minutes and can be used once/);
+    if (flow === "account setup") {
+      assert.ok(text.includes("expires in 7 days (168 hours) and can be used once"));
+      assert.match(String(delivered.subject), /Activate/);
+      assert.doesNotMatch(text, /30 minutes/);
+    } else {
+      assert.match(text, /expires in 30 minutes and can be used once/);
+      assert.doesNotMatch(text, /7 days/);
+    }
     assert.match(text, /Only the latest link works/);
     assert.equal(delivered.from, "test@example.invalid");
   });

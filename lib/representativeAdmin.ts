@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { issueRepresentativeRecovery, representativeEmailInput } from "@/lib/representativeAuth";
+import { issueRepresentativeSetup, representativeEmailInput } from "@/lib/representativeAuth";
 import { readRepresentativeBody, representativePrivateHeaders, representativeSameOrigin } from "@/lib/representativeSession";
 import { representativeAgreementDates } from "@/lib/representativeCalendar";
 import { getRepresentativeDashboard, representativeQualifyingPayments, RepresentativeReportInputError, type RepresentativeReportOptions } from "@/lib/representativeReports";
@@ -211,7 +211,7 @@ export async function sendRepresentativeSetup(actor: RepresentativeAdminActor, i
     await audit(tx, actor, "REPRESENTATIVE_SETUP_EMAIL_REQUESTED", "REPRESENTATIVE", id, { representativeId: id });
     return row;
   });
-  const issued = await issueRepresentativeRecovery(row.email);
+  const issued = await issueRepresentativeSetup(row.email);
   if (!issued) return false;
   try {
     const { sendRepresentativeRecoveryEmail } = await import("@/lib/representativeEmail");
