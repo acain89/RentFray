@@ -56,10 +56,10 @@ export default function HomePage() {
               <span><CheckIcon /> Live in minutes</span>
             </div>
 
-            <div className="rfm-lite-callout">
-              <span>Just need simple payments?</span>
-              <a href="https://rentfraylite.com">Try RentFrayLite <span aria-hidden="true">{"\u2192"}</span></a>
-            </div>
+            <a className="rfm-lite-callout" href="https://rentfraylite.com">
+              <span>Only need to accept payments?</span>
+              <span className="rfm-lite-callout-label">Try RentFrayLite <span aria-hidden="true">{"\u2192"}</span></span>
+            </a>
 
             <div className="rfm-hero-submessage">
               <span>Know what matters</span>
