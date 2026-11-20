@@ -56,9 +56,14 @@ export default function HomePage() {
               <span><CheckIcon /> Live in minutes</span>
             </div>
 
+            <div className="rfm-lite-callout">
+              <span>Just need simple payments?</span>
+              <a href="https://rentfraylite.com">Try RentFrayLite <span aria-hidden="true">{"\u2192"}</span></a>
+            </div>
+
             <div className="rfm-hero-submessage">
               <span>Know what matters</span>
-              <h2>Know who paid.<br />Know who hasn't.<br />At a glance.</h2>
+              <h2>Know who paid.<br />Know who hasn&apos;t.<br />At a glance.</h2>
               <p>One dashboard. Everything that needs your attention.</p>
             </div>
           </div>
@@ -73,7 +78,7 @@ export default function HomePage() {
         <div className="rfm-container rfm-tenant-grid">
           <div className="rfm-section-heading rfm-section-heading-left">
             <span>Simple for tenants</span>
-            <h2>Paying rent shouldn't be complicated.</h2>
+            <h2>Paying rent shouldn&apos;t be complicated.</h2>
             <p>Tenants activate their own account, see a clear balance, and pay from their phone. No office visit. No confusing portal.</p>
             <button type="button" className="rfm-text-link" onClick={() => router.push("/how-it-works")}>
               See the full process <ArrowIcon />
