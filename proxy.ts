@@ -17,6 +17,8 @@ const PUBLIC_PAGE_ROUTES = [
   "/why-rentfray",
   "/is-rentfray-right-for-me",
   "/faq",
+  "/terms",
+  "/privacy",
   "/property-code",
   "/login",
   "/manager/login",
