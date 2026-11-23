@@ -298,7 +298,9 @@ export async function POST(req: Request) {
     }
     console.error(
       "create-session error:",
-      error
+      error instanceof CheckoutConflict ? "CHECKOUT_CONFLICT" :
+      error instanceof CheckoutBlocked ? "CHECKOUT_BLOCKED" :
+      error instanceof Stripe.errors.StripeError ? "STRIPE_ERROR" : "UNEXPECTED_ERROR"
     );
 
     if (error instanceof CheckoutConflict) return NextResponse.json<ApiError>({ ok: false, error: error.message }, { status: error.status });
@@ -314,8 +316,7 @@ export async function POST(req: Request) {
         {
           ok: false,
           error:
-            error.message ||
-            "Stripe error.",
+            "Unable to start secure payment. Please try again later.",
         },
         { status: 400 }
       );
