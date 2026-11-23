@@ -52,6 +52,29 @@ export default function TermsPage() {
             Processing times may vary depending on banking systems and payment
             provider processing schedules.
           </p>
+          <p>
+            The platform service fee, labeled &quot;Processing Fee&quot; at
+            checkout, is added to the underlying payment amount. It is a fee
+            for using RentFray, not a statement of Stripe&apos;s actual costs.
+            The fee and total debit are shown before payment authorization.
+          </p>
+          <p>
+            Management handles voluntary tenant refunds directly, outside
+            RentFray. RentFray does not offer discretionary manager-initiated
+            refunds. Platform service fees are ordinarily retained after
+            processing, subject to applicable law, payment-network rules,
+            and Stripe processes.
+          </p>
+          <p>
+            An external refund does not change or erase the original platform
+            payment record and does not remove a payer&apos;s bank dispute
+            rights. Bank returns, unauthorized transactions, disputes,
+            legally required refunds, and Stripe reversals remain subject
+            to applicable law, payment-network rules, and provider processes.
+            Stripe fees and transferred funds may be reversed or recovered
+            under those processes. These Terms do not limit rights that
+            cannot lawfully be waived.
+          </p>
         </section>
 
         <section className="space-y-3">
