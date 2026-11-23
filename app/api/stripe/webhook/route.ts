@@ -31,7 +31,11 @@ function safeString(value: unknown): string {
 
 // Invalid mappings are acknowledged without writes; relevant unresolved funds retry.
 class InvalidFinancialEvent extends Error {}
-class UnresolvedFinancialEvent extends Error {}
+class UnresolvedFinancialEvent extends Error {
+  constructor(message: string, readonly partialReturn?: {
+    propertyId: string; paymentId: string; intentId: string;
+  }) { super(message); }
+}
 
 type PaymentRecord = {
   id: string; propertyId: string; unitId: string; tenantAssignmentId: string | null;
@@ -117,7 +121,9 @@ async function returnedPrincipal(stripe: Stripe, payment: PaymentRecord, intent:
   if (grossReturned === total) return payment.amountCents;
   // Bundled-fee partial returns do not identify principal vs fee allocation. Fail safely.
   if (payment.processingFeeCents) {
-    throw new UnresolvedFinancialEvent("Partial return fee allocation is not conclusive");
+    throw new UnresolvedFinancialEvent("Partial return fee allocation is not conclusive", {
+      propertyId: payment.propertyId, paymentId: payment.id, intentId: intent.id,
+    });
   }
   return grossReturned;
 }
@@ -362,7 +368,31 @@ if (!event) {
     }
   } catch (error) {
     if (error instanceof UnresolvedFinancialEvent) {
-      // Operational evidence only: no quarantine/recovery worker exists, so do not acknowledge.
+      // The financial transaction has rolled back. Record evidence separately;
+      // an audit marker does not allocate money or justify acknowledging the event.
+      if (error.partialReturn) {
+        const { propertyId, paymentId, intentId } = error.partialReturn;
+        const id = `stripe-partial-return:${event.id}`;
+        try {
+          await prisma.auditLog.upsert({
+            where: { id },
+            create: {
+              id, propertyId, actorType: "SYSTEM",
+              action: "STRIPE_PARTIAL_RETURN_RECONCILIATION_REQUIRED",
+              targetType: "PAYMENT", targetId: paymentId,
+              summary: "Partial return allocation requires reconciliation.",
+              metadataJson: JSON.stringify({
+                eventId: event.id, eventType: event.type, intentId,
+                reason: "PARTIAL_RETURN_ALLOCATION_UNRESOLVED",
+              }),
+            },
+            update: {},
+          });
+        } catch {
+          // Persistence failure must remain retryable without logging raw DB errors.
+          console.error("STRIPE_FINANCIAL_EXCEPTION_RECORD_FAILED");
+        }
+      }
       console.error("STRIPE_FINANCIAL_UNRESOLVED", {
         eventId: event.id, eventType: event.type, account: event.account ?? null, reason: error.message,
       });

@@ -203,7 +203,8 @@ for (const status of ["pending", "failed", "canceled"]) {
 test("ambiguous partial bundled-fee allocation fails without financial writes", async () => {
   const f = fixture(2500); await f.apply(); f.refunds.push({ id: "r", charge: "ch", currency: "usd", status: "succeeded", amount: 50000 });
   const before = structuredClone(f.db()); await expect(f.apply("charge.refunded")).rejects.toThrow("Financial event requires reconciliation");
-  expect(f.db()).toEqual(before);
+  expect({ ...f.db(), audits: before.audits }).toEqual(before);
+  expect(f.db().audits.filter((row: { action: string }) => row.action === "STRIPE_PARTIAL_RETURN_RECONCILIATION_REQUIRED")).toHaveLength(1);
 });
 
 for (const type of ["charge.refunded", "charge.refund.updated", "refund.created", "refund.updated", "refund.failed"]) {
@@ -215,7 +216,8 @@ for (const type of ["charge.refunded", "charge.refund.updated", "refund.created"
       const response = await f.webhook.POST({ text: async () => JSON.stringify(f.event(type)) });
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ error: "Financial event requires reconciliation" });
-      expect(f.db()).toEqual(before);
+      expect({ ...f.db(), audits: before.audits }).toEqual(before);
+      expect(f.db().audits.filter((row: { action: string }) => row.action === "STRIPE_PARTIAL_RETURN_RECONCILIATION_REQUIRED")).toHaveLength(1);
     }
   });
 }
@@ -228,7 +230,8 @@ for (const type of ["charge.refund.updated", "refund.updated"]) {
     const before = structuredClone(f.db());
     f.refunds[0].status = "succeeded";
     const response = await f.webhook.POST({ text: async () => JSON.stringify(f.event(type)) });
-    expect(response.status).toBe(503); expect(f.db()).toEqual(before);
+    expect(response.status).toBe(503); expect({ ...f.db(), audits: before.audits }).toEqual(before);
+    expect(f.db().audits.filter((row: { action: string }) => row.action === "STRIPE_PARTIAL_RETURN_RECONCILIATION_REQUIRED")).toHaveLength(1);
     // A later full return is unambiguous and remains idempotently recoverable.
     f.refunds[0].amount = 150995;
     await f.apply(type); await f.apply(type);
