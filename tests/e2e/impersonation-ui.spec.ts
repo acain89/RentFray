@@ -1,3 +1,5 @@
+import type { Session } from "../admin-session-revalidation.fixture";
+import type { ReactNode } from "react";
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -12,8 +14,15 @@ const root = resolve(__dirname, "../..");
 const forbidden = () => { throw new Error("Unexpected database or service access"); };
 const blockedPrisma = new Proxy({}, { get: forbidden });
 
-function loadSource(source: string, imports: Record<string, unknown>, extras = {}) {
-  const module = { exports: {} as Record<string, any> };
+type Modules = {
+ session: Session;
+ exit: {GET(request:{url:string}):Promise<{destination?:string;status?:number;body?:unknown}>;POST(request:{url:string}):Promise<{destination?:string;status?:number;body?:unknown}>};
+ dashboard: {GET():Promise<{status:number;body:Record<string,unknown>}>};
+ render: {render(data:{session:{isImpersonating:boolean}}):ReactNode};
+};
+function loadSource<Kind extends keyof Modules>(kind:Kind, source:string, imports:Record<string,unknown>, extras?:Record<string,unknown>):Modules[Kind];
+function loadSource(kind:keyof Modules, source: string, imports: Record<string, unknown>, extras:Record<string,unknown> = {}):unknown {
+  const fixtureModule: {exports:unknown} = {exports:{}};
   const output = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -23,7 +32,7 @@ function loadSource(source: string, imports: Record<string, unknown>, extras = {
     },
   }).outputText;
   runInNewContext(output, {
-    module, exports: module.exports, Buffer, URL, Date,
+    module: fixtureModule, exports: fixtureModule.exports, Buffer, URL, Date,
     process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-isolated-test-secret-session-secret-key" } },
     console,
     require: (name: string) => {
@@ -32,23 +41,23 @@ function loadSource(source: string, imports: Record<string, unknown>, extras = {
     },
     ...extras,
   });
-  return module.exports;
+  if (kind === "render" && !source.includes("export const render")) throw Error("Expected the isolated banner export"); return fixtureModule.exports;
 }
 
 function fixture() {
   let clock = Date.now();
   class Clock extends Date { static now() { return clock; } }
   const values = new Map<string, string>();
-  const writes: { name: string; value: string; options: any }[] = [];
+  const writes: { name: string; value: string; options: {httpOnly?:boolean;sameSite?:string;secure?:boolean;path?:string;maxAge?:number} }[] = [];
   const cookieStore = {
     get: (name: string) => values.has(name) ? { value: values.get(name) } : undefined,
-    set: (name: string, value: string, options: any) => {
+    set: (name: string, value: string, options: {httpOnly?:boolean;sameSite?:string;secure?:boolean;path?:string;maxAge?:number}) => {
       writes.push({ name, value, options }); values.set(name, value);
     },
   };
   const headers = { cookies: async () => cookieStore };
-  const session = loadSource(readFileSync(resolve(root, "lib/session.ts"), "utf8"), {
-    crypto, "next/headers": headers, "@/lib/prisma": { prisma: { adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null }, managementUser: { findUnique: async () => ({ id: "manager-a", role: "MANAGER", propertyId: "property-a", isActive: true, passwordHash: "synthetic-credential" }) } } },
+  const session = loadSource("session",readFileSync(resolve(root, "lib/session.ts"), "utf8"), {
+    crypto, "next/headers": headers, "@/lib/prisma": { prisma: { adminAccess: { findUnique: async ({ where }: {where:{id:string}}) => where.id === "admin" ? { id: "admin", isActive: true } : null }, managementUser: { findUnique: async () => ({ id: "manager-a", role: "MANAGER", propertyId: "property-a", isActive: true, passwordHash: "synthetic-credential" }) } } },
   }, { Date: Clock });
   const admin = session.createSessionToken({ role: "ADMIN", adminAccessId: "admin" });
   const wrongRole = session.createSessionToken({
@@ -78,14 +87,14 @@ function setBackup(f: ReturnType<typeof fixture>, kind: string) {
   f.values.set("rf_admin_session", token);
 }
 
-for (const method of ["GET", "POST"]) {
+for (const method of ["GET", "POST"] as const) {
   for (const kind of backupCases) {
     for (const active of [false, true]) {
       test(`exit ${method}: ${kind} backup, active session ${active}`, async () => {
         const f = fixture();
         setBackup(f, kind);
         if (active) f.values.set("rf_session", "existing-active-session");
-        const route = loadSource(readFileSync(resolve(root, "app/api/admin/impersonate/exit/route.ts"), "utf8"), {
+        const route = loadSource("exit",readFileSync(resolve(root, "app/api/admin/impersonate/exit/route.ts"), "utf8"), {
           "next/headers": f.headers, "next/server": f.responses, "@/lib/session": f.session,
         });
         const response = await route[method]({ url: "https://isolated.invalid/exit" });
@@ -124,7 +133,7 @@ for (const role of ["OWNER", "MANAGER", "STAFF"]) {
         unit: { findMany: async () => [] }, propertyTier: { findMany: async () => [] },
         payment: blockedPrisma, ledgerEntry: blockedPrisma, paymentConnectionStatus: blockedPrisma,
       };
-      const route = loadSource(readFileSync(resolve(root, "app/api/manager/dashboard/route.ts"), "utf8"), {
+      const route = loadSource("dashboard",readFileSync(resolve(root, "app/api/manager/dashboard/route.ts"), "utf8"), {
         "next/headers": f.headers, "next/server": f.responses, "@/lib/prisma": { prisma },
         "@/lib/session": { ...f.session,
           getSession: async () => ({ role, propertyId: "property-a", managementUserId: "manager-a" }),
@@ -163,7 +172,7 @@ for (const isImpersonating of [true, false]) {
     visit(ast);
     expect(matches).toHaveLength(1);
     // Render the actual banner JSX from source, without mounting the dashboard or running effects.
-    const component = loadSource(`export const render = (data: any) => (${matches[0].getText(ast)});`, {
+    const component = loadSource("render",`export const render = (data: {session:{isImpersonating:boolean}}) => (${matches[0].getText(ast)});`, {
       "react/jsx-runtime": jsxRuntime,
     });
     const markup = renderToStaticMarkup(component.render({ session: { isImpersonating } }));

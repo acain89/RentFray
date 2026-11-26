@@ -182,7 +182,7 @@ export default function TenantPaymentPortalPage() {
 
           <p className="mt-4 text-base leading-8 text-slate-600">
             The most useful portal does more than accept money. It connects the
-            tenant's payment to the property's rent records so both sides have a
+            tenant&apos;s payment to the property&apos;s rent records so both sides have a
             clearer view of what is owed and what has been paid.
           </p>
         </div>
@@ -290,7 +290,7 @@ export default function TenantPaymentPortalPage() {
                 2. The tenant accesses the payment portal
               </h3>
               <p className="mt-2 leading-7 text-slate-600">
-                The tenant enters RentFray's web-based payment experience and
+                The tenant enters RentFray&apos;s web-based payment experience and
                 reviews the amount requiring payment.
               </p>
             </div>
@@ -310,7 +310,7 @@ export default function TenantPaymentPortalPage() {
                 4. RentFray tracks the payment result
               </h3>
               <p className="mt-2 leading-7 text-slate-600">
-                The property can review payment status and the tenant's
+                The property can review payment status and the tenant&apos;s
                 remaining balance from the management side.
               </p>
             </div>

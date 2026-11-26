@@ -181,7 +181,7 @@ export default function RVParksPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">Recurring Space Rent</h3>
               <p className="mt-2 text-slate-600">
-                Maintain the amount due according to the park's recurring
+                Maintain the amount due according to the park&apos;s recurring
                 payment setup.
               </p>
             </div>
@@ -244,7 +244,7 @@ export default function RVParksPage() {
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
               Knowing that money arrived does not always answer whether a
-              resident's rent account is current.
+              resident&apos;s rent account is current.
             </p>
 
             <p>
@@ -418,7 +418,7 @@ export default function RVParksPage() {
             </p>
 
             <p>
-              RentFray's role is narrower: recurring rent and configured
+              RentFray&apos;s role is narrower: recurring rent and configured
               charges, online payment collection, resident balances, and
               payment-status visibility.
             </p>

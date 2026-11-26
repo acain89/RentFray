@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useEffect, useState } from "react";
 
 type QRData = {
@@ -66,7 +68,10 @@ export default function PropertyQR() {
         </div>
       </div>
 
-      <img
+      <Image
+        width={512}
+        height={512}
+        unoptimized
         src={data.qrUrl}
         alt="Property QR"
         className="w-full rounded"

@@ -16,8 +16,8 @@ export function getProrationSummary(
   moveInDate: Date,
   monthlyRent: number
 ): ProrationResult {
-  const year = moveInDate.getFullYear();
-  const month = moveInDate.getMonth();
+
+
 
   const daysInMonth = getDaysInMonth(moveInDate);
 

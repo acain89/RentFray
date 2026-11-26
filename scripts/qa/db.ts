@@ -1,3 +1,3 @@
-import { PrismaClient } from "@prisma/client";
+import { disposableClient } from "../operational-safety";
 
-export const prisma = new PrismaClient();
+export const prisma = disposableClient(["qa-audit", "qa-integration"]);

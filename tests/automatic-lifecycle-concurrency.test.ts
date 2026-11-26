@@ -1,3 +1,4 @@
+import { requiredValue } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -6,11 +7,11 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
 const root = resolve(__dirname, "..");
-const helperModule = { exports: {} as any };
+const helperModule: { exports: Partial<typeof import("../lib/propertyStatus")> } = { exports: {} };
 runInNewContext(ts.transpileModule(readFileSync(resolve(root, "lib/propertyStatus.ts"), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
 }).outputText, { module: helperModule, exports: helperModule.exports });
-const shouldAutoSetPropertyReady = helperModule.exports.shouldAutoSetPropertyReady;
+const shouldAutoSetPropertyReady = requiredValue(helperModule.exports.shouldAutoSetPropertyReady);
 function loadTransition(kind: string) {
   const source = readFileSync(resolve(root, "app/api/" + kind + "/dashboard/route.ts"), "utf8");
   const call = source.indexOf("shouldAutoSetPropertyReady({"); assert.ok(call >= 0);
@@ -18,21 +19,22 @@ function loadTransition(kind: string) {
   assert.equal(source[open], "{"); let depth = 1; let end = open + 1;
   while (depth && end < source.length) { if (source[end] === "{") depth++; if (source[end] === "}") depth--; end++; }
   assert.equal(depth, 0); const block = source.slice(start, end);
-  return runInNewContext("(async function(property, prisma, shouldAutoSetPropertyReady) {" + block + "; return property.status; })");
+  const run: unknown = runInNewContext("(async function(property, prisma, shouldAutoSetPropertyReady) {" + block + "; return property.status; })");
+  assert.ok(typeof run === "function"); return (...args: unknown[]): unknown => Reflect.apply(run, undefined, args);
 }
 function fixture(kind: string, initial = "SETUP", competing?: string) {
-  const property: any = { id: "p", status: initial, isActive: true, settings: {}, units: [{}],
+  const property: { id: string; status: string; isActive: boolean; settings: object | null; units: object[]; paymentStatus: { processorConnected: boolean; chargesEnabled: boolean; payoutsEnabled: boolean } } = { id: "p", status: initial, isActive: true, settings: {}, units: [{}],
     paymentStatus: { processorConnected: true, chargesEnabled: true, payoutsEnabled: true } };
   let status = initial; let writes = 0; let attempts = 0; let reads = 0;
   const events: string[] = [];
   const prisma = { property: {
-    updateMany: async ({ where, data }: any) => {
+    updateMany: async ({ where, data }: { where: { id: string; status: string }; data: { status: string } }) => {
       assert.deepEqual(JSON.parse(JSON.stringify(where)), { id: "p", status: "SETUP" });
       assert.deepEqual(JSON.parse(JSON.stringify(data)), { status: "READY" }); attempts++; events.push("cas");
       if (competing) { status = competing; competing = undefined; events.push("explicit:" + status); }
       if (status !== where.status) return { count: 0 }; status = data.status; writes++; return { count: 1 };
     },
-    findUnique: async ({ where, select }: any) => { assert.equal(where.id, "p"); assert.deepEqual(JSON.parse(JSON.stringify(select)), { status: true });
+    findUnique: async ({ where, select }: { where: { id: string }; select: { status: boolean } }) => { assert.equal(where.id, "p"); assert.deepEqual(JSON.parse(JSON.stringify(select)), { status: true });
       reads++; events.push("reread"); return { status }; },
   } };
   const run = loadTransition(kind);
@@ -58,7 +60,7 @@ for (const kind of ["manager", "tenant"]) {
     const f = fixture(kind); const results = await Promise.all([f.run(), f.second()]);
     assert.deepEqual(results, ["READY", "READY"]); assert.deepEqual(f.snapshot(), { status: "READY", writes: 1, attempts: 2, reads: 1 });
   });
-  for (const prerequisite of ["isActive", "settings", "units", "processorConnected", "chargesEnabled", "payoutsEnabled"]) test(kind + ": readiness prerequisite remains required: " + prerequisite, async () => {
+  for (const prerequisite of ["isActive", "settings", "units", "processorConnected", "chargesEnabled", "payoutsEnabled"] as const) test(kind + ": readiness prerequisite remains required: " + prerequisite, async () => {
     const f = fixture(kind); if (prerequisite === "isActive") f.property.isActive = false;
     else if (prerequisite === "settings") f.property.settings = null;
     else if (prerequisite === "units") f.property.units = [];

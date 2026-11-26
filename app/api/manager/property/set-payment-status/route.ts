@@ -5,7 +5,7 @@ import { canManageFinancials } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export async function POST(req: Request) {
+export async function POST() {
   try {
     const session = await getSession();
 

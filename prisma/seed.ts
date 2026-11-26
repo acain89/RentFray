@@ -1,23 +1,15 @@
+import { assertDisposableClient, disposableClient, assertEmptySeedDatabase } from "../scripts/operational-safety";
 
-import { PrismaClient } from "@prisma/client";
+
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+const prisma = disposableClient("prisma-seed");
+
+assertDisposableClient("prisma-seed", prisma);
 
 async function main() {
-  // Clean slate
-  await prisma.auditLog.deleteMany();
-  await prisma.ledgerEntry.deleteMany();
-  await prisma.maintenanceRequest.deleteMany();
-  await prisma.maintenanceUser.deleteMany();
-  await prisma.tenantAssignment.deleteMany();
-  await prisma.unitRecurringFee.deleteMany();
-  await prisma.unit.deleteMany();
-  await prisma.managementUser.deleteMany();
-  await prisma.paymentConnectionStatus.deleteMany();
-  await prisma.propertySettings.deleteMany();
-  await prisma.property.deleteMany();
-  await prisma.adminAccess.deleteMany();
+  // Seed only an independently verified, empty disposable database.
+  await assertEmptySeedDatabase(prisma);
 
   const adminCodeHash = await bcrypt.hash("123456", 10);
   const ownerPasswordHash = await bcrypt.hash("1234", 10);
@@ -252,11 +244,4 @@ async function main() {
   console.log("✅ Seed complete");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export const operationalCompletion = main();

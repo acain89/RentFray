@@ -1,3 +1,5 @@
+
+import Link from "next/link";
 export default function InstallPage() {
   return (
     <main className="min-h-screen bg-[#dfe7ee] px-5 py-10 text-[#0f172a]">
@@ -27,12 +29,12 @@ export default function InstallPage() {
           </div>
         </div>
 
-        <a
+        <Link
           href="/"
           className="mt-6 inline-flex rounded-2xl bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white"
         >
           Back to RentFray
-        </a>
+        </Link>
       </section>
     </main>
   );

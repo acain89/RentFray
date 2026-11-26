@@ -1,29 +1,18 @@
+import { fixture as paymentReturnFixture } from "./e2e/payment-return-accounting.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { runInNewContext } from "node:vm";
-import ts from "typescript";
-import Stripe from "stripe";
-import { NextResponse } from "next/server";
-import { expect } from "@playwright/test";
 
-type Audit = { id: string; action: string; propertyId?: string; targetId?: string; metadataJson?: string };
+
+
+
+import Stripe from "stripe";
+
+
+
 type Event = { id: string; type: string; data: { object: Record<string, unknown> } };
-type State = { payments: unknown[]; ledger: unknown[]; audits: Audit[]; failAudit: boolean; [key: string]: unknown };
-type Fixture = {
-  db(): State; payment(): { status: string }; balance(): Promise<number>;
-  refunds: Array<{ id: string; charge: string; currency: string; status: string; amount: number }>;
-  stripe: {
-    webhooks: { constructEvent(body: string, signature: string, secret: string): unknown };
-    refunds: { create?: () => never };
-    transfers?: { create: () => never; createReversal: () => never };
-    applicationFees?: { createRefund: () => never };
-  };
-  event(type?: string): Event;
-  apply(type?: string): Promise<void>;
-  webhook: { POST(request: { text(): Promise<string> }): Promise<Response> };
-};
+
+type Fixture = ReturnType<typeof paymentReturnFixture>;
+
 const action = "STRIPE_PARTIAL_RETURN_RECONCILIATION_REQUIRED";
 const sdk = new Stripe("sk_test_isolated_signature_only");
 const normalize = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
@@ -35,31 +24,15 @@ function financial(f: Fixture) {
 const exceptions = (f: Fixture) => f.db().audits.filter(row => row.action === action);
 
 async function fixture() {
-  // Reuse only the independently source-mocked fixture declarations. No test
-  // runner, browser, real Prisma client, or network provider is initialized.
-  const source = readFileSync("tests/e2e/payment-return-accounting.spec.ts", "utf8");
-  const header = 'headers: async () => ({ get: () => "signature" })';
-  const prefix = source.slice(0, source.indexOf("\ntest("));
-  assert.equal(prefix.split(header).length, 2);
+  // Shared pure fixture keeps the real SDK signature verification override local.
   const signature = { value: "signature" };
-  const holder: { exports: unknown } = { exports: {} };
-  const imports: Record<string, unknown> = {
-    "node:fs": { readFileSync }, "node:path": { resolve }, "node:vm": { runInNewContext },
-    typescript: ts, "@playwright/test": { expect }, "next/server": { NextResponse },
-  };
-  runInNewContext(ts.transpileModule(prefix.replace(header, 'headers: async () => ({ get: () => signature.value })') +
-    "\nexports.fixture = fixture;", { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText, {
-    module: holder, exports: holder.exports, signature, __dirname: resolve("tests/e2e"),
-    Date, Buffer, URL, Set, Map, structuredClone,
-    require(name: string) { assert.ok(name in imports, name); return imports[name]; },
-  });
-  const f = (holder.exports as { fixture(fee: number): Fixture }).fixture(995);
+  const f = paymentReturnFixture(995,()=>signature.value);
   await f.apply();
   f.refunds.push({ id: "r", charge: "ch", currency: "usd", status: "succeeded", amount: 50000 });
   f.stripe.webhooks.constructEvent = (body, sig, secret) => sdk.webhooks.constructEvent(body, sig, secret);
-  f.stripe.refunds.create = () => assert.fail("Refund creation prohibited");
-  f.stripe.transfers = { create: () => assert.fail("Transfer creation prohibited"), createReversal: () => assert.fail("Transfer reversal prohibited") };
-  f.stripe.applicationFees = { createRefund: () => assert.fail("Fee refund prohibited") };
+  Object.assign(f.stripe.refunds,{create:()=>assert.fail("Refund creation prohibited")});
+  Object.assign(f.stripe,{transfers:{ create: () => assert.fail("Transfer creation prohibited"), createReversal: () => assert.fail("Transfer reversal prohibited") }});
+  Object.assign(f.stripe,{applicationFees:{ createRefund: () => assert.fail("Fee refund prohibited") }});
   return { f, send(event: Event, badSignature = false) {
     const body = JSON.stringify(event);
     signature.value = sdk.webhooks.generateTestHeaderString({ payload: body, secret: badSignature ? "wrong-isolated-secret" : "isolated" });

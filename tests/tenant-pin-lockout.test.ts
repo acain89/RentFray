@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixture } from "./tenant-login-property-code.test";
+import { fixture } from "./tenant-login-property-code.fixture";
 test("five wrong PINs establish lock; locked correct and wrong PIN do no authentication work", async () => {
   const f = fixture("1234", true); f.controls.validPin = false;
   for (let attempt = 1; attempt <= 5; attempt++) {

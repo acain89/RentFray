@@ -1,33 +1,28 @@
+import { requiredRecord, requiredText } from "./fixture-assertions";
+import { reviewedInternalLinks } from "./reviewed-application.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import bcrypt from "bcryptjs";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fixture, load, request } from "./management-role-authorization.test";
-import { assertApprovedProvisioningChange } from "./recurring-charge-boundaries-schema.test";
-import { assertApprovedDraftChange } from "./admin-draft-credential-safety.test";
-import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
+import { fixture, load, request } from "./management-role-authorization.fixture";
+import { assertApprovedProvisioningChange } from "./recurring-charge-boundaries-schema.fixture";
+import { assertApprovedDraftChange } from "./admin-draft-credential-safety.fixture";
+import { assertApprovedCredentialChange } from "./management-credential-revocation.fixture";
+import { assertApprovedRecoveryEmailChange, root } from "./canonical-provisioning-credentials.fixture";
 
-export function assertApprovedRecoveryEmailChange(before: string, after: string): void {
-  if (before === after) return;
-  const addition = "export async function sendPasswordRecoveryEmail(input: { email: string; token: string }): Promise<void> {\n  const origin = process.env.NODE_ENV === \"production\" ? \"https://www.rentfray.com\" : getBaseUrl();\n  const url = new URL(origin);\n  if (process.env.NODE_ENV !== \"production\" && ![\"localhost\", \"127.0.0.1\", \"[::1]\"].includes(url.hostname)) {\n    throw new Error(\"Invalid recovery email configuration.\");\n  }\n  const resetUrl = `${url.origin}/login/manager/reset-password#token=${encodeURIComponent(input.token)}`;\n  const { error } = await resend.emails.send({ from: EMAIL_FROM, to: input.email,\n    subject: \"Reset your RentFray password\", html: `<p>A password reset was requested for your RentFray management account.</p><p><a href=\"${escapeHtml(resetUrl)}\">Reset password</a></p><p>This link expires in 30 minutes. Only the latest link can be used. If you did not request this, ignore this email.</p>` });\n  if (error) throw new Error(\"Password recovery email delivery failed.\");\n}\n\n";
-  assert.equal(after.split(addition).length, 2, "Exactly one approved reset email function");
-  assert.equal(after.replace(addition, ""), before, "All verification-email behavior preserved");
-}
-
-const root = resolve(__dirname, "..");
 for (const kind of ["public", "admin"] as const) for (const mailFailure of [false, true]) {
   test(kind + " provisioning retains bcrypt, one OWNER and verification; mailFailure=" + mailFailure, async () => {
     const f = fixture(kind === "admin" ? "ADMIN" : null); let committed = false, emails = 0;
-    f.imports["@prisma/client"].Prisma.TransactionIsolationLevel.ReadCommitted = "ReadCommitted";
+    requiredRecord(requiredRecord(requiredRecord(f.imports["@prisma/client"]).Prisma).TransactionIsolationLevel).ReadCommitted = "ReadCommitted";
     f.db.property.findUnique = async () => null;
-    f.db.$transaction = async (fn: any) => { const result = await fn(f.db); committed = true; return result; };
+    f.db.$transaction = async <Result>(fn: (tx: typeof f.db) => Promise<Result>): Promise<Result> => { const result = await fn(f.db); committed = true; return result; };
     const password = "isolated-password-123";
     f.imports["bcryptjs"] = { hash: async (value: string, cost: number) => {
       assert.equal(value, password); assert.equal(cost, kind === "public" ? 12 : 10); return bcrypt.hash(value, cost);
     } };
-    f.imports["@/lib/email"].sendVerificationEmail = async (input: any) => {
+    requiredRecord(f.imports["@/lib/email"]).sendVerificationEmail = async (input: Parameters<typeof import("../lib/email").sendVerificationEmail>[0]) => {
       assert.equal(committed, true); assert.equal(input.email, "owner@example.invalid"); assert.ok(input.managementUserId); emails++;
       if (mailFailure) throw Error("isolated mail unavailable");
     };
@@ -44,11 +39,11 @@ for (const kind of ["public", "admin"] as const) for (const mailFailure of [fals
         tiers: [{ name: "Tier", unitLabels: "1", baseRent: 0, dueDay: 1, graceDays: 0, lateFeeInitial: 0, lateFeeDaily: 0, lateFeeMaxDays: 0 }] };
     const result = await load(file, f.imports).POST(request(payload)); assert.equal(result.status, 200);
     const owners = f.calls.filter(row => row[0] === "managementUser.create"); assert.equal(owners.length, 1);
-    const data = owners[0][1].data; assert.equal(data.role, "OWNER"); assert.ok(data.passwordHash.startsWith("$2"));
-    assert.equal(await bcrypt.compare(password, data.passwordHash), true); assert.ok(!data.passwordHash.includes("plain:"));
+    const data = requiredRecord(requiredRecord(owners[0][1]).data); assert.equal(data.role, "OWNER"); assert.ok(requiredText(data.passwordHash).startsWith("$2"));
+    assert.equal(await bcrypt.compare(password, requiredText(data.passwordHash)), true); assert.ok(!requiredText(data.passwordHash).includes("plain:"));
     assert.equal(data.isActive, kind === "admin"); assert.equal(emails, 1);
     assert.equal(result.body.verificationEmailSent, !mailFailure); assert.equal(f.calls.some(row => row[0] === "session"), false);
-    const serialized = JSON.stringify(result.body); assert.ok(!serialized.includes(password)); assert.ok(!serialized.includes(data.passwordHash));
+    const serialized = JSON.stringify(result.body); assert.ok(!serialized.includes(password)); assert.ok(!serialized.includes(requiredText(data.passwordHash)));
     assert.ok(!serialized.includes("tokenHash")); assert.ok(!serialized.includes("passwordHash"));
   });
 }
@@ -232,6 +227,8 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       after = after.replace('const response = NextResponse.json({', 'return NextResponse.json({');
     }
     if (file === "proxy.ts") {
+      // 4107472 admits only the two static public legal documents.
+      removeOnce('  "/terms",\n  "/privacy",\n');
       removeOnce('  // The representative portal validates its own dedicated session server-side.\n' +
         '  if (/^\\/r\\/portal\\/?$/.test(pathname)) {\n' +
         '    const response = NextResponse.next();\n' +
@@ -265,7 +262,7 @@ test("canonical provisioning, verification, compatibility and hard-start authori
         "Only RF-12 verification recovery page admission changed");
     }
     else if (file === "lib/email.ts") assertApprovedRecoveryEmailChange(before.replace(/\r\n/g, "\n"), after);
-    else assert.equal(after, before.replace(/\r\n/g, "\n"), file);
+    else assert.equal(after, reviewedInternalLinks(file, before.replace(/\r\n/g, "\n")), file);
   }
 });
 

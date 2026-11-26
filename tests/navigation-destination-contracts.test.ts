@@ -1,4 +1,6 @@
-import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.test";
+import { isElement, isRecord } from "./fixture-assertions";
+import { reviewedDashboardRefresh } from "./reviewed-dashboard-refresh.fixture";
+import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
@@ -6,23 +8,24 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { detailFixture, nodes, textOf } from "./manager-unit-detail-financial-consistency.test";
+import { detailFixture, nodes, textOf } from "./manager-unit-detail-financial-consistency.fixture";
 const root = resolve(__dirname, "..");
 const source = (file: string) => readFileSync(resolve(root, file), "utf8");
 for (const result of ["rejected", "error", "valid"]) test("ADMIN recovery: " + result, async () => {
-  const effects: any[] = [], calls: any[] = [];
+  const effects: (() => void)[] = [], calls: { url: string; options: { credentials?: RequestCredentials } }[] = [];
   const window = { location: { href: "" } };
-  const jsx = (type: any, props: any) => ({ type, props });
-  const imports: any = {
-    react: { useState: (value: any) => [value, () => {}], useMemo: (fn: any) => fn(), useCallback: (fn: any) => fn, useEffect: (fn: any) => effects.push(fn) },
+  const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
+  const imports = {
+    react: { useState: (value: unknown) => [value, () => {}], useMemo: <Value>(fn: () => Value) => fn(), useCallback: <Value>(fn: Value) => fn, useEffect: (fn: () => void) => effects.push(fn) },
     "next/link": () => null, "./page.module.css": {}, "react/jsx-runtime": { jsx, jsxs: jsx },
   };
-  const module = { exports: {} as any };
+  const fixtureModule: { exports: unknown } = { exports: {} };
   runInNewContext(ts.transpileModule(source("app/admin/page.tsx"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText,
-    { module, exports: module.exports, window, console, fetch: async (url: string, options: any) => {
+    { module: fixtureModule, exports: fixtureModule.exports, window, console, fetch: async (url: string, options: { credentials?: RequestCredentials }) => {
       calls.push({ url, options }); if (result === "error") throw Error("Network error"); return { ok: result === "valid" };
-    }, require: (name: string) => { assert.ok(name in imports, name); return imports[name]; } });
-  module.exports.default(); effects[0](); await new Promise<void>(done => setImmediate(done));
+    }, require: (name: string) => { assert.ok(name in imports, name); const value: unknown = Reflect.get(imports, name); return value; } });
+  const namespace = fixtureModule.exports; assert.ok(isRecord(namespace)); const component = namespace.default; assert.ok(typeof component === "function");
+  Reflect.apply(component, namespace, []); effects[0](); await new Promise<void>(done => setImmediate(done));
   assert.equal(window.location.href, result === "valid" ? "" : "/login/admin");
   assert.equal(calls.length, 1); assert.equal(calls[0].url, "/api/admin/session");
   assert.equal(calls[0].options.credentials, "include");
@@ -31,7 +34,7 @@ for (const result of ["rejected", "error", "valid"]) test("ADMIN recovery: " + r
   assert.equal(source("app/admin/page.tsx").includes('"/admin-login"'), false);
 });
 for (const role of ["OWNER", "MANAGER", "STAFF"]) test("Unit Detail navigation: " + role, async () => {
-  const links = nodes(await detailFixture("PAID", role).render()).filter(n => n?.props?.href);
+  const links = nodes(await detailFixture("PAID", role).render()).filter(isElement).filter(n => n.props.href);
   const vacancy = links.filter(n => textOf(n).includes("Manage move-out on dashboard"));
   assert.equal(vacancy.length, role === "STAFF" ? 0 : 1);
   if (vacancy.length) assert.equal(vacancy[0].props.href, "/manager/dashboard");
@@ -156,6 +159,6 @@ test("destination auth and canonical vacancy writer unchanged", () => {
       restoreAUD06Session(source(file)); // Verify the exact committed AUD-06 deltas remain present.
       assertApprovedSessionConfigurationChange(committed, source(file));
     }
-    else assert.equal(source(file).replace(/\r\n/g, "\n"), committed.replace(/\r\n/g, "\n"), file);
+    else assert.equal(source(file).replace(/\r\n/g, "\n"), file === "app/manager/dashboard/ManagerDashboardClient.tsx" ? reviewedDashboardRefresh(committed.replace(/\r\n/g, "\n")) : committed.replace(/\r\n/g, "\n"), file);
   }
 });

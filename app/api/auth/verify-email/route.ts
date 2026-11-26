@@ -94,7 +94,8 @@ export async function GET(req: Request) {
         where: { managementUserId: current.id, id: { not: currentToken.id }, usedAt: null },
         data: { usedAt: verifiedAt },
       });
-      return current;
+      // Preserve the non-null email established by the locked authority check above.
+      return { ...current, email: current.email };
     });
     if (!manager) {
       return NextResponse.redirect(`${getBaseUrl()}/verify-email?status=invalid`);

@@ -87,7 +87,7 @@ export async function getRepresentativeDashboard(representativeId: string, optio
   if (!validMonth(before) || before > shiftRepresentativeMonth(month, 1) || before < "2001-01") throw new RepresentativeReportInputError("Invalid reporting month.");
   const months = Array.from({ length: 12 }, (_, index) => shiftRepresentativeMonth(before, -index - 1));
   const historyStart = representativeMonthStart(months[11]), historyEnd = representativeMonthStart(before);
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<RepresentativeDashboard> => {
     // Enforced by PostgreSQL as well as the module's SELECT-only data access.
     await tx.$executeRaw`SET TRANSACTION READ ONLY`;
     const representative = await tx.representative.findUnique({ where: { id: representativeId }, select: { displayName: true, slug: true } });

@@ -408,7 +408,7 @@ export default function HowToAvoidLateRentPaymentsPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">Unexpected Expenses</h3>
               <p className="mt-2 text-slate-600">
-                Emergencies or sudden expenses can affect a tenant's ability to
+                Emergencies or sudden expenses can affect a tenant&apos;s ability to
                 pay on schedule.
               </p>
             </div>

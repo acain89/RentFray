@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixture, historyModels } from "./unit-deletion-retention.test";
+import { fixture, historyModels } from "./unit-deletion-retention.fixture";
 // Mocked lock interleavings prove structure/rechecks, not PostgreSQL lock semantics.
 for (const kind of ["manager", "admin"] as const) test(kind + ": property then scoped unit lock before reads and deletion", async () => {
   const f = fixture(kind === "manager" ? "MANAGER" : "ADMIN"); await f.callUnit(kind);
@@ -8,10 +8,10 @@ for (const kind of ["manager", "admin"] as const) test(kind + ": property then s
   assert.equal(f.events[2], "unit.read"); const deletion = f.events.indexOf("unit.delete");
   for (const name of historyModels) assert.ok(f.events.indexOf(name + ".read") < deletion);
 });
-for (const kind of ["manager", "admin"] as const) for (const model of ["payment", "ledgerEntry", "tenantAssignment"])
+for (const kind of ["manager", "admin"] as const) for (const model of ["payment", "ledgerEntry", "tenantAssignment"] as const)
   test(kind + ": rechecks " + model + " committed before lock acquisition", async () => {
     const f = fixture(kind === "manager" ? "MANAGER" : "ADMIN"); const raw = f.prisma.$queryRaw; let locked = false;
-    f.prisma.$queryRaw = async (...args: any[]) => { if (!locked) { f.records[model].push({ id: "racing", unitId: "unit", propertyId: "a" }); locked = true; } return raw(...args); };
+    f.prisma.$queryRaw = async (strings: TemplateStringsArray, ...values: unknown[]) => { if (!locked) { f.records[model].push({ id: "racing", unitId: "unit", propertyId: "a" }); locked = true; } return raw(strings, ...values); };
     assert.equal((await f.callUnit(kind)).status, 409); assert.equal(f.writes(), 0);
   });
 test("property: locks mutable children before property eligibility read", async () => {
@@ -22,9 +22,9 @@ test("property: locks mutable children before property eligibility read", async 
       f.events.findIndex(event => event.includes('FROM "' + table + '"')) < read);
   assert.ok(f.events.indexOf("property.delete") > read);
 });
-for (const model of ["payment", "ledgerEntry", "tenantAssignment"]) test("property: rechecks committed " + model, async () => {
+for (const model of ["payment", "ledgerEntry", "tenantAssignment"] as const) test("property: rechecks committed " + model, async () => {
   const f = fixture(); const raw = f.prisma.$queryRaw; let locked = false;
-  f.prisma.$queryRaw = async (...args: any[]) => { if (!locked) { f.records[model].push({ id: "racing", propertyId: "a" }); locked = true; } return raw(...args); };
+  f.prisma.$queryRaw = async (strings: TemplateStringsArray, ...values: unknown[]) => { if (!locked) { f.records[model].push({ id: "racing", propertyId: "a" }); locked = true; } return raw(strings, ...values); };
   assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0);
 });
 test("locks: IDs remain bound parameters, never SQL text", async () => {

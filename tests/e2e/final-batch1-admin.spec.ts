@@ -1,3 +1,6 @@
+import * as configuredMoney from "../../lib/configuredMoney";
+import { callVm, isElement, invokeEvent } from "../fixture-assertions";
+import type { Session } from "../admin-session-revalidation.fixture";
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -6,20 +9,22 @@ import crypto from "node:crypto";
 import ts from "typescript";
 
 const root = resolve(__dirname, "../..");
-function load(file: string, imports: Record<string, any>, extras = {}) {
-  const module = { exports: {} as any };
+function load(file:"lib/session.ts", imports:Record<string,unknown>, extras?:Record<string,unknown>):Session;
+function load(file:string, imports:Record<string,unknown>, extras?:Record<string,unknown>):{default(props?:unknown):Promise<unknown>};
+function load(file: string, imports: Record<string, unknown>, extras:Record<string,unknown> = {}):unknown {
+  const fixtureModule: {exports:unknown} = {exports:{}};
   const code = ts.transpileModule(readFileSync(resolve(root, file), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020,
       jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
-  runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
+  runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports, Buffer, Date, URL,
     process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-batch1-isolated-session-secret-key" } },
     require(name: string) { if (!(name in imports)) throw Error("Unexpected import: " + name); return imports[name]; }, ...extras });
-  return module.exports;
+  return file === "lib/session.ts" ? fixtureModule.exports : {default:(...args:unknown[])=>callVm(fixtureModule.exports,"default",...args)};
 }
-function nodes(tree: any): any[] {
+function nodes(tree: unknown):{type:unknown;props:Record<string,unknown>}[] {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
-  if (!tree || typeof tree !== "object") return [];
+  if (!isElement(tree)) return [];
   return [tree, ...nodes(tree.props?.children)];
 }
 function fixture() {
@@ -27,35 +32,36 @@ function fixture() {
   class Clock extends Date { static now() { return clock; } }
   let token: string | undefined;
   let state = { requests: [{ id: "request", propertyName: "Requested Property", createdAt: new Date(),
-    propertyType: "Apartment", address: "Address", contactName: "Contact", contactInfo: "contact@isolated.invalid" }], properties: [] as any[] };
+    propertyType: "Apartment", address: "Address", contactName: "Contact", contactInfo: "contact@isolated.invalid" }], properties: [] as Partial<import("@prisma/client").Property>[] };
   const operations: string[] = [];
   let failDelete = false;
   let inTransaction = false;
-  const prisma: any = {
-    adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
+  const delegates = {
+    adminAccess: { findUnique: async ({ where }: {where:{id:string}}) => where.id === "admin" ? { id: "admin", isActive: true } : null },
     managementUser: { findUnique: async () => ({ id: "user", propertyId: "a", isActive: true, role: currentRole, passwordHash: "synthetic-credential" }) },
     tenantAssignment: { findUnique: async () => ({ id: "assignment", propertyId: "a", unitId: "unit", isCurrent: true,
       moveOutDate: null, unit: { id: "unit", propertyId: "a" } }) },
     setupRequest: {
       findMany: async () => { operations.push("requests.read"); return state.requests; },
-      findUnique: async ({ where }: any) => { operations.push("request.read"); return state.requests.find(r => r.id === where.id) ?? null; },
-      delete: async ({ where }: any) => { operations.push("request.delete"); if (failDelete) throw Error("Delete failed");
+      findUnique: async ({ where }: {where:{id:string}}) => { operations.push("request.read"); return state.requests.find(r => r.id === where.id) ?? null; },
+      delete: async ({ where }: {where:{id:string}}) => { operations.push("request.delete"); if (failDelete) throw Error("Delete failed");
         const row = state.requests.find(r => r.id === where.id); if (!row) throw Error("Request not found");
         state.requests = state.requests.filter(r => r.id !== where.id); return row; },
     },
     property: {
-      findUnique: async ({ where }: any) => { operations.push("property.read"); return where.id === "missing" ? null :
+      findUnique: async ({ where }: {where:{id:string}}) => { operations.push("property.read"); return where.id === "missing" ? null :
         { id: where.id, name: "Arbitrary Property", tiers: [], isActive: true, status: "SETUP" }; },
-      create: async ({ data }: any) => { expect(inTransaction).toBe(true); operations.push("property.create");
+      create: async ({ data }: {data:Record<string,unknown>}) => { expect(inTransaction).toBe(true); operations.push("property.create");
         const row = { ...data, id: "created" }; state.properties.push(row); return row; },
     },
-    $transaction: async (fn: any) => { const before = structuredClone(state); inTransaction = true;
+  };
+  const prisma = {...delegates, $transaction: async <Result>(fn:(tx:typeof delegates)=>Promise<Result>):Promise<Result> => { const before = structuredClone(state); inTransaction = true;
       try { return await fn(prisma); } catch (error) { state = before; throw error; } finally { inTransaction = false; } },
   };
   let currentRole = "ADMIN";
   const session = load("lib/session.ts", { crypto, "next/headers": { cookies: async () => ({ get: () => token ? { value: token } : undefined }) },
     "@/lib/prisma": { prisma } }, { Date: Clock });
-  function use(kind: string) {
+  function setSession(kind: string) {
     currentRole = kind;
     if (kind === "absent") { token = undefined; return; }
     if (kind === "malformed") { token = "broken"; return; }
@@ -67,18 +73,18 @@ function fixture() {
     if (kind === "expired") clock += 8 * 86400000;
     if (kind === "signature-invalid") { const index = token!.lastIndexOf(".") + 1; token = token!.slice(0, index) + (token![index] === "a" ? "b" : "a") + token!.slice(index + 1); }
   }
-  const jsx = (_type: any, props: any) => ({ type: _type, props });
-  const imports = { "@/lib/prisma": { prisma }, "@/lib/session": session,
+  const jsx = (_type:unknown,props:Record<string,unknown>) => ({ type: _type, props });
+  const imports = { "@/lib/configuredMoney": configuredMoney, "@/lib/prisma": { prisma }, "@/lib/session": session,
     "@prisma/client": { Prisma: { PrismaClientKnownRequestError: class extends Error {} } },
     "next/navigation": { redirect: (url: string) => { throw Error("REDIRECT:" + url); }, notFound: () => { throw Error("NOT_FOUND"); } },
     "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": () => null,
     "@/components/admin/AdminSupportTools": () => null };
   const requests = load("app/admin/requests/page.tsx", imports).default;
   const property = load("app/admin/properties/[id]/page.tsx", imports).default;
-  use("ADMIN");
-  return { use, requests, property, operations, state: () => state, failDelete: () => { failDelete = true; } };
+  setSession("ADMIN");
+  return { use: setSession, requests, property, operations, state: () => state, failDelete: () => { failDelete = true; } };
 }
-function rejectionForms(tree: any) {
+function rejectionForms(tree:unknown) {
   const forms = nodes(tree).filter(n => n.type === "form");
   expect(forms.length).toBeGreaterThan(0);
   for (const form of forms) {
@@ -95,9 +101,9 @@ for (const kind of denied) {
   });
   for (const actionIndex of [0, 1]) test(`${kind}: rendered action ${actionIndex} independently rejects`, async () => {
     const f = fixture(); const tree = await f.requests();
-    const forms = rejectionForms(tree); const action = forms[actionIndex].props.action;
+    const forms = rejectionForms(tree); const action = (form:FormData)=>invokeEvent(forms[actionIndex],"action",form);
     f.operations.length = 0; f.use(kind); const form = new FormData(); form.set("id", "request");
-    await expect(action(form)).rejects.toThrow(); expect(f.operations).toEqual([]);
+    await expect(Promise.resolve(action(form))).rejects.toThrow(); expect(f.operations).toEqual([]);
     expect(f.state().requests).toHaveLength(1); expect(f.state().properties).toHaveLength(0);
   });
 }
@@ -106,9 +112,9 @@ test("ADMIN renders requests and arbitrary property globally", async () => {
   expect(JSON.stringify(await f.property({ params: Promise.resolve({ id: "foreign" }) }))).toContain("Arbitrary Property");
 });
 for (const fail of [false, true]) test(`ADMIN rejection never provisions; delete failure=${fail}`, async () => {
-  const f = fixture(); const action = rejectionForms(await f.requests())[0].props.action;
+  const f = fixture(); const tree = await f.requests(); const action = (form:FormData)=>invokeEvent(rejectionForms(tree)[0],"action",form);
   f.operations.length = 0; if (fail) f.failDelete(); const form = new FormData(); form.set("id", "request");
-  await expect(action(form)).rejects.toThrow(fail ? "Delete failed" : "REDIRECT:/admin/requests");
+  await expect(Promise.resolve(action(form))).rejects.toThrow(fail ? "Delete failed" : "REDIRECT:/admin/requests");
   expect(f.state().properties).toHaveLength(0); expect(f.state().requests).toHaveLength(fail ? 1 : 0);
   expect(f.operations).toEqual(["request.delete"]);
 });
@@ -116,12 +122,12 @@ for (const fail of [false, true]) test(`ADMIN rejection never provisions; delete
 test("ADMIN rejection deletes only selected request", async () => {
   const f = fixture(); f.state().requests.push({ ...f.state().requests[0], id: "other" });
   const forms = rejectionForms(await f.requests()); const form = new FormData(); form.set("id", "request");
-  await expect(forms[1].props.action(form)).rejects.toThrow("REDIRECT:/admin/requests");
+  await expect(Promise.resolve(invokeEvent(forms[1],"action",form))).rejects.toThrow("REDIRECT:/admin/requests");
   expect(f.state().requests.map(r => r.id)).toEqual(["other"]); expect(f.state().properties).toHaveLength(0);
 });
 for (const index of [0, 1]) for (const id of ["", "missing"]) test(`ADMIN action ${index} retains missing-id behavior ${id}`, async () => {
   const f = fixture(); const forms = rejectionForms(await f.requests());
-  const form = new FormData(); form.set("id", id); await expect(forms[index].props.action(form)).rejects.toThrow(id ? "Request not found" : "Missing request id");
+  const form = new FormData(); form.set("id", id); await expect(Promise.resolve(invokeEvent(forms[index],"action",form))).rejects.toThrow(id ? "Request not found" : "Missing request id");
   expect(f.state().properties).toHaveLength(0); expect(f.state().requests).toHaveLength(1);
 });
 test("ADMIN missing property retains notFound", async () => {

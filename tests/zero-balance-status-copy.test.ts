@@ -4,13 +4,17 @@ import { execFileSync } from "node:child_process";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { getUnitStatus, type UnitStatusInput } from "../lib/unitStatusEngine";
-import { detailFixture, textOf } from "./manager-unit-detail-financial-consistency.test";
+import { detailFixture, textOf } from "./manager-unit-detail-financial-consistency.fixture";
 
 const committed = execFileSync("git", ["--no-optional-locks", "show", "HEAD:lib/unitStatusEngine.ts"], { encoding: "utf8", windowsHide: true });
-const moduleBefore = { exports: {} as any };
+const moduleBefore: { exports: Partial<typeof import("../lib/unitStatusEngine")> } = { exports: {} };
 runInNewContext(ts.transpileModule(committed, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
   { module: moduleBefore, exports: moduleBefore.exports });
-const before = (input: UnitStatusInput) => JSON.parse(JSON.stringify(moduleBefore.exports.getUnitStatus(input)));
+const before = (input: UnitStatusInput) => {
+  const getPreviousStatus = moduleBefore.exports.getUnitStatus;
+  assert.ok(getPreviousStatus, "The pinned status module exports its status function");
+  return structuredClone(getPreviousStatus(input));
+};
 const inputFor = (balanceCents: number, state = "NONE", pending = false): UnitStatusInput => ({
   balanceCents, hasFailedPayment: state === "FAILED", hasReversedPayment: state === "REVERSED",
   hasPendingPayment: pending, isDelinquent: false, isWithinGracePeriod: false,

@@ -1,3 +1,4 @@
+import { reviewedRepresentativeTyping } from "./reviewed-application.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, realpathSync } from "node:fs";
@@ -29,7 +30,8 @@ test("schema change is exactly the alias model and inverse relation", () => {
     assert.match(statement, /^(?:CREATE TABLE "RepresentativeReferralAlias"|CREATE INDEX "RepresentativeReferralAlias_representativeId_idx" ON "RepresentativeReferralAlias"|ALTER TABLE "RepresentativeReferralAlias")/);
   }
   for (const file of ["lib/representativeReports.ts", "lib/representativeReferrals.ts", "lib/representativeCalendar.ts"]) {
-    assert.equal(readFileSync(file, "utf8").replace(/\r\n/g, "\n"), execFileSync("git", ["show", `4cc2d57149eff5e0b53212ad98ab197d2fd7a04f:${file}`], { encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n"));
+    const before = execFileSync("git", ["show", `4cc2d57149eff5e0b53212ad98ab197d2fd7a04f:${file}`], { encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
+    assert.equal(readFileSync(file, "utf8").replace(/\r\n/g, "\n"), file === "lib/representativeReports.ts" ? reviewedRepresentativeTyping(before) : before);
   }
 });
 

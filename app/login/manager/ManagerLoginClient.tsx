@@ -2,8 +2,9 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { usePropertyCode } from "@/lib/usePropertyCode";
+
 
 type ManagerLoginClientProps = {
   propertyCode?: string;
@@ -18,33 +19,14 @@ function cleanPropertyCode(value: string | null | undefined): string {
 export default function ManagerLoginClient({
   propertyCode,
 }: ManagerLoginClientProps) {
-  const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [resolvedPropertyCode, setResolvedPropertyCode] = useState("");
+  const resolvedPropertyCode = usePropertyCode(cleanPropertyCode(propertyCode), cleanPropertyCode);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fromProp = cleanPropertyCode(propertyCode);
-    const fromStorage =
-      typeof window !== "undefined"
-        ? cleanPropertyCode(
-            window.localStorage.getItem(PROPERTY_CODE_STORAGE_KEY)
-          )
-        : "";
 
-    const finalCode = fromProp || fromStorage;
-
-    if (finalCode) {
-      setResolvedPropertyCode(finalCode);
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(PROPERTY_CODE_STORAGE_KEY, finalCode);
-      }
-    }
-  }, [propertyCode]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

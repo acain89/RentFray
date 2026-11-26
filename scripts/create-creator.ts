@@ -1,8 +1,9 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { maintenanceClient } from "./maintenance-safety";
+import { Prisma } from "@prisma/client";
 import { requireCreatorSlug } from "../lib/creatorSlugRules";
 import { creatorAnniversary, creatorStatus, CREATOR_ORIGIN } from "../lib/creatorReferrals";
 
-const prisma = new PrismaClient();
+const prisma = maintenanceClient("create-creator");
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 4 || args[0] !== "--name" || args[2] !== "--slug") {
@@ -20,7 +21,7 @@ async function main(): Promise<void> {
   console.log("Calendar: America/Chicago (Feb 29 → Feb 28; DST gap forward, repeated time earlier)");
   console.log("Commission: $2.50 per qualifying payment\nReferred businesses: 0\nRegistered units: 0\nSuccessful qualifying payments: 0\nCreator commission: $0.00\n");
 }
-main().catch((error: unknown) => {
+export const operationalCompletion = main().catch((error: unknown) => {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") console.error("Creator slug already exists.");
   else if (error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientInitializationError) console.error("Creator creation failed; check database configuration and migration status.");
   else console.error(error instanceof Error ? error.message : "Creator creation failed.");

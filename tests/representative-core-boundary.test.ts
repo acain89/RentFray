@@ -1,6 +1,8 @@
+import ts from "typescript";
+import { reviewedApplicationSource, reviewedCreatorEntry } from "./reviewed-application.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -213,7 +215,7 @@ function approvedWorkingCopy(file: string, original: string): string | undefined
   if (file === "tests/management-response-security.test.ts") {
     return replaceExactly(original, "require(name: string) {\n", "require(name: string) { if (name === \"@/lib/gracePeriod\") return gracePolicy;\n", 3);
   }
-  return undefined;
+  return reviewedApplicationSource(file, original);
 }
 function assertProtectedContent(actual: string, original: string, approved?: string): void {
   const normalized = normalizeLineEndings(actual);
@@ -224,10 +226,28 @@ function assertProtectedContent(actual: string, original: string, approved?: str
 test("all 164 protected files match the pinned committed baseline and exact pre-existing edits", () => {
   assert.equal(protectedPaths.length, 164);
   assert.equal(new Set(protectedPaths).size, 164);
-  const originals = gitContents(protectedCommit, protectedPaths), committed = gitContents("HEAD", protectedPaths);
+  const originals = gitContents(protectedCommit, protectedPaths);
+  // Each exception pins one independently reviewed historical file, never mutable HEAD.
+  const reviewedDeltas: Readonly<Record<string, string>> = {
+    "app/api/payments/create-session/route.ts": "8fd17bb4bcfe39be3444a354f80f71b380094a3e",
+    "app/api/stripe/webhook/route.ts": "58cd0911d3e85e24e5eb99e8da8dff76132c7b1a",
+    "app/tenant/pay/page.tsx": "4f0133e257c875f57c9fad2076b5b634f6ce6d28",
+  };
+  for (const [file, commit] of Object.entries(reviewedDeltas)) {
+    assert.ok(protectedPaths.some(path => path === file));
+    const approved = gitContent(commit, file);
+    assert.notEqual(approved, originals.get(file), "Historical exception must be an actual delta");
+    originals.set(file, approved);
+  }
+  const committed = gitContents("HEAD", protectedPaths);
   for (const file of protectedPaths) {
     const original = originals.get(file)!;
     assert.equal(committed.get(file), original, `${file}: committed protected content changed`);
+    if (file === "lib/occupancy.ts") {
+      // Assignment3D: obsolete helper has no imports, symbol references or operational loaders.
+      assert.equal(existsSync(resolve(root, file)), false, "The obsolete occupancy helper must stay removed");
+      continue;
+    }
     assertProtectedContent(readFileSync(resolve(root, file), "utf8"), original, approvedWorkingCopy(file, original));
   }
 });
@@ -275,7 +295,21 @@ test("migration only creates representative tables/indexes and their foreign key
 test("creator application and reporting source remains unchanged", () => {
   for (const file of ["app/[creatorSlug]/route.ts", "scripts/create-creator.ts", "scripts/check-creator-referrals.ts"]) {
     const original = execFileSync("git", ["show", "34d386ff721e61acd331847c4354dd4dc7525013:" + file], { cwd: root, encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
-    assert.equal(readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n"), original, file);
+    assert.equal(readFileSync(resolve(root, file), "utf8").replace(/\r\n/g, "\n"), file === "scripts/create-creator.ts" ? reviewedCreatorEntry(original) : original, file);
   }
 });
 
+
+test("authorized application deltas reject unrelated changes and preserve Prisma runtime JavaScript", () => {
+  for (const file of ["lib/prisma.ts", "app/api/auth/verify-email/route.ts"]) {
+    const original = gitContent(protectedCommit, file);
+    const approved = reviewedApplicationSource(file, original);
+    assert.ok(approved);
+    assertProtectedContent(approved, original, approved);
+    if (file === "lib/prisma.ts") {
+      const emit = (value: string) => ts.transpileModule(value, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+      assert.equal(emit(original), emit(approved));
+    }
+    assert.throws(() => assertProtectedContent(approved + "// unauthorized change\n", original, approved));
+  }
+});

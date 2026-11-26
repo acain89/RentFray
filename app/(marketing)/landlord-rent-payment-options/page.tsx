@@ -227,7 +227,7 @@ export default function LandlordRentPaymentOptionsPage() {
 
               <p className="mt-3 text-slate-600">
                 The landlord may still need to match each transfer to the
-                correct tenant and maintain a separate record of the tenant's
+                correct tenant and maintain a separate record of the tenant&apos;s
                 balance and payment status.
               </p>
             </div>

@@ -1,8 +1,9 @@
-import { PrismaClient, PaymentStatus } from "@prisma/client";
+import { assertDisposableClient, disposableClient } from "./operational-safety";
+import { PaymentStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { hashPin } from "../lib/pin";
 
-const prisma = new PrismaClient();
+const prisma = disposableClient("scale-seed");
 
 const PROPERTY_CODE = "9200";
 const PROPERTY_NAME = "Scale Test 200 Units";
@@ -34,6 +35,8 @@ function statusForUnit(index: number): PaymentStatus | "GRACE" | "PAST_DUE" {
   if (mod === 3) return "GRACE";
   return "PAST_DUE";
 }
+
+assertDisposableClient("scale-seed", prisma);
 
 async function main() {
   console.log("Seeding scale-test property...");
@@ -137,7 +140,7 @@ async function main() {
   for (let i = 1; i <= UNIT_COUNT; i++) {
     const num = unitNumber(i);
     const simulatedStatus = statusForUnit(i);
-    const tenantName = `Tenant ${num}`;
+
 
     const unit = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ${property.id} FOR UPDATE`;
@@ -339,11 +342,4 @@ async function main() {
   console.log(`Unpaid/Grace/Past due: ${unpaidCount}`);
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error("Scale seed failed:", error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export const operationalCompletion = main();

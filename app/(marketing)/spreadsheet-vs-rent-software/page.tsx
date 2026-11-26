@@ -349,7 +349,7 @@ export default function SpreadsheetVsRentSoftwarePage() {
             <p>
               That may mean checking a bank account, confirming a transfer,
               recording a check, or looking at another payment application and
-              then updating the tenant's record.
+              then updating the tenant&apos;s record.
             </p>
 
             <p>

@@ -1,9 +1,10 @@
+import { requiredValue, isRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { monthlyFixture } from "./monthly-recurring-configuration.test";
-import { load } from "./recurring-charge-configuration.test";
+import { monthlyFixture } from "./monthly-recurring-configuration.fixture";
+import { load } from "./recurring-charge-configuration.fixture";
 
 const now = new Date("2026-10-20T12:00:00Z");
 function populated() {
@@ -71,7 +72,7 @@ for (const change of ["tier move", "tier price", "vacancy", "replacement"] as co
     if (change === "vacancy") assert.equal(f.ledger.length, 0);
     else {
       assert.ok(f.events.includes("property:lock"));
-      assert.equal(f.ledger.find(row => row.chargeType === "RENT").amountCents, change === "replacement" ? 10000 : 12000);
+      assert.equal(requiredValue(f.ledger.find(row => row.chargeType === "RENT")).amountCents, change === "replacement" ? 10000 : 12000);
       if (change === "replacement") assert.ok(f.ledger.every(row => row.tenantAssignmentId === "replacement"));
     }
   });
@@ -87,7 +88,7 @@ for (const change of ["tier move", "tier price", "vacancy", "replacement"] as co
     resume.resolve(); await monthly; await writer;
     assert.equal(blocked, true, "writer must wait for monthly Property lock");
     assert.ok(f.events.indexOf("writer:commit") > f.events.indexOf("commit"));
-    assert.equal(f.ledger.find(row => row.chargeType === "RENT").amountCents, 10000);
+    assert.equal(requiredValue(f.ledger.find(row => row.chargeType === "RENT")).amountCents, 10000);
     assert.ok(f.ledger.every(row => row.tenantAssignmentId === "assignment"));
   });
 }
@@ -128,7 +129,7 @@ test("AUD-01: retry rereads changed price instead of retaining rolled-back paylo
   const f = populated(); let reads = 0;
   f.controls.onLock = () => { if (++reads === 2) f.unit.tier.baseRentCents = 12000; };
   f.controls.commitErrors = [Object.assign(Error("serialization"), { code: "P2010", meta: { code: "40001" } })];
-  await f.run(now); assert.equal(f.ledger.find(row => row.chargeType === "RENT").amountCents, 12000);
+  await f.run(now); assert.equal(requiredValue(f.ledger.find(row => row.chargeType === "RENT")).amountCents, 12000);
 });
 test("AUD-01: existing historical identities remain consumed", async () => {
   const f = populated(); await f.run(now); const before = structuredClone(f.ledger);
@@ -157,6 +158,6 @@ test("AUD-01: actual manual Post Rent route overlaps scheduled job without dupli
   const scheduled = f.run(now); await read.promise;
   const manual = route.POST(); resume.resolve();
   const [result, response] = await Promise.all([scheduled, manual]);
-  assert.equal(result.rentChargesCreated, 1); assert.equal(response.body.data.posted, 0);
+  assert.equal(result.rentChargesCreated, 1); assert.ok(isRecord(response.body)); assert.ok(isRecord(response.body.data)); assert.equal(response.body.data.posted, 0);
   assert.equal(audits, 1); assert.equal(f.ledger.length, 3);
 });

@@ -183,7 +183,7 @@ export default function ApartmentsPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">Recurring Rent</h3>
               <p className="mt-2 text-slate-600">
-                Manage the monthly rent cycle without rebuilding each tenant's
+                Manage the monthly rent cycle without rebuilding each tenant&apos;s
                 obligation from scratch.
               </p>
             </div>

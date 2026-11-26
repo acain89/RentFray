@@ -429,7 +429,7 @@ export default function HowToTrackTenantPaymentsPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <p className="text-lg font-semibold">What was owed?</p>
               <p className="mt-2 text-slate-600">
-                The record needs the tenant's rent obligation for the billing
+                The record needs the tenant&apos;s rent obligation for the billing
                 cycle.
               </p>
             </div>

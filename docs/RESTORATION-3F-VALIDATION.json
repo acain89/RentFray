@@ -1,0 +1,102 @@
+{
+  "assignment": "RF 3F",
+  "acceptance": "INCOMPLETE",
+  "branch": "fix/rf-regression-and-lint-restoration",
+  "head": "23857435f9f06fdbc8ecb15c8c8909f9559c8c25",
+  "initialRemediationPaths": 117,
+  "validation": {
+    "typecheck": {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exitCode": 0,
+      "errors": 0
+    },
+    "lint": {
+      "command": "node node_modules/eslint/bin/eslint.js .",
+      "exitCode": 1,
+      "errors": 993,
+      "warnings": 0,
+      "files": 89,
+      "rules": {
+        "@typescript-eslint/no-explicit-any": 993
+      }
+    },
+    "fullRegression": {
+      "command": "node --import tsx --test --test-concurrency=1 --test-timeout=300000 tests/*.test.ts tests/*.test.tsx",
+      "tests": 2533,
+      "passed": 2526,
+      "failed": 0,
+      "skipped": 7,
+      "cancelled": 0,
+      "durationMs": 345262.3473,
+      "note": "Followed by 48 passing focused tests including the final additional raw-SQL restriction; subsequent dictionary annotation edits preserve emitted JavaScript."
+    },
+    "finalOperationalAndClientTests": {
+      "tests": 48,
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0
+    },
+    "finalPreservationTests": {
+      "tests": 46,
+      "passed": 46,
+      "failed": 0,
+      "skipped": 0
+    },
+    "schema": {
+      "command": "node node_modules/prisma/build/index.js validate",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "npm run build",
+      "exitCode": 0,
+      "durationMs": 217912,
+      "configuration": "Synthetic local configuration, blocked provider/database networking, local Google font responses"
+    },
+    "gitDiffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "coverage": {
+    "headRegistrationExpressions": 714,
+    "currentRegistrationExpressions": 748,
+    "removedOriginalDefinitions": [],
+    "additionalExpressions": 34
+  },
+  "typeOnlyBoundaryProof": {
+    "parameters": 23,
+    "files": 19,
+    "emittedJavaScriptIdentical": true
+  },
+  "utilityDisposition": {
+    "originalInventoryPaths": 71,
+    "retired": [
+      "fix-stripe.js",
+      "fix-tuc.js"
+    ],
+    "preservedButQuarantined": [
+      "scripts/fix-billing-cycle.ts",
+      "scripts/repair-rentfray-start-dates.ts",
+      "scripts/repair-blah-september.ts",
+      "smoke-test.ps1"
+    ],
+    "assetCopyReplacement": "scripts/copy-standalone-assets.mjs",
+    "positiveDatabaseIdentityTests": "Mocked only; no destructive utilities executed against an existing database"
+  },
+  "invariants": {
+    "schemaAndMigrationsUnchanged": true,
+    "originalRFAndPWAAndRFLAndJFWorktreesUnchanged": true,
+    "productionResourcesAccessed": false,
+    "liveStripeOperations": false,
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "stagedChanges": false
+  },
+  "remainingWork": [
+    "993 explicit-any lint diagnostics across 89 test/fixture files still require proper concrete contracts. This is unfinished local remediation, not an external blocker.",
+    "Seven existing conditional PostgreSQL tests were not executed; no actual disposable PostgreSQL interoperability is claimed."
+  ],
+  "workingTreePaths": 232,
+  "all117InitialPathsRetained": true
+}

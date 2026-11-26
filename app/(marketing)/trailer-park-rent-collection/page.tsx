@@ -145,7 +145,7 @@ export default function TrailerParkRentCollectionPage() {
 
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
-              "Trailer park" is still a common search term, although many
+              &quot;Trailer park&quot; is still a common search term, although many
               properties today are described as mobile home parks or
               manufactured housing communities.
             </p>
@@ -217,7 +217,7 @@ export default function TrailerParkRentCollectionPage() {
               <h3 className="font-semibold">Monthly Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain recurring rent and configured charges according to the
-                park's billing setup.
+                park&apos;s billing setup.
               </p>
             </div>
 
@@ -290,7 +290,7 @@ export default function TrailerParkRentCollectionPage() {
             </p>
 
             <p>
-              The payment activity remains connected to the resident's rent
+              The payment activity remains connected to the resident&apos;s rent
               account so the park can review both the transaction and the
               resulting balance.
             </p>

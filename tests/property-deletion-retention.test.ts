@@ -1,6 +1,8 @@
+import { requiredText } from "./fixture-assertions";
+import { applyFieldChange } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixture, historyModels } from "./unit-deletion-retention.test";
+import { fixture, historyModels } from "./unit-deletion-retention.fixture";
 for (const role of ["absent", "invalid", "OWNER", "MANAGER", "STAFF"])
   test("property: rejects " + role, async () => { const f = fixture(role); assert.equal((await f.callProperty()).status, 401); assert.equal(f.writes(), 0); });
 for (const status of ["SETUP", "TEST"]) test("property: pristine " + status + " config succeeds", async () => {
@@ -11,21 +13,25 @@ for (const model of historyModels) test("property: " + model + " blocks even in 
   for (const status of ["SETUP", "TEST"]) { const f = fixture(); f.property.status = status;
     f.records[model].push({ id: "history", propertyId: "a", unitId: "unit" });
     const before = JSON.stringify(f.records); const response = await f.callProperty(); assert.equal(response.status, 409);
-    assert.match(response.body.error, /preserve|Preserve/); assert.equal(f.writes(), 0); assert.equal(JSON.stringify(f.records), before); }
+    assert.match(requiredText(response.body.error), /preserve|Preserve/); assert.equal(f.writes(), 0); assert.equal(JSON.stringify(f.records), before); }
 });
 for (const status of ["UNPAID", "PENDING", "FAILED", "PAID", "REVERSED"]) test("property: Payment " + status, async () => {
   const f = fixture(); f.records.payment.push({ id: "p", propertyId: "a", status }); assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0);
 });
-for (const [field, value] of [["stripeAccountId", "acct_isolated"], ["stripeAccountId", ""], ["rentFrayStartDate", new Date()],
-  ["setupCompleteAcknowledgedAt", new Date()], ["status", "READY"], ["status", "LIVE"], ["status", "SUSPENDED"], ["status", "unknown"]] as [string, any][])
-  test("property: protected " + field + " " + value, async () => { const f = fixture(); f.property[field] = value;
+for (const change of [["stripeAccountId", "acct_isolated"], ["stripeAccountId", ""], ["rentFrayStartDate", new Date()],
+  ["setupCompleteAcknowledgedAt", new Date()], ["status", "READY"], ["status", "LIVE"], ["status", "SUSPENDED"], ["status", "unknown"]] as const) {
+  const [field, value] = change;
+  test("property: protected " + field + " " + value, async () => { const f = fixture(); applyFieldChange(f.property, change);
     assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0); });
-for (const field of ["processorConnected", "bankConnected", "chargesEnabled", "payoutsEnabled", "onboardingComplete", "requirementsDue", "requirementsSummary", "lastSyncedAt", "readyForLive"])
-  test("property: connection evidence " + field, async () => { const f = fixture(); f.property.paymentStatus[field] = field === "lastSyncedAt" ? new Date() : field === "requirementsSummary" ? "" : true;
+}
+for (const field of ["processorConnected", "bankConnected", "chargesEnabled", "payoutsEnabled", "onboardingComplete", "requirementsDue", "requirementsSummary", "lastSyncedAt", "readyForLive"] as const)
+  test("property: connection evidence " + field, async () => { const f = fixture(); if (field === "lastSyncedAt") f.property.paymentStatus[field] = new Date();
+    else if (field === "requirementsSummary") f.property.paymentStatus[field] = "";
+    else f.property.paymentStatus[field] = true;
     assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0); });
-for (const field of ["onboardingComplete", "setupComplete"]) test("property: setup completion " + field, async () => {
+for (const field of ["onboardingComplete", "setupComplete"] as const) test("property: setup completion " + field, async () => {
   const f = fixture(); f.property.settings[field] = true; assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0); });
-for (const field of ["lastLoginAt", "emailVerifiedAt"]) test("property: management use " + field, async () => {
+for (const field of ["lastLoginAt", "emailVerifiedAt"] as const) test("property: management use " + field, async () => {
   const f = fixture(); f.property.managementUsers[0][field] = new Date(); assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0); });
 test("property: maintenance login blocks", async () => { const f = fixture(); f.property.maintenanceUsers[0].lastLoginAt = new Date(); assert.equal((await f.callProperty()).status, 409); assert.equal(f.writes(), 0); });
 test("property: historical child with inconsistent scope blocks", async () => { const f = fixture(); f.records.payment.push({ id: "p", unitId: "unit", propertyId: "legacy-other" });

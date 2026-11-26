@@ -181,7 +181,7 @@ export default function CommercialPropertyRentCollectionPage() {
               <h3 className="font-semibold">Recurring Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain recurring rent and configured charges according to the
-                property's payment setup.
+                property&apos;s payment setup.
               </p>
             </div>
 
@@ -215,7 +215,7 @@ export default function CommercialPropertyRentCollectionPage() {
             </p>
 
             <p>
-              RentFray keeps that payment activity connected to the tenant's
+              RentFray keeps that payment activity connected to the tenant&apos;s
               rent account so the manager can review the payment and resulting
               balance in the same workflow.
             </p>

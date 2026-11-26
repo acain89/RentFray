@@ -1,3 +1,5 @@
+import { callVm, httpFacade, requiredRecord, requiredArray, requiredText, requiredValue, isRecord, isElement, invokeEvent } from "../fixture-assertions";
+import type { Session } from "../admin-session-revalidation.fixture";
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -9,19 +11,23 @@ const root = resolve(__dirname, "../..");
 const tenantFile = "app/manager/units/[id]/tenants/page.tsx";
 const historyFile = "app/manager/units/[id]/history/page.tsx";
 const lifecycleFile = "app/api/admin/properties/[id]/lifecycle/route.ts";
-function load(file: string, imports: Record<string, any>, extras: Record<string, any> = {}) {
-  const module = { exports: {} as Record<string, any> };
+function load(file:"lib/session.ts",imports:Record<string,unknown>,extras?:Record<string,unknown>):Session;
+function load(file:"lib/pin.ts",imports:Record<string,unknown>,extras?:Record<string,unknown>):typeof import("../../lib/pin");
+function load(file:"lib/liveGating.ts",imports:Record<string,unknown>,extras?:Record<string,unknown>):typeof import("../../lib/liveGating");
+function load(file:string,imports:Record<string,unknown>,extras?:Record<string,unknown>):ReturnType<typeof httpFacade> & {default(props?:unknown):Promise<unknown>};
+function load(file: string, imports: Record<string, unknown>, extras: Record<string, unknown> = {}):unknown {
+  const fixtureModule: {exports:unknown} = {exports:{}};
   const code = ts.transpileModule(readFileSync(resolve(root, file), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020,
       jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
-  runInNewContext(code, { module, exports: module.exports, Buffer, Date, URL,
+  runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports, Buffer, Date, URL,
     process: { env: { NODE_ENV: "production", SESSION_SECRET: "synthetic-b8-isolated-secret-session-secret-key" } },
     console: { error() {} },
     require(name: string) { if (!(name in imports)) throw new Error("Unexpected import " + name); return imports[name]; },
     ...extras,
   });
-  return module.exports;
+  const namespace=fixtureModule.exports; return file.startsWith("lib/")?namespace:{...httpFacade(namespace),default:(...args:unknown[])=>callVm(namespace,"default",...args)};
 }
 // Validate executed query keys against schema source, independently of the weak global Prisma typing.
 const schema = readFileSync(resolve(root, "prisma/schema.prisma"), "utf8");
@@ -29,47 +35,35 @@ const models: Record<string, Record<string, string>> = {};
 for (const match of schema.matchAll(/model (\w+) \{([\s\S]*?)\n\}/g)) {
   models[match[1]] = Object.fromEntries([...match[2].matchAll(/^\s+(\w+)\s+(\w+)/gm)].map(m => [m[1], m[2]]));
 }
-function whereKeys(model: string, where: any = {}) {
-  for (const [key, value] of Object.entries(where)) {
-    if (["AND", "OR", "NOT"].includes(key)) {
-      for (const part of Array.isArray(value) ? value : [value]) whereKeys(model, part);
-    } else {
-      expect(models[model]).toHaveProperty(key);
-      const relation = models[model][key];
-      if (models[relation] && value && typeof value === "object") {
-        const nested = value as any;
-        whereKeys(relation, nested.some ?? nested.is ?? nested.every ?? nested.none ?? nested);
-      }
-    }
-  }
+function whereKeys(model:string,where:unknown={}) {
+ for(const [key,value] of Object.entries(requiredRecord(where))) {
+  if(["AND","OR","NOT"].includes(key)) { const parts:unknown[]=Array.isArray(value)?value:[value]; for(const part of parts)whereKeys(model,part); }
+  else { expect(models[model]).toHaveProperty(key);const relation=models[model][key];if(models[relation]&&isRecord(value))whereKeys(relation,value.some??value.is??value.every??value.none??value); }
+ }
 }
-function queryKeys(model: string, args: any = {}) {
-  whereKeys(model, args.where);
-  for (const selection of [args.select, args.include]) {
-    for (const [key, value] of Object.entries(selection ?? {})) {
-      expect(models[model]).toHaveProperty(key);
-      if (value && typeof value === "object") queryKeys(models[model][key], value);
-    }
-  }
-  for (const order of Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy]) {
-    for (const key of Object.keys(order ?? {})) expect(models[model]).toHaveProperty(key);
-  }
-  for (const key of Object.keys(args.data ?? {})) expect(models[model]).toHaveProperty(key);
+function queryKeys(model:string,args:unknown={}) {
+ const query=requiredRecord(args);whereKeys(model,query.where);
+ for(const selection of [query.select,query.include])for(const [key,value] of Object.entries(requiredRecord(selection??{}))) {expect(models[model]).toHaveProperty(key);if(isRecord(value))queryKeys(models[model][key],value);}
+ const orders:unknown[]=Array.isArray(query.orderBy)?query.orderBy:[query.orderBy];
+ for(const order of orders)for(const key of Object.keys(requiredRecord(order??{})))expect(models[model]).toHaveProperty(key);
+ for(const key of Object.keys(requiredRecord(query.data??{})))expect(models[model]).toHaveProperty(key);
 }
-function matches(row: any, where: any = {}): boolean {
-  return Object.entries(where).every(([key, value]: [string, any]) => {
-    if (key === "OR") return value.some((part: any) => matches(row, part));
-    if (value && typeof value === "object" && !(value instanceof Date)) {
-      if ("some" in value) return (row[key] ?? []).some((part: any) => matches(part, value.some));
-      if ("gt" in value) return row[key] !== null && row[key] > value.gt;
-    }
-    return row[key] === value;
-  });
+function matches(row:unknown,where:unknown={}):boolean {
+ return Object.entries(requiredRecord(where)).every(([key,value])=>{
+  if(key==="OR")return requiredArray(value).some(part=>matches(row,part));
+  const field=requiredRecord(row)[key];
+  if(isRecord(value)&&!(value instanceof Date)) {
+   if("some" in value)return requiredArray(field??[]).some(part=>matches(part,value.some));
+   if("gt" in value) {const [left,right]=typeof field==="string"&&typeof value.gt==="string"?[field,value.gt]:[Number(field),Number(value.gt)];return field!==null&&left>right;}
+  }
+  return field===value;
+ });
 }
+type Args={where:unknown;include?:{tenantAssignments?:{where:unknown}};data?:unknown};
 function fixture(role: string = "OWNER") {
   let clock = Date.now();
   class Clock extends Date { static now() { return clock; } }
-  let state: any = {
+  const initialState = {
     property: { id: "property", name: "Test Property", propertyCode: "CODE", status: "TEST",
       settings: {}, units: [{ id: "unit" }], paymentStatus: { processorConnected: true,
         chargesEnabled: true, payoutsEnabled: true, onboardingComplete: true } },
@@ -81,41 +75,43 @@ function fixture(role: string = "OWNER") {
         { id: "past", propertyId: "property", unitId: "unit", firstName: "Previous", lastName: "Tenant",
           isCurrent: false, moveInDate: new Date("2025-01-01"), moveOutDate: new Date("2025-12-31") },
       ] },
-    management: { id: "user", propertyId: "property", role, isActive: true, passwordHash: "synthetic-credential" }, audits: [], failAudit: false,
+    management: { id: "user", propertyId: "property", role, isActive: true, passwordHash: "synthetic-credential" }, audits: [] as Partial<import("@prisma/client").AuditLog>[], failAudit: false,
   };
+  let state: Omit<typeof initialState,"management"> & {management:typeof initialState.management|null}=initialState;
   let inTransaction = false; let reads = 0;
-  const prisma: any = {
-    adminAccess: { findUnique: async ({ where }: any) => where.id === "admin" ? { id: "admin", isActive: true } : null },
-    maintenanceUser: { findUnique: async ({ where }: any) => where.id === "maintenance" ? { id: "maintenance", propertyId: "property", isActive: true } : null },
+  const delegates = {
+    adminAccess: { findUnique: async ({ where }: {where:{id:string}}) => where.id === "admin" ? { id: "admin", isActive: true } : null },
+    maintenanceUser: { findUnique: async ({ where }: {where:{id:string}}) => where.id === "maintenance" ? { id: "maintenance", propertyId: "property", isActive: true } : null },
     managementUser: { findUnique: async () => structuredClone(state.management) },
     tenantAssignment: { findUnique: async () => ({ ...structuredClone(state.unit.tenantAssignments[0]),
       unit: { id: state.unit.id, propertyId: state.unit.propertyId } }) },
     property: {
-      findUnique: async (args: any) => { reads++; queryKeys("Property", args); return matches(state.property, args.where) ? structuredClone(state.property) : null; },
-      update: async (args: any) => { expect(inTransaction).toBe(true); queryKeys("Property", args);
+      findUnique: async (args: Args) => { reads++; queryKeys("Property", args); return matches(state.property, args.where) ? structuredClone(state.property) : null; },
+      update: async (args: Args) => { expect(inTransaction).toBe(true); queryKeys("Property", args);
         if (!matches(state.property, args.where)) throw new Error("Status changed concurrently");
         Object.assign(state.property, args.data);
         return { id: state.property.id, name: state.property.name, propertyCode: state.property.propertyCode, status: state.property.status };
       },
     },
     unit: {
-      findFirst: async (args: any) => { reads++; queryKeys("Unit", args);
+      findFirst: async (args: Args) => { reads++; queryKeys("Unit", args);
         if (!matches(state.unit, args.where)) return null;
         const unit = structuredClone(state.unit);
         const selection = args.include?.tenantAssignments;
-        if (selection) unit.tenantAssignments = unit.tenantAssignments.filter((a: any) => matches(a, selection.where));
+        if (selection) unit.tenantAssignments = unit.tenantAssignments.filter((a) => matches(a, selection.where));
         return unit;
       },
-      update: async (args: any) => { expect(inTransaction).toBe(true); queryKeys("Unit", args);
+      update: async (args: Args) => { expect(inTransaction).toBe(true); queryKeys("Unit", args);
         if (!matches(state.unit, args.where)) throw new Error("Assignment no longer current");
         Object.assign(state.unit, args.data); return structuredClone(state.unit);
       },
     },
-    auditLog: { create: async (args: any) => { expect(inTransaction).toBe(true); queryKeys("AuditLog", args);
+    auditLog: { create: async (args: Args) => { expect(inTransaction).toBe(true); queryKeys("AuditLog", args);
       if (state.failAudit) throw new Error("Audit failed");
-      state.audits.push(structuredClone(args.data)); return args.data;
+      state.audits.push(structuredClone(requiredRecord(args.data))); return args.data;
     } },
-    $transaction: async (fn: any) => { const snapshot = structuredClone(state); inTransaction = true;
+  };
+  const prisma={...delegates,$transaction:async <Result>(fn:(tx:typeof delegates)=>Promise<Result>):Promise<Result> => { const snapshot = structuredClone(state); inTransaction = true;
       try { return await fn(prisma); } catch (error) { state = snapshot; throw error; } finally { inTransaction = false; }
     },
   };
@@ -124,19 +120,19 @@ function fixture(role: string = "OWNER") {
     get: () => token ? { value: token } : undefined, set() { throw new Error("Unexpected session write"); },
   }) }, "@/lib/prisma": { prisma } }, { Date: Clock });
   token = session.createSessionToken({ role, ...(role === "ADMIN" ? { adminAccessId: "admin" } : {}), propertyId: "property", managementUserId: "user",
-    ...(["OWNER", "MANAGER", "STAFF"].includes(role) ? { managementCredentialBinding: session.createManagementCredentialBinding("user", state.management.passwordHash) } : {}),
+    ...(["OWNER", "MANAGER", "STAFF"].includes(role) ? { managementCredentialBinding: session.createManagementCredentialBinding("user", requiredValue(state.management).passwordHash) } : {}),
     ...(role === "TENANT" ? { unitId: "unit", tenantAssignmentId: "assignment" } : {}),
     ...(role === "MAINTENANCE" ? { maintenanceUserId: "maintenance" } : {}),
   });
   const pin = load("lib/pin.ts", { crypto });
   const readiness = load("lib/liveGating.ts", {});
-  const jsx = (type: any, props: any) => ({ type, props });
+  const jsx = (type:unknown,props:Record<string,unknown>) => ({ type, props });
   const imports = {
     "@prisma/client": { Prisma: {} }, "@/lib/prisma": { prisma }, "@/lib/session": session,
     "@/lib/pin": pin, "@/lib/liveGating": readiness,
-    "next/server": { NextResponse: { json: (body: any, options?: any) => ({ body, status: options?.status ?? 200 }) } },
+    "next/server": { NextResponse: { json: (body: unknown, options?: { status?: number; headers?: HeadersInit }) => ({ body, status: options?.status ?? 200 }) } },
     "next/navigation": { notFound() { throw new Error("Not found"); }, redirect(url: string) { throw new Error("Redirect:" + url); } },
-    "next/link": (props: any) => jsx("a", props), "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
+    "next/link": (props:Record<string,unknown>) => jsx("a", props), "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
   };
   return { state: () => state, reads: () => reads, session, pin, readiness,
     page: (file: string) => load(file, imports),
@@ -147,17 +143,18 @@ function fixture(role: string = "OWNER") {
     expire: () => { clock += 366 * 24 * 60 * 60 * 1000; },
   };
 }
-function nodes(node: any): any[] {
+function nodes(node:unknown):{type:unknown;props:Record<string,unknown>}[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
-  if (!node || typeof node !== "object") return [];
-  if (typeof node.type === "function") return nodes(node.type(node.props));
+  if (!isElement(node)) return [];
+  if (typeof node.type === "function") return nodes(Reflect.apply(node.type,node,[node.props]));
   return [node, ...nodes(node.props?.children)];
 }
-function text(node: any): string {
+function text(node:unknown): string {
   if (Array.isArray(node)) return node.map(text).join(" ");
   if (node == null || typeof node === "boolean") return "";
   if (typeof node !== "object") return String(node);
-  if (typeof node.type === "function") return text(node.type(node.props));
+  if(!isElement(node))return "";
+  if (typeof node.type === "function") return text(Reflect.apply(node.type,node,[node.props]));
   return text(node.props?.children);
 }
 const roles = ["OWNER", "MANAGER", "STAFF"];
@@ -192,7 +189,7 @@ test("history and tenant page preserve a future scheduled departure", async () =
 });
 async function pinAction(f: ReturnType<typeof fixture>) {
   const page = await f.page(tenantFile).default(f.params());
-  return nodes(page).find(n => n.type === "form").props.action;
+  const form=requiredValue(nodes(page).find(n=>n.type==="form"));return (data:unknown)=>Promise.resolve(invokeEvent(form,"action",data));
 }
 const pinForm = { get: (name: string) => name === "pin" ? "1234" : null };
 for (const role of ["OWNER", "MANAGER"]) {
@@ -200,13 +197,13 @@ for (const role of ["OWNER", "MANAGER"]) {
     const f = fixture(role); const reset = await pinAction(f); await reset(pinForm);
     expect(f.pin.verifyPin("1234", f.state().unit.tenantPinHash)).toBe(true);
     expect(f.state().audits).toHaveLength(1);
-    expect(JSON.parse(f.state().audits[0].metadataJson).tenantAssignmentId).toBe("assignment");
+    expect(JSON.parse(requiredText(f.state().audits[0].metadataJson)).tenantAssignmentId).toBe("assignment");
   });
 }
 test("rendered PIN action revalidates STAFF authority on direct invocation", async () => {
   const f = fixture(); const reset = await pinAction(f);
-  f.state().management.role = "STAFF";
-  f.token(f.session.createSessionToken({ role: "STAFF", propertyId: "property", managementUserId: "user", managementCredentialBinding: f.session.createManagementCredentialBinding("user", f.state().management.passwordHash) }));
+  requiredValue(f.state().management).role = "STAFF";
+  f.token(f.session.createSessionToken({ role: "STAFF", propertyId: "property", managementUserId: "user", managementCredentialBinding: f.session.createManagementCredentialBinding("user", requiredValue(f.state().management).passwordHash) }));
   await expect(reset(pinForm)).rejects.toThrow("Forbidden");
   expect(f.state().unit.tenantPinHash).toBe("old-hash"); expect(f.state().audits).toEqual([]);
 });
@@ -217,8 +214,8 @@ for (const change of ["replaced", "vacated", "foreign-unit", "foreign-session"])
     if (change === "vacated") f.state().unit.tenantAssignments[0].moveOutDate = new Date("2000-01-01");
     if (change === "foreign-unit") f.state().unit.propertyId = "foreign";
     if (change === "foreign-session") {
-      f.state().management.propertyId = "foreign";
-      f.token(f.session.createSessionToken({ role: "OWNER", propertyId: "foreign", managementUserId: "user", managementCredentialBinding: f.session.createManagementCredentialBinding("user", f.state().management.passwordHash) }));
+      requiredValue(f.state().management).propertyId = "foreign";
+      f.token(f.session.createSessionToken({ role: "OWNER", propertyId: "foreign", managementUserId: "user", managementCredentialBinding: f.session.createManagementCredentialBinding("user", requiredValue(f.state().management).passwordHash) }));
     }
     await expect(reset(pinForm)).rejects.toThrow();
     expect(f.state().unit.tenantPinHash).toBe("old-hash"); expect(f.state().audits).toEqual([]);
@@ -240,8 +237,8 @@ for (const role of ["OWNER", "MANAGER", "STAFF", "TENANT", "MAINTENANCE"]) {
 test("ADMIN lifecycle GET uses current schema and actual readiness SSOT", async () => {
   const f = fixture("ADMIN"); const response = await f.lifecycle().GET({}, f.params("property"));
   expect(response.status).toBe(200); expect(response.body.readiness).toEqual(f.readiness.getLiveReadiness(f.state().property));
-  expect(response.body.readiness.chargesEnabled).toBe(true);
-  expect(response.body.property.paymentStatus.processorConnected).toBe(true);
+  expect(requiredRecord(response.body.readiness).chargesEnabled).toBe(true);
+  expect(requiredRecord(requiredRecord(response.body.property).paymentStatus).processorConnected).toBe(true);
 });
 test("ADMIN allowed transition writes status and current audit", async () => {
   const f = fixture("ADMIN"); const response = await f.lifecycle().POST(f.post("READY"), f.params("property"));
@@ -300,10 +297,10 @@ for (const invalid of ["missing", "malformed", "expired", "disabled", "deleted",
     if (invalid === "missing") f.token();
     if (invalid === "malformed") f.token("invalid");
     if (invalid === "expired") f.expire();
-    if (invalid === "disabled") f.state().management.isActive = false;
+    if (invalid === "disabled") requiredValue(f.state().management).isActive = false;
     if (invalid === "deleted") f.state().management = null;
-    if (invalid === "demoted") f.state().management.role = "STAFF";
-    if (invalid === "moved") f.state().management.propertyId = "other";
+    if (invalid === "demoted") requiredValue(f.state().management).role = "STAFF";
+    if (invalid === "moved") requiredValue(f.state().management).propertyId = "other";
     expect(await f.session.getSession()).toBeNull();
   });
 }

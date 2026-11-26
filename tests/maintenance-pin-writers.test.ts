@@ -1,33 +1,37 @@
+import { requiredValue } from "./fixture-assertions";
+import type { MaintenanceUser, Unit, AuditLog } from "@prisma/client";
+type WorkerRow = Partial<MaintenanceUser> & Pick<MaintenanceUser, "id" | "propertyId" | "pinHash">;
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import bcrypt from "bcryptjs";
-import { loadSource, loginFixture, pinHelpers } from "./maintenance-pin-credential-compatibility.test";
+import { loadSource, loginFixture, pinHelpers } from "./maintenance-pin-credential-compatibility.fixture";
 
 const legacyFile = "app/manager/properties/[id]/pin-reset/page.tsx";
 const dashboardFile = "app/api/manager/maintenance/pin/route.ts";
 function writerFixture(existing = false, role = "OWNER", fail: "audit" | "business" | null = null) {
-  let state: any = { worker: existing ? { id: "worker", propertyId: "p", displayName: "Worker", pinHash: "old" } : null, unit: null, audits: [] };
+  let state: { worker: WorkerRow | null; unit: Partial<Unit> | null; audits: Partial<AuditLog>[] } = { worker: existing ? { id: "worker", propertyId: "p", displayName: "Worker", pinHash: "old" } : null, unit: null, audits: [] };
   let inTransaction = false;
   const events: string[] = [];
-  const write = (fn: () => any) => { assert.equal(inTransaction, true); if (fail === "business") throw Error("Business failure"); return fn(); };
-  const db: any = {
+  const write = <Value>(fn: () => Value) => { assert.equal(inTransaction, true); if (fail === "business") throw Error("Business failure"); return fn(); };
+  const delegates = {
     maintenanceUser: {
-      findFirst: async ({ where }: any) => {
+      findFirst: async ({ where }: { where: { propertyId: string; id?: string; displayName?: string } }) => {
         events.push("worker.lookup"); assert.equal(where.propertyId, "p");
         return state.worker && (!where.id || where.id === state.worker.id) && (!where.displayName || where.displayName === state.worker.displayName) ? state.worker : null;
       },
-      create: async ({ data }: any) => write(() => { events.push("worker.create"); return state.worker = { id: "worker", ...data }; }),
-      update: async ({ where, data }: any) => write(() => { assert.equal(where.id, "worker"); events.push("worker.update"); return Object.assign(state.worker, data); }),
+      create: async ({ data }: { data: Omit<WorkerRow, "id"> }) => write(() => { events.push("worker.create"); return state.worker = { id: "worker", ...data }; }),
+      update: async ({ where, data }: { where: { id: string }; data: Partial<MaintenanceUser> }) => write(() => { assert.equal(where.id, "worker"); events.push("worker.update"); return Object.assign(requiredValue(state.worker), data); }),
     },
     unit: {
-      findFirst: async ({ where }: any) => { assert.equal(where.propertyId, "p"); return { id: "unit", unitNumber: "101", tenantAssignments: [{ id: "assignment" }] }; },
-      update: async ({ data }: any) => write(() => state.unit = { ...data }),
+      findFirst: async ({ where }: { where: { propertyId: string; id?: string; displayName?: string } }) => { assert.equal(where.propertyId, "p"); return { id: "unit", unitNumber: "101", tenantAssignments: [{ id: "assignment" }] }; },
+      update: async ({ data }: { data: Partial<Unit> }) => write(() => state.unit = { ...data }),
     },
-    auditLog: { create: async ({ data }: any) => { assert.equal(inTransaction, true); if (fail === "audit") throw Error("Audit failure"); events.push("audit"); state.audits.push(data); } },
-    $transaction: async (operation: any) => {
+    auditLog: { create: async ({ data }: { data: Omit<WorkerRow, "id"> }) => { assert.equal(inTransaction, true); if (fail === "audit") throw Error("Audit failure"); events.push("audit"); state.audits.push(data); } },
+  };
+  const db = { ...delegates, $transaction: async <Value>(operation: (tx: typeof delegates) => Promise<Value>): Promise<Value> => {
       const before = structuredClone(state); events.push("begin"); inTransaction = true;
       try { return await operation(db); } catch (error) { state = before; events.push("rollback"); throw error; }
       finally { inTransaction = false; events.push("end"); }
@@ -46,17 +50,18 @@ function writerFixture(existing = false, role = "OWNER", fail: "audit" | "busine
     "@/lib/pin": { isValidFourDigitPin: pinHelpers.isValidFourDigitPin, hashPin: (pin: string) => {
       assert.equal(inTransaction, false); events.push("tenant.scrypt"); return pinHelpers.hashPin(pin);
     } },
+    "next/link": () => null,
     "next/navigation": { redirect: (url: string) => { throw Error("redirect:" + url); } },
-    "next/server": { NextResponse: { json: (body: any, options: any = {}) => ({ body, status: options.status ?? 200 }) } },
+    "next/server": { NextResponse: { json: (body: unknown, options: { status?: number; headers?: HeadersInit } = {}) => ({ body, status: options.status ?? 200 }) } },
     "react/jsx-runtime": {},
   };
   const legacy = loadSource(legacyFile, imports, "\nexport { saveMaintenancePin };");
   const dashboard = loadSource(dashboardFile, imports);
-  const form = (extra: any = {}) => {
-    const fields: any = { propertyId: "p", pin: "1234", workerName: "New Worker", maintenanceUserId: existing ? "worker" : "", unitId: "unit", ...extra };
+  const form = (extra: Record<string, unknown> = {}) => {
+    const fields: Record<string, unknown> = { propertyId: "p", pin: "1234", workerName: "New Worker", maintenanceUserId: existing ? "worker" : "", unitId: "unit", ...extra };
     return { get: (key: string) => fields[key] ?? null };
   };
-  return { events, state: () => state, legacy: (extra: any = {}) => legacy.saveMaintenancePin(form(extra)),
+  return { events, state: () => state, legacy: (extra: Record<string, unknown> = {}) => legacy.saveMaintenancePin(form(extra)),
     dashboard: () => dashboard.POST({ json: async () => ({ pin: "1234" }) }) };
 }
 
@@ -70,7 +75,7 @@ for (const existing of [false, true]) for (const surface of ["legacy", "dashboar
     const f = writerFixture(existing, role);
     if (surface === "legacy") await assert.rejects(f.legacy(), /redirect:.*maintenanceSuccess=1/);
     else assert.equal((await f.dashboard()).status, 200);
-    const worker = f.state().worker;
+    const worker = requiredValue(f.state().worker);
     assert.equal(bcrypt.getRounds(worker.pinHash), 10); assert.equal(await bcrypt.compare("1234", worker.pinHash), true);
     assert.ok(f.events.indexOf("bcrypt.hash") < f.events.indexOf("begin"));
     assert.equal(f.events.includes("tenant.scrypt"), false);
@@ -102,5 +107,5 @@ for (const role of ["OWNER", "MANAGER"]) test(role + " cannot change foreign pro
   const f = writerFixture(true, role); await assert.rejects(f.legacy({ propertyId: "other" }), /redirect:/);
   assert.equal(f.events.length, 0);
   await assert.rejects(f.legacy({ maintenanceUserId: "foreign" }), /Maintenance.*not.*found|redirect:.*maintenanceError/);
-  assert.equal(f.events.includes("begin"), false); assert.equal(f.state().worker.pinHash, "old");
+  assert.equal(f.events.includes("begin"), false); assert.equal(requiredValue(f.state().worker).pinHash, "old");
 });

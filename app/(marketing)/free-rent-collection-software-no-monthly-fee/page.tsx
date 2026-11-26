@@ -357,7 +357,7 @@ export default function FreeRentCollectionSoftwareNoMonthlyFeePage() {
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="max-w-4xl">
           <SectionHeading>
-            How RentFray's No-Monthly-Fee Model Works
+            How RentFray&apos;s No-Monthly-Fee Model Works
           </SectionHeading>
 
           <div className="mt-8 space-y-6">
@@ -376,7 +376,7 @@ export default function FreeRentCollectionSoftwareNoMonthlyFeePage() {
                 2. Tenants use the online payment flow
               </h3>
               <p className="mt-2 leading-7 text-slate-600">
-                Tenants submit their rent payments through RentFray's online
+                Tenants submit their rent payments through RentFray&apos;s online
                 payment process.
               </p>
             </div>

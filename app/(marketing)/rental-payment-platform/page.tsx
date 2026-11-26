@@ -231,7 +231,7 @@ export default function RentalPaymentPlatformPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">3. The Tenant Pays Online</h3>
               <p className="mt-2 text-slate-600">
-                Rent is submitted through RentFray's browser-based online
+                Rent is submitted through RentFray&apos;s browser-based online
                 payment flow.
               </p>
             </div>

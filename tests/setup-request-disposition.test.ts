@@ -1,3 +1,4 @@
+import { requiredValue } from "./fixture-assertions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -14,28 +15,28 @@ test("RF-18 removes provisioning and both approval controls without changing rem
 });
 
 function pageFixture(role: string | null = "ADMIN") {
-  const calls: any[] = [];
+  const calls: { list?: unknown; delete?: { where: { id: string } } }[] = [];
   const request = { id: "request", propertyName: "Requested property", propertyType: "Apartment",
     address: "Address", contactName: "Contact", contactInfo: "contact@isolated.invalid",
     unitCount: 3, notes: "Request notes", createdAt: new Date("2026-10-01T12:00:00Z") };
   const forbidden = new Proxy({}, { get() { throw Error("SetupRequest must not provision application records"); } });
-  const jsx = (type: any, props: any) => ({ type, props });
-  const imports: Record<string, any> = {
+  const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
+  const imports: Record<string, unknown> = {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "@/lib/prisma": { prisma: { property: forbidden, managementUser: forbidden, setupRequest: {
-      findMany: async (args: any) => { calls.push({ list: args }); return [request]; },
-      delete: async (args: any) => { calls.push({ delete: args }); return request; },
+      findMany: async (args: unknown) => { calls.push({ list: args }); return [request]; },
+      delete: async (args: { where: { id: string } }) => { calls.push({ delete: args }); return request; },
     } } },
     "@/lib/session": { getSession: async () => role ? { role } : null,
       requireRole: async (expected: string) => { assert.equal(expected, "ADMIN"); if (role !== expected) throw Error("Unauthorized"); } },
     "next/navigation": { redirect: (path: string) => { throw Error("redirect:" + path); } },
   };
-  const module = { exports: {} as any };
+  const fixtureModule: { exports: Partial<{ default(): Promise<unknown>; rejectRequest(form: { get(key: string): unknown }): Promise<void> }> } = { exports: {} };
   runInNewContext(ts.transpileModule(source + "\nexport { rejectRequest };", { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX,
-  } }).outputText, { module, exports: module.exports, Date,
+  } }).outputText, { module: fixtureModule, exports: fixtureModule.exports, Date,
     require(name: string) { assert.ok(name in imports, "Unmocked import " + name); return imports[name]; } });
-  return { api: module.exports, calls, request };
+  return { api: { default: requiredValue(fixtureModule.exports.default), rejectRequest: requiredValue(fixtureModule.exports.rejectRequest) }, calls, request };
 }
 
 test("RF-18 ADMIN listing preserves request projection and rendered information", async () => {

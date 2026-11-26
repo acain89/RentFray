@@ -1,18 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
-import ts from "typescript";
 
-// Reuse the existing isolated route fixture without changing it or contacting services.
-function fixture() {
-  const source = readFileSync("tests/financial-export-contracts.test.ts", "utf8").split('for (const alias of ["month", "billingCycle", "cycle"])')[0];
-  const module = { exports: {} as any };
-  runInNewContext(ts.transpileModule(source + "\nexport { fixture };", { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText,
-    { module, exports: module.exports, require, Date, Intl, URL, Buffer, console });
-  return module.exports.fixture();
-}
-function parse(csv: string): Record<string, string>[] {
+import { fixture } from "./financial-export-contracts.fixture";
+function parse(csv: unknown): Record<string, string>[] {
+  assert.ok(typeof csv === "string", "CSV transport body must be text");
   const rows: string[][] = []; let row: string[] = [], cell = "", quoted = false;
   for (let i = 0; i < csv.length; i++) {
     const ch = csv[i];
@@ -29,7 +20,7 @@ function parse(csv: string): Record<string, string>[] {
 }
 const cases = ["=1+1", "+SUM(A1:A2)", "-1+1", "@SUM(A1:A2)", "  =1+1", "\t=1+1", "\u0001\r=1+1", "＝1+1", "Ordinary text", "", "A, B", 'A "quote"', "A\nB", "A\rB", "José 日本", '=HYPERLINK("x","y")'];
 const unsafe = (s: string) => /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@＝＋－＠]/u.test(s);
-for (const route of ["balances", "ledger", "payments"]) for (const value of cases) test(`${route} safely serializes text ${JSON.stringify(value)}`, async () => {
+for (const route of ["balances", "ledger", "payments"] as const) for (const value of cases) test(`${route} safely serializes text ${JSON.stringify(value)}`, async () => {
   const f = fixture(); const unit = f.units[0]; f.units.splice(1);
   unit.unitNumber = value; unit.property.name = value; unit.property.propertyCode = value; unit.tier.name = value;
   unit.tenantAssignments[0].firstName = value; unit.tenantAssignments[0].lastName = "";
@@ -37,6 +28,7 @@ for (const route of ["balances", "ledger", "payments"]) for (const value of case
   f.entry("ADJUSTMENT", -50000, { tenantAssignment: attribution, memo: value, referenceNumber: value });
   f.payment("PAID", { tenantAssignment: attribution, amountCents: 100000, memo: value, referenceNumber: value });
   const reply = await f.get(route, "unitId=u1"); assert.equal(reply.status, 200);
+  assert.ok(typeof reply.body === "string", "Successful exports return CSV text");
   const rows = parse(reply.body); assert.ok(rows.length > 0);
   const expected = (s: string) => unsafe(s) ? "'" + s : s;
   for (const row of rows) {

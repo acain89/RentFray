@@ -1,10 +1,12 @@
 "use client";
 
+import { RefreshCoordinator } from "@/lib/clientRequests";
+
 import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
 
 import { getBusinessDate } from "@/lib/rentDates";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import BankPanel from "./components/BankPanel";
 import ManagerPanel from "./components/ManagerPanel";
@@ -264,19 +266,9 @@ type MaintenanceAction = "COMPLETE" | "IN_PROGRESS" | "DELETE";
 
 type ManagerRole = "MANAGER" | "STAFF";
 
-type ManagerUser = {
-  id: string;
-  username: string;
-  role: string;
-  isActive: boolean;
-  lastLoginAt?: string | null;
-};
 
-type ManagersListResponse = {
-  ok?: boolean;
-  error?: string;
-  users?: ManagerUser[];
-};
+
+
 
 type ManagerMutationResponse = {
   ok?: boolean;
@@ -409,13 +401,7 @@ function formatDateInputForDisplay(value: string): string {
   return `${month}/${day}/${year}`;
 }
 
-function slugifyTierName(value: string): string {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+
 
 function createTierDraft(tierName: string, index = 0): RentTierDraft {
   const safeName = String(tierName || `Tier ${index + 1}`).trim();
@@ -439,33 +425,9 @@ function createTierDraft(tierName: string, index = 0): RentTierDraft {
   };
 }
 
-function urgencyBadgeClass(urgency: string): string {
-  switch (urgency.toUpperCase()) {
-    case "URGENT":
-      return "border-red-200 bg-red-50 text-red-700";
-    case "HIGH":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "LOW":
-      return "border-slate-200 bg-slate-100 text-slate-600";
-    case "NORMAL":
-    default:
-      return "border-blue-200 bg-blue-50 text-blue-700";
-  }
-}
 
-function statusBadgeClass(status: string): string {
-  switch (status.toUpperCase()) {
-    case "COMPLETE":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "IN_PROGRESS":
-      return "border-violet-200 bg-violet-50 text-violet-700";
-    case "THIRD_PARTY":
-      return "border-orange-200 bg-orange-50 text-orange-700";
-    case "OPEN":
-    default:
-      return "border-slate-200 bg-slate-100 text-slate-700";
-  }
-}
+
+
 
 function OverlayShell({
   title,
@@ -517,12 +479,7 @@ function OverlayShell({
   );
 }
 
-function getMonthRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return { start, next };
-}
+
 
 type ManageSectionItem = {
   label: string;
@@ -622,7 +579,7 @@ if (requestedPanel === "propertySetup") {
   const [vacatingUnit, setVacatingUnit] = useState(false);
   const [showVacateConfirm, setShowVacateConfirm] = useState(false);
   const [vacateTarget, setVacateTarget] = useState<{ unitId: string; tenantAssignmentId: string } | null>(null);
-  const [showInactiveConfirm, setShowInactiveConfirm] = useState(false);
+  const [, setShowInactiveConfirm] = useState(false);
   const [togglingUnitActive, setTogglingUnitActive] = useState(false);
   const [showMoveTierModal, setShowMoveTierModal] = useState(false);
   const [targetMoveTierId, setTargetMoveTierId] = useState("");
@@ -635,10 +592,10 @@ if (requestedPanel === "propertySetup") {
   const [chargesLoading, setChargesLoading] = useState(false);
   const [chargesError, setChargesError] = useState("");
   const [savingCharges, setSavingCharges] = useState(false);
-  const [chargesEffectiveMonth, setChargesEffectiveMonth] = useState("");
-  const viewMode: "full" = "full";
+  const [, setChargesEffectiveMonth] = useState("");
+
   const [exportSelectedUnit, setExportSelectedUnit] = useState("");
-  const [exportUnitError, setExportUnitError] = useState("");
+  const [, ] = useState("");
   const [showChangeLogin, setShowChangeLogin] = useState(false);
   const [changeCurrentLogin, setChangeCurrentLogin] = useState("");
   const [changeCurrentPassword, setChangeCurrentPassword] = useState("");
@@ -652,7 +609,7 @@ if (requestedPanel === "propertySetup") {
   const [inactiveActionUnitId, setInactiveActionUnitId] = useState("");
   const [confirmReactivateUnitId, setConfirmReactivateUnitId] = useState("");
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState("");
-  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const dashboardRefresh = useRef(new RefreshCoordinator());
   const [rentFrayStartDate, setRentFrayStartDate] = useState("");
   const [rentFrayStartDateLocked, setRentFrayStartDateLocked] = useState(false);
   const [savingRentFrayStartDate, setSavingRentFrayStartDate] = useState(false);
@@ -710,7 +667,7 @@ useEffect(() => {
   }
 
   setLocalTiers(
-    data.tiers.map((tier, index) => ({
+    data.tiers.map((tier) => ({
       id: tier.id,
       tierName: tier.name,
       unitCount: String(tier.configuredUnitCount ?? tier.unitCount ?? 0),
@@ -840,7 +797,7 @@ function applyGpLfToAllTiers(): void {
   setConfiguredGpLfTierIds(activeTiers.map((tier) => tier.id));
 }
 
-function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
+const getGpLfSettingsFromTiers = useCallback((tiers: RentTierDraft[]) => {
   const source =
     tiers.find(
       (tier) =>
@@ -875,48 +832,21 @@ function getGpLfSettingsFromTiers(tiers: RentTierDraft[]) {
     lateFeeDaily: source.lateFeeDaily || "",
     lateFeeMaxDays: source.lateFeeMaxDays || "",
   };
-}
+}, [data?.property?.onboarding?.billingComplete]);
 
-  type GpLfTierSnapshot = {
-  id: string;
-  tierName: string;
-  graceDays: string;
-  lateFeeEnabled: boolean;
-  lateFeeInitial: string;
-  lateFeeDaily: string;
-  lateFeeMaxDays: string;
-};
 
-function formatGpLfMoney(value: string): string {
-  const amount = Number(value);
-  return Number.isFinite(amount) ? `$${amount.toFixed(2)}` : "$0.00";
-}
 
-function getGpLfTierSnapshot(tier: RentTierDraft): GpLfTierSnapshot {
-  return {
-    id: tier.id,
-    tierName: tier.tierName,
-    graceDays: tier.graceDays || "0",
-    lateFeeEnabled: Boolean(tier.lateFeeEnabled),
-    lateFeeInitial: tier.lateFeeAmount || "0",
-    lateFeeDaily: tier.lateFeeDaily || "0",
-    lateFeeMaxDays: tier.lateFeeMaxDays || "0",
-  };
-}
 
-function getMixedText(values: string[]): string {
-  const unique = Array.from(new Set(values.map((value) => String(value).trim())));
-  return unique.length <= 1 ? (unique[0] || "—") : "Mixed";
-}
 
-function getMixedBooleanText(values: boolean[]): string {
-  const unique = Array.from(new Set(values));
-  return unique.length <= 1 ? (unique[0] ? "Enabled" : "Disabled") : "Mixed";
-}
+
+
+
+
+
 
   const managers = data?.property?.managementUsers ?? [];
-  const [managersLoading, setManagersLoading] = useState(false);
-  const [managersError, setManagersError] = useState("");
+  const [managersLoading, ] = useState(false);
+  const [managersError, ] = useState("");
 
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -949,61 +879,21 @@ function getMixedBooleanText(values: boolean[]): string {
   const canManageManagers = sessionRole === "OWNER" || sessionRole === "MANAGER";
   const isOwner = sessionRole === "OWNER";
   const propertyName = data?.property?.name ?? "Manager Dashboard";
-  const [pendingUnitCount, setPendingUnitCount] = useState<number | null>(null);
-  const [updatingUnitCount, setUpdatingUnitCount] = useState(false);
+  const [, setPendingUnitCount] = useState<number | null>(null);
+  const [, ] = useState(false);
   const propertyCode = data?.property?.code ?? "----";
   const bankStatus = data?.property?.paymentStatus?.bankStatus;
   const bankMessage = data?.property?.paymentStatus?.bankMessage;
 
-  const activeUnitCount = useMemo(() => {
-  return Array.isArray(data?.units)
-    ? data.units.filter((unit) => unit.isActive).length
-    : 0;
-}, [data?.units]);
+
 
  const [exportMonth, setExportMonth] = useState("");
 
 const [exportType, setExportType] = useState<"balances" | "ledger" | "payments">("balances");
-const [exportUnitSearch, setExportUnitSearch] = useState("");
+const [, ] = useState("");
 const [exporting, setExporting] = useState(false);
 
-async function updateUnitCount(next: number): Promise<void> {
-  if (data?.property?.unitCount == null) return;
-  if (updatingUnitCount) return;
 
-  const confirmed = window.confirm(
-    `Update total units to ${next}?`
-  );
-
-  if (!confirmed) return;
-
-  try {
-    setUpdatingUnitCount(true);
-
-    const res = await fetch("/api/manager/property/unit-count", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({ unitCount: next }),
-    });
-
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok || !json?.ok) {
-      alert(json?.error || "Failed to update unit count.");
-      return;
-    }
-
-await new Promise((r) => setTimeout(r, 150));
-await loadDashboard({ silent: true });
-  } catch {
-    alert("Failed to update unit count.");
-  } finally {
-    setUpdatingUnitCount(false);
-  }
-}
 
 async function connectBank(): Promise<void> {
   try {
@@ -1098,15 +988,14 @@ async function logout(): Promise<void> {
   }
 }
 
-  async function loadDashboard(
-  options: { silent?: boolean } = {}
-): Promise<void> {
-  if (loadingDashboard) return;
+  async function loadDashboard(options: { silent?: boolean } = {}): Promise<void> {
+  return dashboardRefresh.current.request(async () => {
+
 
   const silent = options.silent === true;
 
   try {
-    setLoadingDashboard(true);
+
 
 if (!silent && !data) {
   setLoading(true);
@@ -1143,8 +1032,10 @@ if (!silent) {
   setLoading(false);
 }
 
-setLoadingDashboard(false);
+
   }
+
+  });
 }
 
   async function loadMaintenanceRequests(): Promise<void> {
@@ -1739,7 +1630,7 @@ async function submitMoveTier(): Promise<void> {
 
   const months: { value: string; label: string }[] = [];
 
-  let cursor = new Date(start);
+  const cursor = new Date(start);
 
   while (cursor <= end) {
     const year = cursor.getFullYear();
@@ -2058,11 +1949,10 @@ useEffect(() => {
   setRentFrayStartDateLocked(Boolean(savedDate));
 }, [data]);
 
+const loadInitialDashboard = useEffectEvent(() => { void loadDashboard(); });
 useEffect(() => {
-  (async () => {
-    await new Promise((r) => setTimeout(r, 150));
-await loadDashboard();
-  })();
+  const timer = setTimeout(() => loadInitialDashboard(), 150);
+  return () => clearTimeout(timer);
 }, []);
 
 useEffect(() => {
@@ -2111,6 +2001,7 @@ useEffect(() => {
   activePanel,
   localTiers,
   data?.property?.onboarding?.billingComplete,
+  getGpLfSettingsFromTiers,
 ]);
 
 useEffect(() => {
@@ -2120,9 +2011,10 @@ useEffect(() => {
   }
 }, [activePanel]);
 
+const refreshTierCharges = useEffectEvent(() => { void loadTierCharges(); });
 useEffect(() => {
   if (activePanel === "charges" || activePanel === "rent") {
-    void loadTierCharges();
+    refreshTierCharges();
   }
 }, [activePanel, data?.property?.id]);
 
@@ -2170,25 +2062,9 @@ const tierGroups = useMemo<TierGroup[]>(() => {
 
 
 
-  const sortedMaintenanceRequests = useMemo<MaintenanceRequestRow[]>(() => {
-    return [...maintenanceRequests].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }, [maintenanceRequests]);
 
-    const stats = useMemo(() => {
-    const totalUnits = unitsWithStatus.length;
-    const occupiedUnits = unitsWithStatus.filter(u => u.tenantName).length;
-    const vacantUnits = unitsWithStatus.filter(u => !u.tenantName).length;
-    const tiers = tierGroups.length;
 
-    return {
-      totalUnits,
-      occupiedUnits,
-      vacantUnits,
-      tiers,
-    };
-  }, [tierGroups.length, unitsWithStatus]);
+
 
   function openUnitPanel(unit: UnitWithStatus): void {
     setShowVacateConfirm(false);
@@ -2284,18 +2160,7 @@ function createChargeDraft(index = 0): AdditionalChargeDraft {
   };
 }
 
-function formatMonthLabel(value: string): string {
-  const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return "next month";
-  }
-
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-}
 
 function addLocalTier(): void {
   setLocalTiers((current) => {

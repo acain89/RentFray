@@ -15,18 +15,14 @@ type Props = {
 };
 
 export default function UnitNotes({ unitId }: Props) {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [content, setContent] = useState("");
+  const [loaded, setLoaded] = useState<{ unitId: string; notes: Note[] } | null>(null);
+  const notes = loaded?.unitId === unitId ? loaded.notes : [];
+  const [revision, setRevision] = useState(0);
+  const [draft, setDraft] = useState({ unitId, content: "" });
+  const content = draft.unitId === unitId ? draft.content : "";
+  const setContent = (value: string) => setDraft({ unitId, content: value });
   const [loading, setLoading] = useState(false);
 
-  async function load() {
-    const res = await fetch(`/api/notes?unitId=${unitId}`);
-    const json = await res.json();
-
-    if (json.ok) {
-      setNotes(json.data);
-    }
-  }
 
   async function addNote() {
     if (!content.trim()) return;
@@ -42,9 +38,9 @@ export default function UnitNotes({ unitId }: Props) {
       }),
     });
 
-    setContent("");
+    setDraft(current => current.unitId === unitId ? { ...current, content: "" } : current);
     setLoading(false);
-    load();
+    setRevision(value => value + 1);
   }
 
   async function togglePin(noteId: string, current: boolean) {
@@ -59,7 +55,7 @@ export default function UnitNotes({ unitId }: Props) {
       }),
     });
 
-    load();
+    setRevision(value => value + 1);
   }
 
   function badge(type: Note["noteType"]) {
@@ -70,24 +66,27 @@ export default function UnitNotes({ unitId }: Props) {
 
   // 🔥 REALTIME
   useEffect(() => {
-    load();
-
-    const evt = new EventSource("/api/stream");
-
-    evt.onmessage = (event) => {
+    const controller = new AbortController();
+    void fetch(`/api/notes?unitId=${encodeURIComponent(unitId)}`, { signal: controller.signal, cache: "no-store" })
+      .then(response => response.json()).then((value: unknown) => {
+        if (controller.signal.aborted || !value || typeof value !== "object" || !("ok" in value) || value.ok !== true || !("data" in value) || !Array.isArray(value.data)) return;
+        const rows = value.data;
+        if (rows.every((row: unknown): row is Note => !!row && typeof row === "object" && "id" in row && typeof row.id === "string" &&
+          "content" in row && typeof row.content === "string" && "noteType" in row && typeof row.noteType === "string" && ["GENERAL", "PAYMENT", "SYSTEM"].includes(row.noteType) &&
+          "isPinned" in row && typeof row.isPinned === "boolean" && "createdAt" in row && typeof row.createdAt === "string")) setLoaded({ unitId, notes: rows });
+      }).catch(() => { /* Keep only this unit's last successful response on transient failure. */ });
+    return () => controller.abort();
+  }, [unitId, revision]);
+  useEffect(() => {
+    const stream = new EventSource("/api/stream");
+    stream.onmessage = event => {
       try {
-        const data = JSON.parse(event.data);
-
-        if (
-          data?.type === "admin:notes:update" &&
-          data?.payload?.unitId === unitId
-        ) {
-          load();
-        }
-      } catch {}
+        const data: unknown = JSON.parse(event.data);
+        if (data && typeof data === "object" && "type" in data && data.type === "admin:notes:update" &&
+            "payload" in data && data.payload && typeof data.payload === "object" && "unitId" in data.payload && data.payload.unitId === unitId) setRevision(value => value + 1);
+      } catch { /* Ignore malformed or unrelated realtime messages. */ }
     };
-
-    return () => evt.close();
+    return () => stream.close();
   }, [unitId]);
 
   return (

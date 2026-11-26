@@ -1,10 +1,6 @@
 "use client";
 
-type Props = {
-  data: any;
-};
-
-export default function FullDashboard({ data }: Props) {
+export default function FullDashboard() {
   // 👉 TEMP: render existing content
 
   return (

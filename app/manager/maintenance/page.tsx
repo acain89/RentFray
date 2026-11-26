@@ -56,9 +56,9 @@ export default function ManagerMaintenancePage() {
         if (active) {
           setData(json);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (active) {
-          setError(err.message || "Something went wrong");
+          setError(err && typeof err === "object" && "message" in err && typeof err.message === "string" && err.message ? err.message : "Something went wrong");
         }
       } finally {
         if (active) setLoading(false);

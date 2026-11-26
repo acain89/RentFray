@@ -283,7 +283,7 @@ export default function TenantRentPaymentOptionsPage() {
 
             <p className="mt-4 text-base leading-8 text-slate-600">
               A recurring rent payment system is designed around that repetition
-              rather than treating each month's rent as an unrelated
+              rather than treating each month&apos;s rent as an unrelated
               transaction.
             </p>
           </div>
@@ -328,7 +328,7 @@ export default function TenantRentPaymentOptionsPage() {
 
             <p className="mt-5 text-base leading-8 text-slate-600">
               RentFray provides a web-based rent payment flow connected to the
-              property's recurring rent records. Tenants can review what they
+              property&apos;s recurring rent records. Tenants can review what they
               owe and submit payment without installing a separate RentFray
               mobile app.
             </p>
@@ -376,7 +376,7 @@ export default function TenantRentPaymentOptionsPage() {
 
           <p className="mt-4 text-base leading-8 text-slate-600">
             Tenants pay a processing fee when they submit payments. That pricing
-            model allows the property to use RentFray's rent collection and
+            model allows the property to use RentFray&apos;s rent collection and
             tracking workflow without adding a recurring monthly software bill.
           </p>
 

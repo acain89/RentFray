@@ -25,7 +25,7 @@ export default function TenantInstructionsPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
-              2) Click "Sign In"{" "}
+              2) Click &quot;Sign In&quot;{" "}
               <span className="font-normal text-slate-600">
                 (top-right corner of the screen).
               </span>
@@ -42,7 +42,7 @@ export default function TenantInstructionsPage() {
             </div>
 
             <div className="mt-2 font-semibold">
-              Click "First Time Tenant Use" to create your account.
+              Click &quot;First Time Tenant Use&quot; to create your account.
             </div>
           </div>
 
@@ -61,13 +61,13 @@ export default function TenantInstructionsPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
-              5) After creating your account, click "Tenant" to log in.
+              5) After creating your account, click &quot;Tenant&quot; to log in.
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
             <div className="font-semibold">
-              6) Going forward, click "Tenant" and use your login to view your
+              6) Going forward, click &quot;Tenant&quot; and use your login to view your
               balance and make payments.
             </div>
           </div>

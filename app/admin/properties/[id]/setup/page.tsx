@@ -3,7 +3,9 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { ContextFence } from "@/lib/clientRequests";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Unit = {
   id: string;
@@ -37,6 +39,7 @@ export default function PropertySetupPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const loadFence = useRef(new ContextFence());
   const [propertyId, setPropertyId] = useState("");
   const [property, setProperty] = useState<Property | null>(null);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
@@ -62,20 +65,21 @@ export default function PropertySetupPage({
   const [selectedUnitId, setSelectedUnitId] = useState("");
 
   useEffect(() => {
+    let active = true;
     async function resolveParams() {
       const { id } = await params;
-      setPropertyId(id);
+      if (active) setPropertyId(id);
     }
 
-    resolveParams();
+    void resolveParams();
+    return () => { active = false; };
   }, [params]);
 
-  useEffect(() => {
-    if (!propertyId) return;
-    load();
-  }, [propertyId]);
 
-  async function load() {
+
+  const load = useCallback(async () => {
+    const ticket = loadFence.current.begin(propertyId);
+    if (!ticket) return;
     try {
       setLoading(true);
       setSetupError("");
@@ -88,7 +92,9 @@ export default function PropertySetupPage({
       ]);
 
       const setupData = await setupRes.json();
+      if (!loadFence.current.current(ticket)) return;
       const lifecycleData = await lifecycleRes.json();
+      if (!loadFence.current.current(ticket)) return;
 
       if (!setupRes.ok) {
         setSetupError(setupData?.error || "Failed to load property setup.");
@@ -108,15 +114,24 @@ export default function PropertySetupPage({
 
       setSelectedStatus(lifecycleData?.property?.status || loadedProperty.status || "SETUP");
 
-      if (loadedProperty.units.length > 0 && !selectedUnitId) {
-        setSelectedUnitId(loadedProperty.units[0].id);
+      if (loadedProperty.units.length > 0) {
+        setSelectedUnitId(current => current || loadedProperty.units[0].id);
       }
     } catch {
+      if (!loadFence.current.current(ticket)) return;
       setSetupError("Failed to load property setup.");
     } finally {
-      setLoading(false);
+      if (loadFence.current.current(ticket)) setLoading(false);
     }
-  }
+
+  }, [propertyId]);
+  useEffect(() => {
+    const fence = loadFence.current;
+    fence.activate(propertyId);
+    if (propertyId) void load();
+    return () => fence.deactivate(propertyId);
+  }, [propertyId, load]);
+
 
   async function saveLifecycle() {
     if (savingLifecycle || !propertyId || !property) return;

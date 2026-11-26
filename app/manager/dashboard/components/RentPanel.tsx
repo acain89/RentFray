@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
-  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -133,9 +131,7 @@ export default function RentPanel({
     null
   );
 
-  const sameForAllInitializedRef = useRef(false);
-
-  const activeTiers = useMemo(
+const activeTiers = useMemo(
     () => localTiers.filter((tier) => !tier.markedForDelete),
     [localTiers]
   );
@@ -156,23 +152,8 @@ export default function RentPanel({
     [activeTiers, tierCharges]
   );
 
-  useEffect(() => {
-    if (
-      sameForAllInitializedRef.current ||
-      chargesLoading ||
-      activeTiers.length === 0
-    ) {
-      return;
-    }
-
-    const everyTierHasLoadedCharges = activeTiers.every((tier) =>
-      tierCharges.some((chargeTier) => chargeTier.tierId === tier.id)
-    );
-
-    if (!everyTierHasLoadedCharges) {
-      return;
-    }
-
+  if (sameForAllTiers === null && !chargesLoading && activeTiers.length > 0 &&
+      activeTiers.every(tier => tierCharges.some(saved => saved.tierId === tier.id))) {
     const normalizeCharges = (
       charges: AdditionalChargeDraft[]
     ): Array<{ label: string; amount: string }> =>
@@ -196,14 +177,8 @@ export default function RentPanel({
         firstTierCharges
     );
 
-    sameForAllInitializedRef.current = true;
     setSameForAllTiers(everyTierMatches);
-  }, [
-    activeTiers,
-    chargesLoading,
-    tierCharges,
-    visibleTierCharges,
-  ]);
+  }
 
   function updateCharge(
     tierId: string,

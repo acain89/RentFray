@@ -143,7 +143,7 @@ export default function EasiestWayForTenantsToPayRentPage() {
 
             <p className="mt-4 text-base leading-8 text-slate-600">
               RentFray gives tenants a web-based payment path with no required
-              app while keeping the payment connected to the property's rent
+              app while keeping the payment connected to the property&apos;s rent
               records.
             </p>
           </div>
@@ -278,7 +278,7 @@ export default function EasiestWayForTenantsToPayRentPage() {
 
           <p className="mt-4 text-base leading-8 text-slate-600">
             A rent-focused payment process can connect the tenant experience to
-            the property's rent records so the payment is tied to an actual
+            the property&apos;s rent records so the payment is tied to an actual
             balance instead of functioning as a completely separate money
             transfer.
           </p>
@@ -308,7 +308,7 @@ export default function EasiestWayForTenantsToPayRentPage() {
                   2. The tenant reviews what is owed
                 </h3>
                 <p className="mt-2 leading-7 text-slate-600">
-                  The payment flow is connected to the tenant's rent balance.
+                  The payment flow is connected to the tenant&apos;s rent balance.
                 </p>
               </div>
 
@@ -478,7 +478,7 @@ export default function EasiestWayForTenantsToPayRentPage() {
 
             <p className="mt-4 max-w-3xl leading-7 text-slate-300">
               Give tenants one web-based payment path while keeping payment
-              status and balances connected to the property's rent records.
+              status and balances connected to the property&apos;s rent records.
             </p>
 
             <div className="mt-8">

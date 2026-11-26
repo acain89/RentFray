@@ -1,10 +1,11 @@
+import { callVm, requiredRecord, requestData } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { resolve } from "node:path";
 import ts from "typescript";
-import { fixture as tenancyFixture, root, load } from "./tenant-login-assignment-race.test";
+import { fixture as tenancyFixture, root, load } from "./tenant-login-assignment-race.fixture";
 
 function fixture(role: string | null = "MANAGER") {
   const f = tenancyFixture(role);
@@ -13,10 +14,10 @@ function fixture(role: string | null = "MANAGER") {
   return f;
 }
 const file = "app/api/manager/units/vacate/route.ts";
-const vacate = (f: ReturnType<typeof fixture>, extra: any = {}) => f.invoke(file, { unitId: "u", tenantAssignmentId: "a", ...extra });
+const vacate = (f: ReturnType<typeof fixture>, extra: Record<string, unknown> = {}) => f.invoke(file, { unitId: "u", tenantAssignmentId: "a", ...extra });
 for (const role of ["OWNER", "MANAGER"]) test(role + " exact vacancy preserves response, credentials, audit and realtime", async () => {
   const f = fixture(role); const result = await vacate(f);
-  assert.equal(result.status, 200); assert.equal(result.body.data.vacatedAssignmentId, "a");
+  assert.equal(result.status, 200); assert.equal(requiredRecord(result.body.data).vacatedAssignmentId, "a");
   assert.equal(f.state().assignments[0].isCurrent, false); assert.equal(f.state().unit.tenantPinHash, null);
   assert.equal(f.state().unit.portalActivated, false); assert.equal(f.state().audits[0].action, "UNIT_VACATED");
   assert.equal(f.realtime.length, 3); assert.ok(f.realtime.every(e => e[1].propertyId === "p"));
@@ -59,12 +60,13 @@ test("dashboard confirmation freezes A while selected Unit refreshes to B", asyn
     ts.forEachChild(node, visit);
   }
   visit(tree); assert.ok(submit); assert.ok(capture);
-  const globals: any = { selectedUnit: { unitId: "u", tenantAssignmentId: "a" }, vacatingUnit: false, canVacateUnit: true,
-    setVacateTarget: (value: any) => { globals.vacateTarget = value; }, setShowVacateConfirm() {}, setVacatingUnit() {}, setVacateError() {},
+  const state: { vacateTarget?: unknown; sent?: Record<string, unknown> } = {};
+  const globals = { ...state, selectedUnit: { unitId: "u", tenantAssignmentId: "a" }, vacatingUnit: false, canVacateUnit: true,
+    setVacateTarget: (value: unknown): void => { globals.vacateTarget = value; }, setShowVacateConfirm() {}, setVacatingUnit() {}, setVacateError() {},
     setData() {}, closeUnitPanel() {}, setSelectedUnit() {},
-    fetch: async (_: any, options: any) => { globals.sent = JSON.parse(options.body); return { ok: false, json: async () => ({ error: "stale" }) }; } };
+    fetch: async (_: unknown, options: { body: string }) => { globals.sent = requestData(options); return { ok: false, json: async () => ({ error: "stale" }) }; } };
   const code = ts.transpileModule(submit!.getText(tree) + "\nconst capture = " + capture!.getText(tree) + ";", { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
-  const context = runInNewContext(code + "\n({ submitVacateUnit, capture })", globals);
-  context.capture(); globals.selectedUnit = { unitId: "u", tenantAssignmentId: "b" };
-  await context.submitVacateUnit(); assert.equal(globals.sent.tenantAssignmentId, "a"); assert.equal(globals.sent.unitId, "u");
+  const context: unknown = runInNewContext(code + "\n({ submitVacateUnit, capture })", globals);
+  callVm(context,"capture"); globals.selectedUnit = { unitId: "u", tenantAssignmentId: "b" };
+  await callVm(context,"submitVacateUnit"); assert.equal(requiredRecord(globals.sent).tenantAssignmentId, "a"); assert.equal(requiredRecord(globals.sent).unitId, "u");
 });

@@ -59,9 +59,10 @@ for (const failCounter of [false, true]) {
       },
     };
     const source = readFileSync("scripts/seed-scale-property.ts", "utf8");
-    const invocation = source.lastIndexOf("\nmain()"); assert.ok(invocation > 0);
+    const invocation = source.lastIndexOf("\nexport const operationalCompletion"); assert.ok(invocation > 0);
     const sandboxModule = { exports: {} as { run: () => Promise<void> } };
     const imports: Record<string, unknown> = {
+      "./operational-safety": { disposableClient: () => prisma, assertDisposableClient: (_operation: string, candidate: unknown) => assert.equal(candidate, prisma) },
       "@prisma/client": { PrismaClient: class { constructor() { return prisma; } },
         PaymentStatus: { PAID: "PAID", PENDING: "PENDING", FAILED: "FAILED" } },
       bcryptjs: { hash: async () => "test-hash" }, "../lib/pin": { hashPin: () => "test-pin" },

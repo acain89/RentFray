@@ -1,3 +1,5 @@
+
+import Link from "next/link";
 // app/manager/properties/[id]/pin-reset/page.tsx
 
 import { redirect } from "next/navigation";
@@ -201,7 +203,7 @@ export default async function PinResetPage({
 
       <div className="rounded-xl border bg-white p-4">
         <p>Tenant PIN reset is available from the canonical Unit Detail tenant page.</p>
-        <a href="/manager/dashboard" className="underline">Manager dashboard</a>
+        <Link href="/manager/dashboard" className="underline">Manager dashboard</Link>
       </div>
 
       {canManageMaintenancePins(session.role) ? (

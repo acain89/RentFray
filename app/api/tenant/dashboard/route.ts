@@ -2,17 +2,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, refreshSessionCookie, SessionAuthorizationError } from "@/lib/session";
-import {
-getProcessingFeeCents,
-  formatCentsToDollars,
-} from "@/lib/billingConfig";
+import { formatCentsToDollars } from "@/lib/billingConfig";
 import { canMakePayments } from "@/lib/liveGating";
 import { getUnitFinancialState } from "@/lib/unitFinancialState";
 import { shouldAutoSetPropertyReady } from "@/lib/propertyStatus";
-import {
-  getRentDateSummary,
-  resolveEffectiveBillingSettings,
-} from "@/lib/rentDates";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

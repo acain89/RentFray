@@ -1,6 +1,7 @@
+import { isElement } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detailFixture, nodes, textOf } from "./manager-unit-detail-financial-consistency.test";
+import { detailFixture, nodes, textOf } from "./manager-unit-detail-financial-consistency.fixture";
 
 const payment = (assignment: string | null, status = "PAID", amountCents = 99999) => ({
   id: "pay", propertyId: "p", unitId: "u", tenantAssignmentId: assignment, status, amountCents,
@@ -9,7 +10,7 @@ const payment = (assignment: string | null, status = "PAID", amountCents = 99999
 test("replacement tenant gets no historical/null/foreign payment metadata", async () => {
   const f = detailFixture(); f.unit.payments = [payment("a"), payment(null), { ...payment("b"), propertyId: "foreign" }];
   const text = textOf(await f.render()); assert.ok(!text.includes("999.99")); assert.ok(!text.includes("UNIQUE-HISTORICAL-METHOD"));
-  const links = nodes(await f.render()).map(n => n.props?.href).filter(Boolean);
+  const links = nodes(await f.render()).filter(isElement).map(n => n.props.href).filter(Boolean);
   assert.ok(links.includes("/manager/units/u/history")); assert.ok(links.includes("/api/exports/payments?unitId=u"));
   assert.ok(links.includes("/api/exports/ledger?unitId=u")); assert.equal(f.unit.payments.length, 3);
 });
@@ -30,9 +31,11 @@ test("null accounting remains canonical while historical private rows are exclud
 });
 test("vacancy, cross-property denial and current action bindings", async () => {
   const f = detailFixture(); f.unit.payments = [payment("a")]; let tree = await f.render();
-  const controls = nodes(tree).filter(n => f.controls.includes(n.type));
-  assert.equal(controls.find(n => n.type === f.controls[0]).props.tenantAssignmentId, "b");
-  assert.equal(controls.find(n => n.type === f.controls[1]).props.tenantId, "b");
+  const controls = nodes(tree).filter(isElement).filter(n => f.controls.some(control => control === n.type));
+  const paymentControl = controls.find(n => n.type === f.controls[0]); const chargeControl = controls.find(n => n.type === f.controls[1]);
+  assert.ok(paymentControl); assert.ok(chargeControl);
+  assert.equal(paymentControl.props.tenantAssignmentId, "b");
+  assert.equal(chargeControl.props.tenantId, "b");
   assert.ok(textOf(await f.render("foreign")).includes("Unit not found"));
   f.unit.tenantAssignments = []; tree = await f.render(); assert.ok(!textOf(tree).includes("999.99"));
 });

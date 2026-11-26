@@ -164,7 +164,7 @@ export default function EquipmentRentalPaymentSystemPage() {
 
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
-              The word "rental" applies to both property and equipment, but the
+              The word &quot;rental&quot; applies to both property and equipment, but the
               underlying business relationships are different.
             </p>
 
@@ -346,7 +346,7 @@ export default function EquipmentRentalPaymentSystemPage() {
                   <td className="px-3 py-3">Online payments</td>
                   <td className="px-3 py-3">May be included</td>
                   <td className="px-3 py-3">
-                    Yes, for RentFray's property-rent workflow
+                    Yes, for RentFray&apos;s property-rent workflow
                   </td>
                 </tr>
               </tbody>
@@ -408,7 +408,7 @@ export default function EquipmentRentalPaymentSystemPage() {
               href="/free-rent-collection-software"
               className="font-semibold text-blue-600 hover:underline"
             >
-              Learn about RentFray's rent collection software →
+              Learn about RentFray&apos;s rent collection software →
             </Link>
           </div>
         </section>

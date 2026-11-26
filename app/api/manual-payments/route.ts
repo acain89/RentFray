@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { Prisma, PaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed } from "@/lib/checkoutCollectibility";
 
 import { getSession } from "@/lib/session";
 import { canManageFinancials } from "@/lib/permissions";
@@ -55,27 +55,7 @@ type ParsedBody = {
   effectiveDateLabel: string;
 };
 
-type UnitForManualPayment = {
-  id: string;
-  propertyId: string;
-  unitNumber: string;
-  tier: {
-    rentDueDay: number;
-    gracePeriodDays: number;
-    lateFeeInitialCents: number;
-    lateFeeDailyCents: number;
-    maxLateFeeDays: number;
-  } | null;
-  property: {
-    rentFrayStartDate: Date | null;
-    settings: {
-      rentDueDay: number;
-      gracePeriodDays: number;
-      lateFeeEnabled: boolean;
-      lateFeeFlatCents: number | null;
-    } | null;
-  };
-};
+
 
 const MAX_PAYMENT_CENTS = 100_000_000;
 

@@ -7,14 +7,14 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build --webpack && node scripts/copy-standalone-assets.js",
+    "build": "prisma generate && next build --webpack && node scripts/copy-standalone-assets.mjs",
     "start": "next start",
     "lint": "eslint",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report",
-    "qa:financial": "tsx scripts/qa/audit.ts",
+    "qa:financial": "tsx scripts/run-operational.ts qa-audit",
     "verify": "npm run build && npm run qa:financial -- --stress --all-presets"
   },
   "dependencies": {
@@ -42,6 +42,6 @@
     "typescript": "^5.9.3"
   },
   "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
+    "seed": "tsx scripts/run-operational.ts prisma-seed"
   }
 }

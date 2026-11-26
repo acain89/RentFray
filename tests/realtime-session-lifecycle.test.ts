@@ -1,6 +1,8 @@
+import { cancelResponse, requiredValue } from "./fixture-assertions";
+import type { StreamAuthority } from "./realtime-property-isolation.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { streamFixture, flush, sessionFixture } from "./realtime-property-isolation.test";
+import { streamFixture, flush, sessionFixture } from "./realtime-property-isolation.fixture";
 
 for (const reason of ["expired", "disabled", "deleted", "role changed", "property changed", "database failure"]) test(`actual ongoing SSOT: ${reason}`, async () => {
   const auth = sessionFixture(); const f = streamFixture("OWNER", auth); await f.connect();
@@ -14,8 +16,8 @@ for (const reason of ["expired", "disabled", "deleted", "role changed", "propert
 });
 
 test("successful async validation delivers serially", async () => {
-  const f = streamFixture(); await f.connect(); const releases: any[] = [];
-  f.setValidator(() => new Promise(resolve => { releases.push(resolve); }));
+  const f = streamFixture(); await f.connect(); const releases: ((value: StreamAuthority) => void)[] = [];
+  f.setValidator(() => new Promise<StreamAuthority>(resolve => { releases.push(resolve); }));
   f.emit({ propertyId: "a", sequence: 1 }); f.emit({ propertyId: "a", sequence: 2 }); await flush();
   assert.equal(releases.length, 1); releases[0]({ role: "OWNER", propertyId: "a" }); await flush();
   assert.equal(releases.length, 2); assert.equal(f.chunks.length, 1);
@@ -35,28 +37,28 @@ for (const reason of ["expired", "disabled", "deleted", "demoted", "property cha
   });
 }
 test("validation and delivery are serialized and bounded", async () => {
-  const f = streamFixture(); await f.connect(); let release: any;
-  f.setValidator(() => new Promise(resolve => { release = resolve; }));
+  const f = streamFixture(); await f.connect(); let release: ((value: StreamAuthority) => void) | undefined;
+  f.setValidator(() => new Promise<StreamAuthority>(resolve => { release = resolve; }));
   f.emit({ propertyId: "a" }); await flush();
   for (let i = 0; i < 200; i++) f.emit({ propertyId: "a" });
   assert.equal(f.state().validations, 1); assert.equal(f.state().closed, true);
-  release({ role: "OWNER", propertyId: "a" }); await flush(); assert.equal(f.chunks.length, 0);
+  requiredValue(release)({ role: "OWNER", propertyId: "a" }); await flush(); assert.equal(f.chunks.length, 0);
 });
 test("heartbeat revalidates, preserves ping and revokes idle stream", async () => {
   const f = streamFixture(); const r = await f.connect(); f.tick(); await flush();
   assert.equal(f.chunks[0], ": ping\n\n"); f.setAuthority(null); f.tick(); await flush();
-  assert.equal(f.chunks.length, 1); assert.equal(f.state().closed, true); r.body.cancel();
+  assert.equal(f.chunks.length, 1); assert.equal(f.state().closed, true); cancelResponse(r);
 });
 for (const action of ["cancel", "abort", "delivery failure", "backpressure"]) test(`${action} cleans all resources`, async () => {
   const f = streamFixture(); const r = await f.connect();
-  if (action === "cancel") r.body.cancel();
+  if (action === "cancel") cancelResponse(r);
   else if (action === "abort") f.abort.abort();
   else { if (action === "delivery failure") f.failDelivery(); else f.backpressure(); f.emit({ propertyId: "a" }); }
   await flush(); assert.equal(f.state().subscriptions, 0); assert.equal(f.state().timers, 0);
 });
 test("abort during validation prevents delivery", async () => {
-  const f = streamFixture(); await f.connect(); let release: any;
-  f.setValidator(() => new Promise(resolve => { release = resolve; }));
+  const f = streamFixture(); await f.connect(); let release: ((value: StreamAuthority) => void) | undefined;
+  f.setValidator(() => new Promise<StreamAuthority>(resolve => { release = resolve; }));
   f.emit({ propertyId: "a" }); await flush(); f.abort.abort();
-  release({ role: "OWNER", propertyId: "a" }); await flush(); assert.equal(f.chunks.length, 0);
+  requiredValue(release)({ role: "OWNER", propertyId: "a" }); await flush(); assert.equal(f.chunks.length, 0);
 });

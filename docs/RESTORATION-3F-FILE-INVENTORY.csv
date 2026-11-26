@@ -1,0 +1,233 @@
+status,path,scope,preexisting_remediation
+ M,app/(marketing)/best-way-to-collect-rent/page.tsx,application,False
+ M,app/(marketing)/buy-here-pay-here-payment-system/page.tsx,application,False
+ M,app/(marketing)/campground-payment-system/page.tsx,application,False
+ M,app/(marketing)/collect-rent-online/page.tsx,application,False
+ M,app/(marketing)/commercial-property-rent-collection/page.tsx,application,False
+ M,app/(marketing)/duplex-landlord-rent-collection/page.tsx,application,False
+ M,app/(marketing)/easiest-way-for-tenants-to-pay-rent/page.tsx,application,False
+ M,app/(marketing)/equipment-rental-payment-system/page.tsx,application,False
+ M,app/(marketing)/free-rent-collection-software-no-monthly-fee/page.tsx,application,False
+ M,app/(marketing)/hoa-payment-system/page.tsx,application,False
+ M,app/(marketing)/how-tenants-pay-rent-online/page.tsx,application,False
+ M,app/(marketing)/how-to-avoid-late-rent-payments/page.tsx,application,False
+ M,app/(marketing)/how-to-manage-rent-without-software/page.tsx,application,False
+ M,app/(marketing)/how-to-track-tenant-payments/page.tsx,application,False
+ M,app/(marketing)/landlord-rent-payment-options/page.tsx,application,False
+ M,app/(marketing)/manual-rent-tracking-vs-software/page.tsx,application,False
+ M,app/(marketing)/marina-slip-payment-system/page.tsx,application,False
+ M,app/(marketing)/mobile-home-park-rent-collection/page.tsx,application,False
+ M,app/(marketing)/office-rent-payment-system/page.tsx,application,False
+ M,app/(marketing)/online-rent-payment-system-apartments/page.tsx,application,False
+ M,app/(marketing)/rent-billing-system/page.tsx,application,False
+ M,app/(marketing)/rental-payment-platform/page.tsx,application,False
+ M,app/(marketing)/rv-park-rent-collection/page.tsx,application,False
+ M,app/(marketing)/self-storage-payment-system/page.tsx,application,False
+ M,app/(marketing)/spreadsheet-vs-rent-software/page.tsx,application,False
+ M,app/(marketing)/student-housing-rent-payment/page.tsx,application,False
+ M,app/(marketing)/tenant-online-rent-payments/page.tsx,application,False
+ M,app/(marketing)/tenant-payment-portal/page.tsx,application,False
+ M,app/(marketing)/tenant-rent-payment-options/page.tsx,application,False
+ M,app/(marketing)/trailer-park-rent-collection/page.tsx,application,False
+ M,app/(marketing)/warehouse-rent-payment-system/page.tsx,application,False
+ M,app/admin/page.tsx,application,False
+ M,app/admin/properties/[id]/page.tsx,application,True
+ M,app/admin/properties/[id]/setup/page.tsx,application,False
+ M,app/api/admin/properties/[id]/payment-status/route.ts,application,False
+ M,app/api/admin/properties/[id]/setup/route.ts,application,False
+ M,app/api/auth/verify-email/route.ts,application,True
+ M,app/api/cron/monthly-rent/route.ts,application,False
+ M,app/api/maintenance/dashboard/route.ts,application,True
+ M,app/api/manager/dashboard/route.ts,application,False
+ M,app/api/manager/property/set-payment-status/route.ts,application,False
+ M,app/api/manager/session/route.ts,application,True
+ M,app/api/manager/units/move-tier/route.ts,application,True
+ M,app/api/manual-payments/route.ts,application,True
+ M,app/api/tenant/dashboard/route.ts,application,True
+ M,app/components/UnitNotes.tsx,application,False
+ M,app/components/manager/FullDashboard.tsx,application,False
+ M,app/components/manager/PropertyQR.tsx,application,False
+ M,app/install/page.tsx,application,False
+ M,app/login/maintenance/MaintenanceLoginClient.tsx,application,False
+ M,app/login/manager/ManagerLoginClient.tsx,application,False
+ M,app/login/tenant/TenantLoginClient.tsx,application,False
+ M,app/manager/dashboard/ManagerDashboardClient.tsx,application,False
+ M,app/manager/dashboard/components/RentPanel.tsx,application,False
+ M,app/manager/maintenance/page.tsx,application,False
+ M,app/manager/page.tsx,application,False
+ M,app/manager/properties/[id]/pin-reset/page.tsx,application,False
+ M,app/manager/properties/page.tsx,application,False
+ M,app/manager/units/[id]/ManualPaymentForm.tsx,application,False
+ M,app/manager/units/[id]/page.tsx,application,False
+ M,app/manager/units/page.tsx,application,True
+ M,app/offline/page.tsx,application,False
+ M,app/setup/page.tsx,application,False
+ M,app/tenant-instructions/page.tsx,application,False
+ M,app/tenant/dashboard/page.tsx,application,False
+ M,app/verify-email/page.tsx,application,False
+ M,components/marketing/ProductPreviews.tsx,application,True
+ D,fix-stripe.js,operational,False
+ D,fix-tuc.js,operational,False
+ M,jobs/delinquency.ts,application,True
+ M,lib/delinquency.ts,application,False
+ D,lib/occupancy.ts,application,True
+ M,lib/prisma.ts,application,True
+ M,lib/proration.ts,application,False
+ M,lib/representativeReports.ts,application,True
+ M,package.json,configuration,False
+ M,prisma/seed.ts,operational,False
+ D,scripts/copy-standalone-assets.js,operational,False
+ M,scripts/create-creator.ts,operational,False
+ M,scripts/cycle-rollover-test.ts,operational,False
+ M,scripts/fix-billing-cycle.ts,operational,False
+ M,scripts/production-smoke-test.ts,operational,False
+ M,scripts/qa/audit.ts,operational,False
+ M,scripts/qa/db.ts,operational,False
+ M,scripts/qa/rentfray-integration-tests.ts,operational,False
+ M,scripts/rentfray-financial-regression.ts,operational,False
+ M,scripts/rentfray-qa.ts,operational,False
+ M,scripts/repair-blah-september.ts,operational,False
+ M,scripts/repair-rentfray-start-dates.ts,operational,False
+ M,scripts/seed-scale-property.ts,operational,False
+ M,smoke-test.ps1,operational,False
+ M,tests/activation-rent-identity.test.ts,test,True
+ M,tests/adjustment-assignment-binding.test.ts,test,True
+ M,tests/admin-draft-credential-safety.test.ts,test,True
+ M,tests/admin-impersonation-revalidation.test.ts,test,True
+ M,tests/admin-provisioning-recurring-config.test.ts,test,True
+ M,tests/admin-session-revalidation.test.ts,test,True
+ M,tests/admin-setup-schema-isolation.test.ts,test,True
+ M,tests/auth-throttle-concurrency.test.ts,test,True
+ M,tests/billing-trigger-audit-semantics.test.ts,test,True
+ M,tests/business-date-consistency.test.ts,test,True
+ M,tests/canonical-provisioning-credentials.test.ts,test,True
+ M,tests/checkout-cancel-recovery.test.ts,test,False
+ M,tests/checkout-collectibility.test.ts,test,True
+ M,tests/checkout-writer-concurrency.test.ts,test,True
+ M,tests/checkout-writer-guards.test.ts,test,True
+ M,tests/creator-referrals.test.ts,test,False
+ M,tests/csv-formula-injection.test.ts,test,False
+ M,tests/destructive-retention-concurrency.test.ts,test,True
+ M,tests/e2e/b8-management-pages.spec.ts,test,False
+ M,tests/e2e/b8-retirement.spec.ts,test,False
+ M,tests/e2e/checkout-reservation.spec.ts,test,False
+ M,tests/e2e/final-batch1-admin.spec.ts,test,False
+ M,tests/e2e/final-batch1-notes.spec.ts,test,False
+ M,tests/e2e/final-batch1-retirements.spec.ts,test,False
+ M,tests/e2e/impersonation-ui.spec.ts,test,False
+ M,tests/e2e/payment-return-accounting.spec.ts,test,False
+ M,tests/e2e/stripe-webhook-settlement.spec.ts,test,False
+ M,tests/financial-export-contracts.test.ts,test,False
+ M,tests/gplf-calendar-concurrency.test.ts,test,False
+ M,tests/grace-period-writers.test.ts,test,True
+ M,tests/impersonation-audit-ordering.test.ts,test,True
+ M,tests/late-fee-concurrency.test.ts,test,True
+ M,tests/late-fee-idempotency.test.ts,test,True
+ M,tests/ledger-prepaid-aging.test.ts,test,False
+ M,tests/legacy-management-actions-authorization.test.ts,test,True
+ M,tests/legacy-setup-retirement.test.ts,test,True
+ M,tests/legacy-tenancy-mutations-retirement.test.ts,test,True
+ M,tests/maintenance-operational-landing.test.ts,test,True
+ M,tests/maintenance-pin-credential-compatibility.test.ts,test,True
+ M,tests/maintenance-pin-writers.test.ts,test,True
+ M,tests/maintenance-session-revalidation.test.ts,test,True
+ M,tests/management-credential-revocation.test.ts,test,True
+ M,tests/management-role-authorization.test.ts,test,True
+ M,tests/management-role-ui.test.ts,test,True
+ M,tests/management-settings-lifecycle-isolation.test.ts,test,True
+ M,tests/management-user-administration.test.ts,test,True
+ M,tests/management-user-verification.test.ts,test,True
+ M,tests/manager-unit-detail-assignment-attribution.test.ts,test,True
+ M,tests/manager-unit-detail-financial-consistency.test.ts,test,True
+ M,tests/manual-adjustment-calendar.test.ts,test,True
+ M,tests/manual-charge-assignment-binding.test.ts,test,True
+ M,tests/manual-charge-calendar.test.ts,test,True
+ M,tests/manual-financial-concurrency.test.ts,test,True
+ M,tests/manual-financial-date-ui.test.ts,test,True
+ M,tests/manual-payment-idempotency.test.ts,test,True
+ M,tests/monthly-job-locking.test.ts,test,True
+ M,tests/monthly-recurring-configuration.test.ts,test,True
+ M,tests/navigation-destination-contracts.test.ts,test,True
+ M,tests/payment-readiness-legacy-write-isolation.test.ts,test,True
+ M,tests/property-deletion-retention.test.ts,test,True
+ M,tests/property-reset-retention.test.ts,test,True
+ M,tests/property-settings-partial-update.test.ts,test,True
+ M,tests/proration-retirement.test.ts,test,True
+ M,tests/realtime-property-isolation.test.ts,test,True
+ M,tests/realtime-session-lifecycle.test.ts,test,True
+ M,tests/recurring-charge-boundaries-schema.test.ts,test,True
+ M,tests/recurring-charge-concurrency.test.ts,test,True
+ M,tests/recurring-charge-configuration.test.ts,test,True
+ M,tests/representative-core-boundary.test.ts,test,True
+ M,tests/representative-slugs.test.ts,test,False
+ M,tests/representative-stage2-fixture.ts,test,False
+ M,tests/required-audit-atomicity.test.ts,test,True
+ M,tests/setup-request-disposition.test.ts,test,False
+ M,tests/short-code-auth-throttle.test.ts,test,True
+ M,tests/stripe-account-reconciliation.test.ts,test,True
+ M,tests/tenant-historical-isolation-lifecycle.test.ts,test,True
+ M,tests/tenant-login-assignment-race.test.ts,test,True
+ M,tests/tenant-login-property-code.test.ts,test,True
+ M,tests/tenant-maintenance-assignment-isolation.test.ts,test,True
+ M,tests/tenant-payment-dashboard-isolation.test.ts,test,True
+ M,tests/tenant-payment-history-isolation.test.ts,test,True
+ M,tests/tenant-pin-lockout.test.ts,test,True
+ M,tests/tier-counter-postgres.test.ts,test,True
+ M,tests/tier-counter-seed-dashboard.test.ts,test,False
+ M,tests/tier-move-idempotency.test.ts,test,True
+ M,tests/unit-deletion-retention.test.ts,test,True
+ M,tests/unit-toggle-concurrency.test.ts,test,True
+ M,tests/vacancy-assignment-binding.test.ts,test,True
+ M,tests/verification-recovery-navigation.test.ts,test,False
+ M,tests/zero-balance-status-copy.test.ts,test,True
+??,docs/OPERATIONAL-SAFETY-INVENTORY.csv,documentation,False
+??,docs/OPERATIONAL-SAFETY.md,documentation,False
+??,docs/RESTORATION-3F-FILE-INVENTORY.csv,documentation,False
+??,docs/RESTORATION-3F-REMAINING-LINT.csv,documentation,False
+??,docs/RESTORATION-3F-VALIDATION.json,documentation,False
+??,docs/application-remediation-3d.md,documentation,True
+??,docs/regression-restoration.md,documentation,True
+??,docs/regression-test-inventory.json,documentation,True
+??,lib/clientRequests.ts,application,False
+??,lib/configuredMoney.ts,application,True
+??,lib/usePropertyCode.ts,application,False
+??,scripts/copy-standalone-assets.mjs,operational,False
+??,scripts/maintenance-safety.ts,operational,False
+??,scripts/operational-safety.ts,operational,False
+??,scripts/run-maintenance.ts,operational,False
+??,scripts/run-operational.ts,operational,False
+??,tests/admin-draft-credential-safety.fixture.ts,test,True
+??,tests/admin-session-revalidation.fixture.ts,test,True
+??,tests/auth-throttle-concurrency.fixture.ts,test,True
+??,tests/canonical-provisioning-credentials.fixture.ts,test,True
+??,tests/checkout-collectibility.fixture.ts,test,True
+??,tests/checkout-writer-guards.fixture.ts,test,True
+??,tests/client-request-coordination.test.ts,test,False
+??,tests/configured-money.test.ts,test,True
+??,tests/late-fee-idempotency.fixture.ts,test,True
+??,tests/maintenance-pin-credential-compatibility.fixture.ts,test,True
+??,tests/management-credential-revocation.fixture.ts,test,True
+??,tests/management-role-authorization.fixture.ts,test,True
+??,tests/manager-unit-detail-financial-consistency.fixture.ts,test,True
+??,tests/manual-adjustment-calendar.fixture.ts,test,True
+??,tests/manual-payment-idempotency.fixture.ts,test,True
+??,tests/monetary-projections.test.tsx,test,True
+??,tests/monthly-recurring-configuration.fixture.ts,test,True
+??,tests/operational-safety.test.ts,test,False
+??,tests/realtime-property-isolation.fixture.ts,test,True
+??,tests/recurring-charge-boundaries-schema.fixture.ts,test,True
+??,tests/recurring-charge-configuration.fixture.ts,test,True
+??,tests/representative-agreement-reporting.test.ts,test,True
+??,tests/required-audit-atomicity.fixture.ts,test,True
+??,tests/reviewed-application.fixture.ts,test,True
+??,tests/reviewed-dashboard-refresh.fixture.ts,test,False
+??,tests/reviewed-lint-imports.fixture.ts,test,True
+??,tests/reviewed-preservation.fixture.ts,test,True
+??,tests/reviewed-unused-declarations.fixture.ts,test,False
+??,tests/stripe-account-reconciliation.fixture.ts,test,True
+??,tests/tenant-login-assignment-race.fixture.ts,test,True
+??,tests/tenant-login-property-code.fixture.ts,test,True
+??,tests/tenant-maintenance-assignment-isolation.fixture.ts,test,True
+??,tests/tenant-payment-history-isolation.fixture.ts,test,True
+??,tests/unit-deletion-retention.fixture.ts,test,True
+??,tests/unit-notes-refresh.test.ts,test,False

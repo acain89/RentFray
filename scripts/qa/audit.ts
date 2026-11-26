@@ -1,3 +1,5 @@
+import { prisma } from "./db";
+import { assertDisposableClient } from "../operational-safety";
 import { verifyPropertyInvariants } from "./invariants/property";
 import {
   buildAuditRunSummary,
@@ -52,6 +54,8 @@ function getPresetArg(): PropertySimulatorPreset {
       return "default";
   }
 }
+
+assertDisposableClient("qa-audit", prisma);
 
 async function main(): Promise<void> {
   const stress = hasFlag("stress");
@@ -161,7 +165,4 @@ writeAuditOutput({
   printFinalReport();
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+export const operationalCompletion = main();

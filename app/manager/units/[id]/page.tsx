@@ -957,7 +957,7 @@ export default async function UnitDetail({ params }: Props) {
                     Automatic late fees
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-700">
-                    {statusLabel}. Configured late fees are applied automatically according to the property's rules.
+                    {statusLabel}. Configured late fees are applied automatically according to the property&apos;s rules.
                   </div>
                 </div>
               </div>

@@ -222,7 +222,7 @@ export default function RentBillingSystemPage() {
               </h3>
               <p className="mt-2 text-slate-600">
                 Owners and managers can monitor payment status and the tenant
-                balance instead of rebuilding the month's billing record by
+                balance instead of rebuilding the month&apos;s billing record by
                 hand.
               </p>
             </div>

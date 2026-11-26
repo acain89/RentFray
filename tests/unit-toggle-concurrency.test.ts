@@ -1,6 +1,7 @@
+import { requiredRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixture } from "./manual-payment-idempotency.test";
+import { fixture } from "./manual-payment-idempotency.fixture";
 
 // Explicit scheduling model, not a proof of PostgreSQL MVCC/locking behavior.
 function barrier() {
@@ -11,20 +12,22 @@ function barrier() {
 function setup(role = "MANAGER") {
   const f = fixture(role);
   f.state.tenantAssignment = [];
-  f.imports["@prisma/client"].Prisma.TransactionIsolationLevel = { Serializable: "Serializable" };
-  f.imports["@/lib/session"].requireManagerLevelSession = async () => {
+  requiredRecord(requiredRecord(f.imports["@prisma/client"]).Prisma).TransactionIsolationLevel = { Serializable: "Serializable" };
+  requiredRecord(f.imports["@/lib/session"]).requireManagerLevelSession = async () => {
     if (!["OWNER", "MANAGER"].includes(role)) throw new Error("Forbidden");
     return { propertyId: "p", role };
   };
   let tail = Promise.resolve(), attempts = 0, pause = false;
   const firstLocked = barrier(), secondWaiting = barrier(), continueFirst = barrier();
-  f.prisma.$transaction = async (fn: (tx: typeof f.prisma) => Promise<unknown>, options: { isolationLevel: string }) => {
+  f.prisma.$transaction = async <Result>(fn: (tx: typeof f.prisma) => Promise<Result>, options?: { isolationLevel?: string }) => {
+    assert.ok(options && typeof options.isolationLevel === "string");
     const ordinal = ++attempts;
     let unlock: (() => void) | undefined;
     let snapshot: { state: typeof f.state; tiers: typeof f.tiers } | undefined;
     const tx = { ...f.prisma, $queryRaw: async (sql: TemplateStringsArray, ...values: unknown[]) => {
       assert.match(sql.join("?"), /FROM "Property"[\s\S]*FOR UPDATE/);
       assert.deepEqual(values, ["p"]);
+      assert.ok(typeof options.isolationLevel === "string");
       assert.ok(["ReadCommitted", "Serializable"].includes(options.isolationLevel));
       const previous = tail, done = barrier(); tail = done.reached;
       if (ordinal === 2) secondWaiting.release();
@@ -41,7 +44,7 @@ function setup(role = "MANAGER") {
     try { return await fn(tx); }
     catch (error) {
       if (snapshot) {
-        for (const key of Object.keys(f.state)) f.state[key] = snapshot.state[key];
+        Object.assign(f.state, snapshot.state);
         f.tiers.splice(0, f.tiers.length, ...snapshot.tiers);
       }
       throw error;
@@ -120,12 +123,12 @@ test("capacity and inactive-tier business rejection messages remain unchanged", 
 });
 test("session rejection and invalid input retain existing response conventions", async () => {
   const f = setup();
-  f.imports["@/lib/session"].requireManagerLevelSession = async () => { throw new Error("Unauthorized"); };
+  requiredRecord(f.imports["@/lib/session"]).requireManagerLevelSession = async () => { throw new Error("Unauthorized"); };
   const unauthorized = await f.toggle();
   assert.equal(unauthorized.status, 401); assert.equal(unauthorized.body.error, "Unauthorized");
-  f.imports["@/lib/session"].requireManagerLevelSession = async () => ({ propertyId: null });
+  requiredRecord(f.imports["@/lib/session"]).requireManagerLevelSession = async () => ({ propertyId: null });
   assert.equal((await f.toggle()).status, 401);
-  f.imports["@/lib/session"].requireManagerLevelSession = async () => ({ propertyId: "p" });
+  requiredRecord(f.imports["@/lib/session"]).requireManagerLevelSession = async () => ({ propertyId: "p" });
   const invalid = await f.route("app/api/manager/units/toggle-active/route.ts").POST({ json: async () => ({}) });
   assert.equal(invalid.status, 400); assert.equal(invalid.body.error, "Invalid request");
 });

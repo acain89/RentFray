@@ -1,7 +1,9 @@
 "use client";
 
+import { ContextFence } from "@/lib/clientRequests";
+
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 type MaintenanceRow = {
@@ -33,6 +35,7 @@ export default function PropertyMaintenancePage() {
   const params = useParams<{ id: string }>();
   const propertyId = params.id;
 
+  const loadFence = useRef(new ContextFence());
   const [data, setData] = useState<QueueData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,9 @@ export default function PropertyMaintenancePage() {
 
   const [notesDrafts, setNotesDrafts] = useState<Record<string, string>>({});
 
-  async function load() {
+  const load = useCallback(async () => {
+    const ticket = loadFence.current.begin(propertyId);
+    if (!ticket) return;
     try {
       setLoading(true);
       setError("");
@@ -61,6 +66,7 @@ export default function PropertyMaintenancePage() {
       );
 
       const result = await res.json();
+      if (!loadFence.current.current(ticket)) return;
 
       if (!res.ok) {
         setError(result?.error || "Failed to load maintenance queue.");
@@ -75,16 +81,22 @@ export default function PropertyMaintenancePage() {
       }
       setNotesDrafts(nextDrafts);
     } catch {
+      if (!loadFence.current.current(ticket)) return;
       setError("Failed to load maintenance queue.");
     } finally {
-      setLoading(false);
+      if (loadFence.current.current(ticket)) setLoading(false);
     }
-  }
 
-  useEffect(() => {
-    if (!propertyId) return;
-    load();
   }, [propertyId]);
+  useEffect(() => {
+    const fence = loadFence.current;
+    fence.activate(propertyId);
+    if (propertyId) void load();
+    return () => fence.deactivate(propertyId);
+  }, [propertyId, load]);
+
+
+
 
   async function updateStatus(requestId: string, status: string) {
     if (!canEdit) return;

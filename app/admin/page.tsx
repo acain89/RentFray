@@ -34,10 +34,7 @@ export default function AdminPage() {
     [propertyCodeSearch]
   );
 
-  const totalOccupiedUnits = useMemo(
-    () => properties.reduce((sum, property) => sum + property.occupiedUnits, 0),
-    [properties]
-  );
+
 
   const totalEffectiveUnits = useMemo(
     () => properties.reduce((sum, property) => sum + property.unitCount, 0),

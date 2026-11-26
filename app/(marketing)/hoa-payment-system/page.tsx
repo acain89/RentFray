@@ -205,7 +205,7 @@ export default function HoaPaymentSystemPage() {
               <h3 className="font-semibold">Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain recurring dues or configured charges according to the
-                community's setup.
+                community&apos;s setup.
               </p>
             </div>
 

@@ -1,26 +1,31 @@
+import { requiredValue } from "./fixture-assertions";
+import type { PropertySettings } from "@prisma/client";
+type Settings = Partial<PropertySettings>;
+type Query = { where: { propertyId: string }; create: Settings; update: Settings };
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadSource } from "./maintenance-pin-credential-compatibility.test";
+import { loadSource } from "./maintenance-pin-credential-compatibility.fixture";
 
-function fixture(existing: any = null) {
+function fixture(existing: Settings | null = null) {
   let row = existing ? { ...existing } : null;
-  const calls: any[] = [];
+  const calls: Query[] = [];
   const forbidden = new Proxy({}, { get() { throw Error("Unexpected database access"); } });
-  const db: any = {
+  type Transaction = { $queryRaw(): Promise<never[]> };
+  const db: Transaction & { $transaction<Value>(fn: (tx: Transaction) => Promise<Value>): Promise<Value> } = {
     $queryRaw: async () => [],
-    $transaction: async (fn: any) => fn(db),
+    $transaction: async <Value>(fn: (tx: Transaction) => Promise<Value>): Promise<Value> => fn(db),
   };
   const api = loadSource("lib/propertySettings.ts", { "@/lib/prisma": { prisma: Object.assign(db, {
     property: forbidden, paymentConnectionStatus: forbidden,
     propertySettings: {
       findUnique: async () => row,
-      upsert: async (query: any) => {
+      upsert: async (query: Query) => {
         calls.push(query); assert.equal(query.where.propertyId, "p");
         row = row ? { ...row, ...query.update } : { ...query.create }; return row;
       },
     },
   }) } });
-  return { calls, row: () => row, save: (data: any) => api.upsertPropertySettings("p", data) };
+  return { calls, row: () => requiredValue(row), save: (data: Parameters<typeof api.upsertPropertySettings>[1] & Record<string, unknown>) => api.upsertPropertySettings("p", data) };
 }
 const unrelated = { convenienceFeeEnabled: true, convenienceFeeType: "FLAT", convenienceFeeAmountCents: 495,
   allowTestMode: false, tenantPortalEnabled: false, maintenancePortalEnabled: false, onboardingComplete: true, setupComplete: true };
@@ -28,7 +33,7 @@ for (const field of Object.keys(unrelated)) test("omitted " + field + " is absen
   const f = fixture({ ...unrelated, gracePeriodDays: 5, lateFeeFlatCents: 5000, lateFeeEnabled: true, rentDueDay: 17 });
   await f.save({ gracePeriodDays: 7, lateFeeFlatCents: 1234, lateFeeEnabled: true });
   assert.equal(Object.hasOwn(f.calls[0].update, field), false);
-  assert.equal(f.row()[field], (unrelated as any)[field]);
+  assert.equal(Reflect.get(f.row(), field), Reflect.get(unrelated, field));
   assert.deepEqual(JSON.parse(JSON.stringify(f.calls[0].update)), { gracePeriodDays: 7, lateFeeFlatCents: 1234, lateFeeEnabled: true });
 });
 test("creation defaults unchanged", async () => {

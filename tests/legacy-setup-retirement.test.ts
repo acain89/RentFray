@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { source, response, root } from "./required-audit-atomicity.test";
+import { source, response, root } from "./required-audit-atomicity.fixture";
 
 for (const payload of [undefined, {}, "malformed-json", { account: { email: "owner@example.invalid", password: "test-password" },
   property: { name: "Property" }, tiers: [{ name: "Tier", price: 100, unitCount: 1 }] }, { password: "plain:test-password" }]) {

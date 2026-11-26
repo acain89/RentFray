@@ -179,7 +179,7 @@ export default function SelfStoragePage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">Recurring Amount Due</h3>
               <p className="mt-2 text-slate-600">
-                Maintain recurring billing according to the facility's account
+                Maintain recurring billing according to the facility&apos;s account
                 setup.
               </p>
             </div>

@@ -1,3 +1,4 @@
+import { assertDisposableClient } from "./operational-safety";
 ﻿import { prisma } from "../lib/prisma";
 
 const QA_PROPERTY_CODE = "9998";
@@ -281,91 +282,9 @@ async function verifyFixture(
     },
   });
 
-async function verifyPreStartState(
-  fixture: SmokeFixture
-): Promise<void> {
-  const { getUnitLedgerSummary } = await import("../lib/ledger");
 
-  const summary = await getUnitLedgerSummary({
-    unitId: fixture.unitId,
-    tenantAssignmentId: fixture.tenantAssignmentId,
-    asOf: new Date("2026-08-31T12:00:00Z"),
-  });
 
-  assertEqual(
-    "Pre-start balance",
-    summary.balanceCents,
-    0
-  );
 
-  assertEqual(
-    "Pre-start charges",
-    summary.totalChargesCents,
-    0
-  );
-
-  assertEqual(
-    "Pre-start payments",
-    summary.totalPaidCents,
-    0
-  );
-}
-
-async function verifyFirstBillingCycle(
-  fixture: SmokeFixture
-): Promise<void> {
-
-  const { runMonthlyRentJob } = await import("../jobs/monthlyRent");
-
-  const result = await runMonthlyRentJob(
-    new Date("2026-09-01T12:00:00Z"),
-    fixture.propertyId
-  );
-
-  assertEqual(
-    "Monthly rent job created one rent charge",
-    result.rentChargesCreated,
-    1
-  );
-
-  assertEqual(
-    "Monthly rent job created one recurring fee",
-    result.recurringFeeChargesCreated,
-    1
-  );
-
-  const rentCharges =
-    await prisma.ledgerEntry.count({
-      where: {
-        propertyId: fixture.propertyId,
-        chargeType: "RENT",
-        billingCycle: "2026-09",
-        voidedAt: null,
-      },
-    });
-
-  assertEqual(
-    "Exactly one September rent charge",
-    rentCharges,
-    1
-  );
-
-  const recurringCharges =
-    await prisma.ledgerEntry.count({
-      where: {
-        propertyId: fixture.propertyId,
-        chargeType: "RECURRING_FEE",
-        billingCycle: "2026-09",
-        voidedAt: null,
-      },
-    });
-
-  assertEqual(
-    "Exactly one September recurring fee",
-    recurringCharges,
-    1
-  );
-}
 
   assertTrue(
     "Fixture property can be reloaded",
@@ -411,88 +330,9 @@ assertEqual(
   );
 }
 
-async function verifyPreStartState(
-  fixture: SmokeFixture
-): Promise<void> {
-  const { getUnitLedgerSummary } = await import("../lib/ledger");
 
-  const summary = await getUnitLedgerSummary({
-    unitId: fixture.unitId,
-    tenantAssignmentId: fixture.tenantAssignmentId,
-    asOf: new Date("2026-08-31T12:00:00Z"),
-  });
 
-  assertEqual(
-    "Pre-start balance",
-    summary.balanceCents,
-    0
-  );
 
-  assertEqual(
-    "Pre-start charges",
-    summary.totalChargesCents,
-    0
-  );
-
-  assertEqual(
-    "Pre-start payments",
-    summary.totalPaidCents,
-    0
-  );
-}
-
-async function verifyFirstBillingCycle(
-  fixture: SmokeFixture
-): Promise<void> {
-  const { runMonthlyRentJob } = await import("../jobs/monthlyRent");
-
-  const result = await runMonthlyRentJob(
-    new Date("2026-09-01T12:00:00Z"),
-    fixture.propertyId
-  );
-
-  assertEqual(
-    "Monthly rent job created one rent charge",
-    result.rentChargesCreated,
-    1
-  );
-
-  assertEqual(
-    "Monthly rent job created one recurring fee",
-    result.recurringFeeChargesCreated,
-    1
-  );
-
-  const rentCharges = await prisma.ledgerEntry.count({
-    where: {
-      propertyId: fixture.propertyId,
-      chargeType: "RENT",
-      billingCycle: "2026-09",
-      voidedAt: null,
-    },
-  });
-
-  assertEqual(
-    "Exactly one September rent charge",
-    rentCharges,
-    1
-  );
-
-  const recurringCharges = await prisma.ledgerEntry.count({
-    where: {
-      propertyId: fixture.propertyId,
-      chargeType: "RECURRING_FEE",
-      billingCycle: "2026-09",
-      voidedAt: null,
-    },
-  });
-
-  assertEqual(
-    "Exactly one September recurring fee",
-    recurringCharges,
-    1
-  );
-}
 
 async function verifyBillingReplayAndBalance(
   fixture: SmokeFixture
@@ -1028,6 +868,91 @@ async function verifySuccessfulPaymentLifecycle(
   );
 }
 
+assertDisposableClient("production-smoke", prisma);
+
+async function verifyPreStartState(
+  fixture: SmokeFixture
+): Promise<void> {
+  const { getUnitLedgerSummary } = await import("../lib/ledger");
+
+  const summary = await getUnitLedgerSummary({
+    unitId: fixture.unitId,
+    tenantAssignmentId: fixture.tenantAssignmentId,
+    asOf: new Date("2026-08-31T12:00:00Z"),
+  });
+
+  assertEqual(
+    "Pre-start balance",
+    summary.balanceCents,
+    0
+  );
+
+  assertEqual(
+    "Pre-start charges",
+    summary.totalChargesCents,
+    0
+  );
+
+  assertEqual(
+    "Pre-start payments",
+    summary.totalPaidCents,
+    0
+  );
+}
+
+async function verifyFirstBillingCycle(
+  fixture: SmokeFixture
+): Promise<void> {
+  const { runMonthlyRentJob } = await import("../jobs/monthlyRent");
+
+  const result = await runMonthlyRentJob(
+    new Date("2026-09-01T12:00:00Z"),
+    fixture.propertyId
+  );
+
+  assertEqual(
+    "Monthly rent job created one rent charge",
+    result.rentChargesCreated,
+    1
+  );
+
+  assertEqual(
+    "Monthly rent job created one recurring fee",
+    result.recurringFeeChargesCreated,
+    1
+  );
+
+  const rentCharges = await prisma.ledgerEntry.count({
+    where: {
+      propertyId: fixture.propertyId,
+      chargeType: "RENT",
+      billingCycle: "2026-09",
+      voidedAt: null,
+    },
+  });
+
+  assertEqual(
+    "Exactly one September rent charge",
+    rentCharges,
+    1
+  );
+
+  const recurringCharges = await prisma.ledgerEntry.count({
+    where: {
+      propertyId: fixture.propertyId,
+      chargeType: "RECURRING_FEE",
+      billingCycle: "2026-09",
+      voidedAt: null,
+    },
+  });
+
+  assertEqual(
+    "Exactly one September recurring fee",
+    recurringCharges,
+    1
+  );
+}
+
 async function main(): Promise<void> {
   heading();
 
@@ -1085,21 +1010,4 @@ await verifySuccessfulPaymentLifecycle(fixture);
   console.log("========================================");
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error("");
-    console.error("========================================");
-    console.error("OVERALL RESULT: FAIL");
-    console.error("========================================");
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    try {
-      await cleanupSmokeProperty();
-    } finally {
-      await prisma.$disconnect();
-    }
-  });
-
-
+export const operationalCompletion = main();

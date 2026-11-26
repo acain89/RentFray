@@ -275,7 +275,7 @@ export default function BestWayToCollectRentPage() {
 
               <p className="mt-2 text-slate-600">
                 Dedicated rent collection systems connect the payment process
-                with the tenant's rental account.
+                with the tenant&apos;s rental account.
               </p>
 
               <p className="mt-3 text-slate-600">

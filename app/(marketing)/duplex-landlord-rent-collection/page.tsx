@@ -173,7 +173,7 @@ export default function DuplexLandlordRentCollectionPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">Rent Due for Each Unit</h3>
               <p className="mt-2 text-slate-600">
-                Keep each tenant's recurring rent obligation associated with
+                Keep each tenant&apos;s recurring rent obligation associated with
                 the correct side of the duplex.
               </p>
             </div>
@@ -225,7 +225,7 @@ export default function DuplexLandlordRentCollectionPage() {
 
             <p>
               If one tenant pays in full while the other still owes part of the
-              month's rent, a dedicated system can make those two account
+              month&apos;s rent, a dedicated system can make those two account
               positions easier to see without manually reconciling separate
               records.
             </p>
@@ -305,12 +305,12 @@ export default function DuplexLandlordRentCollectionPage() {
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
               Rent is not a one-time transaction. The same obligation returns
-              according to the property's rent schedule.
+              according to the property&apos;s rent schedule.
             </p>
 
             <p>
               RentFray is built around recurring rent so landlords can manage
-              the monthly cycle without treating every month's rent as an
+              the monthly cycle without treating every month&apos;s rent as an
               unrelated payment request.
             </p>
 

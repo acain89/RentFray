@@ -1,3 +1,4 @@
+import { assertDisposableClient } from "./operational-safety";
 import bcrypt from "bcryptjs";
 import { PaymentStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
@@ -17,7 +18,7 @@ const oldDueDate = new Date("2026-06-17T00:00:00");
 const nextDueDate = new Date("2026-07-17T00:00:00");
 
 const oldCycle = "2026-06";
-const nextCycle = "2026-07";
+
 
 function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -108,6 +109,8 @@ async function createPaymentWithLedger(input: {
 
   return payment;
 }
+
+assertDisposableClient("cycle-rollover", prisma);
 
 async function main() {
   if (process.env.NODE_ENV === "production") {
@@ -415,13 +418,4 @@ for (const item of createdUnits) {
   console.log("\nDone.");
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-
-
+export const operationalCompletion = main();

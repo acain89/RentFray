@@ -205,7 +205,7 @@ export default function CampgroundPaymentSystemPage() {
               <h3 className="font-semibold">Recurring Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain the expected recurring payment according to the
-                property's billing setup.
+                property&apos;s billing setup.
               </p>
             </div>
 
@@ -299,7 +299,7 @@ export default function CampgroundPaymentSystemPage() {
 
                 <tr className="border-b border-slate-200">
                   <td className="px-3 py-3">Nightly reservations</td>
-                  <td className="px-3 py-3">Not RentFray's purpose</td>
+                  <td className="px-3 py-3">Not RentFray&apos;s purpose</td>
                   <td className="px-3 py-3">Core use case</td>
                 </tr>
 
@@ -311,7 +311,7 @@ export default function CampgroundPaymentSystemPage() {
 
                 <tr>
                   <td className="px-3 py-3">Guest check-in management</td>
-                  <td className="px-3 py-3">Not the platform's focus</td>
+                  <td className="px-3 py-3">Not the platform&apos;s focus</td>
                   <td className="px-3 py-3">Common hospitality function</td>
                 </tr>
               </tbody>
@@ -444,7 +444,7 @@ export default function CampgroundPaymentSystemPage() {
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
               Campgrounds that serve transient guests generally need features
-              that are outside RentFray's focus.
+              that are outside RentFray&apos;s focus.
             </p>
 
             <p>

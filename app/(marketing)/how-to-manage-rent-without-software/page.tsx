@@ -218,7 +218,7 @@ export default function HowToManageRentWithoutSoftwarePage() {
               </h3>
               <p className="mt-2 text-slate-600">
                 Do not record payments only as a running list. Identify which
-                month's rent or billing period each payment applies to.
+                month&apos;s rent or billing period each payment applies to.
               </p>
             </div>
 

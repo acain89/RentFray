@@ -1,3 +1,6 @@
+import { requireOperationalReview } from "./operational-safety";
+requireOperationalReview("repair-rentfray-start-dates");
+
 import { prisma } from "../lib/prisma";
 
 const repairs = [

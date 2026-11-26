@@ -1,32 +1,18 @@
+import { fixture as reservationFixture } from "./e2e/checkout-reservation.fixture";
+import { requiredText, requiredValue, requiredRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { runInNewContext } from "node:vm";
-import ts from "typescript";
 
-// Reuse the existing source-mocked reservation fixture without changing it,
-// registering Playwright tests, or starting an application/browser/service.
+
+
+
+// Import the pure shared fixture; no executable Playwright test module is loaded.
 function fixture(environment = "production", appUrl?: string) {
-  const file = "tests/e2e/checkout-reservation.spec.ts";
-  const source = readFileSync(file, "utf8");
-  const environmentAnchor = 'NODE_ENV: "production", STRIPE_SECRET_KEY: "isolated", STRIPE_WEBHOOK_SECRET: "isolated"';
-  const prefix = source.slice(0, source.indexOf('\ntest('));
-  assert.equal(prefix.split(environmentAnchor).length, 2);
-  const declarations = prefix.replace(environmentAnchor, `NODE_ENV: ${JSON.stringify(environment)}, NEXT_PUBLIC_APP_URL: ${JSON.stringify(appUrl)}, STRIPE_SECRET_KEY: "isolated", STRIPE_WEBHOOK_SECRET: "isolated"`);
-  const module = { exports: {} as any };
-  const imports: Record<string, any> = { "node:fs": { readFileSync }, "node:path": { resolve },
-    "node:vm": { runInNewContext }, typescript: ts, "@playwright/test": {
-      expect: (value: any) => ({ toEqual: (other: any) => assert.deepEqual(JSON.parse(JSON.stringify(value)), JSON.parse(JSON.stringify(other))) }),
-    } };
-  runInNewContext(ts.transpileModule(declarations + '\nmodule.exports.fixture = fixture;', {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
-  }).outputText, { module, exports: module.exports, __dirname: resolve("tests/e2e"), Date, Buffer, URL, Set, Map, structuredClone,
-    require: (name: string) => { assert.ok(name in imports, name); return imports[name]; } });
-  const f = module.exports.fixture(250);
-  f.db().payments = [];
-  return f;
+  const f = reservationFixture(250, { NODE_ENV: environment, NEXT_PUBLIC_APP_URL: appUrl });
+  f.db().payments = []; return f;
 }
+
 test("Checkout emits canonical cancel URL and preserves success URL", async () => {
   const f = fixture(); const result = await f.checkout().POST(f.request());
   assert.equal(result.status, 200); assert.equal(f.creations.length, 1);
@@ -42,13 +28,13 @@ test("browser return does not retire reservation or create another Checkout; exp
   const f = fixture(); const first = await f.checkout().POST(f.request()); assert.equal(first.status, 200);
   const snapshot = JSON.stringify(f.db()); const checkout = JSON.stringify([...f.sessions]);
   // A return is a destination URL, not a financial event or route mutation.
-  const destination = new URL(f.creations[0].params.cancel_url);
+  const destination = new URL(requiredText(f.creations[0].params.cancel_url));
   assert.equal(destination.pathname, "/tenant/dashboard");
   assert.equal(JSON.stringify(f.db()), snapshot); assert.equal(JSON.stringify([...f.sessions]), checkout);
   const second = await f.checkout().POST(f.request()); assert.equal(second.status, 200);
-  assert.equal(first.body.data.url, second.body.data.url);
+  assert.equal(requiredText(requiredValue(first.body.data).url), requiredText(requiredValue(second.body.data).url));
   assert.equal(f.db().payments.length, 1); assert.equal(f.creations.length, 1);
-  assert.equal(f.db().ledger.filter((e: any) => e.entryType === "PAYMENT").length, 0);
+  assert.equal(f.db().ledger.filter((e) => e.entryType === "PAYMENT").length, 0);
 });
 for (const foreign of ["property", "unit"]) test(`cancel URL grants no ${foreign} authority`, async () => {
   const f = fixture(); if (foreign === "property") f.unit.propertyId = "foreign"; else f.unit.id = "foreign";
@@ -80,13 +66,13 @@ for (const [environment, appUrl, origin] of [
 test("retry leaves a legacy frozen apex reservation intact", async () => {
   const f = fixture(); const first = await f.checkout().POST(f.request()); assert.equal(first.status, 200);
   for (const audit of f.db().audits) if (audit.action === "PAYMENT_CHECKOUT_RESERVED") {
-    const params = JSON.parse(audit.metadataJson);
+    const params = requiredRecord(JSON.parse(requiredText(audit.metadataJson)));
     params.success_url = "https://rentfray.com/tenant/dashboard";
     params.cancel_url = "https://rentfray.com/tenant/dashboard";
     audit.metadataJson = JSON.stringify(params);
   }
   const frozen = JSON.stringify(f.db());
   const second = await f.checkout().POST(f.request());
-  assert.equal(second.status, 200); assert.equal(second.body.data.url, first.body.data.url);
+  assert.equal(second.status, 200); assert.equal(requiredText(requiredValue(second.body.data).url), requiredText(requiredValue(first.body.data).url));
   assert.equal(f.creations.length, 1); assert.equal(JSON.stringify(f.db()), frozen);
 });

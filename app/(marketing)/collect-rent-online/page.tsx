@@ -266,7 +266,7 @@ export default function CollectRentOnlinePage() {
                   2. Tenants access the payment process
                 </h3>
                 <p className="mt-2 leading-7 text-slate-600">
-                  Tenants use RentFray's online payment flow to submit their rent.
+                  Tenants use RentFray&apos;s online payment flow to submit their rent.
                 </p>
               </div>
 
@@ -393,7 +393,7 @@ export default function CollectRentOnlinePage() {
                 href="/free-rent-collection-software-no-monthly-fee"
                 className="font-semibold text-slate-900 underline underline-offset-4"
               >
-                Learn more about RentFray's no-monthly-fee model
+                Learn more about RentFray&apos;s no-monthly-fee model
               </Link>
             </div>
           </div>

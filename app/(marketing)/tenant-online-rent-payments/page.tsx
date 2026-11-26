@@ -279,7 +279,7 @@ export default function TenantOnlineRentPaymentsPage() {
                 2. The tenant submits payment online
               </h3>
               <p className="mt-2 leading-7 text-slate-600">
-                The tenant uses RentFray's online payment flow to submit rent.
+                The tenant uses RentFray&apos;s online payment flow to submit rent.
               </p>
             </div>
 

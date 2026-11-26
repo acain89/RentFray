@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -245,12 +247,12 @@ function VerifyEmailContent() {
 
           <p className="mt-5 text-center text-sm text-[#64748b]">
             Already activated?{" "}
-            <a
+            <Link
               href="/manager/login"
               className="font-semibold text-[#233143] underline-offset-4 hover:underline"
             >
               Manager Login
-            </a>
+            </Link>
           </p>
         </section>
       </div>

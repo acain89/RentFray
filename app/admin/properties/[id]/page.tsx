@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatConfiguredMoney, currentTierRentCents, configuredUnitAddOnsCents } from "@/lib/configuredMoney";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -11,10 +12,6 @@ type AssignmentDisplay = {
   lastName: string | null;
   email: string | null;
 };
-
-function formatMoney(value: number): string {
-  return `$${Number(value || 0).toFixed(2)}`;
-}
 
 function formatBusinessType(value: string | null | undefined): string {
   if (!value) return "—";
@@ -218,7 +215,7 @@ export default async function PropertyDashboard({
                   Property Rules
                 </div>
                 <div className="mt-1 text-sm text-slate-600">
-                  Current high-level billing and fee settings.
+                  Stored configuration; balances and Checkout fees follow the ledger and current payment rules.
                 </div>
               </div>
             </div>
@@ -256,7 +253,7 @@ export default async function PropertyDashboard({
                   Flat Late Fee
                 </div>
                 <div className="mt-2 text-lg font-semibold text-slate-950">
-                  {formatMoney(Number(property.settings?.lateFeeFlat || 0))}
+                  {formatConfiguredMoney(property.settings?.lateFeeFlatCents)}
                 </div>
               </div>
 
@@ -271,11 +268,11 @@ export default async function PropertyDashboard({
 
               <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Convenience Fee Amount
+                  Stored Convenience Fee Amount
                 </div>
                 <div className="mt-2 text-lg font-semibold text-slate-950">
-                  {formatMoney(
-                    Number(property.settings?.convenienceFeeAmount || 0)
+                  {formatConfiguredMoney(
+                    property.settings?.convenienceFeeAmountCents
                   )}
                 </div>
               </div>
@@ -371,9 +368,9 @@ export default async function PropertyDashboard({
                           {tier.name}
                         </div>
                         <div className="mt-1 text-sm text-slate-600">
-                          {formatMoney(Number(tier.baseRent || 0))} base rent ·{" "}
-                          {formatMoney(Number(tier.processingFee || 0))}{" "}
-                          processing fee
+                          {formatConfiguredMoney(tier.baseRentCents)} base rent ·{" "}
+                          {formatConfiguredMoney(tier.processingFeeCents)}{" "}
+                          stored tier processing fee
                         </div>
                       </div>
 
@@ -414,7 +411,7 @@ export default async function PropertyDashboard({
                           Initial Late Fee
                         </div>
                         <div className="mt-2 text-base font-semibold text-slate-950">
-                          {formatMoney(Number(tier.lateFeeInitial || 0))}
+                          {formatConfiguredMoney(tier.lateFeeInitialCents)}
                         </div>
                       </div>
 
@@ -423,7 +420,7 @@ export default async function PropertyDashboard({
                           Daily Late Fee
                         </div>
                         <div className="mt-2 text-base font-semibold text-slate-950">
-                          {formatMoney(Number(tier.lateFeeDaily || 0))}
+                          {formatConfiguredMoney(tier.lateFeeDailyCents)}
                         </div>
                       </div>
 
@@ -464,12 +461,12 @@ export default async function PropertyDashboard({
                                   </div>
                                   <div className="mt-1 text-sm text-slate-600">
                                     Base Rent:{" "}
-                                    {formatMoney(Number(unit.baseRent || 0))}
+                                    {formatConfiguredMoney(currentTierRentCents({ ...unit, tier }))}
                                   </div>
                                   <div className="mt-1 text-sm text-slate-600">
-                                    Add-Ons:{" "}
-                                    {formatMoney(
-                                      Number(unit.recurringFees || 0)
+                                    Configured Unit Add-Ons:{" "}
+                                    {formatConfiguredMoney(
+                                      configuredUnitAddOnsCents(unit, unit.recurringFeeItems)
                                     )}
                                   </div>
                                 </div>
@@ -514,8 +511,8 @@ export default async function PropertyDashboard({
                                           {charge.label}
                                         </span>
                                         <span className="font-semibold text-slate-950">
-                                          {formatMoney(
-                                            Number(charge.amount || 0)
+                                          {formatConfiguredMoney(
+                                            charge.amountCents
                                           )}
                                         </span>
                                       </div>

@@ -1,5 +1,6 @@
-import { assertApprovedRecoveryEmailChange } from "./canonical-provisioning-credentials.test";
-import { assertRF19Change } from "./stripe-account-reconciliation.test";
+import { isElement } from "./fixture-assertions";
+import { assertApprovedRecoveryEmailChange } from "./canonical-provisioning-credentials.fixture";
+import { assertRF19Change } from "./stripe-account-reconciliation.fixture";
 
 function approvedAutomaticLifecycleChange(before: string): string {
   const oldBlock = "      await prisma.property.update({\n        where: { id: property.id },\n        data: { status: \"READY\" },\n      });\n\n      property.status = \"READY\";";
@@ -13,9 +14,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { fixture, load } from "./management-role-authorization.test";
-import { assertApprovedMonthlyChange, assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.test";
-import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.test";
+import { fixture, load } from "./management-role-authorization.fixture";
+import { assertApprovedMonthlyChange, assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.fixture";
+import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.fixture";
 const root = resolve(__dirname, "..");
 test("OWNER banking boundary remains explicit in untouched controls", () => {
   const bank = readFileSync(resolve(root, "app/manager/dashboard/components/BankPanel.tsx"), "utf8");
@@ -27,11 +28,12 @@ test("subordinate UI offers only MANAGER and STAFF", () => {
   const source = readFileSync(resolve(root, "app/manager/dashboard/components/ManagerPanel.tsx"), "utf8");
   assert.ok(source.includes('value="MANAGER"')); assert.ok(source.includes('value="STAFF"')); assert.ok(!source.includes('value="OWNER"'));
 });
-function render(node: any): any[] {
+function render(node: unknown): unknown[] {
   if (node == null || typeof node === "boolean") return [];
   if (Array.isArray(node)) return node.flatMap(render);
   if (typeof node !== "object") return [node];
-  if (typeof node.type === "function") return render(node.type(node.props));
+  if (!isElement(node)) return [node];
+  if (typeof node.type === "function") return render(Reflect.apply(node.type, undefined, [node.props]));
   return [node, ...render(node.props?.children)];
 }
 for (const role of ["OWNER", "MANAGER", "STAFF"]) test(role + " management controls agree with authority", () => {
@@ -40,7 +42,7 @@ for (const role of ["OWNER", "MANAGER", "STAFF"]) test(role + " management contr
   const text = tree.filter(n => typeof n === "string").join(" ");
   assert.ok(text.includes("Inactive units")); assert.equal(text.includes("Add manager or staff"), role !== "STAFF");
   assert.equal(text.includes("Your login"), role !== "STAFF"); assert.equal(text.includes("Reactivate"), role !== "STAFF");
-  assert.equal(tree.filter(n => n.type === "select").every(n => n.props.disabled === true), role === "STAFF");
+  assert.equal(tree.filter(isElement).filter(n => n.type === "select").every(n => n.props.disabled === true), role === "STAFF");
 });
 test("STAFF property and charge forms have disabled fieldsets", () => {
   for (const file of ["app/manager/dashboard/components/PropertyPanel.tsx", "app/manager/getting-started/property/page.tsx"])

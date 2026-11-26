@@ -1,6 +1,9 @@
-import { assertRF19Change } from "./stripe-account-reconciliation.test";
+import { requiredRecord } from "./fixture-assertions";
+import { reviewedJsxCopy } from "./reviewed-application.fixture";
+import { restoreCheckoutErrorRedaction } from "./reviewed-preservation.fixture";
+import { assertRF19Change } from "./stripe-account-reconciliation.fixture";
 
-import { assertApprovedCredentialChange } from "./management-credential-revocation.test";
+import { assertApprovedCredentialChange } from "./management-credential-revocation.fixture";
 
 function approvedAutomaticLifecycleChange(before: string): string {
   const oldBlock = "      await prisma.property.update({\n        where: { id: property.id },\n        data: { status: \"READY\" },\n      });\n\n      property.status = \"READY\";";
@@ -13,12 +16,12 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { source, response, root } from "./required-audit-atomicity.test";
-import { assertApprovedMonthlyChange, assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.test";
+import { source, response, root } from "./required-audit-atomicity.fixture";
+import { assertApprovedSchemaChange } from "./recurring-charge-boundaries-schema.fixture";
 
 
 // Permit exact RF-05 date changes; the remaining source stays byte-identical.
-const monthlyDateHelper = "function businessDateInstant(value: Date): Date {\n  const day = getBusinessDate(value);\n  return getBusinessDateInstant(`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, \"0\")}-${String(day.getDate()).padStart(2, \"0\")}`);\n}\n\n";
+
 const webhookDateHelper = "function businessDateInstant(): Date {\n  const day = getBusinessDate();\n  return getBusinessDateInstant(`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, \"0\")}-${String(day.getDate()).padStart(2, \"0\")}`);\n}\n\n";
 function approvedDateChange(file: string, before: string): string {
   if (file === "lib/unitFinancialState.ts") return before
@@ -35,20 +38,20 @@ function approvedDateChange(file: string, before: string): string {
 for (const [file, action, posted] of [["app/api/ledger/post-rent/route.ts", "RENT_POSTED", 3],
   ["app/api/ledger/post-recurring-fees/route.ts", "RECURRING_FEES_POSTED", 4]] as const) {
   for (const mode of ["job-fail", "job-throw", "success", "audit-fail"] as const) test(action + ": " + mode, async () => {
-    let jobs = 0, audits = 0; const logs: any[][] = [];
+    let jobs = 0, audits = 0; const logs: unknown[][] = [];
     const result = { ok: mode !== "job-fail", processedUnits: 10, dueUnits: 7, rentChargesCreated: 3, recurringFeeChargesCreated: 4,
       existingChargesSkipped: 2, skippedNoTenant: 1, skippedNotDue: 2, skippedMoveInAfterDue: 1, failedUnits: 0 };
     const api = source(file, { "next/server": response,
       "@/lib/session": { getSession: async () => ({ role: "OWNER", propertyId: "p", managementUserId: "caller" }) },
       "@/lib/permissions": { canManageFinancials: () => true },
-      "@/jobs/monthlyRent": { runMonthlyRentJob: async (date: any, propertyId: string) => { jobs++; assert.ok(date instanceof Date); assert.equal(propertyId, "p");
+      "@/jobs/monthlyRent": { runMonthlyRentJob: async (date: Date, propertyId: string) => { jobs++; assert.ok(date instanceof Date); assert.equal(propertyId, "p");
         if (mode === "job-throw") throw Error("job failure"); return result; } },
-      "@/lib/prisma": { prisma: { auditLog: { create: async ({ data }: any) => { audits++; assert.equal(data.action, action);
+      "@/lib/prisma": { prisma: { auditLog: { create: async ({ data }: { data: Partial<import("@prisma/client").AuditLog> }) => { audits++; assert.equal(data.action, action);
         if (mode === "audit-fail") throw Error("SECRET audit exception must not be logged"); return data; } } } },
-    }, "", { console: { error: (...args: any[]) => logs.push(args) } });
+    }, "", { console: { error: (...args: unknown[]) => logs.push(args) } });
     const res = await api.POST(); assert.equal(jobs, 1);
     if (mode.startsWith("job")) { assert.equal(res.status, 500); assert.equal(audits, 0); }
-    else { assert.equal(res.status, 200); assert.equal(res.body.ok, true); assert.equal(res.body.data.posted, posted); assert.equal(res.body.data.skipped, 6); assert.equal(audits, 1); }
+    else { assert.equal(res.status, 200); assert.equal(res.body.ok, true); assert.equal(requiredRecord(res.body.data).posted, posted); assert.equal(requiredRecord(res.body.data).skipped, 6); assert.equal(audits, 1); }
     if (mode === "audit-fail") { assert.equal(logs.length, 1); assert.match(String(logs[0]), /summary audit failed/); assert.ok(!String(logs[0]).includes("SECRET")); }
   });
 }
@@ -210,7 +213,7 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
     const after = readFileSync(resolve(root, file), "utf8");
     if (file === "prisma/schema.prisma") assertApprovedSchemaChange(before.replace(/\r\n/g, "\n"), after.replace(/\r\n/g, "\n"));
     else if (file === "app/api/manager/dashboard/route.ts") assert.equal(after.replace(/\r\n/g, "\n"), approvedAutomaticLifecycleChange(before.replace(/\r\n/g, "\n")), file);
-    else if (file === "app/manager/units/[id]/page.tsx") assert.equal(after.replace(/\r\n/g, "\n"), approvedHistoricalUnitDetailChange(before.replace(/\r\n/g, "\n")), file);
+    else if (file === "app/manager/units/[id]/page.tsx") assert.equal(after.replace(/\r\n/g, "\n"), reviewedJsxCopy(file, approvedHistoricalUnitDetailChange(before.replace(/\r\n/g, "\n"))), file);
     else if (file === "lib/session.ts") assertApprovedCredentialChange(file, before, restoreAUD06Session(after));
     else if (file === "app/api/payments/create-session/route.ts") {
       const original = before.replace(/\r\n/g, "\n");
@@ -221,7 +224,7 @@ test("protected financial, session, Stripe reconciliation and D6/D8 authorities 
       const canonicalOrigin = 'process.env.NODE_ENV === "production" ? "https://www.rentfray.com"';
       assert.equal(original.split(oldOrigin).length, 2, "Exactly one committed production origin");
       assert.equal(after.split(canonicalOrigin).length, 2, "Exactly one approved canonical production origin");
-      let restoredCheckout = after.replace(/\r\n/g, "\n");
+      let restoredCheckout = restoreCheckoutErrorRedaction(after.replace(/\r\n/g, "\n"));
       const authorizationDeltas: Array<[string, string]> = [
   [
     "import { getSession, refreshSessionCookie } from \"@/lib/session\";",

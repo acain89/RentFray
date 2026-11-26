@@ -471,7 +471,7 @@ export default function TenantDashboard() {
     </p>
 
     <p className="mt-3 text-sm font-semibold text-green-700">
-      You're all paid up. Check back on your next due date.
+      You&apos;re all paid up. Check back on your next due date.
     </p>
   </>
 ) : (

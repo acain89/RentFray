@@ -128,7 +128,7 @@ const lateFeesOwedCents = Math.min(
   let projectedLateFeesCents = 0;
 
   if (isDelinquent && initialLateFeeDate) {
-    let projectedInitial = effective.lateFeeInitialCents;
+    const projectedInitial = effective.lateFeeInitialCents;
     let projectedDaily = 0;
 
     if (

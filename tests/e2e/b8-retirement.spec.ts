@@ -14,20 +14,23 @@ const routes = [
 ];
 for (const [file, method] of routes) {
   test(`${file} ${method} is a non-mutating 410 tombstone`, async () => {
-    const module = { exports: {} as Record<string, any> };
+    const fixtureModule: { exports: Partial<Record<string, (request: unknown) => Promise<{ status: number; body: unknown }>>> } = { exports: {} };
     const source = readFileSync(resolve(__dirname, "../..", file), "utf8");
     const code = ts.transpileModule(source, { compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020,
     } }).outputText;
-    runInNewContext(code, { module, exports: module.exports,
+    runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports,
       require(name: string) {
         // Any Prisma/session/service import is a failure, even before a handler runs.
         if (name !== "next/server") throw new Error("Unexpected access: " + name);
-        return { NextResponse: { json: (body: unknown, options: any) => ({ body, status: options.status }) } };
+        return { NextResponse: { json: (body: unknown, options: { status?: number; headers?: HeadersInit }) => ({ body, status: options.status }) } };
       },
     });
     const request = new Proxy({}, { get() { throw new Error("Retired route read request data"); } });
-    const response = await module.exports[method](request);
+    const handler = fixtureModule.exports[method];
+    expect(handler).toBeDefined();
+    if (!handler) throw new Error("Missing retired handler");
+    const response = await handler(request);
     expect(response.status).toBe(410);
     expect(response.body).toEqual({ error: "This endpoint has been retired." });
   });

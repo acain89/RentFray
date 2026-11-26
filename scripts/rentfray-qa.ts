@@ -1,3 +1,4 @@
+import { assertDisposableClient } from "./operational-safety";
 import bcrypt from "bcryptjs";
 import { hashPin } from "../lib/pin";
 import { PaymentStatus } from "@prisma/client";
@@ -133,6 +134,8 @@ async function createPaymentWithLedger(input: {
 
   return payment;
 }
+
+assertDisposableClient("rentfray-qa", prisma);
 
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === "production") {
@@ -570,11 +573,4 @@ async function main(): Promise<void> {
   console.log("=====================================================");
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export const operationalCompletion = main();

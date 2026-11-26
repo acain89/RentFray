@@ -1,3 +1,4 @@
+import { currentDisposableOperation } from "../operational-safety";
 import { createQaAccount } from "./account-model";
 import { prisma } from "./db";
 import { skipsThreeMonthsThenPays } from "./event-scenarios";
@@ -142,14 +143,5 @@ await verifyApplicationInvariants({
 });
 }
 
-if (require.main === module) {
-  runRentFrayIntegrationTests()
-    .then(() => {
-      console.log("RentFray integration tests passed.");
-    })
-    .catch((error: unknown) => {
-      console.error("RentFray integration tests failed.");
-      console.error(error);
-      process.exitCode = 1;
-    });
-}
+export const operationalCompletion = currentDisposableOperation() === "qa-integration"
+  ? runRentFrayIntegrationTests() : Promise.resolve();

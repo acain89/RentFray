@@ -1,8 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+import { assertDisposableClient, disposableClient } from "./operational-safety";
+
 import bcrypt from "bcryptjs";
 import { runMonthlyRentJob } from "../jobs/monthlyRent";
 
-const prisma = new PrismaClient();
+const prisma = disposableClient("financial-regression");
 
 const QA_PROPERTY_CODE = "9920";
 
@@ -50,6 +51,8 @@ async function resetQaProperty(): Promise<void> {
 
   pass("Reset previous QA property");
 }
+
+assertDisposableClient("financial-regression", prisma);
 
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === "production") {
@@ -307,11 +310,4 @@ expect(
   );
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export const operationalCompletion = main();

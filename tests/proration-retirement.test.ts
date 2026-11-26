@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fixture, root } from "./manual-payment-idempotency.test";
+import { fixture, root } from "./manual-payment-idempotency.fixture";
 for(const role of ["OWNER","MANAGER"])test(role+" retired proration has zero database access",async()=>{const f=fixture(role);const r=await f.route("app/api/ledger/adjust/route.ts").POST({json:async()=>({type:"PRORATION"})});assert.equal(r.status,410);assert.equal(f.events.length,0);assert.equal(f.state.ledgerEntry.length,0);});
 test("unauthorized proration retains auth rejection",async()=>{const f=fixture("STAFF");assert.equal((await f.route("app/api/ledger/adjust/route.ts").POST({json:async()=>({type:"PRORATION"})})).status,401);assert.equal(f.events.length,0);});
 test("UI contains no proration option/calculator",()=>{const s=readFileSync(resolve(root,"app/manager/dashboard/components/AdjustBalanceForm.tsx"),"utf8");assert.ok(!/proration/i.test(s));assert.ok(s.includes('setType("CHARGE")'));assert.ok(s.includes('setType("CREDIT")'));});

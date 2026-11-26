@@ -1,3 +1,5 @@
+
+import Link from "next/link";
 // app/offline/page.tsx
 
 export default function OfflinePage() {
@@ -15,12 +17,12 @@ export default function OfflinePage() {
           tenant records, and live status updates.
         </p>
 
-        <a
+        <Link
           href="/"
           className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--rf-primary)] px-5 py-3 text-sm font-bold text-white"
         >
           Try again
-        </a>
+        </Link>
       </section>
     </main>
   );

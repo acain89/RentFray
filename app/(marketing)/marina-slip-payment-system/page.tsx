@@ -139,7 +139,7 @@ export default function MarinaSlipPaymentSystemPage() {
 
         <section className="mb-12">
           <h2 className="text-2xl font-bold tracking-tight">
-            Keep Every Slip Holder's Payment Account Separate
+            Keep Every Slip Holder&apos;s Payment Account Separate
           </h2>
 
           <div className="mt-4 space-y-4 text-slate-600">
@@ -205,7 +205,7 @@ export default function MarinaSlipPaymentSystemPage() {
               <h3 className="font-semibold">Recurring Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain the expected recurring payment according to the
-                marina's account setup.
+                marina&apos;s account setup.
               </p>
             </div>
 

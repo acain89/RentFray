@@ -181,7 +181,7 @@ export default function StudentHousingRentPaymentPage() {
               <h3 className="font-semibold">Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain the recurring amount expected from each resident
-                according to the property's setup.
+                according to the property&apos;s setup.
               </p>
             </div>
 
@@ -219,7 +219,7 @@ export default function StudentHousingRentPaymentPage() {
             </p>
 
             <p>
-              The payment activity remains connected to the resident's rent
+              The payment activity remains connected to the resident&apos;s rent
               account, giving the property more context than an isolated money
               transfer.
             </p>
@@ -242,13 +242,13 @@ export default function StudentHousingRentPaymentPage() {
 
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
-              Student housing payments repeat according to the property's
+              Student housing payments repeat according to the property&apos;s
               billing schedule. That makes recurring account organization
               especially important.
             </p>
 
             <p>
-              Instead of treating each month's payment as an unrelated
+              Instead of treating each month&apos;s payment as an unrelated
               transaction, RentFray maintains the rent collection workflow
               around recurring obligations and tenant balances.
             </p>
@@ -273,8 +273,8 @@ export default function StudentHousingRentPaymentPage() {
             </p>
 
             <p>
-              Clear tenant-specific payment records help prevent one resident's
-              payment history from becoming confused with another resident's
+              Clear tenant-specific payment records help prevent one resident&apos;s
+              payment history from becoming confused with another resident&apos;s
               account.
             </p>
 
@@ -294,7 +294,7 @@ export default function StudentHousingRentPaymentPage() {
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
               A payment record alone does not always tell staff whether the
-              resident's account is current.
+              resident&apos;s account is current.
             </p>
 
             <p>
@@ -404,7 +404,7 @@ export default function StudentHousingRentPaymentPage() {
             </p>
 
             <p>
-              RentFray's focus is narrower: recurring online payments, tenant
+              RentFray&apos;s focus is narrower: recurring online payments, tenant
               balances, and payment-status visibility.
             </p>
           </div>

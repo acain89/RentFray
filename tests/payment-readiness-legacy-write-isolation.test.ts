@@ -1,7 +1,9 @@
-import { accountHelper } from "./stripe-account-reconciliation.test";
+import { requiredRecord } from "./fixture-assertions";
+import type { PaymentConnectionStatus } from "@prisma/client";
+import { accountHelper } from "./stripe-account-reconciliation.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { source, response, request, context } from "./required-audit-atomicity.test";
+import { source, response, request, context } from "./required-audit-atomicity.fixture";
 
 const adminFile = "app/api/admin/properties/[id]/payment-status/route.ts";
 const managerFile = "app/api/manager/property/set-payment-status/route.ts";
@@ -17,7 +19,7 @@ function fixture(file: string, role: string | null) {
       paymentConnectionStatus: { upsert: forbidden, update: forbidden, create: forbidden }, auditLog: { create: forbidden }, $transaction: forbidden } },
   });
   return { api, state, mutations: () => mutations, parsed: () => parsed,
-    call: (body: any) => api.POST({ json: async () => { parsed++; return body; } }, context) };
+    call: (body: unknown) => api.POST({ json: async () => { parsed++; return body; } }, context) };
 }
 for (const [file, role] of [[adminFile, "ADMIN"], [managerFile, "OWNER"], [managerFile, "MANAGER"]]) {
   for (const body of [{}, { processorConnected: false, payoutsEnabled: false, requirementsSummary: null },
@@ -34,14 +36,15 @@ for (const [file, roles] of [[adminFile, [null, "OWNER", "MANAGER", "STAFF", "TE
   });
 test("ADMIN payment status GET retains current response", async () => {
   const f = fixture(adminFile, "ADMIN"); const result = await f.api.GET(request({}), context);
-  assert.equal(result.status, 200); assert.equal(result.body.ok, true); assert.equal(result.body.property.status, "LIVE");
+  assert.equal(result.status, 200); assert.equal(result.body.ok, true); assert.equal(requiredRecord(result.body.property).status, "LIVE");
   assert.deepEqual(result.body.paymentStatus, f.state); assert.equal(f.mutations(), 0);
 });
 test("authoritative Stripe sync can still reconcile in both directions", async () => {
-  let enabled = false; const state: any = { chargesEnabled: true, payoutsEnabled: true }; let transactions = 0;
-  const db: any = { $queryRaw: async (sql: any) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: "acct", propertyVersion: "1", statusVersion: state.lastSyncedAt ? "written" : null }], property: { findUnique: async () => ({ id: "p", stripeAccountId: "acct" }) },
-    paymentConnectionStatus: { upsert: async ({ update }: any) => Object.assign(state, update) }, auditLog: { create: async () => ({}) },
-    $transaction: async (fn: any) => { transactions++; return fn(db); } };
+  let enabled = false; const state: Partial<PaymentConnectionStatus> = { chargesEnabled: true, payoutsEnabled: true }; let transactions = 0;
+  const delegates = { $queryRaw: async (sql: TemplateStringsArray) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: "acct", propertyVersion: "1", statusVersion: state.lastSyncedAt ? "written" : null }], property: { findUnique: async () => ({ id: "p", stripeAccountId: "acct" }) },
+    paymentConnectionStatus: { upsert: async ({ update }: {update:Partial<PaymentConnectionStatus>}) => Object.assign(state, update) }, auditLog: { create: async () => ({}) },
+  };
+  const db = {...delegates, $transaction: async <Result>(fn:(tx:typeof delegates)=>Promise<Result>):Promise<Result>=>{transactions++;return fn(db);} };
   const api = source("app/api/admin/properties/[id]/stripe-sync/route.ts", { "next/server": response,
     "@/lib/session": { getSession: async () => ({ role: "ADMIN" }) }, "@/lib/prisma": { prisma: db },
     "@/lib/stripeAccountStatus": accountHelper(db, { accounts: { retrieve: async () => ({ id: "acct", charges_enabled: enabled, payouts_enabled: enabled, details_submitted: enabled, requirements: {} }) } }) });
@@ -50,19 +53,19 @@ test("authoritative Stripe sync can still reconcile in both directions", async (
 });
 test("Stripe sync without an account preserves conservative initialization without adding an audit", async () => {
   let writes = 0;
-  const db: any = {
-    $queryRaw: async (sql: any) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: null, propertyVersion: "1", statusVersion: null }],
+  const delegates = {
+    $queryRaw: async (sql: TemplateStringsArray) => sql.join("").includes("FOR UPDATE") ? [] : [{ stripeAccountId: null, propertyVersion: "1", statusVersion: null }],
     property: { findUnique: async () => ({ id: "p", stripeAccountId: null }) },
-    paymentConnectionStatus: { upsert: async ({ update }: any) => { writes++; return update; } },
+    paymentConnectionStatus: { upsert: async ({ update }: {update:Partial<PaymentConnectionStatus>}) => { writes++; return update; } },
     auditLog: { create: async () => { throw Error("Unexpected audit"); } },
-    $transaction: async (fn: any) => fn(db),
   };
+  const db = {...delegates, $transaction: async <Result>(fn:(tx:typeof delegates)=>Promise<Result>):Promise<Result>=>fn(db) };
   const api = source("app/api/admin/properties/[id]/stripe-sync/route.ts", { "next/server": response,
     "@/lib/session": { getSession: async () => ({ role: "ADMIN" }) }, "@/lib/prisma": { prisma: db },
     "@/lib/stripeAccountStatus": accountHelper(db, { accounts: { retrieve: async () => { throw Error("Unexpected external call"); } } }) });
   const result = await api.POST(request({}), context); assert.equal(result.status, 200); assert.equal(writes, 1);
-  assert.equal(result.body.paymentStatus.processorConnected, false); assert.equal(result.body.paymentStatus.readyForLive, false);
-  assert.equal(result.body.paymentStatus.requirementsSummary, "No Stripe account is connected.");
+  assert.equal(requiredRecord(result.body.paymentStatus).processorConnected, false); assert.equal(requiredRecord(result.body.paymentStatus).readyForLive, false);
+  assert.equal(requiredRecord(result.body.paymentStatus).requirementsSummary, "No Stripe account is connected.");
 });
 test("manager retirement retains requirement for an authenticated property", async () => {
   const api = source(managerFile, { "next/server": response,

@@ -1,3 +1,6 @@
+import { requireOperationalReview } from "./operational-safety";
+requireOperationalReview("fix-billing-cycle");
+
 // scripts/fix-billing-cycle.ts
 
 import { PrismaClient } from "@prisma/client";

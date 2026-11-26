@@ -16,6 +16,7 @@ assert.equal(new Date('2026-10-01T12:00:00Z').getTimezoneOffset(), {'America/Chi
 function source(file, imports, append='', extras={}) {
   const module = {exports:{}};
   const code = ts.transpileModule(fs.readFileSync(path.resolve(root,file),'utf8')+append, {
+    fileName:file,
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}
   }).outputText;
   vm.runInNewContext(code,{module,exports:module.exports,Date,Error,Buffer,URL,Set,Map,structuredClone,
@@ -28,8 +29,12 @@ function fixtureModule(file, append='') {
   const cacheKey=file+append;if(cache.has(cacheKey))return cache.get(cacheKey);
   const text=fs.readFileSync(path.resolve(root,file),'utf8');
   const imports={};
-  for(const match of text.matchAll(/from\s+["']([^"']+)["']/g)) {
-    const name=match[1];
+  const tree=ts.createSourceFile(file,text,ts.ScriptTarget.Latest,true);
+  for(const declaration of tree.statements) {
+    if(!ts.isImportDeclaration(declaration)||declaration.importClause?.isTypeOnly)continue;
+    const clause=declaration.importClause;
+    if(clause&&!clause.name&&clause.namedBindings&&ts.isNamedImports(clause.namedBindings)&&clause.namedBindings.elements.every(item=>item.isTypeOnly))continue;
+    const name=declaration.moduleSpecifier.text;
     if(name==='node:test')imports[name]={test(){}};
     else if(name==='@playwright/test')imports[name]={test(){},expect:require('@playwright/test').expect};
     else if(name.startsWith('.'))imports[name]=fixtureModule(path.relative(root,path.resolve(root,path.dirname(file),name+'.ts')));
@@ -43,7 +48,7 @@ function fixtureModule(file, append='') {
 const dates=source('lib/rentDates.ts',{});
 const label = date => {const day=dates.getBusinessDate(date);return [day.getFullYear(),String(day.getMonth()+1).padStart(2,'0'),String(day.getDate()).padStart(2,'0')].join('-');};
 (async()=>{
-  const fmod=fixtureModule('tests/manual-payment-idempotency.test.ts');
+  const fmod=fixtureModule('tests/manual-payment-idempotency.fixture.ts');
   for(const [day,expected] of [['2026-10-01','2026-10-01T05:00:00.000Z'],['2026-01-01','2026-01-01T06:00:00.000Z'],['2026-12-31','2026-12-31T06:00:00.000Z']]) {
     assert.equal(dates.getBusinessDateInstant(day).toISOString(),expected);
     const f=fmod.fixture();const result=await f.pay({effectiveDate:day});assert.equal(result.status,200);
@@ -95,7 +100,7 @@ const label = date => {const day=dates.getBusinessDate(date);return [day.getFull
     assert.equal(a.state.ledgerEntry.length,rent?1:0);if(rent)assert.equal(a.state.ledgerEntry[0].effectiveDate.toISOString(),'2026-10-01T05:00:00.000Z');
     assert.equal(a.state.units[0].tenantPinHash,'hash');
   }
-  const monthly=fixtureModule('tests/monthly-recurring-configuration.test.ts');
+  const monthly=fixtureModule('tests/monthly-recurring-configuration.fixture.ts');
   for(const [day,eligible] of [['2026-09-30',true],['2026-10-01',true],['2026-10-02',false]]) {
     const m=monthly.monthlyFixture();m.unit.tier.baseRentCents=10000;
     m.unit.tenantAssignments[0].moveInDate=dates.getBusinessDateInstant(day);
@@ -104,7 +109,7 @@ const label = date => {const day=dates.getBusinessDate(date);return [day.getFull
     assert.equal(m.ledger.length,eligible?2:0);assert.ok(!m.ledger.some(r=>r.idempotencyKey.endsWith(':later')));
     const prior=JSON.stringify(m.ledger);await m.run(new Date('2026-10-21T12:00:00Z'));assert.equal(JSON.stringify(m.ledger),prior);
   }
-  const tenancy=fixtureModule('tests/tenant-login-assignment-race.test.ts');
+  const tenancy=fixtureModule('tests/tenant-login-assignment-race.fixture.ts');
   for(const selected of [undefined,'2026-10-01']) {
     const v=tenancy.fixture();v.db.payment={findMany:async()=>[]};
     v.imports['@/lib/checkoutCollectibility']=source('lib/checkoutCollectibility.ts',{stripe:class {}});

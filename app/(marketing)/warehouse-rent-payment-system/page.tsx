@@ -126,7 +126,7 @@ export default function WarehouseRentPaymentSystemPage() {
 
           <p className="mt-4 max-w-3xl text-lg text-slate-600">
             Collect recurring warehouse rent online while keeping each
-            commercial tenant's payment activity, balance, and payment status
+            commercial tenant&apos;s payment activity, balance, and payment status
             connected to the correct rental account.
           </p>
 
@@ -174,7 +174,7 @@ export default function WarehouseRentPaymentSystemPage() {
 
             <p>
               RentFray provides tenants with a consistent browser-based payment
-              path connected to the property's rent collection workflow.
+              path connected to the property&apos;s rent collection workflow.
             </p>
 
             <p>
@@ -202,7 +202,7 @@ export default function WarehouseRentPaymentSystemPage() {
               <h3 className="font-semibold">Recurring Amount Due</h3>
               <p className="mt-2 text-slate-600">
                 Maintain the recurring rent obligation according to the
-                property's configured billing cycle.
+                property&apos;s configured billing cycle.
               </p>
             </div>
 

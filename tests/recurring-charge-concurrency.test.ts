@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { configurationFixture, november } from "./recurring-charge-configuration.test";
+import { configurationFixture, november } from "./recurring-charge-configuration.fixture";
 
 test("Property lock precedes authoritative reads and writes", async () => {
   const f = configurationFixture(); await f.save([{ label: "Fee", amount: 20 }]);
@@ -9,8 +9,8 @@ test("Property lock precedes authoritative reads and writes", async () => {
 });
 test("modeled competing saves serialize to one last committed snapshot", async () => {
   const f = configurationFixture(); const results = await Promise.all([f.save([{ label: "Fee", amount: 20 }]), f.save([{ label: "Fee", amount: 25 }])]);
-  assert.ok(results.every(r => r.status === 200)); assert.deepEqual(f.applicable(november).map((r: any) => r.amountCents), [2500]);
-  assert.equal(f.state.rows.filter((r: any) => !r.isActive).length, 1);
+  assert.ok(results.every(r => r.status === 200)); assert.deepEqual(f.applicable(november).map((r) => r.amountCents), [2500]);
+  assert.equal(f.state.rows.filter((r) => !r.isActive).length, 1);
 });
 test("tier scope is revalidated after locking, not from an earlier snapshot", async () => {
   const f = configurationFixture(); f.controls.onLock = () => { f.state.tiers[0].isActive = false; };
@@ -28,7 +28,7 @@ test("retryable failure restarts the whole replacement transaction", async () =>
   const f = configurationFixture(); f.controls.retryFailures = 1;
   assert.equal((await f.save([{ label: "Fee", amount: 20 }])).status, 200);
   assert.equal(f.controls.attempts, 2); assert.equal(f.events.filter(e => e === "property:lock").length, 2);
-  assert.deepEqual(f.applicable(november).map((r: any) => r.amountCents), [2000]);
+  assert.deepEqual(f.applicable(november).map((r) => r.amountCents), [2000]);
 });
 test("bounded retry exhaustion leaves original configuration intact", async () => {
   const f = configurationFixture(); const before = structuredClone(f.state.rows); f.controls.retryFailures = 9;

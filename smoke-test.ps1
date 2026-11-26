@@ -4,6 +4,9 @@
 
 $ErrorActionPreference = "Stop"
 
+# Legacy HTTP probes include authenticated mutations; database isolation is not proven.
+throw "OPERATIONAL_REVIEW_REQUIRED: smoke-test.ps1 requires a verified disposable application/database harness."
+
 # =========================
 # CONFIG
 # =========================

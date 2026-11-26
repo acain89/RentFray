@@ -1,3 +1,6 @@
+import { requireOperationalReview } from "./operational-safety";
+requireOperationalReview("repair-blah-september");
+
 import { runMonthlyRentJob } from "../jobs/monthlyRent";
 
 const PROPERTY_ID = "cmsryk9t20003wpgbj1agr0xy";

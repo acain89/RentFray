@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- Prisma test doubles exercise actual routes without a database. */
+import { requiredRecord, requiredValue, applyDefined } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixture, load, request, context } from "./management-role-authorization.test";
+import { fixture, load, request, context } from "./management-role-authorization.fixture";
 import { parseGracePeriod, GRACE_PERIOD_MESSAGE, gracePeriodInputMax } from "../lib/gracePeriod";
 
 const invalid: unknown[] = ["", " ", -1, "-1", 0.5, "2.5", 26, 55, "bad", true, false, [], [5], {}, null, NaN, Infinity, "Infinity", "1e1", "0x10", "25.0000000000000001", 2147483648];
@@ -9,20 +9,20 @@ const root = "app/api/admin/properties";
 
 function writer(kind: "create" | "property" | "tiers" | "gplf" | "utility" | "action", saved = 5) {
   const f = fixture(kind === "create" ? "ADMIN" : "OWNER");
-  const state = { settings: { id: "s", gracePeriodDays: saved }, tier: { id: "t", propertyId: "p", name: "Tier", unitCount: 2, gracePeriodDays: saved }, name: "Property" };
+  const state = { settings: { id: "s", gracePeriodDays: saved } as Partial<import("@prisma/client").PropertySettings> & {id:string;gracePeriodDays:number}, tier: { id: "t", propertyId: "p", name: "Tier", unitCount: 2, gracePeriodDays: saved } as Partial<import("@prisma/client").PropertyTier> & {id:string;propertyId:string;name:string;unitCount:number;gracePeriodDays:number}, name: "Property" };
   const property = () => ({ id: "p", rentFrayStartDate: null, settings: { ...state.settings, rentDueDay: 1 } });
   f.db.property.findUnique = async () => kind === "create" ? null : property();
-  f.db.property.update = async ({ data }: any) => { state.name = data.name; return property(); };
+  f.db.property.update = async ({ data }: {data:{name:string}}) => { state.name = data.name; return property(); };
   f.db.propertySettings.findUnique = async () => kind === "create" ? null : { ...state.settings };
-  f.db.propertySettings.update = async ({ data }: any) => { for (const k of Object.keys(data)) if (data[k] !== undefined) (state.settings as any)[k] = data[k]; return state.settings; };
-  f.db.propertySettings.upsert = async ({ update }: any) => f.db.propertySettings.update({ data: update });
+  f.db.propertySettings.update = async ({ data }: {data:Partial<typeof state.settings>}) => { applyDefined(state.settings, data); return state.settings; };
+  f.db.propertySettings.upsert = async ({ update }: {update:Partial<typeof state.settings>}) => requiredValue(f.db.propertySettings.update)({ data: update });
   f.db.propertyTier.findFirst = async () => ({ ...state.tier });
   f.db.propertyTier.findMany = async () => [{ ...state.tier, rentDueDay: 1 }];
-  f.db.propertyTier.update = async ({ data }: any) => { for (const k of Object.keys(data)) if (data[k] !== undefined) (state.tier as any)[k] = data[k]; return state.tier; };
-  f.imports["@/lib/billingCalendar"].getLockedMonthlyDueDay = () => null;
+  f.db.propertyTier.update = async ({ data }: {data:Partial<typeof state.tier>}) => { applyDefined(state.tier, data); return state.tier; };
+  requiredRecord(f.imports["@/lib/billingCalendar"]).getLockedMonthlyDueDay = () => null;
   let locked = false;
   f.db.$queryRaw = async () => { locked = true; return []; };
-  f.db.$transaction = async (fn: any) => {
+  f.db.$transaction = async <Result>(fn:(tx:typeof f.db)=>Promise<Result>):Promise<Result> => {
     const before = structuredClone(state);
     try { return await fn(f.db); }
     catch (error) { Object.assign(state, before); throw error; }
@@ -37,14 +37,14 @@ function writer(kind: "create" | "property" | "tiers" | "gplf" | "utility" | "ac
     if (kind === "action") {
       try {
         await api.saveSettings({ has: (key: string) => key !== "gracePeriodDays" || !omit, get: (key: string) => key === "propertyId" ? "p" : key === "lateFeeValue" ? "0" : omit ? null : value });
-        return { status: 200 };
+        return { status: 200, body: undefined };
       } catch (error) {
-        if ((error as Error).message === "redirect:/manager/properties/p/settings") return { status: 200 };
+        if ((error as Error).message === "redirect:/manager/properties/p/settings") return { status: 200, body: undefined };
         if ((error as Error).message.endsWith("settings?graceError=1")) return { status: 400, body: { error: GRACE_PERIOD_MESSAGE } };
         throw error;
       }
     }
-    if (kind === "utility") return api.upsertPropertySettings("p", { ...(omit ? {} : { gracePeriodDays: value }), lateFeeEnabled: false });
+    if (kind === "utility") { await api.upsertPropertySettings("p", { ...(omit ? {} : { gracePeriodDays: value }), lateFeeEnabled: false }); return { status: 200, body: undefined }; }
     if (kind === "property") return api.PATCH(request({ name: "Edited", address: "Address", ...(omit ? {} : { gracePeriodDays: value }) }), context());
     if (kind === "create") return api.POST(request({ account: { fullName: "Owner", email: "owner@example.invalid", password: "password123" }, property: { name: "Property", address: "Address" }, tiers: [{ name: "Tier", unitLabels: "1", baseRent: 100, dueDay: 1, ...grace }] }), context());
     return api.POST(request({ tiers: [{ id: newTier ? "new-tier-1" : "t", tierName: "Tier", baseRent: "100", unitCount: "2", lateFeeEnabled: false, ...grace }] }), context());
@@ -62,7 +62,7 @@ for (const kind of ["create", "property", "tiers", "gplf", "utility", "action"] 
   for (const [index, value] of invalid.entries()) test(`${kind} rejects invalid ${index} without committed changes`, async () => {
     const f = writer(kind); const before = structuredClone(f.state);
     if (kind === "utility") await assert.rejects(f.save(value), { message: GRACE_PERIOD_MESSAGE });
-    else { const result = await f.save(value); assert.equal(result.status, 400); assert.equal(result.body.error, GRACE_PERIOD_MESSAGE); }
+    else { const result = await f.save(value); assert.equal(result.status, 400); assert.equal(requiredRecord(result.body).error, GRACE_PERIOD_MESSAGE); }
     assert.deepEqual(f.state, before);
     if (kind === "create") assert.equal(f.calls.some(([name]) => /\.(create|update|upsert)$/.test(name)), false);
   });

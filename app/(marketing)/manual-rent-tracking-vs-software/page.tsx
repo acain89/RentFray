@@ -428,7 +428,7 @@ export default function ManualRentTrackingVsSoftwarePage() {
           <div className="mt-6 space-y-4">
             <div className="rounded-xl border border-slate-200 p-5">
               <p className="font-semibold">
-                Can I see every tenant's current balance quickly?
+                Can I see every tenant&apos;s current balance quickly?
               </p>
             </div>
 

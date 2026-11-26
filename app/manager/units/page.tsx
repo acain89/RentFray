@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+import { formatConfiguredMoney, currentTierRentCents } from "@/lib/configuredMoney";
 import { prisma } from "@/lib/prisma";
 import { requireManagementSession } from "@/lib/session";
 import Link from "next/link";
@@ -15,6 +16,7 @@ export default async function UnitsPage() {
   const units = await prisma.unit.findMany({
     where: { propertyId: session.propertyId },
     include: {
+      tier: { select: { id: true, propertyId: true, baseRentCents: true } },
       tenantAssignments: {
         where: { isCurrent: true },
         orderBy: { moveInDate: "desc" },
@@ -55,7 +57,7 @@ export default async function UnitsPage() {
                   </div>
                 </div>
 
-                <div>${Number(u.baseRent || 0).toFixed(2)}</div>
+                <div>{formatConfiguredMoney(currentTierRentCents(u))}</div>
               </div>
             </Link>
           );

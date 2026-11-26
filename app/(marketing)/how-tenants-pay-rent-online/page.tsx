@@ -164,7 +164,7 @@ export default function HowTenantsPayRentOnlinePage() {
           </p>
 
           <p className="mt-4 text-base leading-8 text-slate-600">
-            On the property side, the payment should connect back to the tenant's
+            On the property side, the payment should connect back to the tenant&apos;s
             recurring rent record so the landlord does not have to manually
             piece together what happened.
           </p>
@@ -204,7 +204,7 @@ export default function HowTenantsPayRentOnlinePage() {
           </p>
 
           <p className="mt-4 text-base leading-8 text-slate-600">
-            Connecting the tenant payment flow to the property's rent records
+            Connecting the tenant payment flow to the property&apos;s rent records
             helps reduce confusion about balances and gives both sides a clearer
             understanding of the current amount due.
           </p>
@@ -264,7 +264,7 @@ export default function HowTenantsPayRentOnlinePage() {
 
             <p className="mt-5 text-base leading-8 text-slate-600">
               The management side of the system gives the landlord or property
-              manager visibility into the tenant's payment status and remaining
+              manager visibility into the tenant&apos;s payment status and remaining
               balance.
             </p>
 
@@ -285,13 +285,13 @@ export default function HowTenantsPayRentOnlinePage() {
 
           <p className="mt-5 text-base leading-8 text-slate-600">
             Rent is recurring, so an online rent payment system should make the
-            next month's process familiar rather than forcing the tenant and
+            next month&apos;s process familiar rather than forcing the tenant and
             landlord to start over.
           </p>
 
           <p className="mt-4 text-base leading-8 text-slate-600">
             A consistent recurring workflow makes it easier for tenants to know
-            what to do and easier for the property to review the month's
+            what to do and easier for the property to review the month&apos;s
             payment activity.
           </p>
         </div>

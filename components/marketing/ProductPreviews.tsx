@@ -1,4 +1,4 @@
-﻿import BrandMark from "./BrandMark";
+﻿
 import { CheckIcon } from "./MarketingIcons";
 
 const tiers = [

@@ -1,6 +1,7 @@
+import { isRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lateFixture } from "./late-fee-idempotency.test";
+import { lateFixture } from "./late-fee-idempotency.fixture";
 
 function twoReaderBarrier() {
   let arrivals = 0; let release: () => void = () => {};
@@ -17,7 +18,7 @@ for (const type of ["initial", "daily", "batch"]) test("concurrent " + type + " 
   const expected = type === "batch" ? 4 : 1;
   assert.equal(results.reduce((sum, r) => sum + r.posted, 0), expected);
   assert.equal(results.reduce((sum, r) => sum + r.skipped, 0), 1);
-  assert.equal(new Set(f.fees().map((r: any) => r.idempotencyKey)).size, expected);
+  assert.equal(new Set(f.fees().map((r) => r.idempotencyKey)).size, expected);
   assert.equal(f.fees().length, expected); assert.equal(f.events.filter(e => e === "candidate.read").length, 2);
 });
 test("advisory then Property/Assignment/Unit/Tier order and transaction-local history/write", async () => {
@@ -42,7 +43,7 @@ for (const kind of ["vacancy", "reassignment", "futureMoveOut", "unitInactive", 
 test("future move-in remains eligible under existing predicate", async () => {
   const f = lateFixture(); f.state.assignments[0].moveInDate = new Date("2100-01-01"); assert.equal((await f.run()).posted, 4);
 });
-for (const change of ["PENDING", "PAID", "zeroBalance", "feeAmounts", "tier"]) test("financial state is fresh after locks " + change, async () => {
+for (const change of ["PENDING", "PAID", "zeroBalance", "feeAmounts", "tier"] as const) test("financial state is fresh after locks " + change, async () => {
   const f = lateFixture(); let fired = false;
   f.controls.onLock = (sql: string) => { if (fired || !sql.includes('FROM "Property"')) return; fired = true;
     if (change === "zeroBalance") f.state.ledger[0].amountCents = 0;
@@ -52,7 +53,7 @@ for (const change of ["PENDING", "PAID", "zeroBalance", "feeAmounts", "tier"]) t
   };
   if (change === "tier") {
     const transaction = f.prisma.$transaction;
-    f.prisma.$transaction = async (fn: any, options: any) => { try { return await transaction(fn, options); }
+    f.prisma.$transaction = async <Result>(fn: Parameters<typeof transaction<Result>>[0], options: Parameters<typeof transaction>[1]): Promise<Result> => { try { return await transaction(fn, options); }
       catch (error) { if (fired) f.state.units[0].tierId = "newTier"; throw error; } };
   }
   const result = await f.run(); assert.equal(result.posted, ["feeAmounts", "tier"].includes(change) ? 4 : 0);
@@ -83,10 +84,10 @@ test("failure after second insert rolls back initial and daily together", async 
 test("unexpected unique conflict rechecks a competing committed identity after full rollback", async () => {
   const f = lateFixture(); const original = f.prisma.$transaction; let competed = false;
   f.controls.fault = (index: number) => { if (!competed && index === 1) { competed = true; throw { code: "P2002" }; } };
-  f.prisma.$transaction = async (fn: any, options: any) => { try { return await original(fn, options); }
-    catch (error) { if (competed && (error as any).code === "P2002") f.add({ idempotencyKey: "LATE_FEE_INITIAL:a:2026-10" }); throw error; } };
+  f.prisma.$transaction = async <Result>(fn: Parameters<typeof original<Result>>[0], options: Parameters<typeof original>[1]): Promise<Result> => { try { return await original(fn, options); }
+    catch (error) { if (competed && isRecord(error) && error.code === "P2002") f.add({ idempotencyKey: "LATE_FEE_INITIAL:a:2026-10" }); throw error; } };
   const result = await f.run(); assert.equal(result.posted, 3); assert.equal(f.fees().length, 4); assert.equal(f.attempts(), 2);
-  assert.equal(f.fees().filter((r: any) => r.chargeType === "LATE_FEE_INITIAL").length, 1);
+  assert.equal(f.fees().filter((r) => r.chargeType === "LATE_FEE_INITIAL").length, 1);
 });
 test("NOWAIT rollback never proceeds to history or inserts", async () => {
   const f = lateFixture(); f.controls.onLock = () => { throw { code: "P2010", meta: { code: "55P03" } }; };

@@ -27,12 +27,7 @@ type ExportMonthOption = {
   month: number;
 };
 
-type LedgerSummary = {
-  balanceCents: number;
-  totalChargesCents: number;
-  totalCreditsCents: number;
-  totalPaidCents: number;
-};
+
 
 function buildExportMonths(
   startDateValue: Date | string | null | undefined
@@ -91,30 +86,11 @@ function toSafeInteger(value: unknown): number {
   return Math.trunc(n);
 }
 
-function parseDateOnly(value: string | null | undefined): Date | null {
-  if (!value) return null;
 
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
 
-  const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
 
-function diffDays(later: Date, earlier: Date): number {
-  const msPerDay = 1000 * 60 * 60 * 24;
 
-  return Math.max(
-    0,
-    Math.floor(
-      (startOfDay(later).getTime() - startOfDay(earlier).getTime()) / msPerDay
-    )
-  );
-}
 
 function getBillingLabel(cycleKey: string): string {
   const [yearRaw, monthRaw] = cycleKey.split("-");
@@ -143,46 +119,11 @@ function normalizeLedgerEntryType(value: unknown): LedgerEntryType | null {
   }
 }
 
-function normalizePaymentStatus(value: unknown): PaymentStatus | null {
-  const status = String(value ?? "").trim().toUpperCase();
 
-  switch (status) {
-    case "UNPAID":
-    case "PENDING":
-    case "PAID":
-    case "FAILED":
-    case "REVERSED":
-      return status;
-    default:
-      return null;
-  }
-}
 
-function toSafeDate(value: unknown): Date | null {
-  if (!value) return null;
 
-  const date =
-    value instanceof Date ? value : new Date(value as string | number | Date);
 
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
-function getSignedImpactCents(input: {
-  entryType: LedgerEntryType;
-  amountCents: number;
-  paymentStatus: PaymentStatus | null;
-}): number {
-  const amountCents = Math.abs(toSafeInteger(input.amountCents));
-
-  if (input.entryType === "CHARGE") return amountCents;
-  if (input.entryType === "PAYMENT") {
-    return input.paymentStatus === "PAID" ? -amountCents : 0;
-  }
-  if (input.entryType === "CREDIT") return -amountCents;
-  if (input.entryType === "ADJUSTMENT") return toSafeInteger(input.amountCents);
-
-  return 0;
-}
 
 function isLateFeeChargeType(value: unknown): boolean {
   const chargeType = String(value ?? "").trim().toUpperCase();
@@ -252,90 +193,9 @@ function getLateFeesCollectedCents(input: {
   return lateFeesCollectedCents;
 }
 
-function buildLedgerSummary(input: {
-  entries: DashboardLedgerEntryRow[];
-  rentFrayStartDate: Date | null;
-}): LedgerSummary {
-  let balanceCents = 0;
-  let totalChargesCents = 0;
-  let totalCreditsCents = 0;
-  let totalPaidCents = 0;
 
-  for (const entry of input.entries) {
-    const entryType = normalizeLedgerEntryType(entry.entryType);
-    if (!entryType) continue;
 
-    if (entryType === "CHARGE" && input.rentFrayStartDate) {
-      const effectiveDate = toSafeDate(entry.effectiveDate);
 
-      if (effectiveDate && effectiveDate < input.rentFrayStartDate) {
-        continue;
-      }
-    }
-
-    const amountCents = toSafeInteger(entry.amountCents);
-    const paymentStatus = normalizePaymentStatus(entry.payment?.status);
-    const signedImpactCents = getSignedImpactCents({
-      entryType,
-      amountCents,
-      paymentStatus,
-    });
-
-    balanceCents += signedImpactCents;
-
-    if (entryType === "CHARGE") {
-      totalChargesCents += Math.abs(amountCents);
-    }
-
-    if (entryType === "CREDIT") {
-      totalCreditsCents += Math.abs(amountCents);
-    }
-
-    if (entryType === "PAYMENT" && paymentStatus === "PAID") {
-      totalPaidCents += Math.abs(amountCents);
-    }
-  }
-
-  return {
-    balanceCents,
-    totalChargesCents,
-    totalCreditsCents,
-    totalPaidCents,
-  };
-}
-
-function getCyclePaymentFlags(payments: DashboardPaymentRow[]): {
-  hasPendingPayment: boolean;
-  hasFailedPayment: boolean;
-  hasReversedPayment: boolean;
-  hasPaidPayment: boolean;
-} {
-  const statuses = payments.map((payment) =>
-    String(payment.status ?? "").toUpperCase()
-  );
-
-const hasPaidPayment = statuses.includes("PAID");
-
-const hasPendingPayment =
-  !hasPaidPayment && statuses.includes("PENDING");
-
-const hasFailedPayment =
-  !hasPaidPayment &&
-  !hasPendingPayment &&
-  statuses.includes("FAILED");
-
-const hasReversedPayment =
-  !hasPaidPayment &&
-  !hasPendingPayment &&
-  statuses.includes("REVERSED");
-
-  return {
-    hasPendingPayment,
-    hasFailedPayment,
-    hasReversedPayment,
-    hasPaidPayment,
-  };
-}
 
 type DashboardPaymentRow = {
   id: string;

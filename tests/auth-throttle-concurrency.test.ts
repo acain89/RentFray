@@ -1,65 +1,18 @@
-import * as crypto from "node:crypto";
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { load, root } from "./manual-payment-idempotency.test";
+import { root } from "./manual-payment-idempotency.fixture";
+import { throttleFixture } from "./auth-throttle-concurrency.fixture";
 
-// Isolated SQL contract model, not a substitute for PostgreSQL row-lock tests.
-export function throttleFixture() {
-  const rows = new Map<string, { attemptCount: number; windowExpiresAt: Date }>();
-  const properties = new Map<string, any>([["AAAA", { id: "A", status: "LIVE", isActive: true }], ["BBBB", { id: "B", status: "LIVE", isActive: true }]]);
-  const events: string[] = [];
-  const controls = { now: 1000000, retries: 0, error: null as any, cleanupFails: false, inTransaction: false };
-  let tail = Promise.resolve();
-  const tx: any = {
-    property: { findUnique: async ({ where }: any) => { events.push("property"); return properties.get(where.propertyCode) ?? null; } },
-    $queryRaw: async (strings: TemplateStringsArray, ...values: any[]) => {
-      const sql = strings.join("?"); events.push(sql);
-      if (sql.includes("SKIP LOCKED")) {
-        if (controls.cleanupFails) throw Error("cleanup failed");
-        return [...rows].filter(([, r]) => r.windowExpiresAt.getTime() <= controls.now)
-          .sort((a, b) => a[1].windowExpiresAt.getTime() - b[1].windowExpiresAt.getTime() || a[0].localeCompare(b[0]))
-          .slice(0, 100).map(([key]) => ({ key }));
-      }
-      if (sql.includes("FOR UPDATE")) return rows.has(values[0]) ? [{ ...rows.get(values[0]) }] : [];
-      if (sql.includes("clock_timestamp")) return [{ now: new Date(controls.now) }];
-      throw Error("Unexpected query " + sql);
-    },
-    $executeRaw: async (strings: TemplateStringsArray, ...values: any[]) => {
-      const sql = strings.join("?"); events.push(sql);
-      if (sql.includes("INSERT")) { if (!rows.has(values[0])) rows.set(values[0], { attemptCount: 0, windowExpiresAt: new Date(0) }); }
-      else if (sql.includes("DELETE")) { if (rows.get(values[0])!.windowExpiresAt.getTime() <= controls.now) rows.delete(values[0]); }
-      else if (sql.includes('"attemptCount" = 1,')) rows.set(values[1], { attemptCount: 1, windowExpiresAt: values[0] });
-      else if (sql.includes("UPDATE")) rows.get(values[0])!.attemptCount++;
-      else throw Error("Unexpected write " + sql);
-      return 1;
-    },
-  };
-  const prisma: any = { $transaction: async (fn: any, options: any) => {
-    assert.equal(options.isolationLevel, "ReadCommitted");
-    const previous = tail; let release!: () => void; tail = new Promise<void>(r => release = r); await previous;
-    const saved = new Map([...rows].map(([k, v]) => [k, { ...v }])); controls.inTransaction = true;
-    try {
-      if (controls.error) throw controls.error;
-      // Inject after a global increment to prove full rollback/retry accounting.
-      const result = await fn(tx);
-      if (!events.at(-1)?.includes("DELETE") && controls.retries > 0) { controls.retries--; throw { code: "P2010", meta: { code: "40P01" } }; }
-      return result;
-    } catch (e) { rows.clear(); saved.forEach((v, k) => rows.set(k, v)); throw e; }
-    finally { controls.inTransaction = false; release(); }
-  } };
-  const imports = { "node:crypto": crypto, "@/lib/prisma": { prisma }, "@prisma/client": { Prisma: { TransactionIsolationLevel: { ReadCommitted: "ReadCommitted" } } } };
-  const caller = () => load("lib/authThrottle.ts", imports);
-  return { rows, properties, events, controls, caller, api: caller() };
-}
 
 test("ADMIN exact limit, expiration equality, success-independent aggregate state", async () => {
   const f = throttleFixture();
   for (let i = 0; i < 10; i++) assert.equal((await f.api.admitAdminLogin()).admitted, true);
   const denied = await f.api.admitAdminLogin(); assert.equal(denied.admitted, false); assert.equal(denied.retryAfter, 300);
   assert.equal(f.rows.get("admin:global")!.attemptCount, 10);
-  f.controls.now += 299999; assert.equal((await f.api.admitAdminLogin()).retryAfter, 1);
+  f.controls.now += 299999; const nearlyExpired = await f.api.admitAdminLogin(); assert.equal(nearlyExpired.admitted, false); assert.equal(nearlyExpired.retryAfter, 1);
   f.controls.now++; assert.equal((await f.api.admitAdminLogin()).admitted, true); assert.equal(f.rows.get("admin:global")!.attemptCount, 1);
 });
 test("parallel independent ADMIN callers share first-use state and ceiling", async () => {
@@ -115,7 +68,7 @@ test("source SQL/storage contract and narrowly scoped exports", () => {
   const source = readFileSync(resolve(root, "lib/authThrottle.ts"), "utf8");
   assert.ok(source.includes("ON CONFLICT")); assert.ok(source.includes("LIMIT 100 FOR UPDATE SKIP LOCKED"));
   assert.ok(source.includes('AND "windowExpiresAt" <= clock_timestamp()'));
-  const approvedExports = ["admitAdminLogin", "admitMaintenanceLogin", "admitPasswordRecoveryRequest", "admitPasswordRecoveryRedemption"].sort();
+  const approvedExports = (["admitAdminLogin", "admitMaintenanceLogin", "admitPasswordRecoveryRequest", "admitPasswordRecoveryRedemption"] as const).slice().sort();
   assert.deepEqual(Array.from(source.matchAll(/export async function (\w+)/g), match => match[1]).sort(), approvedExports);
   const api = throttleFixture().api;
   assert.deepEqual(Object.keys(api).sort(), approvedExports);

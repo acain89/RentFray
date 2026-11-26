@@ -2,7 +2,8 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { usePropertyCode } from "@/lib/usePropertyCode";
 
 type Props = {
   propertyCode?: string;
@@ -16,27 +17,11 @@ function clean(value: string | null | undefined): string {
 
 export default function MaintenanceLoginClient({ propertyCode }: Props) {
   const [pin, setPin] = useState("");
-  const [resolvedPropertyCode, setResolvedPropertyCode] = useState("");
+  const resolvedPropertyCode = usePropertyCode(clean(propertyCode), clean);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fromProp = clean(propertyCode);
-    const fromStorage =
-      typeof window !== "undefined"
-        ? clean(window.localStorage.getItem(PROPERTY_CODE_STORAGE_KEY))
-        : "";
 
-    const finalCode = fromProp || fromStorage;
-
-    if (finalCode) {
-      setResolvedPropertyCode(finalCode);
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(PROPERTY_CODE_STORAGE_KEY, finalCode);
-      }
-    }
-  }, [propertyCode]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -1,31 +1,12 @@
+import { requiredText } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fixture, uuid, load, matches } from "./manual-payment-idempotency.test";
-import { checkoutFixture } from "./checkout-collectibility.test";
 
-export function writerFixture(role = "MANAGER") {
-  const f = fixture(role), c = checkoutFixture();
-  f.imports["@/lib/checkoutCollectibility"] = c.helper;
-  f.prisma.tenantAssignment.update = async ({ where, data }: any) => {
-    const row = f.state.tenantAssignment.find((a: any) => matches(a, where));
-    assert.ok(row); f.events.push("tenantAssignment.update"); Object.assign(row, data); return structuredClone(row);
-  };
-  const dates = load("lib/rentDates.ts", {});
-  f.imports["@/lib/rentDates"] = { ...f.imports["@/lib/rentDates"], getBusinessDate: dates.getBusinessDate, getBusinessDateInstant: dates.getBusinessDateInstant };
-  Object.assign(f.state.units[0], { portalActivated: true, tenantPinHash: "tenant-pin", portalFirstName: "Tenant" });
-  const add = (status = "open", id = "one") => { const a = c.add(status, id); f.state.payment.push(a.p); return a; };
-  const invoke = (kind: string, extra: any = {}) => {
-    if (kind === "payment") return f.pay(extra);
-    if (kind === "tier") return f.move(extra);
-    if (kind === "unlock") return f.route("app/api/admin/properties/[id]/override/route.ts").POST({ json: async () => ({ action: "UNLOCK_UNIT", unitId: "u", ...extra }) }, { params: Promise.resolve({ id: "p" }) });
-    if (kind === "vacancy") return f.route("app/api/manager/units/vacate/route.ts").POST({ json: async () => ({ unitId: "u", tenantAssignmentId: "a", ...extra }) });
-    return f.route("app/api/ledger/adjust/route.ts").POST({ json: async () => ({ unitId: "u", tenantAssignmentId: "a", type: kind === "charge" ? "CHARGE" : "CREDIT", amount: 500, ...extra }) });
-  };
-  c.control.onRetrieve = () => assert.ok(!f.events.some(e => e.includes('FOR UPDATE')), "Stripe retrieval precedes row locks");
-  return { ...f, c, add, invoke };
-}
+
+import { writerFixture } from "./checkout-writer-guards.fixture";
+
 for (const kind of ["payment", "credit", "tier", "vacancy", "unlock"]) {
   for (const state of ["open", "unresolved", "expired", "none", "unavailable"]) test(kind + " handles " + state, async () => {
     const f = writerFixture(kind === "unlock" ? "ADMIN" : "MANAGER");
@@ -36,7 +17,7 @@ for (const kind of ["payment", "credit", "tier", "vacancy", "unlock"]) {
     const allowed = state === "expired" || state === "none";
     assert.equal(response.status, allowed ? 200 : state === "unavailable" ? 503 : 409);
     if (!allowed) { assert.deepEqual(f.state, before); assert.equal(f.state.auditLog.length, 0); assert.ok(!f.events.some(e => /\.create$|\.update$|\.updateMany$/.test(e))); }
-    const message = response.body.error ?? ""; assert.ok(!message.includes("cs-one") && !message.includes("dependency offline"));
+    const message = response.body.error === undefined ? "" : requiredText(response.body.error); assert.ok(!message.includes("cs-one") && !message.includes("dependency offline"));
   });
   test(kind + " retry freshly observes expiration without tenant activity", async () => {
     const f = writerFixture(kind === "unlock" ? "ADMIN" : "MANAGER"), a = f.add();
@@ -61,7 +42,7 @@ for (const kind of ["payment", "tier"]) test(kind + " blocked UUID later commits
 test("ADMIN unlock inspects every assignment and blocks entire operation", async () => {
   const f = writerFixture("ADMIN"); f.add("expired"); f.state.tenantAssignment.push({ id: "b", propertyId: "p", unitId: "u", isCurrent: true });
   const b = f.add("open", "two"); b.p.tenantAssignmentId = b.s.metadata.tenantAssignmentId = "b";
-  assert.equal((await f.invoke("unlock")).status, 409); assert.ok(f.state.tenantAssignment.every((a: any) => a.isCurrent));
+  assert.equal((await f.invoke("unlock")).status, 409); assert.ok(f.state.tenantAssignment.every((a) => a.isCurrent));
   assert.equal(f.state.units[0].tenantPinHash, "tenant-pin"); assert.equal(f.state.auditLog.length, 0); assert.equal(f.c.calls.length, 2);
 });
 test("ADMIN unlock changed affected set fails closed", async () => {
@@ -70,7 +51,7 @@ test("ADMIN unlock changed affected set fails closed", async () => {
 });
 test("ADMIN authorization and FORCE_LIVE/repair remain outside guard", async () => {
   const denied = writerFixture(); assert.equal((await denied.invoke("unlock")).status, 401); assert.equal(denied.c.calls.length, 0);
-  const f = writerFixture("ADMIN"); f.add(); f.prisma.property.update = async ({ data }: any) => Object.assign(f.property, data);
+  const f = writerFixture("ADMIN"); f.add(); f.prisma.property.update = async ({ data }) => Object.assign(f.property, data);
   f.prisma.paymentConnectionStatus = { upsert: async () => ({ propertyId: "p", readyForLive: false }) };
   for (const action of ["FORCE_LIVE", "REPAIR_PAYMENT_STATUS"]) { assert.equal((await f.invoke("unlock", { action })).status, 200); }
   assert.equal(f.c.calls.length, 0);

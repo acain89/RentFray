@@ -181,7 +181,7 @@ export default function MobileHomeParksPage() {
               <h3 className="font-semibold">Recurring Lot Rent</h3>
               <p className="mt-2 text-slate-600">
                 Maintain recurring monthly rent instead of rebuilding each
-                resident's obligation every billing cycle.
+                resident&apos;s obligation every billing cycle.
               </p>
             </div>
 
@@ -244,7 +244,7 @@ export default function MobileHomeParksPage() {
 
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
-              Lot rent repeats according to the park's billing schedule. That
+              Lot rent repeats according to the park&apos;s billing schedule. That
               makes resident account history and recurring balances more useful
               than treating every payment as an isolated transaction.
             </p>
@@ -268,7 +268,7 @@ export default function MobileHomeParksPage() {
 
           <div className="mt-4 space-y-4 text-slate-600">
             <p>
-              A payment does not necessarily mean the resident's account is
+              A payment does not necessarily mean the resident&apos;s account is
               fully paid.
             </p>
 

@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -254,12 +256,12 @@ router.refresh();
 
             <p className="text-center text-sm text-[#64748b]">
               Already have an account?{" "}
-              <a
+              <Link
                 href="/manager/login"
                 className="font-semibold text-[#233143] underline-offset-4 hover:underline"
               >
                 Manager Login
-              </a>
+              </Link>
             </p>
           </form>
         </section>

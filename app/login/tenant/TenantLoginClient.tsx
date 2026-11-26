@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { usePropertyCode } from "@/lib/usePropertyCode";
 
 type TenantLoginClientProps = {
   propertyCode: string;
@@ -9,23 +10,13 @@ type TenantLoginClientProps = {
 export default function TenantLoginClient({
   propertyCode,
 }: TenantLoginClientProps) {
-  const [resolvedCode, setResolvedCode] = useState<string>(propertyCode);
+  const resolvedCode = usePropertyCode(propertyCode);
   const [unitNumber, setUnitNumber] = useState<string>("");
   const [pin, setPin] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (propertyCode) {
-      localStorage.setItem("rf_property_code", propertyCode);
-      setResolvedCode(propertyCode);
-    } else {
-      const stored = localStorage.getItem("rf_property_code");
-      if (stored) {
-        setResolvedCode(stored);
-      }
-    }
-  }, [propertyCode]);
+
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

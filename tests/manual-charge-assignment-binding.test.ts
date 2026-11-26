@@ -1,12 +1,13 @@
+import { requiredRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { fixture, root } from "./tenant-login-assignment-race.test";
+import { fixture, root } from "./tenant-login-assignment-race.fixture";
 
 const file = "app/api/ledger/charges/route.ts";
-const charge = (f: ReturnType<typeof fixture>, extra: any = {}) => f.invoke(file, {
+const charge = (f: ReturnType<typeof fixture>, extra: Record<string, unknown> = {}) => f.invoke(file, {
   propertyId: "p", unitId: "u", tenantAssignmentId: "a", type: "OTHER_FEE", amount: 100, effectiveDate: "2026-10-14", memo: "fee", ...extra,
 });
 for (const type of ["RENT_CHARGE", "OTHER_FEE", "LATE_FEE"]) test("exact assignment preserves manual charge " + type, async () => {
@@ -14,7 +15,7 @@ for (const type of ["RENT_CHARGE", "OTHER_FEE", "LATE_FEE"]) test("exact assignm
   const row = f.state().ledger[0]; assert.equal(row.tenantAssignmentId, "a"); assert.equal(row.billingCycle, "2026-09");
   assert.equal(row.effectiveDate.toISOString(), "2026-10-14T05:00:00.000Z"); assert.equal(row.amountCents, 10000);
   assert.equal(row.chargeType, type === "RENT_CHARGE" ? "RENT" : type); assert.equal(row.referenceNumber, "ref");
-  assert.equal(result.body.data.entry.id, row.id); assert.equal(f.state().audits[0].action, "MANUAL_CHARGE_POSTED"); assert.equal(f.realtime.length, 1);
+  assert.equal(requiredRecord(requiredRecord(result.body.data).entry).id, row.id); assert.equal(f.state().audits[0].action, "MANUAL_CHARGE_POSTED"); assert.equal(f.realtime.length, 1);
 });
 for (const value of [undefined, null, "", 1]) test("manual charge rejects absent/invalid assignment " + value, async () => {
   const f = fixture(); assert.equal((await charge(f, { tenantAssignmentId: value })).status, 400);
@@ -24,7 +25,7 @@ test("explicit null cannot be replaced by legacy alias", async () => {
   const f = fixture(); assert.equal((await charge(f, { tenantAssignmentId: null, tenantId: "a" })).status, 400); assert.equal(f.events.length, 0);
 });
 test("existing Unit Detail tenantId alias remains compatible", async () => {
-  const f = fixture(); const body: any = { propertyId: "p", unitId: "u", tenantId: "a", type: "OTHER_FEE", amount: 100, effectiveDate: "2026-10-14" };
+  const f = fixture(); const body: Record<string, unknown> = { propertyId: "p", unitId: "u", tenantId: "a", type: "OTHER_FEE", amount: 100, effectiveDate: "2026-10-14" };
   assert.equal((await f.invoke(file, body)).status, 200); assert.equal(f.state().ledger[0].tenantAssignmentId, "a");
   const source = readFileSync(resolve(root, "app/manager/units/[id]/page.tsx"), "utf8"); assert.match(source, /tenantId=\{activeAssignment\.id\}/);
 });

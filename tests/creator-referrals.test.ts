@@ -251,6 +251,7 @@ test("creator script normalizes, creates one exact-window record and rejects dup
     }
     const fakeProcess = { argv: ["node", "create-creator", "--name", "Sean Pan", "--slug", " SEANPAN "], exitCode: 0 };
     load("scripts/create-creator.ts", {
+      "./maintenance-safety": { maintenanceClient: () => new Client() },
       "@prisma/client": { PrismaClient: Client, Prisma: { PrismaClientKnownRequestError: KnownError, PrismaClientInitializationError: InitializationError } },
       "../lib/creatorSlugRules": slugRules, "../lib/creatorReferrals": referrals,
     }, { process: fakeProcess, console: { log(value: string) { output.push(value); }, error(value: string) { output.push(value); } } });

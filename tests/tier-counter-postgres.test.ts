@@ -1,9 +1,10 @@
+import { requiredRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { spawnSync } from "node:child_process";
-import { fixture, load } from "./manual-payment-idempotency.test";
-import { fixture as adminFixture, request } from "./management-role-authorization.test";
+import { fixture, load } from "./manual-payment-idempotency.fixture";
+import { fixture as adminFixture, request } from "./management-role-authorization.fixture";
 
 // Opt-in only: never use DATABASE_URL or load application environment files.
 // Prepare a fresh cluster with the existing migrations, then set this URL.
@@ -70,7 +71,7 @@ test("isolated PostgreSQL tier counter regressions", { skip: !url }, async (t) =
     await t.test("assignment failure rolls back unit movement and both counter writes", async () => {
       const { property, f, activate } = await setup();
       const unit = await db.unit.create({ data: { propertyId: property.id, tierId: property.tiers[1].id, unitNumber: "1" } });
-      f.imports["@/lib/prisma"].prisma = {
+      requiredRecord(f.imports["@/lib/prisma"]).prisma = {
         $transaction: (fn: (tx: Prisma.TransactionClient) => Promise<unknown>, options: TransactionOptions) =>
           db.$transaction(tx => fn(new Proxy(tx, { get(target, key) {
             if (key === "tenantAssignment") return { create: async () => { throw new Error("injected assignment failure"); } };
@@ -91,7 +92,7 @@ test("isolated PostgreSQL tier counter regressions", { skip: !url }, async (t) =
       const secondAttempt = new Promise<void>(resolve => { attempted = resolve; });
       const firstLock = new Promise<void>(resolve => { locked = resolve; });
       let calls = 0;
-      f.imports["@/lib/prisma"].prisma = {
+      requiredRecord(f.imports["@/lib/prisma"]).prisma = {
         $transaction: (fn: (tx: Prisma.TransactionClient) => Promise<unknown>, options: TransactionOptions) =>
           db.$transaction(tx => fn(new Proxy(tx, { get(target, key) {
             if (key === "$queryRaw") return async (sql: TemplateStringsArray, ...values: unknown[]) => {
@@ -124,7 +125,7 @@ test("isolated PostgreSQL tier counter regressions", { skip: !url }, async (t) =
         tiers: [{ name: "First", unitLabels: "a,b", baseRent: 100, dueDay: 1 }, { name: "Second", unitLabels: "c", baseRent: 200, dueDay: 1 }],
       }));
       assert.equal(result.status, 200);
-      const id = result.body.property.id as string; propertyIds.push(id);
+      const id = requiredRecord(result.body.property).id as string; propertyIds.push(id);
       const tiers = await db.propertyTier.findMany({ where: { propertyId: id }, orderBy: { name: "asc" } });
       assert.deepEqual(tiers.map(tier => [tier.unitCount, tier.activeUnitCount]), [[2, 2], [1, 1]]);
       assert.equal(await db.ledgerEntry.count({ where: { propertyId: id } }), 0);

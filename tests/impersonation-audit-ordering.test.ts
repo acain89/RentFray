@@ -1,19 +1,20 @@
+import { requiredRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { source, response, request } from "./required-audit-atomicity.test";
+import { source, response, request } from "./required-audit-atomicity.fixture";
 
 function fixture(role: string | null = "ADMIN", target = true, failAudit = false) {
-  const events: any[] = [];
+  const events: [string,...unknown[]][] = [];
   const api = source("app/api/admin/impersonate/route.ts", {
     "next/server": response,
-    "next/headers": { cookies: async () => ({ get: () => ({ value: "admin-token" }), set: (...args: any[]) => events.push(["cookie", ...args]) }) },
+    "next/headers": { cookies: async () => ({ get: () => ({ value: "admin-token" }), set: (...args: unknown[]) => events.push(["cookie", ...args]) }) },
     "@/lib/session": { SESSION_COOKIE_NAME: "rf_session", getSession: async () => role ? { role, adminAccessId: "admin" } : null,
       createManagementCredentialBinding: (id: string, hash: string) => { assert.equal(id, "user"); assert.equal(hash, "synthetic-credential"); return "b".repeat(64); },
-      createSessionToken: (claims: any) => { assert.equal(claims.role, "STAFF"); assert.equal(claims.propertyId, "p"); assert.equal(claims.managementCredentialBinding, "b".repeat(64)); return "impersonated-token"; } },
+      createSessionToken: (claims: Extract<Parameters<typeof import("../lib/session").createSessionToken>[0], {role:"OWNER"|"MANAGER"|"STAFF"}>) => { assert.equal(claims.role, "STAFF"); assert.equal(claims.propertyId, "p"); assert.equal(claims.managementCredentialBinding, "b".repeat(64)); return "impersonated-token"; } },
     "@/lib/prisma": { prisma: {
-      managementUser: { findFirst: async ({ where }: any) => { assert.equal(where.propertyId, "p"); assert.equal(where.isActive, true); return target ? { id: "user", propertyId: "p", role: "STAFF", passwordHash: "synthetic-credential" } : null; } },
+      managementUser: { findFirst: async ({ where }: {where:{propertyId:string;isActive:boolean}}) => { assert.equal(where.propertyId, "p"); assert.equal(where.isActive, true); return target ? { id: "user", propertyId: "p", role: "STAFF", passwordHash: "synthetic-credential" } : null; } },
       property: { findUnique: async () => ({ id: "p", name: "Property", propertyCode: "CODE" }) },
-      auditLog: { create: async ({ data }: any) => { if (failAudit) throw Error("audit failure"); events.push(["audit", data]); } },
+      auditLog: { create: async ({ data }: {data:Partial<import("@prisma/client").AuditLog>}) => { if (failAudit) throw Error("audit failure"); events.push(["audit", data]); } },
     } },
   });
   return { events, call: () => api.POST(request({ propertyId: "p", managementUserId: "user" })) };
@@ -24,8 +25,8 @@ test("impersonation audit failure queues neither cookie", async () => {
 test("impersonation persists audit before unchanged backup and active cookies", async () => {
   const f = fixture(); const result = await f.call(); assert.equal(result.status, 200); assert.equal(result.body.redirectTo, "/manager/dashboard");
   assert.deepEqual(f.events.map(row => row[0]), ["audit", "cookie", "cookie"]);
-  assert.equal(f.events[0][1].action, "ADMIN_IMPERSONATION_STARTED");
-  assert.equal(f.events[0][1].actorAdminId, "admin");
+  assert.equal(requiredRecord(f.events[0][1]).action, "ADMIN_IMPERSONATION_STARTED");
+  assert.equal(requiredRecord(f.events[0][1]).actorAdminId, "admin");
   assert.deepEqual(f.events.slice(1).map(row => row.slice(1, 3)), [["rf_admin_session", "admin-token"], ["rf_session", "impersonated-token"]]);
   for (const row of f.events.slice(1)) assert.deepEqual(JSON.parse(JSON.stringify(row[3])), { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: 3600 });
 });

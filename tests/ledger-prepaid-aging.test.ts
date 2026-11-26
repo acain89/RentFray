@@ -1,3 +1,5 @@
+import { isRecord, requiredDate } from "./fixture-assertions";
+import type { LedgerSummary, LedgerSummaryInput } from "../lib/ledger";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,34 +9,47 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
 const root = resolve(__dirname, "..");
-function load(file: string, imports: Record<string, unknown>, text = readFileSync(resolve(root, file), "utf8")) {
-  const module = { exports: {} as any };
+type Bucket = { effectiveDate: Date; amountCents: number };
+type ObservedSummary = LedgerSummary & { buckets: Bucket[] };
+type FinancialInput = Parameters<typeof import("../lib/unitFinancialState").getUnitFinancialState>[0];
+type Modules = {
+ "lib/rentDates.ts": typeof import("../lib/rentDates");
+ "lib/ledger.ts": { getUnitLedgerSummary(input: LedgerSummaryInput): Promise<ObservedSummary> };
+ "lib/unitStatusEngine.ts": typeof import("../lib/unitStatusEngine");
+ "lib/unitFinancialState.ts": { getUnitFinancialState(input: Omit<FinancialInput, "tier"> & { tier: Partial<NonNullable<FinancialInput["tier"]>> & { rentDueDay: number; gracePeriodDays: number } }): ReturnType<typeof import("../lib/unitFinancialState").getUnitFinancialState> };
+};
+function load<File extends keyof Modules>(file: File, imports: Record<string, unknown>, text?: string): Modules[File];
+function load(file: keyof Modules, imports: Record<string, unknown>, text = readFileSync(resolve(root, file), "utf8")): unknown {
+  const fixtureModule: { exports: unknown } = { exports: {} };
   const code = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-  runInNewContext(code, { module, exports: module.exports, Date, Intl,
+  runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports, Date, Intl,
     require(name: string) { assert.ok(name in imports, "Unexpected dependency: " + name); return imports[name]; } });
-  return module.exports;
+  assert.ok(isRecord(fixtureModule.exports)); return fixtureModule.exports;
 }
 const dates = load("lib/rentDates.ts", {});
 const instant = (day: string): Date => dates.getBusinessDateInstant(day);
 const baseline = execFileSync("git", ["--no-optional-locks", "show", "HEAD:lib/ledger.ts"], { cwd: root, encoding: "utf8", windowsHide: true });
-function row(amountCents: number, day: string, entryType = "CHARGE", extra: Record<string, unknown> = {}): any {
+type Row = { id?: string; unitId: string; tenantAssignmentId: string | null; amountCents: number; entryType: string; chargeType: string; billingCycle: string; effectiveDate: Date; createdAt: Date; voidedAt: Date | null; payment: { status: string } | null };
+type Where = { unitId: string; OR?: { tenantAssignmentId: string | null }[]; voidedAt?: null; effectiveDate?: { lte: Date } };
+type Query = { where: Where & { effectiveDate: { lte: Date } }; orderBy: { effectiveDate?: string; createdAt?: string; id?: string }[] };
+function row(amountCents: number, day: string, entryType = "CHARGE", extra: Partial<Row> = {}): Row {
   return { unitId: "u", tenantAssignmentId: "a", amountCents, entryType, chargeType: "RENT", billingCycle: day.slice(0, 7),
     effectiveDate: instant(day), createdAt: instant(day), voidedAt: null, payment: null, ...extra };
 }
-function fixture(rows: any[]) {
+function fixture(rows: Row[]) {
   const entries = rows.map((entry, i) => ({ id: String(i).padStart(3, "0"), ...entry }));
-  const queries: any[] = [];
-  const matches = (entry: any, where: any): boolean => entry.unitId === where.unitId &&
-    (!where.OR || where.OR.some((part: any) => entry.tenantAssignmentId === part.tenantAssignmentId));
+  const queries: Query[] = [];
+  const matches = (entry: Row, where: Where): boolean => entry.unitId === where.unitId &&
+    (!where.OR || where.OR.some((part) => entry.tenantAssignmentId === part.tenantAssignmentId));
   const prisma = {
-    ledgerEntry: { findMany: async (query: any) => {
+    ledgerEntry: { findMany: async (query: Query) => {
       queries.push(query);
       assert.equal(query.where.voidedAt, null);
       assert.deepEqual(JSON.parse(JSON.stringify(query.orderBy)), [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }]);
       return entries.filter(entry => matches(entry, query.where) && entry.voidedAt === null && entry.effectiveDate <= query.where.effectiveDate.lte)
         .sort((a, b) => a.effectiveDate.getTime() - b.effectiveDate.getTime() || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
     } },
-    payment: { findMany: async ({ where }: any) => entries.filter(entry => entry.payment && matches(entry, where))
+    payment: { findMany: async ({ where }: { where: Where }) => entries.filter(entry => entry.payment && matches(entry, where))
       .map(entry => ({ ...entry.payment, amountCents: Math.abs(entry.amountCents), billingCycle: entry.billingCycle })) },
   };
   const imports = { "@/lib/prisma": { prisma } };
@@ -45,16 +60,16 @@ function fixture(rows: any[]) {
   const observed = current.replace(anchor, "  return {\n    buckets: outstandingBuckets.filter(bucket => bucket.amountCents > 0),\n    balanceCents,");
   const ledger = load("lib/ledger.ts", imports, observed);
   const old = load("lib/ledger.ts", imports, baseline);
-  const input = (extra: any = {}) => ({ unitId: "u", tenantAssignmentId: "a", asOf: instant("2026-11-02"), billingCycle: "2026-11", ...extra });
-  return { queries, ledger, summary: (extra: any = {}) => ledger.getUnitLedgerSummary(input(extra)), old: (extra: any = {}) => old.getUnitLedgerSummary(input(extra)) };
+  const input = (extra: Partial<LedgerSummaryInput> = {}) => ({ unitId: "u", tenantAssignmentId: "a", asOf: instant("2026-11-02"), billingCycle: "2026-11", ...extra });
+  return { queries, ledger, summary: (extra: Partial<LedgerSummaryInput> = {}) => ledger.getUnitLedgerSummary(input(extra)), old: (extra: Partial<LedgerSummaryInput> = {}) => old.getUnitLedgerSummary(input(extra)) };
 }
-function assertBuckets(summary: any, expected: Array<[string, number]>) {
-  assert.deepEqual(Array.from(summary.buckets, (bucket: any) => [bucket.effectiveDate.toISOString(), bucket.amountCents]),
+function assertBuckets(summary: ObservedSummary, expected: Array<[string, number]>) {
+  assert.deepEqual(Array.from(summary.buckets, (bucket) => [bucket.effectiveDate.toISOString(), bucket.amountCents]),
     expected.map(([day, amount]) => [instant(day).toISOString(), amount]));
-  assert.equal(summary.buckets.reduce((sum: number, bucket: any) => sum + bucket.amountCents, 0), Math.max(0, summary.balanceCents));
+  assert.equal(summary.buckets.reduce((sum: number, bucket: Bucket) => sum + bucket.amountCents, 0), Math.max(0, summary.balanceCents));
   assert.equal(summary.oldestOutstandingDueDate?.toISOString() ?? null, expected.length ? instant(expected[0][0]).toISOString() : null);
 }
-const scenarios: Array<{ name: string; rows: any[]; balance: number; buckets: Array<[string, number]> }> = [
+const scenarios: Array<{ name: string; rows: Row[]; balance: number; buckets: Array<[string, number]> }> = [
   { name: "future CREDIT excluded", rows: [row(100000, "2026-10-01"), row(-100000, "2026-11-03", "CREDIT")], balance: 100000, buckets: [["2026-10-01", 100000]] },
   { name: "future CHARGE excluded", rows: [row(-100000, "2026-09-01", "CREDIT"), row(100000, "2026-11-03")], balance: -100000, buckets: [] },
   { name: "current partial CREDIT", rows: [row(100000, "2026-10-01"), row(-50000, "2026-10-02", "CREDIT")], balance: 50000, buckets: [["2026-10-01", 50000]] },
@@ -83,7 +98,7 @@ for (const scenario of scenarios) test(scenario.name + ": bucket invariant and a
   const f = fixture(scenario.rows); const summary = await f.summary(); const before = await f.old();
   assert.equal(summary.balanceCents, scenario.balance); assertBuckets(summary, scenario.buckets);
   for (const key of Object.keys(before).filter(key => !["priorCycleOutstandingCents", "priorCycleOutstanding", "oldestOutstandingDueDate"].includes(key))) {
-    assert.deepEqual(JSON.parse(JSON.stringify(summary[key])), JSON.parse(JSON.stringify(before[key])), key);
+    assert.deepEqual(JSON.parse(JSON.stringify(Reflect.get(summary, key))), JSON.parse(JSON.stringify(Reflect.get(before, key))), key);
   }
 });
 
@@ -117,5 +132,5 @@ test("prepaid September credit leaves November-only debt in GRACE and no false l
     rentFrayStartDate: new Date("2026-01-01T00:00:00Z"), propertySettings: null, tier: { rentDueDay: 1, gracePeriodDays: 5 } });
   assert.equal(state.ledgerBalanceCents, 100000);assert.equal(state.status.status, "GRACE");
   assert.equal(state.isDelinquent, false);assert.equal(state.isPastGracePeriod, false);assert.equal(state.isWithinGracePeriod, true);assert.equal(state.daysPastDue, 0);
-  assert.equal(state.ledgerSummary.oldestOutstandingDueDate.toISOString(), instant("2026-11-01").toISOString());
+  assert.equal(requiredDate(state.ledgerSummary.oldestOutstandingDueDate).toISOString(), instant("2026-11-01").toISOString());
 });

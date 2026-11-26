@@ -1,38 +1,44 @@
+import { requiredRecord, requiredArray, recordRows, requiredText } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { source, response, root, context } from "./required-audit-atomicity.test";
+import { source, response, root, context } from "./required-audit-atomicity.fixture";
 
 const file = "app/api/admin/properties/[id]/setup/route.ts";
 const pageFile = "app/admin/properties/[id]/setup/page.tsx";
 function fixture(role: string | null, missing = false) {
   let reads = 0, parsed = 0;
-  const record: any = { id: "p", name: "Property", propertyCode: "1234", status: "SETUP", stripeAccountId: "secret-account",
+  const record = { id: "p", name: "Property", propertyCode: "1234", status: "SETUP", stripeAccountId: "secret-account",
     rentFrayStartDate: "locked", settings: { baseRentDefault: "obsolete" }, passwordHash: "secret", tokenHash: "secret",
     units: [{ id: "u", unitNumber: "101", tierId: "t", isActive: true, portalActivated: true, tenantPinHash: "secret", pinHash: "secret" }] };
-  function project(row: any, select: any): any { const result: any = {}; for (const [key, value] of Object.entries(select)) {
-    if (value === true) result[key] = row[key]; else result[key] = row[key].map((item: any) => project(item, (value as any).select));
-  } return result; }
+  function project(row: unknown, select: unknown): Record<string, unknown> {
+    const fields = requiredRecord(row), selection = requiredRecord(select), result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(selection)) {
+      if (value === true) result[key] = fields[key];
+      else result[key] = requiredArray(fields[key]).map(item => project(item, requiredRecord(value).select));
+    }
+    return result;
+  }
   const blocked = new Proxy({}, { get() { throw Error("Unexpected database mutation/model"); } });
   const api = source(file, { "next/server": response, "@/lib/session": { getSession: async () => role ? { role } : null },
-    "@/lib/prisma": { prisma: new Proxy({ property: { findUnique: async ({ where, select }: any) => {
+    "@/lib/prisma": { prisma: new Proxy({ property: { findUnique: async ({ where, select }: { where: { id: string }; select: Record<string, unknown> & { units: { orderBy: { unitNumber: string }; select: Record<string, unknown> } } }) => {
       reads++; assert.equal(where.id, "p"); assert.ok(select); assert.equal(select.units.orderBy.unitNumber, "asc");
       assert.deepEqual(Object.keys(select).sort(), ["id", "name", "propertyCode", "status", "units"]);
       assert.deepEqual(Object.keys(select.units.select).sort(), ["id", "isActive", "portalActivated", "tierId", "unitNumber"]);
       return missing ? null : project(record, select);
-    } } }, { get(target: any, key: string) { return key === "property" ? target.property : blocked; } }) } });
+    } } }, { get(target, key) { return key === "property" ? target.property : blocked; } }) } });
   return { api, reads: () => reads, request: { json: async () => { parsed++; throw Error("Must not parse"); } }, parsed: () => parsed };
 }
-for (const role of [null, "OWNER", "MANAGER", "STAFF", "TENANT", "MAINTENANCE"]) for (const method of ["GET", "POST"]) {
+for (const role of [null, "OWNER", "MANAGER", "STAFF", "TENANT", "MAINTENANCE"]) for (const method of ["GET", "POST"] as const) {
   test("ADMIN setup " + method + " retains authorization " + role, async () => {
     const f = fixture(role); assert.equal((await f.api[method](f.request, context)).status, 401); assert.equal(f.reads(), 0); assert.equal(f.parsed(), 0);
   });
 }
 test("ADMIN setup GET uses current non-secret projection and existing envelope", async () => {
   const f = fixture("ADMIN"); const result = await f.api.GET(f.request, context); assert.equal(result.status, 200); assert.equal(result.body.ok, true);
-  assert.equal(result.body.property.propertyCode, "1234"); assert.equal(result.body.property.units[0].unitNumber, "101");
+  assert.equal(requiredRecord(result.body.property).propertyCode, "1234"); assert.equal(recordRows(requiredRecord(result.body.property).units)[0].unitNumber, "101");
   for (const secret of ["tenantPinHash", "passwordHash", "pinHash", "tokenHash", "secret-account", "baseRentDefault"])
     assert.ok(!JSON.stringify(result.body).includes(secret), secret);
   assert.equal(f.reads(), 1);
@@ -42,7 +48,7 @@ test("ADMIN setup GET preserves missing-property response", async () => {
 });
 test("ADMIN setup POST retires without parsing malformed/stale body or accessing database", async () => {
   const f = fixture("ADMIN"); const result = await f.api.POST(f.request, context);
-  assert.equal(result.status, 410); assert.match(result.body.error, /retired/i); assert.equal(f.reads(), 0); assert.equal(f.parsed(), 0);
+  assert.equal(result.status, 410); assert.match(requiredText(result.body.error), /retired/i); assert.equal(f.reads(), 0); assert.equal(f.parsed(), 0);
 });
 test("ADMIN page removes stale editors while retaining diagnostics and canonical payloads", () => {
   const now = readFileSync(resolve(root, pageFile), "utf8").replace(/\r\n/g, "\n");

@@ -24,7 +24,6 @@ function parseMoney(value: string): number | null {
 }
 
 export default function ManualPaymentForm({
-  propertyId,
   unitId,
   tenantAssignmentId,
 }: ManualPaymentFormProps) {

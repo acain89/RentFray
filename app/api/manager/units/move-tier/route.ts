@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed, lockCheckout } from "@/lib/checkoutCollectibility";
+import { CheckoutConflict, inspectTenantCheckoutAttempts, assertCheckoutReductionAllowed } from "@/lib/checkoutCollectibility";
 
 import { getSession } from "@/lib/session";
 import { emitEvent } from "@/lib/realtime";
@@ -287,10 +287,7 @@ const currentCycleRentChargeTotal = currentCycleRentCharges.reduce(
   0
 );
 
-const oldTierRentCents = Math.max(
-  0,
-  unit.tier?.baseRentCents ?? 0
-);
+
 
 const newTierRentCents = Math.max(
   0,

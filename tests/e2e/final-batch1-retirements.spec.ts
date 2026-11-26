@@ -7,17 +7,20 @@ import ts from "typescript";
 const routes = ["app/manager/maintenance/update/route.ts", "app/api/manager/retry/route.ts", "app/api/manager/remind/route.ts"];
 for (const file of routes) for (const cookie of [undefined, "malformed", "valid-session"]) {
   test(`${file}: cookie=${cookie} is a zero-access 410`, async () => {
-    const module = { exports: {} as any };
+    const fixtureModule: { exports: Partial<{ POST(request: unknown): Promise<{ status: number; body: unknown }> }> } = { exports: {} };
     const code = ts.transpileModule(readFileSync(resolve(__dirname, "../..", file), "utf8"), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
     }).outputText;
-    runInNewContext(code, { module, exports: module.exports,
+    runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports,
       console: new Proxy({}, { get() { throw Error("Unexpected logging"); } }),
       require(name: string) { if (name !== "next/server") throw Error("Unexpected dependency " + name);
-        return { NextResponse: { json: (body: any, options: any) => ({ body, status: options.status }) } }; },
+        return { NextResponse: { json: (body: unknown, options: { status?: number; headers?: HeadersInit }) => ({ body, status: options.status }) } }; },
     });
     const request = new Proxy({ cookie }, { get() { throw Error("Unexpected request/session/body access"); } });
-    const response = await module.exports.POST(request);
+    const handler = fixtureModule.exports.POST;
+    expect(handler).toBeDefined();
+    if (!handler) throw new Error("Missing retired handler");
+    const response = await handler(request);
     expect(response.status).toBe(410); expect(response.body).toEqual({ error: "This endpoint has been retired." });
   });
 }

@@ -195,7 +195,7 @@ export default function BuyHerePayHerePaymentSystemPage() {
             <div className="rounded-xl border border-slate-200 p-5">
               <h3 className="font-semibold">Installment Contracts</h3>
               <p className="mt-2 text-slate-600">
-                Maintain the terms of the customer's vehicle financing
+                Maintain the terms of the customer&apos;s vehicle financing
                 agreement.
               </p>
             </div>
@@ -344,7 +344,7 @@ export default function BuyHerePayHerePaymentSystemPage() {
                   <td className="px-3 py-3">Online payments</td>
                   <td className="px-3 py-3">May be included</td>
                   <td className="px-3 py-3">
-                    Yes, within RentFray's property-rent workflow
+                    Yes, within RentFray&apos;s property-rent workflow
                   </td>
                 </tr>
               </tbody>
@@ -428,7 +428,7 @@ export default function BuyHerePayHerePaymentSystemPage() {
               href="/free-rent-collection-software"
               className="font-semibold text-blue-600 hover:underline"
             >
-              Learn about RentFray's rent collection software →
+              Learn about RentFray&apos;s rent collection software →
             </Link>
           </div>
         </section>

@@ -8,10 +8,12 @@ import * as creatorSlugRules from "../lib/creatorSlugRules";
 // Execute the actual proxy with NextResponse and referral reads mocked. No server, database,
 // token issuance, email delivery, or external service is initialized.
 function navigate(path: string, session?: string) {
-  const module = { exports: {} as any };
+  type ProxyRequest = { nextUrl: { pathname: string; clone(): URL }; cookies: { get(name: string): { value: string } | undefined } };
+  type ProxyResult = { admitted: boolean; destination?: string; query?: string };
+  const fixtureModule: { exports: Partial<{ proxy(request: ProxyRequest): Promise<ProxyResult> }> } = { exports: {} };
   runInNewContext(ts.transpileModule(readFileSync("proxy.ts", "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
-  }).outputText, { module, exports: module.exports, require(name: string) {
+  }).outputText, { module: fixtureModule, exports: fixtureModule.exports, require(name: string) {
     if (name === "@/lib/prisma") return { prisma: { creator: { findUnique: async () => null } } };
     if (name === "@/lib/creatorSlugRules") return creatorSlugRules;
     assert.equal(name, "next/server");
@@ -21,7 +23,9 @@ function navigate(path: string, session?: string) {
     } };
   } });
   const url = new URL(path, "https://isolated.invalid");
-  return module.exports.proxy({ nextUrl: { pathname: url.pathname, clone: () => new URL(url) },
+  const proxy = fixtureModule.exports.proxy;
+  assert.ok(proxy, "The actual proxy exports its handler");
+  return proxy({ nextUrl: { pathname: url.pathname, clone: () => new URL(url) },
     cookies: { get: (name: string) => { assert.equal(name, "rf_session"); return session ? { value: session } : undefined; } } });
 }
 for (const path of ["/verify-email", "/verify-email?email=test@example.com", "/verify-email?status=invalid", "/verify-email?status=error", "/verify-email?email=test@example.com&sent=0&code=1234"]) {
