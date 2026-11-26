@@ -4,6 +4,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
+    lang: "en",
     name: "RentFray",
     short_name: "RentFray",
     description: "Simple rent collection for properties, tenants, and managers.",

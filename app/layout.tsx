@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+import { InstallApp } from "@/components/InstallApp";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-import PwaServiceWorker from "./components/PwaServiceWorker";
 import AnalyticsTags from "./components/AnalyticsTags";
 
 const geistSans = Geist({
@@ -37,6 +37,9 @@ title: "RentFray | Free Rent Collection Software",
   ],
 
   applicationName: "RentFray",
+  manifest: "/manifest.webmanifest",
+  icons: { apple: [{ url: "/icons/rentfray-icon-192.png", sizes: "192x192", type: "image/png" }] },
+  appleWebApp: { capable: true, title: "RentFray", statusBarStyle: "default" },
 
   openGraph: {
     type: "website",
@@ -106,6 +109,8 @@ const rentFraySchema = {
   ],
 } as const;
 
+export const viewport: Viewport = { themeColor: "#0f3d2e" };
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -127,8 +132,8 @@ export default function RootLayout({
   }}
 />
 
-        <PwaServiceWorker />
         {children}
+        <nav className="pwa-install-bar" aria-label="App installation"><InstallApp /></nav>
       </body>
     </html>
   );

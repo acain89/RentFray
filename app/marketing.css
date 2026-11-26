@@ -312,3 +312,12 @@
 }
 
 
+
+/* Keep the install experience and existing navigation usable on narrow phones. */
+@media (max-width: 540px) {
+  .rfm-header { height: auto; min-height: 72px; }
+  .rfm-nav { flex-wrap: wrap; justify-content: center; gap: 12px; padding-block: 12px; }
+  .rfm-nav-actions { flex-wrap: wrap; justify-content: center; gap: 8px; padding-right: 0; }
+  .rfm-nav-actions > button { min-height: 44px; }
+  .rfm-tenant-glow { width: min(420px, 100%); height: auto; aspect-ratio: 1; }
+}

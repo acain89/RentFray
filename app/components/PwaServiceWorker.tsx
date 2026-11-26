@@ -1,23 +1,7 @@
-// app/components/PwaServiceWorker.tsx
-
 "use client";
-
 import { useEffect } from "react";
-
+import { ensureAppWorker } from "@/lib/pwa";
 export default function PwaServiceWorker() {
-  useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      !("serviceWorker" in navigator) ||
-      process.env.NODE_ENV !== "production"
-    ) {
-      return;
-    }
-
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // Silent fail. PWA install should never break RentFray.
-    });
-  }, []);
-
+  useEffect(() => { if (window.isSecureContext && "serviceWorker" in navigator) void ensureAppWorker().catch(() => {}); }, []);
   return null;
 }
