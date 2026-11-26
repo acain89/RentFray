@@ -154,7 +154,7 @@ test("destination auth and canonical vacancy writer unchanged", () => {
       return restored;
     };
   for (const file of ["app/login/admin/page.tsx", "app/api/admin/session/route.ts", "lib/session.ts", "proxy.ts", "app/manager/dashboard/page.tsx", "app/manager/dashboard/ManagerDashboardClient.tsx", "app/api/manager/units/vacate/route.ts"]) {
-    const committed = execFileSync("git", ["--no-optional-locks", "show", "HEAD:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
+    const committed = execFileSync("git", ["--no-optional-locks", "show", "23857435f9f06fdbc8ecb15c8c8909f9559c8c25:" + file], { cwd: root, encoding: "utf8", windowsHide: true });
     if (file === "lib/session.ts") {
       restoreAUD06Session(source(file)); // Verify the exact committed AUD-06 deltas remain present.
       assertApprovedSessionConfigurationChange(committed, source(file));

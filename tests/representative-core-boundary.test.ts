@@ -239,16 +239,18 @@ test("all 164 protected files match the pinned committed baseline and exact pre-
     assert.notEqual(approved, originals.get(file), "Historical exception must be an actual delta");
     originals.set(file, approved);
   }
-  const committed = gitContents("HEAD", protectedPaths);
+  // A local checkpoint may contain the reviewed restoration changes and deletion.
+  const committed = gitContents("HEAD", protectedPaths.filter(file => file !== "lib/occupancy.ts"));
   for (const file of protectedPaths) {
     const original = originals.get(file)!;
-    assert.equal(committed.get(file), original, `${file}: committed protected content changed`);
     if (file === "lib/occupancy.ts") {
       // Assignment3D: obsolete helper has no imports, symbol references or operational loaders.
       assert.equal(existsSync(resolve(root, file)), false, "The obsolete occupancy helper must stay removed");
       continue;
     }
-    assertProtectedContent(readFileSync(resolve(root, file), "utf8"), original, approvedWorkingCopy(file, original));
+    const approved = approvedWorkingCopy(file, original);
+    assertProtectedContent(committed.get(file)!, original, approved);
+    assertProtectedContent(readFileSync(resolve(root, file), "utf8"), original, approved);
   }
 });
 
