@@ -1,26 +1,18 @@
+import { openPostgresFixture, postgresManifest } from "./postgres-fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import { join } from "node:path";
 import { stage3Fixture } from "./representative-stage3-fixture";
 import { representativeRequest } from "./representative-stage2-fixture";
 import { representativeExpiration } from "../lib/representativeCalendar";
 
-const fixturePath = process.env.REPRESENTATIVE_STAGE3_TEST_FIXTURE;
+const fixturePath = postgresManifest;
 test("isolated PostgreSQL representative administration", { skip: !fixturePath }, async t => {
-  const fixture = JSON.parse(readFileSync(fixturePath!, "utf8")) as { root: string; url: string };
-  const root = realpathSync(fixture.root).replaceAll("\\", "/"), target = new URL(fixture.url);
-  assert.match(root, /\/rentfray-representative-stage1-[a-f0-9]{32}$/);
-  assert.equal(target.hostname, "127.0.0.1"); assert.equal(target.port, "55447");
-  assert.equal(target.username, "representative_stage1"); assert.equal(target.pathname, "/rentfray_representative_stage3_verified");
-  const runtime = createRequire(__filename)(join(root, "generated-client")) as typeof import("@prisma/client");
-  const db = new runtime.PrismaClient({ datasources: { db: { url: fixture.url } }, log: [{ emit: "event", level: "query" }] });
-  const queries: string[] = []; db.$on("query", e => queries.push(e.query));
+  const fixture = await openPostgresFixture("representative-stage3-postgres");
+  const { db, runtime, queries } = fixture;
+
   try {
-    const [identity] = await db.$queryRaw<{ directory: string }[]>`SELECT current_setting('data_directory') AS directory`;
-    assert.equal(realpathSync(identity.directory).replaceAll("\\", "/"), root + "/data");
+
     const f = stage3Fixture(db, runtime.Prisma), a = f.admin, actor = { adminAccessId: "stage3-admin" }, run = randomUUID();
     const rep = await a.createRepresentative(actor, { displayName: "Stage Three", email: `  STAGE3-${run}@EXAMPLE.INVALID ` });
     const other = await a.createRepresentative(actor, { displayName: "Other", email: `other-${run}@example.invalid` });
@@ -202,5 +194,5 @@ test("isolated PostgreSQL representative administration", { skip: !fixturePath }
       const writes = queries.slice(queryStart).filter(q => /^\s*(INSERT INTO|UPDATE|DELETE FROM)/i.test(q));
       for (const q of writes) assert.match(q, /"(?:RepresentativePayout|AuditLog|AuthThrottleBucket)"/);
     });
-  } finally { await db.$disconnect(); }
+  } finally { await fixture.close(); }
 });

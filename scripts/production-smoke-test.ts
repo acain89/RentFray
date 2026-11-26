@@ -231,6 +231,7 @@ async function createFixture(): Promise<SmokeFixture> {
         propertyId: property.id,
         unitId: unit.id,
         label: "Water",
+        createdAt: new Date("2026-08-01T12:00:00.000Z"),
         amountCents: 2_500,
         isActive: true,
         displayOrder: 1,
@@ -340,6 +341,10 @@ async function verifyBillingReplayAndBalance(
   const { runMonthlyRentJob } = await import("../jobs/monthlyRent");
   const { getUnitLedgerSummary } = await import("../lib/ledger");
 
+  const futureFee = await prisma.unitRecurringFee.create({ data: {
+    propertyId: fixture.propertyId, unitId: fixture.unitId, label: "Future fee", amountCents: 900,
+    isActive: true, createdAt: new Date("2026-09-02T12:00:00.000Z"),
+  } });
   const replayResult = await runMonthlyRentJob(
     new Date("2026-09-01T12:00:00Z"),
     fixture.propertyId
@@ -372,6 +377,12 @@ async function verifyBillingReplayAndBalance(
     rentCharges,
     1
   );
+
+  assertEqual("Fee created after September due date is excluded", await prisma.ledgerEntry.count({
+    where: { propertyId: fixture.propertyId, unitId: fixture.unitId, billingCycle: "2026-09", memo: "Future fee", voidedAt: null },
+  }), 0);
+  // Retire only the synthetic future fee before the remaining fixed historical scenarios.
+  await prisma.unitRecurringFee.update({ where: { id: futureFee.id }, data: { isActive: false } });
 
   const recurringCharges = await prisma.ledgerEntry.count({
     where: {

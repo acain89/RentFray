@@ -1,10 +1,9 @@
+import { openPostgresFixture, postgresManifest } from "./postgres-fixture";
 import { reviewedRepresentativeTyping } from "./reviewed-application.fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { join } from "node:path";
 import { stage3Fixture } from "./representative-stage3-fixture";
 import { loadRepresentativeModule, referrals } from "./representative-fixture";
 import { representativeAgreementDates, representativeExpiration } from "../lib/representativeCalendar";
@@ -35,20 +34,14 @@ test("schema change is exactly the alias model and inverse relation", () => {
   }
 });
 
-const fixturePath = process.env.REPRESENTATIVE_ALIAS_TEST_FIXTURE;
+const fixturePath = postgresManifest;
 test("isolated PostgreSQL canonical slugs and permanent aliases", { skip: !fixturePath }, async t => {
-  const fixture = JSON.parse(readFileSync(fixturePath!, "utf8")) as { root: string; url: string };
-  const root = realpathSync(fixture.root).replaceAll("\\", "/"), target = new URL(fixture.url);
-  assert.match(root, /\/rentfray-representative-stage1-[a-f0-9]{32}$/);
-  assert.equal(target.hostname, "127.0.0.1"); assert.equal(target.port, "55447");
-  assert.equal(target.username, "representative_stage1"); assert.equal(target.pathname, "/rentfray_representative_alias_verified");
-  const runtime = createRequire(__filename)(join(root, "generated-client")) as typeof import("@prisma/client");
-  const db = new runtime.PrismaClient({ datasources: { db: { url: fixture.url } }, log: [{ emit: "event", level: "query" }] });
+  const fixture = await openPostgresFixture("representative-slugs");
+  const { db, runtime } = fixture;
   const writes: string[] = []; db.$on("query", event => { if (/^\s*(?:INSERT|UPDATE|DELETE)/i.test(event.query)) writes.push(event.query); });
+
   try {
-    const [identity] = await db.$queryRaw<{ directory: string; database: string; username: string }[]>`SELECT current_setting('data_directory') AS directory,current_database() AS database,current_user AS username`;
-    assert.equal(realpathSync(identity.directory).replaceAll("\\", "/"), root + "/data");
-    assert.equal(identity.database, target.pathname.slice(1)); assert.equal(identity.username, target.username);
+
     const { admin, reports } = stage3Fixture(db, runtime.Prisma), actor = { adminAccessId: "alias-test-admin" };
     let counter = 0;
     const create = (displayName: string) => admin.createRepresentative(actor, { displayName, email: `alias-${++counter}@example.invalid` });
@@ -145,5 +138,5 @@ test("isolated PostgreSQL canonical slugs and permanent aliases", { skip: !fixtu
       assert.equal(await db.representative.count(), count);
     });
     assert.ok(writes.every(query => !/\b(?:Payment|LedgerEntry|Property|Unit|TenantAssignment)\b/.test(query)));
-  } finally { await db.$disconnect(); }
+  } finally { await fixture.close(); }
 });

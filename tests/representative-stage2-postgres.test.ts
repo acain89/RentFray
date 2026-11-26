@@ -1,9 +1,7 @@
+import { openPostgresFixture, postgresManifest } from "./postgres-fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import { join } from "node:path";
 import bcrypt from "bcryptjs";
 import { stage2Load, representativeRequest } from "./representative-stage2-fixture";
 import { representativeAgreementDates, representativeExpiration } from "../lib/representativeCalendar";
@@ -12,19 +10,13 @@ import type * as Auth from "../lib/representativeAuth";
 import type * as Reports from "../lib/representativeReports";
 import type * as Throttle from "../lib/representativeThrottle";
 
-const fixturePath = process.env.REPRESENTATIVE_STAGE2_TEST_FIXTURE;
+const fixturePath = postgresManifest;
 test("isolated PostgreSQL representative authentication and reporting", { skip: !fixturePath }, async t => {
-  const fixture = JSON.parse(readFileSync(fixturePath!, "utf8")) as { root: string; url: string };
-  const root = realpathSync(fixture.root).replaceAll("\\", "/"), target = new URL(fixture.url);
-  assert.match(root, /\/rentfray-representative-stage1-[a-f0-9]{32}$/);
-  assert.equal(target.hostname, "127.0.0.1"); assert.equal(target.port, "55447");
-  assert.equal(target.username, "representative_stage1"); assert.equal(target.pathname, "/rentfray_representative_stage2_verified");
-  const runtime = createRequire(__filename)(join(fixture.root, "generated-client")) as typeof import("@prisma/client");
-  const db = new runtime.PrismaClient({ datasources: { db: { url: fixture.url } }, log: [{ emit: "event", level: "query" }] });
-  const queries: string[] = []; db.$on("query", event => queries.push(event.query));
+  const fixture = await openPostgresFixture("representative-stage2-postgres");
+  const { db, runtime, queries } = fixture;
+
   try {
-    const [identity] = await db.$queryRaw<{ directory: string; database: string }[]>`SELECT current_setting('data_directory') AS directory, current_database() AS database`;
-    assert.equal(realpathSync(identity.directory).replaceAll("\\", "/"), root + "/data"); assert.equal(identity.database, target.pathname.slice(1));
+
     const mocks = { "@/lib/prisma": { prisma: db }, "@prisma/client": { Prisma: runtime.Prisma },
       "next/headers": { cookies: async () => ({ get: () => undefined, set() {} }) } };
     const session = stage2Load<typeof Session>("lib/representativeSession.ts", mocks);
@@ -235,5 +227,5 @@ test("isolated PostgreSQL representative authentication and reporting", { skip: 
       assert.equal(report.history.items.length, 12); assert.equal(report.payouts.items.length, 20);
       assert.ok(queries.length - start < 25);
     });
-  } finally { await db.$disconnect(); }
+  } finally { await fixture.close(); }
 });

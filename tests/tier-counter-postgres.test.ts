@@ -1,14 +1,15 @@
+import { openPostgresFixture, postgresManifest } from "./postgres-fixture";
 import { requiredRecord } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { spawnSync } from "node:child_process";
 import { fixture, load } from "./manual-payment-idempotency.fixture";
 import { fixture as adminFixture, request } from "./management-role-authorization.fixture";
 
 // Opt-in only: never use DATABASE_URL or load application environment files.
 // Prepare a fresh cluster with the existing migrations, then set this URL.
-const url = process.env.TIER_COUNTER_TEST_DATABASE_URL;
+const url = postgresManifest;
 type TransactionOptions = {
   maxWait?: number;
   timeout?: number;
@@ -16,19 +17,10 @@ type TransactionOptions = {
 };
 
 test("isolated PostgreSQL tier counter regressions", { skip: !url }, async (t) => {
-  const target = new URL(url!);
-  assert.equal(target.hostname, "127.0.0.1");
-  assert.equal(target.port, "55439");
-  assert.equal(target.username, "tier_test");
-  assert.equal(target.pathname, "/rentfray_tier_counter_test");
-  const db = new PrismaClient({ datasources: { db: { url } }, log: [] });
+  const database = await openPostgresFixture("tier-counter-postgres");
+  const { db, manifest } = database;
   const propertyIds: string[] = [];
   try {
-    const identity = await db.$queryRaw<{ directory: string; database: string }[]>`
-      SELECT current_setting('data_directory') AS directory, current_database() AS database`;
-    assert.match(identity[0].directory.replaceAll("\\", "/"), /\/rentfray-tier-counter-test-20261023$/);
-    assert.equal(identity[0].database, "rentfray_tier_counter_test");
-
     async function setup(capacity = 4) {
       const property = await db.property.create({ data: {
         name: "Isolated tier test", propertyCode: String(7000 + propertyIds.length),
@@ -139,7 +131,7 @@ test("isolated PostgreSQL tier counter regressions", { skip: !url }, async (t) =
       await db.unit.create({ data: { propertyId: property.id, tierId: tier.id, unitNumber: "overrun" } });
       const before = await db.propertyTier.findMany({ orderBy: { id: "asc" } });
       const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/audit-tier-active-unit-counts.ts"], {
-        encoding: "utf8", env: { ...process.env, DATABASE_URL: "", AUDIT_DATABASE_URL: url }, timeout: 30000,
+        encoding: "utf8", env: { ...process.env, DATABASE_URL: "", AUDIT_DATABASE_URL: manifest.databaseUrl }, timeout: 30000,
       });
       assert.equal(result.status, 1, result.stderr);
       const report = JSON.parse(result.stdout);
@@ -150,6 +142,6 @@ test("isolated PostgreSQL tier counter regressions", { skip: !url }, async (t) =
     });
   } finally {
     for (const id of propertyIds) await db.property.delete({ where: { id } });
-    await db.$disconnect();
+    await database.close();
   }
 });

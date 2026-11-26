@@ -1,9 +1,8 @@
+import { openPostgresFixture, postgresManifest } from "./postgres-fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { stage2Load } from "./representative-stage2-fixture";
 import type * as Auth from "../lib/representativeAuth";
@@ -93,18 +92,13 @@ test("schema, migrations and manager recovery remain byte-for-byte committed con
   assert.equal(execFileSync("git", ["diff", "--name-only", "7061ea58ff31ce8a8eba6a0d3a6f66e394bd8644", "--", "prisma/migrations"], { encoding: "utf8", windowsHide: true }), "");
 });
 
-const fixturePath = process.env.REPRESENTATIVE_STAGE2_TEST_FIXTURE;
+const fixturePath = postgresManifest;
 test("isolated PostgreSQL activation and recovery preserve security", { skip: !fixturePath }, async t => {
-  const config = JSON.parse(readFileSync(fixturePath!, "utf8")) as { root: string; url: string };
-  const root = realpathSync(config.root).replaceAll("\\", "/"), target = new URL(config.url);
-  assert.match(root, /\/rentfray-representative-stage1-[a-f0-9]{32}$/);
-  assert.equal(target.hostname, "127.0.0.1"); assert.equal(target.port, "55447");
-  assert.equal(target.username, "representative_stage1"); assert.equal(target.pathname, "/rentfray_representative_stage2_verified");
-  const runtime = createRequire(__filename)(join(root, "generated-client")) as typeof import("@prisma/client");
-  const db = new runtime.PrismaClient({ datasources: { db: { url: config.url } }, log: [] });
+  const fixture = await openPostgresFixture("representative-activation");
+  const { db, runtime } = fixture;
+
   try {
-    const [identity] = await db.$queryRaw<{ directory: string }[]>`SELECT current_setting('data_directory') AS directory`;
-    assert.equal(realpathSync(identity.directory).replaceAll("\\", "/"), root + "/data");
+
     const mocks = { "@/lib/prisma": { prisma: db }, "@prisma/client": { Prisma: runtime.Prisma },
       "next/headers": { cookies: async () => ({ get: () => undefined, set() {} }) } };
     const session = stage2Load<typeof Session>("lib/representativeSession.ts", mocks);
@@ -149,5 +143,5 @@ test("isolated PostgreSQL activation and recovery preserve security", { skip: !f
       assert.ok(row.resetTokenExpiresAt!.getTime() >= before.getTime() + resetMs);
       assert.ok(row.resetTokenExpiresAt!.getTime() <= after.getTime() + resetMs);
     });
-  } finally { await db.$disconnect(); }
+  } finally { await fixture.close(); }
 });

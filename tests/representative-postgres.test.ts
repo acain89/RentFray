@@ -1,35 +1,21 @@
+import { openPostgresFixture, postgresManifest, representativeSentinels } from "./postgres-fixture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { representativeAgreementDates, representativeExpiration } from "../lib/representativeCalendar";
 import { loadRepresentativeModule, referrals } from "./representative-fixture";
 
 // Opt in with an explicit independently prepared fixture, never DATABASE_URL or .env.
-const fixturePath = process.env.REPRESENTATIVE_STAGE1_TEST_FIXTURE;
+const fixturePath = postgresManifest;
 
 test("isolated PostgreSQL representative foundation and signup", { skip: !fixturePath }, async t => {
-  const fixture = JSON.parse(readFileSync(fixturePath!, "utf8")) as { root: string; url: string };
-  const fixtureRoot = realpathSync(fixture.root).replaceAll("\\", "/");
-  assert.match(fixtureRoot, /\/rentfray-representative-stage1-[a-f0-9]{32}$/);
-  assert.equal(resolve(fixturePath!), resolve(fixture.root, "fixture.json"));
-  const url = new URL(fixture.url);
-  assert.equal(url.protocol, "postgresql:"); assert.equal(url.hostname, "127.0.0.1");
-  assert.equal(url.port, "55447"); assert.equal(url.username, "representative_stage1");
-  assert.equal(url.pathname, "/rentfray_representative_stage1_verified");
-  const runtime = createRequire(__filename)(join(fixture.root, "generated-client")) as typeof import("@prisma/client");
-  const db = new runtime.PrismaClient({ datasources: { db: { url: fixture.url } }, log: [] });
+  const fixture = await openPostgresFixture("representative-postgres");
+  const { db, runtime } = fixture;
   const runId = randomUUID();
+
   try {
-    const identity = await db.$queryRaw<{ directory: string; database: string; username: string; port: number }[]>`
-      SELECT current_setting('data_directory') AS directory, current_database() AS database,
-        current_user AS username, inet_server_port() AS port`;
-    assert.equal(realpathSync(identity[0].directory).replaceAll("\\", "/"), fixtureRoot + "/data");
-    assert.equal(identity[0].database, url.pathname.slice(1)); assert.equal(identity[0].username, url.username);
-    assert.equal(identity[0].port, Number(url.port));
+    const sentinelBefore = await representativeSentinels(db);
 
     const representative = await db.representative.create({ data: {
       email: `stage1-${runId}@example.invalid`, displayName: "Isolated representative",
@@ -259,15 +245,15 @@ test("isolated PostgreSQL representative foundation and signup", { skip: !fixtur
     });
 
     await t.test("original financial and creator sentinel rows remain unchanged", async () => {
-      const expected = JSON.parse(readFileSync(join(fixture.root, "sentinel-before.json"), "utf8")) as Record<string, string>;
+      const expected = sentinelBefore;
       for (const table of ["Property", "Unit", "Payment", "LedgerEntry", "Creator", "CreatorReferral"] as const) {
         // Table name comes only from the fixed test allowlist; ID is parameterized.
-        const rows = await db.$queryRawUnsafe<{ json: string }[]>(`SELECT row_to_json(t)::text AS json FROM "${table}" t WHERE "id" = $1`,
+        const rows = await db.$queryRaw<{ json: string }[]>(Prisma.sql`SELECT row_to_json(t)::text AS json FROM ${Prisma.raw('"' + table + '"')} t WHERE "id" = ${
           { Property: "stage1-sentinel-property", Unit: "stage1-sentinel-unit", Payment: "stage1-sentinel-payment",
-            LedgerEntry: "stage1-sentinel-ledger", Creator: "stage1-sentinel-creator", CreatorReferral: "stage1-sentinel-creator-referral" }[table]);
+            LedgerEntry: "stage1-sentinel-ledger", Creator: "stage1-sentinel-creator", CreatorReferral: "stage1-sentinel-creator-referral" }[table]}`);
         assert.equal(rows[0].json, expected[table]);
       }
     });
-  } finally { await db.$disconnect(); }
+  } finally { await fixture.close(); }
 });
 

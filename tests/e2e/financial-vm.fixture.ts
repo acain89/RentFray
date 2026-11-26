@@ -7,6 +7,7 @@ import { isRecord } from "../fixture-assertions";
 export type FinancialBody = { ok?: boolean; received?: boolean; reconciled?: boolean; error?: string; data?: { url?: string } };
 type MockReply = { status: number; body: FinancialBody };
 type JsonReply = { status: number; json(): Promise<FinancialBody> };
+type Diagnostics = (...values: unknown[]) => void;
 type Mode = "mock" | "json";
 type Environment = { NODE_ENV?: string; NEXT_PUBLIC_APP_URL?: string };
 type Reply<Kind extends Mode> = Kind extends "json" ? JsonReply : MockReply;
@@ -29,14 +30,14 @@ function financialBody(value: unknown): FinancialBody {
   // All claimed fields above are checked; no missing values are substituted.
   return value;
 }
-function load<Kind extends Mode, File extends keyof Modules<Kind>>(mode: Kind, file: File, imports: Record<string, unknown>, suffix?: string, environment?: Environment): Modules<Kind>[File];
-function load(mode: Mode, file: keyof Modules<Mode>, imports: Record<string, unknown>, suffix = "", environment: Environment = {}): unknown {
+function load<Kind extends Mode, File extends keyof Modules<Kind>>(mode: Kind, file: File, imports: Record<string, unknown>, suffix?: string, environment?: Environment, diagnostics?: Diagnostics): Modules<Kind>[File];
+function load(mode: Mode, file: keyof Modules<Mode>, imports: Record<string, unknown>, suffix = "", environment: Environment = {}, diagnostics?: Diagnostics): unknown {
  const fixtureModule: { exports: unknown } = { exports: {} };
  const code = ts.transpileModule(readFileSync(resolve(__dirname, "../..", file), "utf8") + suffix, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
  }).outputText;
  runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports, Buffer, URL, Date, Set, Map,
-  process: { env: { NODE_ENV: "production", STRIPE_SECRET_KEY: "isolated", STRIPE_WEBHOOK_SECRET: "isolated", ...environment } }, console: { log() {}, error() {} },
+  process: { env: { NODE_ENV: "production", STRIPE_SECRET_KEY: "isolated", STRIPE_WEBHOOK_SECRET: "isolated", ...environment } }, console: { log() {}, error(...values: unknown[]) { diagnostics?.(...values); } },
   require(name: string) { assert.ok(name in imports, "Unexpected import " + name); return imports[name]; },
  });
  const namespace = fixtureModule.exports; assert.ok(isRecord(namespace));
@@ -53,6 +54,6 @@ function load(mode: Mode, file: keyof Modules<Mode>, imports: Record<string, unk
  // evaluation and its dependency allowlist remain unchanged from the old harness.
  return namespace;
 }
-export function financialModule<Kind extends Mode>(mode: Kind, environment: Environment = {}) {
- return <File extends keyof Modules<Kind>>(file: File, imports: Record<string, unknown>, suffix = "") => load(mode, file, imports, suffix, environment);
+export function financialModule<Kind extends Mode>(mode: Kind, environment: Environment = {}, diagnostics?: Diagnostics) {
+ return <File extends keyof Modules<Kind>>(file: File, imports: Record<string, unknown>, suffix = "") => load(mode, file, imports, suffix, environment, diagnostics);
 }
