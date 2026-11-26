@@ -8,7 +8,7 @@ import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
 
 import "./page.css";
 
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ChargeRow = {
@@ -216,6 +216,7 @@ export default function NewPropertyPage() {
   });
 
   useEffect(() => {
+  startTransition(() => {
     try {
       const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
       if (!raw) {
@@ -261,7 +262,9 @@ export default function NewPropertyPage() {
     } finally {
       setDraftLoaded(true);
     }
-  }, []);
+
+  });
+}, []);
 
   const validation = useMemo(() => {
     const errors: Record<string, string> = {};

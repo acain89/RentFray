@@ -1,3 +1,4 @@
+import { startTransition } from "react";
 import { requiredValue, requiredRecord, requiredArray, requiredText, isElement, invokeEvent, type MockReply } from "./fixture-assertions";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -61,7 +62,8 @@ function ui(file: string, fetch: Fetch, initial: unknown[] = []) {
   const fixtureModule: { exports: Partial<{ default(props: Record<string, unknown>): unknown }> } = { exports: {} };
   const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
   const imports: Record<string, unknown> = {
-    react: {
+    "@/lib/documentNavigation": { navigateDocument: (path: string) => { window.location.href = path; } },
+    react: { startTransition,
       useState: (value: unknown) => { const index = cursor++; if (!(index in states)) states[index] = value; return [states[index], (next: unknown) => { states[index] = typeof next === "function" ? Reflect.apply(next, undefined, [states[index]]) : next; }]; },
       useSyncExternalStore: (_subscribe: unknown, snapshot: () => string) => snapshot(),
       useCallback: <Value>(fn: Value) => fn,

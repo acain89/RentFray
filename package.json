@@ -20,7 +20,7 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
-    "next": "^16.1.7",
+    "next": "16.4.6",
     "prisma": "^5.22.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -35,10 +35,10 @@
     "@types/react-dom": "^19",
     "cross-env": "^10.1.0",
     "eslint": "^9",
-    "eslint-config-next": "^16.1.7",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
-    "tsx": "^4.21.0",
+    "tsx": "4.23.15",
     "typescript": "^5.9.3"
   },
   "prisma": {

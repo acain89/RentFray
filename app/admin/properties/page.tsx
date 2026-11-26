@@ -96,11 +96,9 @@ export default function PropertiesPage() {
   }, [properties, page]);
 
   // keep page valid
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(1);
-    }
-  }, [totalPages, page]);
+  if (page > totalPages) {
+    setPage(1);
+  }
 
   // ---------------- NAV ----------------
   function handleRowClick(id: string) {

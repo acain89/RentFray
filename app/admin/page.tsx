@@ -2,7 +2,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { navigateDocument } from "@/lib/documentNavigation";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
 
@@ -63,14 +64,14 @@ const totalProperties = useMemo(
         if (!active) return;
 
         if (!res.ok) {
-          window.location.href = "/login/admin";
+          navigateDocument("/login/admin");
           return;
         }
 
         setAdminAllowed(true);
       } catch {
         if (!active) return;
-        window.location.href = "/login/admin";
+        navigateDocument("/login/admin");
         return;
       } finally {
         if (active) setAdminChecked(true);
@@ -88,7 +89,7 @@ const totalProperties = useMemo(
     let active = true;
 
     if (!adminChecked || !adminAllowed) {
-      setLoading(false);
+      startTransition(() => setLoading(false));
       return;
     }
 
@@ -129,7 +130,7 @@ const totalProperties = useMemo(
       }
     }
 
-    void load();
+    startTransition(() => { void load(); });
 
     return () => {
       active = false;
@@ -145,7 +146,7 @@ const totalProperties = useMemo(
       if (!response.ok) {
         throw new Error("Logout failed");
       }
-      window.location.href = "/";
+      navigateDocument("/");
     } catch {
       alert("Logout failed");
     }

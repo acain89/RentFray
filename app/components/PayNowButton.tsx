@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 
 type PayNowButtonProps = {
@@ -49,7 +50,7 @@ export default function PayNowButton({
       }));
 
       if (res.status === 401 || res.status === 403) {
-        window.location.href = "/property-code";
+        navigateDocument("/property-code");
         return;
       }
 

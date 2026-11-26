@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useEffect, useState } from "react";
 
 type PaymentViewStatus =
@@ -122,7 +123,7 @@ export default function TenantPaymentHistoryPage() {
         <button
           type="button"
           onClick={() => {
-            window.location.href = "/tenant/dashboard";
+            navigateDocument("/tenant/dashboard");
           }}
           className="rounded-xl border px-4 py-2 text-sm"
         >
@@ -156,7 +157,7 @@ export default function TenantPaymentHistoryPage() {
         <button
           type="button"
           onClick={() => {
-            window.location.href = "/tenant/dashboard";
+            navigateDocument("/tenant/dashboard");
           }}
           className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold"
         >

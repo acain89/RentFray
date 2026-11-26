@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 
 export default function AdminLoginPage() {
@@ -28,7 +29,7 @@ export default function AdminLoginPage() {
   return;
 }
 
-     window.location.href = "/admin";
+     navigateDocument("/admin");
     } catch {
       setError("Network error");
     } finally {

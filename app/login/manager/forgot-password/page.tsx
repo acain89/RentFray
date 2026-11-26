@@ -1,12 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [propertyCode, setPropertyCode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setPropertyCode(new URLSearchParams(window.location.search).get("code") ?? ""); }, []);
+  useEffect(() => {
+  startTransition(() => { setPropertyCode(new URLSearchParams(window.location.search).get("code") ?? "");
+  });
+}, []);
   async function submit(event: React.FormEvent) {
     event.preventDefault(); if (busy) return; setBusy(true); setMessage("");
     try {

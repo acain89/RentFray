@@ -1,3 +1,4 @@
+import { applyReviewedClientCompatibility } from "./reviewed-client-compatibility.fixture";
 import { requiredRecord, requiredText } from "./fixture-assertions";
 import { reviewedInternalLinks } from "./reviewed-application.fixture";
 import { test } from "node:test";
@@ -164,10 +165,11 @@ test("canonical provisioning, verification, compatibility and hard-start authori
     // The approved starting HEAD already contains the grace-period validation
     // changes in these protected files. Pin every byte to that approved version
     // rather than comparing them with the older pre-grace historical baseline.
+    // Permit only the separately reviewed 3O client spans; server authorities stay exact.
     if (["app/api/admin/properties/route.ts", "app/admin/properties/new/page.tsx", "app/api/admin/properties/[id]/route.ts"].includes(file)) {
       const approved = execFileSync("git", ["--no-optional-locks", "show", "34d386ff721e61acd331847c4354dd4dc7525013:" + file],
         { cwd: root, encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
-      assert.equal(after, approved, "Protected approved baseline: " + file);
+      assert.equal(after, applyReviewedClientCompatibility(file, approved), "Protected approved baseline plus exact reviewed client spans: " + file);
       continue;
     }
     // Reverse only the exact approved referral insertions; all prior authority

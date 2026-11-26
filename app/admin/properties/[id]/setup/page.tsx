@@ -5,7 +5,7 @@
 
 import { ContextFence } from "@/lib/clientRequests";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 
 type Unit = {
   id: string;
@@ -128,7 +128,7 @@ export default function PropertySetupPage({
   useEffect(() => {
     const fence = loadFence.current;
     fence.activate(propertyId);
-    if (propertyId) void load();
+    if (propertyId) startTransition(() => { void load(); });
     return () => fence.deactivate(propertyId);
   }, [propertyId, load]);
 

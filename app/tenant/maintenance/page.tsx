@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 type MaintenanceRow = {
   id: string;
@@ -71,8 +71,11 @@ export default function TenantMaintenancePage() {
   }
 
   useEffect(() => {
+  startTransition(() => {
     void load();
-  }, []);
+
+  });
+}, []);
 
   async function submitRequest(
     e: React.FormEvent<HTMLFormElement>

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 type QRData = {
   ok: true;
@@ -47,8 +47,11 @@ export default function PropertyQR() {
   }
 
   useEffect(() => {
+  startTransition(() => {
     load();
-  }, []);
+
+  });
+}, []);
 
   if (loading) {
     return <div className="p-4">Loading QR...</div>;

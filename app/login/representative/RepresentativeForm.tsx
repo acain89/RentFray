@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import Link from "next/link";
 import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import styles from "./representativeAuth.module.css";
@@ -27,7 +28,7 @@ export default function RepresentativeForm({ mode }: { mode: "login" | "request"
       const response = await fetch(endpoint, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" });
       const result = await response.json();
       if (!response.ok) { setError(typeof result.error === "string" ? result.error : "Please try again."); return; }
-      if (mode === "login") { window.location.assign("/r/portal"); return; }
+      if (mode === "login") { navigateDocument("/r/portal"); return; }
       setDone(true);
       setMessage(mode === "request" ? result.message : "Your password has been updated. Sign in with your new password.");
       if (mode === "reset") token.current = "";

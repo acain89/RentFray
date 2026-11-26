@@ -2,8 +2,9 @@
 
 import { ContextFence } from "@/lib/clientRequests";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 type MaintenanceRow = {
@@ -91,7 +92,7 @@ export default function PropertyMaintenancePage() {
   useEffect(() => {
     const fence = loadFence.current;
     fence.activate(propertyId);
-    if (propertyId) void load();
+    if (propertyId) startTransition(() => { void load(); });
     return () => fence.deactivate(propertyId);
   }, [propertyId, load]);
 
@@ -277,7 +278,7 @@ export default function PropertyMaintenancePage() {
                 <button
                   type="button"
                   onClick={() =>
-                    (window.location.href = `/manager/units/${row.unitId}`)
+                    navigateDocument(`/manager/units/${row.unitId}`)
                   }
                   className="rounded border px-3 py-2 text-sm"
                 >

@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -287,7 +288,7 @@ export default function PropertyMaintenancePage({ params }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.href = `/manager/units/${row.unitId}`;
+                    navigateDocument(`/manager/units/${row.unitId}`);
                   }}
                   className="rounded border px-3 py-2 text-sm"
                 >

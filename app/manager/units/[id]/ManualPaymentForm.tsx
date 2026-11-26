@@ -40,6 +40,7 @@ export default function ManualPaymentForm({
   const [error, setError] = useState("");
   const [remainingCredit, setRemainingCredit] = useState<number | null>(null);
   const [success, setSuccess] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -64,6 +65,7 @@ export default function ManualPaymentForm({
 
     const operation = operationRef.current ?? { operationId: crypto.randomUUID(), unitId, tenantAssignmentId, amount: parsedAmount, memo: memo.trim() || undefined, effectiveDate };
     operationRef.current = operation;
+    setPendingOperation(true);
     setLoading(true);
 
     try {
@@ -97,6 +99,7 @@ export default function ManualPaymentForm({
 
       setRemainingCredit(remaining > 0 ? remaining : null);
       operationRef.current = null;
+      setPendingOperation(false);
       setSuccess(true);
 
       // reset form
@@ -121,7 +124,7 @@ export default function ManualPaymentForm({
       <h2 className="font-semibold">Manual Payment</h2>
 
       <input
-        disabled={loading || operationRef.current !== null}
+        disabled={loading || pendingOperation}
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         type="number"
@@ -133,7 +136,7 @@ export default function ManualPaymentForm({
       />
 
       <input
-        disabled={loading || operationRef.current !== null}
+        disabled={loading || pendingOperation}
         value={effectiveDate}
         onChange={(e) => setEffectiveDate(e.target.value)}
         type="date"
@@ -142,7 +145,7 @@ export default function ManualPaymentForm({
       />
 
       <input
-        disabled={loading || operationRef.current !== null}
+        disabled={loading || pendingOperation}
         value={memo}
         onChange={(e) => setMemo(e.target.value)}
         placeholder="Memo (optional)"

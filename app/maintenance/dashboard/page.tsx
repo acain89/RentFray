@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { navigateDocument } from "@/lib/documentNavigation";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type RequestRow = {
@@ -37,9 +38,9 @@ export default function MaintenanceDashboard() {
 
   useEffect(() => {
     let active = true;
-    void loadRequests(() => active).catch(() => {
+    startTransition(() => { void loadRequests(() => active).catch(() => {
       if (active) setError("Unable to load maintenance requests. Please refresh to try again.");
-    });
+    }); });
     return () => { active = false; };
   }, [loadRequests]);
 
@@ -78,7 +79,7 @@ export default function MaintenanceDashboard() {
       const data = await response.json();
       if (!response.ok || !data?.ok) throw new Error("Logout failed");
       setRequests(null);
-      window.location.href = "/property-code";
+      navigateDocument("/property-code");
     } catch {
       setError("Unable to log out. Please try again.");
       setBusy(false);

@@ -2,6 +2,7 @@
 
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 import { usePropertyCode } from "@/lib/usePropertyCode";
 
@@ -82,7 +83,7 @@ export default function MaintenanceLoginClient({ propertyCode }: Props) {
         return;
       }
 
-      window.location.href = "/maintenance/dashboard";
+      navigateDocument("/maintenance/dashboard");
     } catch {
       setError("Login error.");
       setLoading(false);

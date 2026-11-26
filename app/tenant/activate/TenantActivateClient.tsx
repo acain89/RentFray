@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -159,7 +160,7 @@ firstName: cleanFirstName,
         return;
       }
 
-      window.location.href = "/tenant/dashboard";
+      navigateDocument("/tenant/dashboard");
     } catch {
       setError("Network error. Please try again.");
       setLoading(false);

@@ -2,6 +2,7 @@
 
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 import { usePropertyCode } from "@/lib/usePropertyCode";
 
@@ -90,7 +91,7 @@ export default function ManagerLoginClient({
   return;
 }
 
-      window.location.href = `/manager/dashboard?code=${finalPropertyCode}`;
+      navigateDocument(`/manager/dashboard?code=${finalPropertyCode}`);
     } catch {
       setError("Login error.");
       setLoading(false);

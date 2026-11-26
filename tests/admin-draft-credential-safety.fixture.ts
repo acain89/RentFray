@@ -1,3 +1,4 @@
+import { startTransition } from "react";
 import { isRecord } from "./fixture-assertions";
 import * as gracePolicy from "../lib/gracePeriod";
 
@@ -31,7 +32,7 @@ export function fixture(raw?: string) {
   let index = 0, mounted = false, unavailable = false, failWrite = false, resultOk = true;
   const imports = {
     "./page.css": {},
-    react: {
+    react: { startTransition,
       useState: (initial: unknown) => { const slot = index++; if (!(slot in states)) states[slot] = initial;
         return [states[slot], (value: unknown) => { states[slot] = typeof value === "function" ? Reflect.apply(value, undefined, [states[slot]]) : value; }]; },
       useMemo: <Value>(fn: () => Value) => fn(),

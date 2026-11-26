@@ -1,13 +1,15 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { RefreshCoordinator } from "@/lib/clientRequests";
 
 import { gracePeriodError, GRACE_PERIOD_MESSAGE } from "@/lib/gracePeriod";
 
 import { getBusinessDate } from "@/lib/rentDates";
 
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import { DocumentRedirect } from "@/components/DocumentRedirect";
 import BankPanel from "./components/BankPanel";
 import ManagerPanel from "./components/ManagerPanel";
 import InfoPanel from "./components/InfoPanel";
@@ -543,30 +545,7 @@ const searchParams = useSearchParams();
   const requestedPanel = searchParams.get("panel");
   const stripeReturn = searchParams.get("stripeReturn");
 
-useEffect(() => {
-  if (requestedPanel === "rent") {
-    setActivePanel("rent");
-    return;
-  }
 
-if (requestedPanel === "gplf") {
-  setActiveGpLfTierId("");
-  setConfiguredGpLfTierIds([]);
-  setGpLfTierDrafts({});
-  setGpLfSaveMessage("");
-  setActivePanel("gplf");
-  return;
-}
-
-  if (requestedPanel === "bank") {
-    setActivePanel("bank");
-    return;
-  }
-
-if (requestedPanel === "propertySetup") {
-  setActivePanel("propertySetup");
-}
-}, [requestedPanel]);
 
   const paymentOperations = useRef<Record<string, { operationId: string; unitId: string; tenantAssignmentId: string; amount: number; effectiveDate: string }>>({});
   const tierOperations = useRef<Record<string, { operationId: string; unitId: string; targetTierId: string; expectedSourceTierId: string | null; tenantAssignmentId: string | null }>>({});
@@ -639,6 +618,7 @@ const onboardingComplete = Boolean(
 );
 
 useEffect(() => {
+  startTransition(() => {
   if (!onboardingComplete) {
     setShowSetupSuccess(false);
     return;
@@ -647,6 +627,8 @@ useEffect(() => {
   setShowSetupSuccess(
     !data?.property?.setupCompleteAcknowledgedAt
   );
+
+  });
 }, [
   onboardingComplete,
   data?.property?.setupCompleteAcknowledgedAt,
@@ -658,6 +640,7 @@ const [configuredGpLfTierIds, setConfiguredGpLfTierIds] = useState<string[]>([])
   const [gpLfSaveMessage, setGpLfSaveMessage] = useState("");
 
 useEffect(() => {
+  startTransition(() => {
   if (!data?.tiers?.length) {
     const draft = createTierDraft("Tier 1", 0);
 
@@ -706,6 +689,8 @@ useEffect(() => {
           : "",
     }))
   );
+
+  });
 }, [data?.tiers]);
 
 function updateGpLf(
@@ -892,6 +877,9 @@ const getGpLfSettingsFromTiers = useCallback((tiers: RentTierDraft[]) => {
 const [exportType, setExportType] = useState<"balances" | "ledger" | "payments">("balances");
 const [, ] = useState("");
 const [exporting, setExporting] = useState(false);
+  const [pendingPaymentUnits, setPendingPaymentUnits] = useState<Record<string, boolean>>({});
+  const [pendingTierUnits, setPendingTierUnits] = useState<Record<string, boolean>>({});
+
 
 
 
@@ -982,7 +970,7 @@ async function logout(): Promise<void> {
       method: "DELETE",
       credentials: "include",
     });
-    window.location.href = "/";
+    navigateDocument("/");
   } catch {
     alert("Logout failed");
   }
@@ -1425,6 +1413,7 @@ async function submitMoveTier(): Promise<void> {
 
     const operation = tierOperations.current[selectedUnit.unitId] ?? { operationId: crypto.randomUUID(), unitId: selectedUnit.unitId, targetTierId: targetMoveTierId, expectedSourceTierId: selectedUnit.tierId ?? null, tenantAssignmentId: selectedUnit.tenantAssignmentId };
     tierOperations.current[selectedUnit.unitId] = operation;
+    setPendingTierUnits(current => ({ ...current, [operation.unitId]: true }));
     const res = await fetch("/api/manager/units/move-tier", {
       method: "POST",
       headers: {
@@ -1444,6 +1433,7 @@ async function submitMoveTier(): Promise<void> {
     }
 
     delete tierOperations.current[selectedUnit.unitId];
+    setPendingTierUnits(current => ({ ...current, [operation.unitId]: false }));
     await loadDashboard({ silent: true });
     await loadPropertyTiers();
 
@@ -1525,6 +1515,7 @@ async function submitMoveTier(): Promise<void> {
       if (!pending && !selectedUnit.tenantAssignmentId) { alert("No current tenant assignment."); return; }
       const operation = pending ?? { operationId: crypto.randomUUID(), unitId: selectedUnit.unitId, tenantAssignmentId: selectedUnit.tenantAssignmentId!, amount: Math.round(amount * 100) / 100, effectiveDate: (() => { const day = getBusinessDate(); return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`; })() };
       paymentOperations.current[selectedUnit.unitId] = operation;
+      setPendingPaymentUnits(current => ({ ...current, [operation.unitId]: true }));
       const response = await fetch("/api/manual-payments", {
         method: "POST",
         headers: {
@@ -1544,6 +1535,7 @@ async function submitMoveTier(): Promise<void> {
       }
 
       delete paymentOperations.current[selectedUnit.unitId];
+      setPendingPaymentUnits(current => ({ ...current, [operation.unitId]: false }));
       await loadDashboard({ silent: true });
 
       setShowManualPaymentConfirm(false);
@@ -1711,9 +1703,8 @@ window.URL.revokeObjectURL(url);
   }
 }
 
-const exportMonthOptions = getExportMonthOptions(
-  data?.property?.rentFrayStartDate
-);
+const exportMonthOptions = getExportMonthOptions(data?.property?.rentFrayStartDate);
+const defaultExportMonth = exportMonthOptions[0]?.value ?? "";
 
 
   async function createManager(): Promise<void> {
@@ -1792,7 +1783,7 @@ await loadDashboard({ silent: true });
     setChangeNewPassword("");
     setChangeConfirmPassword("");
     setShowChangeLogin(false);
-    window.location.href = "/login/manager";
+    navigateDocument("/login/manager");
   } catch {
     alert("Failed to update login");
   }
@@ -1932,6 +1923,7 @@ await loadDashboard({ silent: true });
 
  
 useEffect(() => {
+  startTransition(() => {
   if (
     activePanel === "manager" &&
     showInactiveUnits &&
@@ -1939,15 +1931,48 @@ useEffect(() => {
   ) {
     void loadInactiveUnits();
   }
+
+  });
 }, [activePanel, showInactiveUnits, sessionRole]);
 
 useEffect(() => {
+  startTransition(() => {
   const raw = data?.property?.rentFrayStartDate ?? "";
   const savedDate = raw ? raw.slice(0, 10) : "";
 
   setRentFrayStartDate(savedDate);
   setRentFrayStartDateLocked(Boolean(savedDate));
+
+  });
 }, [data]);
+
+useEffect(() => {
+  startTransition(() => {
+  if (requestedPanel === "rent") {
+    setActivePanel("rent");
+    return;
+  }
+
+if (requestedPanel === "gplf") {
+  setActiveGpLfTierId("");
+  setConfiguredGpLfTierIds([]);
+  setGpLfTierDrafts({});
+  setGpLfSaveMessage("");
+  setActivePanel("gplf");
+  return;
+}
+
+  if (requestedPanel === "bank") {
+    setActivePanel("bank");
+    return;
+  }
+
+if (requestedPanel === "propertySetup") {
+  setActivePanel("propertySetup");
+}
+
+  });
+}, [requestedPanel]);
 
 const loadInitialDashboard = useEffectEvent(() => { void loadDashboard(); });
 useEffect(() => {
@@ -1956,15 +1981,19 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  startTransition(() => {
   if (!data) return;
 
   const configuredUnitCount = Number(data.property?.unitCount ?? 0);
 
   setPendingUnitCount(configuredUnitCount);
+
+  });
 }, [data]);
 
 
 useEffect(() => {
+  startTransition(() => {
   if (activePanel !== "gplf") {
     return;
   }
@@ -1997,6 +2026,8 @@ useEffect(() => {
   } else {
     setConfiguredGpLfTierIds([]);
   }
+
+  });
 }, [
   activePanel,
   localTiers,
@@ -2005,25 +2036,34 @@ useEffect(() => {
 ]);
 
 useEffect(() => {
+  startTransition(() => {
   if (activePanel === "maint") {
     void loadMaintenanceRequests();
     void loadMaintenancePinStatus();
   }
+
+  });
 }, [activePanel]);
 
 const refreshTierCharges = useEffectEvent(() => { void loadTierCharges(); });
 useEffect(() => {
+  startTransition(() => {
   if (activePanel === "charges" || activePanel === "rent") {
     refreshTierCharges();
   }
+
+  });
 }, [activePanel, data?.property?.id]);
 
 useEffect(() => {
-  if (!exportMonthOptions.length) return;
+  startTransition(() => {
+  if (!defaultExportMonth) return;
 
   // default to most recent month
-  setExportMonth(exportMonthOptions[0].value);
-}, [exportMonthOptions]);
+  setExportMonth(defaultExportMonth);
+
+  });
+}, [defaultExportMonth, data?.property?.rentFrayStartDate]);
 
 const unitsWithStatus = useMemo<UnitWithStatus[]>(() => {
   if (!data?.units?.length) return [];
@@ -2469,7 +2509,7 @@ useEffect(() => {
     return;
   }
 
-  setShowStripeSuccess(true);
+  startTransition(() => setShowStripeSuccess(true));
 
   const timeout = window.setTimeout(() => {
     setShowStripeSuccess(false);
@@ -2537,8 +2577,7 @@ if (loading && !data) {
 }
 
 if (error === "Unauthorized") {
-  window.location.href = "/login/manager";
-  return null;
+  return <DocumentRedirect path="/login/manager" />;
 }
 
 if (error && !loading) {
@@ -2581,7 +2620,7 @@ const selectedMoveTargetIsFull =
 const canSubmitMoveTier =
   Boolean(selectedUnit) &&
   Boolean(targetMoveTierId) &&
-  (Boolean(selectedUnit && tierOperations.current[selectedUnit.unitId]) ||
+  (Boolean(selectedUnit && pendingTierUnits[selectedUnit.unitId]) ||
     (!selectedMoveTargetIsFull && selectedUnit?.paymentStatus !== "PENDING")) &&
   !movingTier;
 
@@ -3115,7 +3154,7 @@ const canSubmitMoveTier =
           Target tier
         </label>
         <select
-          disabled={movingTier || Boolean(tierOperations.current[selectedUnit.unitId])}
+          disabled={movingTier || Boolean(pendingTierUnits[selectedUnit.unitId])}
           value={targetMoveTierId}
           onChange={(event) => {
             setTargetMoveTierId(event.target.value);
@@ -3286,7 +3325,7 @@ const canSubmitMoveTier =
                 type="number"
                 min="0.01"
                 step="0.01"
-                disabled={submittingManualPayment || Boolean(paymentOperations.current[selectedUnit.unitId])}
+                disabled={submittingManualPayment || Boolean(pendingPaymentUnits[selectedUnit.unitId])}
                 value={manualPaymentAmount}
                 onChange={(e) => setManualPaymentAmount(e.target.value)}
                 className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"

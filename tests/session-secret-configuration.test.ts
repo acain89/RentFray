@@ -16,7 +16,7 @@ function sourceModule<T>(source: string, imports: Record<string, unknown>, env: 
   const holder = { exports: {} };
   runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true,
-  } }).outputText, { module: holder, exports: holder.exports, Buffer, Date,
+  } }).outputText, { module: holder, exports: holder.exports, Buffer, Date, performance,
     process: { env }, require(name: string) {
       assert.ok(name in imports, "Unexpected isolated dependency: " + name); return imports[name];
     } });
@@ -150,6 +150,8 @@ test("installed Next registration awaits hook, propagates rejection and skips pr
   const installed = readFileSync(resolve(root, "node_modules/next/dist/server/lib/router-utils/instrumentation-globals.external.js"), "utf8");
   async function run(phase: string | undefined, secret: unknown) {
     let calls = 0;
+    const spans: string[] = [];
+    const exceptions: unknown[] = [];
     const register = instrumentation({ NEXT_RUNTIME: "nodejs" }, fixture(secret).session).register;
     const next = sourceModule<{ ensureInstrumentationRegistered(dir: string, dist: string): Promise<void> }>(installed, {
       "node:path": { default: { join: () => "isolated-instrumentation" }, __esModule: true },
@@ -157,11 +159,26 @@ test("installed Next registration awaits hook, propagates rejection and skips pr
       "../../../lib/constants": { INSTRUMENTATION_HOOK_FILENAME: "instrumentation" },
       "../../../lib/interop-default": { interopDefault: (value: unknown) => value },
       "./instrumentation-node-extensions": { afterRegistration() {} },
+      "../trace/constants": { InstrumentationSpan: { loadModule: "load", register: "register" } },
+      "../trace/tracer": {
+        SpanStatusCode: { ERROR: 2 },
+        getTracer: () => ({ trace(type: string, options: { spanName: string; startTime: number; endTime: number },
+          callback: (span: { recordException(error: unknown): void; setAttribute(name: string, value: unknown): void; setStatus(status: { code: number }): void }) => unknown) {
+          assert.ok(type === "load" || type === "register");
+          assert.ok(options.endTime >= options.startTime);
+          spans.push(options.spanName);
+          return callback({ recordException(error) { exceptions.push(error); },
+            setAttribute(name) { assert.equal(name, "error.type"); },
+            setStatus(status) { assert.equal(status.code, 2); } });
+        } }),
+      },
       "isolated-instrumentation": { register: async () => { calls++; await register(); } },
     }, { NEXT_PHASE: phase });
     if (phase === "phase-production-build") { await next.ensureInstrumentationRegistered("isolated", ".next"); assert.equal(calls, 0); }
     else if (secret === undefined) { await assert.rejects(next.ensureInstrumentationRegistered("isolated", ".next"), /configuration/i); assert.equal(calls, 1); }
     else { await next.ensureInstrumentationRegistered("isolated", ".next"); assert.equal(calls, 1); }
+    assert.deepEqual(spans, phase === "phase-production-build" ? [] : ["load instrumentation module", "register instrumentation"]);
+    assert.equal(exceptions.length, phase !== "phase-production-build" && secret === undefined ? 1 : 0);
   }
   await run("phase-production-build", undefined); await run(undefined, undefined); await run(undefined, key);
   const server = readFileSync(resolve(root, "node_modules/next/dist/server/next-server.js"), "utf8");

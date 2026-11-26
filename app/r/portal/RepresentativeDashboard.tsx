@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 import Link from "next/link";
 import type { RepresentativeDashboard as Report, RepresentativeReportOptions } from "@/lib/representativeReports";
@@ -19,7 +20,7 @@ export default function RepresentativeDashboard({ initial }: { initial: Report }
       const query = new URLSearchParams();
       for (const [key, value] of Object.entries(next)) if (value) query.set(key, value);
       const response = await fetch(`/api/representative/dashboard?${query}`, { credentials: "same-origin", cache: "no-store" });
-      if (response.status === 401) { window.location.assign("/login/representative"); return false; }
+      if (response.status === 401) { navigateDocument("/login/representative"); return false; }
       if (!response.ok) throw new Error();
       setReport(await response.json()); setParams(next); return true;
     } catch { setError("Your report couldn’t be loaded. Please try again."); return false; } finally { setBusy(false); }
@@ -37,7 +38,7 @@ export default function RepresentativeDashboard({ initial }: { initial: Report }
     try {
       const response = await fetch("/api/representative/logout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" });
       if (!response.ok) throw new Error();
-      window.location.assign("/login/representative");
+      navigateDocument("/login/representative");
     } catch { setError("We couldn’t sign you out. Please try again."); setBusy(false); }
   }
   const pager = (kind: "business" | "payout" | "month", hasBack: boolean, hasNext: boolean) => <div className={styles.pager}>

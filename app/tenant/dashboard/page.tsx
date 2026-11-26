@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PayNowButton from "@/app/components/PayNowButton";
@@ -321,7 +322,7 @@ export default function TenantDashboard() {
       if (!response.ok) {
         throw new Error("Logout failed");
       }
-      window.location.href = "/";
+      navigateDocument("/");
     } catch {
       alert("Logout failed");
     }

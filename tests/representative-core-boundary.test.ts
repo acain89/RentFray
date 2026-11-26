@@ -1,3 +1,4 @@
+import { applyReviewedClientCompatibility } from "./reviewed-client-compatibility.fixture";
 import ts from "typescript";
 import { reviewedApplicationSource, reviewedCreatorEntry } from "./reviewed-application.fixture";
 import { test } from "node:test";
@@ -249,7 +250,10 @@ test("all 164 protected files match the pinned committed baseline and exact pre-
       continue;
     }
     const approved = approvedWorkingCopy(file, original);
-    assertProtectedContent(committed.get(file)!, original, approved);
+    const committedSource = committed.get(file)!;
+    const compatibleCommitted = normalizeLineEndings(committedSource) === normalizeLineEndings(approved ?? original)
+      ? committedSource : applyReviewedClientCompatibility(file, committedSource);
+    assertProtectedContent(compatibleCommitted, original, approved);
     assertProtectedContent(readFileSync(resolve(root, file), "utf8"), original, approved);
   }
 });

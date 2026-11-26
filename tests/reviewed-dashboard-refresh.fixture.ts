@@ -1,3 +1,4 @@
+import { applyReviewedClientCompatibility } from "./reviewed-client-compatibility.fixture";
 import assert from "node:assert/strict";
 // Reviewed read-refresh coordination and hook dependencies only. Unused, uncalled local helpers and state bindings are also removed. Financial writers
 // remain outside these exact spans. The unchanged remainder is still byte-compared.
@@ -89,5 +90,5 @@ export function reviewedDashboardRefresh(source: string): string {
     assert.equal(result.split(delta.before).length, 2, "Exactly one reviewed dashboard refresh span");
     result = result.replace(delta.before, delta.after);
   }
-  return result;
+  return applyReviewedClientCompatibility("app/manager/dashboard/ManagerDashboardClient.tsx", result);
 }

@@ -1,3 +1,5 @@
+import { applyReviewedClientCompatibility } from "./reviewed-client-compatibility.fixture";
+import { startTransition } from "react";
 import { isElement, isRecord } from "./fixture-assertions";
 import { reviewedDashboardRefresh } from "./reviewed-dashboard-refresh.fixture";
 import { assertApprovedSessionConfigurationChange } from "./management-credential-revocation.fixture";
@@ -16,7 +18,8 @@ for (const result of ["rejected", "error", "valid"]) test("ADMIN recovery: " + r
   const window = { location: { href: "" } };
   const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
   const imports = {
-    react: { useState: (value: unknown) => [value, () => {}], useMemo: <Value>(fn: () => Value) => fn(), useCallback: <Value>(fn: Value) => fn, useEffect: (fn: () => void) => effects.push(fn) },
+    "@/lib/documentNavigation": { navigateDocument: (path: string) => { window.location.href = path; } },
+    react: { startTransition, useState: (value: unknown) => [value, () => {}], useMemo: <Value>(fn: () => Value) => fn(), useCallback: <Value>(fn: Value) => fn, useEffect: (fn: () => void) => effects.push(fn) },
     "next/link": () => null, "./page.module.css": {}, "react/jsx-runtime": { jsx, jsxs: jsx },
   };
   const fixtureModule: { exports: unknown } = { exports: {} };
@@ -159,6 +162,6 @@ test("destination auth and canonical vacancy writer unchanged", () => {
       restoreAUD06Session(source(file)); // Verify the exact committed AUD-06 deltas remain present.
       assertApprovedSessionConfigurationChange(committed, source(file));
     }
-    else assert.equal(source(file).replace(/\r\n/g, "\n"), file === "app/manager/dashboard/ManagerDashboardClient.tsx" ? reviewedDashboardRefresh(committed.replace(/\r\n/g, "\n")) : committed.replace(/\r\n/g, "\n"), file);
+    else assert.equal(source(file).replace(/\r\n/g, "\n"), file === "app/manager/dashboard/ManagerDashboardClient.tsx" ? reviewedDashboardRefresh(committed.replace(/\r\n/g, "\n")) : applyReviewedClientCompatibility(file, committed.replace(/\r\n/g, "\n")), file);
   }
 });

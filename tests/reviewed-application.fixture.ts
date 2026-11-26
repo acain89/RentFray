@@ -1,3 +1,4 @@
+import { applyReviewedClientCompatibility } from "./reviewed-client-compatibility.fixture";
 import { reviewedUnusedDeclarations } from "./reviewed-unused-declarations.fixture";
 import { reviewedLintImports } from "./reviewed-lint-imports.fixture";
 import assert from "node:assert/strict";
@@ -14,9 +15,10 @@ export function reviewedApplicationSource(file: string, originalSource: string):
   if (file === "app/api/auth/verify-email/route.ts") return replaceOnce(original, "      return current;", verifiedEmailNarrowing);
   if (file === "app/api/maintenance/dashboard/route.ts") return replaceOnce(original, "requests.map((row: any) =>", "requests.map((row) =>");
   const copyOnly = reviewedJsxCopy(file, original);
-  if (copyOnly !== original) return copyOnly;
+  if (copyOnly !== original) return applyReviewedClientCompatibility(file, copyOnly);
   const importsOnly = reviewedLintImports(file, original);
-  return importsOnly === originalSource ? undefined : importsOnly;
+  const compatible = applyReviewedClientCompatibility(file, importsOnly);
+  return compatible === originalSource ? undefined : compatible;
 }
 export function restoreVerifiedEmailNarrowing(source: string): string {
   return replaceOnce(source, verifiedEmailNarrowing, "      return current;");

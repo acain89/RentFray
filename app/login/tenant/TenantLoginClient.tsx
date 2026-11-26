@@ -1,5 +1,6 @@
 "use client";
 
+import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 import { usePropertyCode } from "@/lib/usePropertyCode";
 
@@ -62,7 +63,7 @@ export default function TenantLoginClient({
         return;
       }
 
-      window.location.href = `/tenant/dashboard?code=${resolvedCode}`;
+      navigateDocument(`/tenant/dashboard?code=${resolvedCode}`);
     } catch {
       setError("Login error.");
       setLoading(false);

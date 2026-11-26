@@ -16,6 +16,7 @@ export function stage2Load<T>(file: string, mocks: Record<string, unknown> = {},
     process: { env }, console: { error() {} }, ...extras,
     require(name: string) {
       if (name in mocks) return mocks[name];
+      if (name === "@/lib/documentNavigation") return { navigateDocument() { assert.fail("Unexpected document navigation; supply an explicit mock"); } };
       if (name === "node:crypto") return crypto;
       if (name === "bcryptjs") return bcrypt;
       if (name === "@prisma/client") return { Prisma };

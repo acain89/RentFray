@@ -1,4 +1,5 @@
 "use client";
+import { navigateDocument } from "@/lib/documentNavigation";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import type { RepresentativeAdminDetail, RepresentativeAdminList } from "@/lib/representativeAdmin";
@@ -16,7 +17,7 @@ export default function RepresentativeAdminClient({ representativeId }: { repres
   async function read(next: Params) {
     const query = new URLSearchParams(); for (const [key, value] of Object.entries(next)) if (value) query.set(key, value);
     const response = await fetch(`${base}?${query}`, { credentials: "same-origin", cache: "no-store" });
-    if (response.status === 401 || response.status === 403) { window.location.assign("/login/admin"); throw new Error("Administrator access required."); }
+    if (response.status === 401 || response.status === 403) { navigateDocument("/login/admin"); throw new Error("Administrator access required."); }
     const data = await response.json();
     if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Please try again.");
     return data;

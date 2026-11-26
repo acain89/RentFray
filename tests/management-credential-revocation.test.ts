@@ -75,7 +75,7 @@ test("self-change clears cookies, revokes old session and allows only the new cr
   assert.equal((await login.POST(request({ email: "new@isolated.invalid", password: "old-password" }))).status, 401);
   assert.equal((await login.POST(request({ email: "new@isolated.invalid", password: "new-password" }))).status, 200);
   assert.ok(await f.session.getSession());
-  assert.match(readFileSync("app/manager/dashboard/ManagerDashboardClient.tsx", "utf8"), /setShowChangeLogin\(false\);\s*window\.location\.href = "\/login\/manager"/);
+  assert.match(readFileSync("app/manager/dashboard/ManagerDashboardClient.tsx", "utf8"), /setShowChangeLogin\(false\);\s*navigateDocument\("\/login\/manager"\)/);
 });
 test("unchanged ADMIN reset revokes target credential and keeps audit atomic", async () => {
   const f = bound(); const r = routeFixture("ADMIN");
