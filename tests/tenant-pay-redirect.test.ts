@@ -53,6 +53,7 @@ function paymentButton(status = 200, disabled = false) {
   }).outputText, {
     module: fixture, exports: fixture.exports,
     require(name: string): unknown {
+      if (name === "@/lib/pwaPaymentInteraction") return { beginPaymentInteraction: () => () => {} };
       if (name === "@/lib/documentNavigation") return { navigateDocument: (path: string) => { location.href = path; } };
       if (name === "react") return { useState: () => [false, () => {}] };
       assert.equal(name, "react/jsx-runtime");

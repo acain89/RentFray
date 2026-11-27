@@ -123,7 +123,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isPublicRoute(pathname)) {
+  if (pathname === "/install" || isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 

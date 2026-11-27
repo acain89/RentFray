@@ -1,9 +1,10 @@
+import { InstallInstructions } from "@/components/InstallInstructions";
 
 import Link from "next/link";
 export default function InstallPage() {
   return (
     <main className="min-h-screen bg-[#dfe7ee] px-5 py-10 text-[#0f172a]">
-      <section className="mx-auto max-w-xl rounded-[32px] border border-[#d7e3ec] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+      <InstallInstructions><section className="mx-auto max-w-xl rounded-[32px] border border-[#d7e3ec] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
         <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#64748b]">
           RentFray App
         </div>
@@ -35,7 +36,7 @@ export default function InstallPage() {
         >
           Back to RentFray
         </Link>
-      </section>
+      </section></InstallInstructions>
     </main>
   );
 }

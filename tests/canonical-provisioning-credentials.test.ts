@@ -1,3 +1,4 @@
+import { restoreReviewedPwaVisibility } from "./reviewed-pwa-visibility.fixture";
 import { applyReviewedClientCompatibility } from "./reviewed-client-compatibility.fixture";
 import { requiredRecord, requiredText } from "./fixture-assertions";
 import { reviewedInternalLinks } from "./reviewed-application.fixture";
@@ -229,6 +230,7 @@ test("canonical provisioning, verification, compatibility and hard-start authori
       after = after.replace('const response = NextResponse.json({', 'return NextResponse.json({');
     }
     if (file === "proxy.ts") {
+      after = restoreReviewedPwaVisibility(file, after);
       // 4107472 admits only the two static public legal documents.
       removeOnce('  "/terms",\n  "/privacy",\n');
       removeOnce('  // The representative portal validates its own dedicated session server-side.\n' +

@@ -82,3 +82,10 @@ test("legal entries occur once and documents require no private data", () => {
     assert.doesNotMatch(readFileSync(file, "utf8"), /getSession|requireSession|prisma\.|cookies\(|fetch\(/);
   }
 });
+
+for (const path of ["/install", "/install?source=footer"]) test(`exact installation guide is public: ${path}`, async () => {
+  assert.equal((await navigate(path)).admitted, true);
+});
+for (const path of ["/install/", "/install/private", "/install-admin", "/installation"]) test(`installation lookalike remains protected: ${path}`, async () => {
+  assert.equal((await navigate(path)).admitted, false);
+});

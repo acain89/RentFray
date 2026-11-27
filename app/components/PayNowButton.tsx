@@ -1,5 +1,6 @@
 "use client";
 
+import { beginPaymentInteraction } from "@/lib/pwaPaymentInteraction";
 import { navigateDocument } from "@/lib/documentNavigation";
 import { useState } from "react";
 
@@ -27,6 +28,8 @@ export default function PayNowButton({
       return;
     }
 
+    const finishInstallationSuppression = beginPaymentInteraction();
+    let installationDeparture = false;
     try {
       setLoading(true);
 
@@ -51,11 +54,13 @@ export default function PayNowButton({
 
       if (res.status === 401 || res.status === 403) {
         navigateDocument("/property-code");
+        installationDeparture = true;
         return;
       }
 
       if (data.ok === true && data.data?.url) {
         window.location.href = data.data.url;
+        installationDeparture = true;
         return;
       }
 
@@ -63,6 +68,7 @@ export default function PayNowButton({
     } catch {
       alert("Payment could not be started.");
     } finally {
+      if (!installationDeparture) finishInstallationSuppression();
       setLoading(false);
     }
   }

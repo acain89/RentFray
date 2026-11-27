@@ -1,3 +1,4 @@
+import { applyReviewedPwaVisibility } from "./reviewed-pwa-visibility.fixture";
 import assert from "node:assert/strict";
 
 // Assignment 3O: reviewed client-only transitions, full-document navigation,
@@ -338,7 +339,7 @@ export function applyReviewedClientCompatibility(file: string, source: string): 
     assert.equal(result.split(delta.before).length, 2, "Exactly one reviewed 3O client span: " + file);
     result = result.replace(delta.before, delta.after);
   }
-  return result;
+  return applyReviewedPwaVisibility(file, result);
 }
 
 export const reviewedClientFiles = Object.keys(deltas);
